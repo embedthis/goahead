@@ -12,6 +12,11 @@
 #include    "me.h"
 #include    "osdep.h"
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #if (ME_COM_EST + ME_COM_MATRIXSSL + ME_COM_NANOSSL + ME_COM_OPENSSL) > 1
     #error "Cannot have more than one SSL provider configured"
 #endif
@@ -1745,6 +1750,12 @@ typedef void (*WebsAction)(Webs *wp);
 #endif
 
 /**
+    websDefineAction function type
+*/
+typedef void (WebsActionFunction)(Webs *wp);
+
+
+/**
     Error code list
     @ingroup Webs
  */
@@ -2432,7 +2443,7 @@ PUBLIC void websPump(Webs *wp);
     @return Zero if successful, otherwise -1.
     @ingroup Webs
  */
-PUBLIC int websDefineAction(char *name, void *fun);
+PUBLIC int websDefineAction(char *name, WebsActionFunction fun);
 
 /**
     Read data from an open file
