@@ -1750,12 +1750,6 @@ typedef void (*WebsAction)(Webs *wp);
 #endif
 
 /**
-    websDefineAction function type
-*/
-typedef void (WebsActionFunction)(Webs *wp);
-
-
-/**
     Error code list
     @ingroup Webs
  */
@@ -2443,7 +2437,7 @@ PUBLIC void websPump(Webs *wp);
     @return Zero if successful, otherwise -1.
     @ingroup Webs
  */
-PUBLIC int websDefineAction(char *name, WebsActionFunction fun);
+PUBLIC int websDefineAction(char *name, void *fun);
 
 /**
     Read data from an open file

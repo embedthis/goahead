@@ -66,7 +66,7 @@ static bool actionHandler(Webs *wp)
 /*
     Define a function in the "action" map space
  */
-PUBLIC int websDefineAction(char *name, WebsActionFunction *fn)
+PUBLIC int websDefineAction(char *name, void *fn)
 {
     assert(name && *name);
     assert(fn);
