@@ -1900,6 +1900,7 @@ typedef struct Webs {
     char            *authResponse;      /**< Outgoing auth header */
     char            *authType;          /**< Authorization type (Basic/DAA) */
     char            *contentType;       /**< Body content type */
+    char            *contentRange;      /**< Request content range */
     char            *cookie;            /**< Request cookie string */
     char            *decodedQuery;      /**< Decoded request query */
     char            *digest;            /**< Password digest */
@@ -1919,6 +1920,9 @@ typedef struct Webs {
     char            *url;               /**< Full request url. This is not decoded. */
     char            *userAgent;         /**< User agent (browser) */
     char            *username;          /**< Authorization username */
+    int             range_totle;        /**< Request content range point*/
+    int             range_begin;        /**< Request content range start*/
+    int             range_length;       /**< Request content range Lengh*/
     int             sid;                /**< Socket id (handler) */
     int             listenSid;          /**< Listen Socket id */
     int             port;               /**< Request port number */

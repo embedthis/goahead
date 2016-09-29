@@ -116,6 +116,7 @@ static WebsMime websMimeList[] = {
     { "application/x-troff-ms", ".ms" },
     { "application/x-ustar", ".ustar" },
     { "application/x-wais-source", ".src" },
+    { "application/x-mpegurl", ".m3u8" },
     { "application/zip", ".zip" },
     { "audio/basic", ".au snd" },
     { "audio/x-aiff", ".aif" },
@@ -151,6 +152,7 @@ static WebsMime websMimeList[] = {
     { "video/mp4", ".mp4" },
     { "video/x-msvideo", ".avi" },
     { "video/x-sgi-movie", ".movie" },
+    { "video/mp2t", ".ts" },
     { NULL, NULL},
 };
 
@@ -375,6 +377,8 @@ static void initWebs(Webs *wp, int flags, int reuse)
     wp->sid = sid;
     wp->timeout = timeout;
     wp->docfd = -1;
+    wp->range_begin = -1;
+    wp->range_length = -1;
     wp->txLen = -1;
     wp->rxLen = -1;
     wp->code = HTTP_CODE_OK;
@@ -462,6 +466,7 @@ static void termWebs(Webs *wp, int reuse)
     wfree(wp->authResponse);
     wfree(wp->authType);
     wfree(wp->contentType);
+    wfree(wp->contentRange);
     wfree(wp->cookie);
     wfree(wp->decodedQuery);
     wfree(wp->digest);
@@ -1009,6 +1014,21 @@ static void parseFirstLine(Webs *wp)
 
 
 /*
+    if s == null return 0
+ */
+static int _atoi(const char *s)
+{
+    int value = 0;
+    while(s && *s>='0' && *s<='9')
+    {
+        value *= 10;
+        value += *s - '0';
+        s++;
+    }
+    return value;
+}
+
+/*
     Parse a full request
  */
 static void parseHeaders(Webs *wp)
@@ -1077,6 +1097,41 @@ static void parseHeaders(Webs *wp)
             wp->authDetails = sclone(tok);
             slower(wp->authType);
 
+        } else if( (scaselesscmp(key, "content-range") == 0)|| (scaselesscmp(key, "range") == 0)) {
+            int end;
+            wp->contentRange = sclone(value);
+            {
+                char str_begin[16]="";
+                char str_end[16]="";
+                char *p;
+                int i;
+                p=wp->contentRange;
+                while(*p++){
+                    if(*p=='='){
+                        i=0;
+                        while(*(++p)){
+                            if(*p=='-'){
+                                str_begin[i]='\0';
+                                break;
+                            }
+                            str_begin[i++]=*p;
+                        }
+                        i=0;
+                        while(*(++p)){
+                            if(*p=='\0'){
+                                str_end[i]='\0';
+                                break;
+                            }
+                            str_end[i++]=*p;
+                        }
+                    }
+                }
+                wp->range_begin=_atoi(str_begin);
+                end=_atoi(str_end);
+                if(end){
+                    wp->range_length=end-wp->range_begin+1;
+                }
+            }
         } else if (strcmp(key, "connection") == 0) {
             slower(value);
             if (strcmp(value, "keep-alive") == 0) {
@@ -1849,6 +1904,7 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, char *location)
         if (wp->txLen < 0) {
             websWriteHeader(wp, "Transfer-Encoding", "chunked");
         }
+        websWriteHeader(wp, "Accept-Ranges", "bytes");
         if (wp->flags & WEBS_KEEP_ALIVE) {
             websWriteHeader(wp, "Connection", "keep-alive");
         } else {

@@ -75,12 +75,28 @@ static bool fileHandler(Webs *wp)
             return 1;
         }
         code = 200;
+        if(wp->range_length<0){
+            if(wp->range_begin >0){
+                wp->range_length=info.size - wp->range_begin;
+            }else{
+                wp->range_length=info.size;
+            }
+        }
+        if(wp->range_length<info.size){
+            code = 206;
+        }
         if (wp->since && info.mtime <= wp->since) {
             code = 304;
             info.size = 0;
         }
         websSetStatus(wp, code);
-        websWriteHeaders(wp, info.size, 0);
+        websWriteHeaders(wp, wp->range_length, 0);
+        if(code == 206) {
+            char temp[32]="bytes=0-";
+            if(wp->contentRange!=NULL)
+                sprintf(temp,"%s",wp->contentRange);
+            websWriteHeader(wp, "Content-Range", "bytes %s/%d", &temp[6],info.size);
+        }
         if ((date = websGetDateString(&info)) != NULL) {
             websWriteHeader(wp, "Last-Modified", "%s", date);
             wfree(date);
@@ -94,7 +110,10 @@ static bool fileHandler(Webs *wp)
             websDone(wp);
             return 1;
         }
-        if (info.size > 0) {
+        if ((info.size > 0)&&(wp->range_length>0)) {
+            wp->range_totle=0;
+            if(wp->range_begin>0)
+                websPageSeek(wp, wp->range_begin, SEEK_SET);
             websSetBackgroundWriter(wp, fileWriteEvent);
         } else {
             websDone(wp);
@@ -117,11 +136,17 @@ static void fileWriteEvent(Webs *wp)
     assert(wp);
     assert(websValid(wp));
 
+    if(wp->range_totle >= wp->range_length){
+        websDone(wp);
+    }
+
     if ((buf = walloc(ME_GOAHEAD_LIMIT_BUFFER)) == NULL) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot get memory");
         return;
     }
     while ((len = websPageReadData(wp, buf, ME_GOAHEAD_LIMIT_BUFFER)) > 0) {
+        if(len>(wp->range_length-wp->range_totle))
+            len=wp->range_length-wp->range_totle;
         if ((wrote = websWriteSocket(wp, buf, len)) < 0) {
             err = socketGetError();
             if (err == EWOULDBLOCK || err == EAGAIN) {
@@ -134,11 +159,15 @@ static void fileWriteEvent(Webs *wp)
         }
         if (wrote != len) {
             websPageSeek(wp, - (len - wrote), SEEK_CUR);
+            wp->range_totle+=wrote;
             break;
         }
+        wp->range_totle+=wrote;
+        if(wp->range_totle >= wp->range_length)
+            break;
     }
     wfree(buf);
-    if (len <= 0) {
+    if ((len <= 0)||(wp->range_totle >= wp->range_length)) {
         websDone(wp);
     }
 }
