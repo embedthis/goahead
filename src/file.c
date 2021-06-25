@@ -133,6 +133,7 @@ static void fileWriteEvent(Webs *wp)
             err = socketGetError(wp->sid);
             if (err == EWOULDBLOCK || err == EAGAIN) {
                 websPageSeek(wp, -len, SEEK_CUR);
+                wp->txRemaining += len;
             } else {
                 /* Will call websDone below */
                 wp->state = WEBS_COMPLETE;
