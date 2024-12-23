@@ -1,0 +1,18 @@
+/*
+    goahead.me -- MakeMe File to build the GoAhead library when embedded in another product
+ */
+
+Me.load({
+    targets: {
+        goahead: {
+            configurable: true,
+            depends: [ 'libgo' ],
+        },
+        libgo: {
+            type: 'lib',
+            sources: [ 'goahead.c' ],
+            headers: [ '*.h' ],
+            ifdef: [ 'goahead' ],
+        }
+    }
+})

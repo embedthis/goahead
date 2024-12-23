@@ -1,0 +1,155 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1347\cocoasubrtf570
+\cocoascreenfonts1{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww16700\viewh14780\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\b\fs28 \cf0 Embedthis GoAhead(TM)
+\b0\fs24 \
+\
+Welcome to GoAhead -- the world's most popular embedded web server.\
+\
+This document contains details regarding the installation procedure for the binary Embedthis GoAhead package.  This package contains a pre-built stand-alone web server and an embeddable HTTP library with headers. You can read the documentation for the latest release online at:\
+\
+https://embedthis.com/goahead/doc/index.html\
+\
+This software is copyrighted and distributed under license. Please read the license.rtf for details.\
+\
+\
+Table of Contents\
+\
+* System Requirements\
+* Installation Package Formats\
+* Development Environment Platform Support\
+* Removing Embedthis GoAhead\
+* Apple MAC OS X  Release Details\
+* Windows Release Details\
+* Running GoAhead\
+* Building from the Source Code\
+* License and Copyright Information\
+\
+\
+System Requirements\
+\
+Binary Package Operating System Support\
+\
+    * Windows 7 or later (x86,x64)\
+    * Mac OS X 10.9 or later\
+\
+For other operating systems, download the source package and build then install.\
+Supported operating systems via source code:\
+\
+    * Linux 2.6 (x86,x64,arm,ppc,mips)\
+    * VxWorks 6.7 (x86,arm,ppc,mips)\
+\
+To install GoAhead, your development system will need at least the following:\
+\
+    * 50 MB Disk\
+    * 1 GB RAM\
+\
+To deploy GoAhead in an embedded environment, you will need at least the following:\
+\
+    * 2 MB Disk / ROM space\
+    * 2 MB RAM\
+\
+To rebuild GoAhead from source code on your development system, you will need at least:\
+\
+    * 80 MB disk space\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+\cf0 \ul \ulc0 Installation Package Formats\ulnone \
+\
+The GoAhead binary installation is published in two formats:\
+\
+    * Native Apple MAC OS X PKG format\
+    * Native Windows installer format\
+\
+\ul Development Environment Platform Support\ulnone \
+\
+If you wish to embed GoAhead in your application or build GoAhead from source code, you will need to use a C compiler and associated development tools.  Several development environments are supported.  You may choose any of the following:\
+\
+    * Linux/Unix GNU Tools\
+\
+    * Windows Visual Studio 2010\
+\
+    * WindRiver Tornado Development Tools\
+\
+\
+\ul Apple Mac OS X Release Details\ulnone \
+\
+To install the native MAC OS X PKG image:\
+\
+   1. Download the PKG image.\
+\
+   2. Double click on the PKG file image. \
+   \
+   3. Answer the questions as prompted.\
+\
+\
+\ul Windows Release Details\ulnone \
+\
+To install the Windows Installer image:\
+\
+   1. Login with administrator privileges.\
+\
+   2. Use WinZip or equivalent software to extract the installation image. This\
+      will extract the README.TXT and setup.exe from the zip archive.\
+\
+   3. Double click on the setup.exe image to run it.\
+\
+\
+\ul Removing GoAhead\ulnone \
+\
+This is the procedure to remove GoAhead on all systems except Windows.\
+\
+   1. Run the uninstall script in the install directory for GoAhead by typing:\
+\
+      sudo /usr/local/lib/goahead/latest/bin/uninstall\
+\
+If you installed the GoAhead Windows Installer image, follow these steps to remove GoAhead. I\
+\
+   1. Login with administrator privileges\
+\
+   2. Run the Add / Remove Programs applet from the control panel.\
+\
+   3. Select the Embedthis GoAhead and choose remove.\
+\
+\
+\ul Running GoAhead\ulnone \
+\
+To run goahead:\
+\
+    godhead --home /etc/goahead -v\
+\
+To get all the options for GoAhead, read the GoAhead man page via\
+\
+    man goahead\
+\
+or get the command help via:\
+\
+    goahead --help\
+\
+GoAhead is configured by default to listen on port 80. To test that it is serving pages, point your browser at http://localhost/. \
+\
+\
+\ul Building from the Source Code\ulnone \
+\
+If you wish to rebuild the GoAhead product from the distributed source code, please download the source code distribution from the Embedthis web site. Then read "Building from Source" in the GoAhead product documentation for an explanation of the necessary steps to successfully rebuild the product.\
+\
+\
+\ul License and Copyright Information\ulnone \
+\
+This software is supplied under license. Both a GNU and commercial license are available. Please read LICENSE.md for details. This documentation and the software described in this document may be used and copied only in accordance with the terms of the accompanying license agreement. Product and technical information in this document is subject to change without notice and does not represent a commitment on the part of Embedthis Software LLC.\
+\
+Copyright (c) Embedthis Software. All Rights Reserved.\
+\
+Embedthis is a trademark of Embedthis Software LLC. Embedthis, GoAhead and Ejscript are trademarks of Embedthis Software. All other brand or product names are the trademarks or registered trademarks of their respective holders.\
+\
+\
+Embedthis Software, LLC.\
+4616 25th Ave NE, #733\
+Seattle, WA 98105.\
++1 (425) 329-3490\
+embedthis.com\
+info@embedthis.com\
+}

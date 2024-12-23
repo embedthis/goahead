@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<installer-gui-script minSpecVersion="2">
+    <title>${settings.title}</title>
+    <welcome file="welcome.rtf" />
+    <readme file="readme.rtf" />
+    <license file="license.rtf" />
+    <background file="background.png" scaling="proportional" alignment="bottomleft"/>
+    <conclusion file="conclusion.rtf" />
+    <options customize="never" rootVolumeOnly="true"/>
+    <allowed-os-versions>
+        <os-version min="10.7"/>
+    </allowed-os-versions>
+    <choices-outline>
+        <line choice="install"/>
+    </choices-outline>
+    <choice id="install" visible="true" title="Install" description="${settings.title} Installation">
+        <pkg-ref id="com.${settings.author}.${settings.name}.pkg">#${settings.name}.pkg</pkg-ref>
+    </choice>
+</installer-gui-script>

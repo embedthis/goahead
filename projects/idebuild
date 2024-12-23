@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+#   idebuild -- Build a project using the native IDE
+#
+
+PRODUCT=goahead
+XCODE=/usr/bin/xcodebuild
+PROFILE=default
+BINARIES="goahead goahead-test gopass"
+LIBRARIES="libgo"
+
+# Just for VS
+unset TEMP TMP
+
+for v in 12 11 10
+do
+    VS="/Program Files (x86)/Microsoft Visual Studio 12.0/Common7/IDE/devenv.exe"
+    if [ -x "${VS}" ] ; then
+        break
+    fi
+done
+
+log() {
+    tag=$1
+    shift
+    printf "%12s %s\n" $tag "$*"
+}
+
+if [ -x "${VS}" ] ; then
+    log "[Test]" "Building ${PRODUCT} Visual Studio Project"
+    "${VS}" projects/${PRODUCT}-windows-${PROFILE}.sln /upgrade
+    "${VS}" projects/${PRODUCT}-windows-${PROFILE}.sln /clean
+    "${VS}" projects/${PRODUCT}-windows-${PROFILE}.sln /build
+
+    for f in $BINARIES
+    do
+        echo check $f
+        if [ ! -f build/windows-x86-${PROFILE}/bin/${f}.exe ] ; then
+            echo "VS IDE build is missing $f.exe"
+            exit 255
+        fi
+    done
+    for f in $LIBRARIES
+    do
+        echo check $f
+        if [ ! -f build/windows-x86-${PROFILE}/bin/${f}.dll ] ; then
+            echo "VS IDE build is missing $f.dll"
+            exit 255
+        fi
+    done
+fi
+
+if [ -x "${XCODE}" ] ; then
+    log "[Test]" "Building ${PRODUCT} Xcode Project"
+    "${XCODE}" -project projects/${PRODUCT}-macosx-${PROFILE}.xcodeproj -alltargets clean
+    "${XCODE}" -project projects/${PRODUCT}-macosx-${PROFILE}.xcodeproj -alltargets build
+fi

@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+#   configure -- Configure for building
+#
+#
+#   Configure will invoke "me configure" to prepare for building.
+#   If building via "make" configuration is not required.
+#
+NAME=goahead
+OS=`uname | sed 's/CYGWIN.*/windows/;s/Darwin/macosx/' | tr '[A-Z]' '[a-z]'`
+PROFILE=debug
+EXT=mk
+
+if ! type me >/dev/null 2>&1 ; then
+    echo '' >&2
+    echo "To configure ${NAME}, the \"me\" tool is required. You can continue with a" >&2
+    echo 'default build by using make.' >&2
+    make help
+    exit 0
+fi
+if [ -f start.me ] ; then
+    me clean >/dev/null 2>&1
+fi
+me configure "$@"

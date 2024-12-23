@@ -1,0 +1,7 @@
+web
+web/favicon.ico
+web/index.html
+auth.txt
+route.txt
+certs/samples/self.crt
+certs/samples/self.key

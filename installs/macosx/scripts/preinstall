@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+#	preinstall -- Pre install script for binary install
+#
+#	Copyright (c) Embedthis Software LLC, 2003-2014. All Rights Reserved.
+#
+###############################################################################
+
+removeOld() {
+    prefix="/usr/lib/goahead"
+    version=
+    for v in `ls $prefix 2>/dev/null | egrep -v '[a-zA-Z@!_\-]' | sort -n -r`
+    do
+        if [ -x "$prefix/$v/bin/goahead" ] ; then
+            version=$v
+            break
+        fi
+    done
+    if [ -x /usr/lib/goahead/$version/bin/uninstall ] ; then
+        HEADLESS=1 /usr/lib/goahead/$version/bin/uninstall </dev/null 2>&1 >/dev/null
+    fi
+}
+
+###############################################################################
+#
+#	Main
+#
+
+removeOld
+exit 0

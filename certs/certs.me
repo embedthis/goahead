@@ -1,0 +1,13 @@
+/*
+    certs.me -- Test certificates
+ */
+
+Me.load({
+    targets: {
+        'install-roots': {
+            type: 'file',
+            path: '${BIN}/',
+            files: [ 'roots.crt' ],
+        }
+    }
+})

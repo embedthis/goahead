@@ -1,0 +1,158 @@
+/*
+    manifest.me - MakeMe manifest for GoAhead
+ */
+
+Me.load({
+    /*
+        Package manifest instructions
+        The sets used are: binary, doc, dev, package, source
+     */
+    manifest: {
+        home: me.dir.bin,
+        root: true,
+        packages:   {
+            install: {
+                inherit:    'package-manifest',
+                prefixes:   [ 'root', 'app', 'vapp', 'bin', 'man', 'web', 'etc'],
+                sets:       [ 'core', 'libs', 'doc' ],
+                platforms:  [ 'unix', 'windows' ]
+            },
+            binary: {
+                inherit:    'package-manifest',
+                prefixes:   [ 'root', 'app', 'vapp', 'bin', 'man', 'web', 'etc'],
+                formats:    [ 'native', 'tar' ],
+                sets:       [ 'core', 'libs', 'doc', 'package' ],
+                platforms:  [ 'freebsd', 'linux', 'macosx', 'windows' ]
+            },
+            source: {
+                inherit:    'package-manifest',
+                prefixes:   [ 'root', 'src' ],
+                formats:    [ 'tar' ],
+                sets:       [ 'source' ],
+            },
+            pak: {
+                inherit:    'package-manifest',
+                prefixes:   [ 'src'],
+                formats:    [ 'tar' ],
+                sets:       [ 'pak' ],
+            },
+        },
+
+        sets: {
+            core: [
+                {
+                    mkdir:      [ '${man}/man1' ],
+                    permissions: 0755,
+
+                }, {
+                    from:       'goahead${EXE}',
+                    to:         '${abin}/',
+                    symlink:    '${bin}/',
+                    permissions: 0755,
+
+                }, {
+                    from:       '${TOP}/certs/roots.crt',
+                    to:         '${abin}/',
+
+                }, {
+                    from:       '${TOP}/certs/self.crt',
+                    to:         '${etc}/',
+
+                }, {
+                    from:       '${TOP}/certs/self.key',
+                    to:         '${etc}',
+
+                }, {
+                    from: [
+                                '${TOP}/src/web/index.html',
+                                '${TOP}/src/web/favicon.ico'
+                    ],
+                    to:     '${web}/',
+                    exclude: /mgmt|bench|test/,
+
+                }, {
+                    from: [
+                                '${TOP}/src/auth.txt',
+                                '${TOP}/src/route.txt'
+                    ],
+                    to:         '${etc}/'
+                }
+            ],
+            libs: [
+                {
+                    from:       'libgo${SHOBJ}',
+                    to:         '${abin}/',
+                    enable:     '!me.settings.static',
+                }
+            ],
+            doc: [
+                {
+                    from:       '${TOP}/doc/man/*.1',
+                    to:         '${adoc}/man/man1/',
+                    symlink:    '${man}/man1/',
+                    enable:     "me.platform.like == 'unix'",
+                }
+            ],
+            source: [
+                {
+                    from:       '${TOP}/*.md',
+                    to:         '${src}/',
+                    fold:       true,
+                    patch:      true,
+
+                }, {
+                    from:       '${TOP}/configure',
+                    to:         '${src}/',
+                    permissions: 0755,
+
+                }, {
+                    home:       '${TOP}',
+                    from: [
+                                'Makefile',
+                                'make.bat',
+                                'main.me',
+                                'pak.json',
+                                'src',
+                                'certs',
+                                'doc',
+                                'projects',
+                                'installs',
+                                'test'
+                    ],
+                    exclude:    /\.old$|\.tmp$|xcuserdata|xcshared|xcworkspace|project.guid|-mine/,
+                    to:         '${src}/',
+                    flatten:    false,
+                },
+            ],
+            pak: [
+                {
+                    from:       '${TOP}/installs/goahead.me',
+                    to:         '${src}/dist/goahead.me',
+
+                }, {
+                    from:       '${TOP}/src/goahead.h',
+                    to:         '${src}/dist/goahead.h',
+                    append:     true,
+                    filter:     /^#inc.*customize.*$/mg,
+
+                }, {
+                    from:       [
+                        '${TOP}/src/*.c',
+                    ],
+                    exclude:    /\/utils\//,
+                    to:         '${src}/dist/goahead.c',
+                    append:     true,
+                    header:     '/*\n * ${settings.title} Library Source\n */\n\n#include \"goahead.h\"\n\n#if ME_COM_GOAHEAD',
+                    divider:    true,
+                    footer:     '#endif /* ME_COM_GOAHEAD */',
+                    filter:     /^#inc.*goahead.*$|^#inc.*customize.*$/mg,
+                }, {
+                    home:       '${TOP}',
+                    from:       ['${TOP}/doc/api/goahead.html', '${TOP}/doc/api/goahead.tags', '${TOP}/doc/api/goahead.dtags'],
+                    to:         '${src}/doc/api/',
+                    relative:   'doc/api',
+                }
+            ]
+        }
+    }
+})

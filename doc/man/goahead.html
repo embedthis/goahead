@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="eng">
+<head>
+<title>Goahead Man Page</title>
+</head>
+<HTML>
+<BODY>
+<PRE>
+<!-- Manpage converted by man2html 3.0.1 -->
+
+       goahead
+           --auth authFile
+           --background
+           --debugger
+           --home directory
+           --log logSpec
+           --route routeFile
+           --version
+           --verbose
+           [IP][:port] [documents]
+
+DESCRIPTION
+       GoAhead is popular, simple embedded HTTP web server.  It is a fast,
+       small-footprint, single-threaded, standards-based, portable server
+       developed for use by embedded devices and applications.  It can run as
+       a stand-alone web server or the GoAhead library can be embedded in
+       applications.
+
+       GoAhead supports HTTP/1.1, SSL, digest, basic and web-form
+       authentication, chunked transfers, file upload and sandbox security
+       limits.
+
+       When goahead is built, it is configured to open a port for HTTP
+       requests and optionally one for SSL. However, if goahead is invoked
+       with an IP address or port number on the command line, GoAhead will
+       listen on these ports instead.  If the PORT component is omitted,
+       GoAhead will listen on port 80. If the IP address is omitted and a port
+       is supplied, GoAhead will listen on all network interfaces.
+
+OPTIONS
+       --auth filename
+              Define the name of the authentication configuration file. This
+              is by default auth.txt.  If GoAhead is built with PAM support
+              (Unix Pluggable Authentication Modules), then passwords will be
+              authenticated from the system password database.
+
+       --debugger
+              Run GoAhead in debug mode and disable all timeouts. This
+              disables request and session timeouts.  The -d option is an
+              alias for --debugger.
+
+       --log logSpec
+              Name the GoAhead log file. This will override the ErrorLog
+              directive in the configuration file.  When the maximum size is
+              exceeded, the log file will be rotated to logName.old and a new
+              log file will be started. The -l option is an alias for --log.
+              The syntax is:
+
+              --log logName[:logLevel]
+
+       --home directory
+              Output the product version number.
+
+REPORTING BUGS
+       Report bugs to &lt;;dev@embedthis.com&gt;;.
+
+COPYRIGHT
+       Copyright © Embedthis Software.
+
+SEE ALSO
+       gopass, webcomp
+
+goahead                           March 2014                        <B>GOAHEAD(1)</B>
+</PRE>
+<HR>
+<ADDRESS>
+Man(1) output converted with
+<a href="http://www.oac.uci.edu/indiv/ehood/man2html.html">man2html</a>
+</ADDRESS>
+</BODY>
+</HTML>
+</html>

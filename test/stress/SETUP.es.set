@@ -1,0 +1,4 @@
+
+if (tdepth() <= 1) {
+    tskip("Stress tests run at depth 2 or greater")
+}

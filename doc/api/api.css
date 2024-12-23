@@ -1,0 +1,137 @@
+body, table, div, p, dl {
+	font-family: Lucida Grande, Verdana, Geneva, Arial, sans-serif;
+	font-size: 12px;
+}
+
+div.contents {
+    margin: 20px;
+}
+
+div.api {
+	margin: 20px 0 10px 0;
+	padding: 0;
+}
+
+table.apiIndex {
+    width: 90%;
+	background-color: #FAFAFA;
+	border: 1px solid #ccc;
+    border-collapse: collapse;
+}
+
+tr.apiDef {
+	border-top: 1px solid #ccc;
+}
+
+.apiBrief {
+	font-size: 90%;
+	color: #666666;
+	font-style: italic;
+}
+
+td.apiType {
+    vertical-align: top;
+	text-align: right;
+    white-space: nowrap;
+}
+
+td.apiName {
+    padding-right: 10px;
+    width: 15%;
+    white-space: nowrap;
+}
+
+tr.apiDef td {
+    padding-top: 2px;
+}
+
+tr.apiBrief td {
+    padding-bottom: 2px;
+}
+
+div.prototype {
+	border: 1px solid #84b0c7;	
+	color: #000040;
+    margin-right: 10px;
+	padding: 8px 10px 8px 40px;
+    text-indent: -30px;
+	background-color: #d5e1e8;
+	-webkit-border-top-left-radius: 10px;
+	-webkit-border-top-right-radius: 10px;
+	-moz-border-radius-topleft: 10px;
+	-moz-border-radius-topright: 10px;
+	font-weight: bold;
+    line-height: 140%;
+}
+
+div.apiDetail {
+	margin-bottom: 30px;
+	margin-right: 10px;
+	padding: 2px 5px 0 10px;
+	border: 1px solid #84b0c7;	
+	background-color: #eef3f5;
+	background-color: #F4FAfF;
+	border-top-width: 0;
+	-webkit-border-bottom-left-radius: 10px;
+	-webkit-border-bottom-right-radius: 10px;
+	-moz-border-radius-bottomleft: 10px;
+	-moz-border-radius-bottomright: 10px;
+}
+
+table.info {
+	border: 1px solid #84b0c7;	
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+table.info tr td {
+    padding: 4px;
+	border: 1px solid #84b0c7;	
+}
+
+table.parameters {
+    margin: 0;
+    border: 0;
+    -webkit-box-shadow: 0px 0px 0px #000;
+}
+
+table.parameters td {
+    border: 0;
+    padding-right: 10px;
+    padding-bottom: 5px;
+    vertical-align: top;
+}
+
+td.param {
+	font-style: italic;
+	text-align: right;
+}
+
+/* Details headings "Parameters", "Returns", "See Also" ... */
+dt {
+	font-weight: bold;
+	color: #000040;
+}
+
+a.nameRef {
+	font-size: 110%;
+	font-weight: bold;
+}
+
+a.nameRef, a.ref {
+	color: #4040B0;
+	text-decoration: none;
+}
+
+a.nameRef:hover, a.ref:hover {
+	color: #0000D0;
+	text-decoration: underline;
+}
+
+
+div.footnote {
+	padding-top: 10px;
+	font-size: x-small;
+	text-align: right;
+	font-style: italic;
+}

@@ -1,0 +1,72 @@
+/*
+    mbedtls.me -- MbedTLS Support
+ */
+
+Me.load({
+    targets: {
+        mbedtls: {
+            description:  'MbedTLS Support',
+            config: function (target) {
+                let os = me.platform.os
+                if (me.options.gen) {
+                    let result = { includes: [me.dir.inc] }
+                    if (os == 'linux') {
+                        result.libpaths = []
+                        result.libraries = [ 'mbedtls', 'mbedcrypto', 'mbedx509' ]
+
+                    } else if (me.platform.os == 'macosx') {
+                        result.defines = ['ME_COM_MBEDTLS_PATH=/opt/homebrew']
+                        result.includes.push('$(ME_COM_MBEDTLS_PATH)/include')
+                        result.libpaths = ['$(ME_COM_MBEDTLS_PATH)/lib', '$(ME_COM_MBEDTLS_PATH)/library']
+                        result.libraries = ['mbedtls', 'mbedcrypto', 'mbedx509']
+
+                    } else if (os == 'windows') {
+                        result.defines = ['ME_COM_MBEDTLS_PATH=/path/to/mbedtls']
+                        result.includes.push('$(ME_COM_MBEDTLS_PATH)/include')
+                        result.libpaths = ['$(ME_COM_MBEDTLS_PATH)/lib', '$(ME_COM_MBEDTLS_PATH)/library']
+                        result.libraries = ['mbedtls', 'mbedcrypto', 'mbedx509']
+                    }
+                    return result
+                }
+
+                let lib, libraries, libpaths, includes, path
+                let search = getComponentSearch(target, 'mbedtls').unique()
+                let libsearch = 
+                    search.map(function(p:Path) p.join('lib')) +
+                    search.map(function(p:Path) p.join('library')) +
+                    search
+                let hsearch = 
+                    search.map(function(p:Path) p.join('include')) +
+                    search.map(function(p:Path) p.dirname.join('include')) +
+                    search
+                let opt = {fullpath: true, search: libsearch, nopath: true}
+                let inc, lib
+                if ((lib = probe('libmbedtls.' + me.ext.lib, blend({nothrow: true}, opt))) == null) {
+                    lib = probe('libmbedtls.' + me.ext.shobj, opt)
+                }
+                inc = probe('mbedtls/ssl.h', {search: hsearch, nothrow: true})
+                if (lib && inc) {
+                    includes = [inc, me.dir.inc]
+                    libraries = ['libmbedtls', 'libmbedcrypto', 'libmbedx509']
+                    libpaths = [lib.parent]
+                    path = lib.dirname
+                }
+                return {
+                    location:   path,
+                    includes:   includes,
+                    libpaths:   libpaths,
+                    libraries,  libraries,
+                }
+            },
+            configurable: true,
+            ifdef:        [ 'ssl' ],
+            conflicts:    [ 'openssl' ]
+            location:     '${SRC}/tls',
+            '-compiler': [
+                '-Wall',
+                '-Wshorten-64-to-32',
+                '-W3',
+            ],
+        },
+    }
+})

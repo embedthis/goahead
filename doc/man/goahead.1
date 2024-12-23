@@ -1,0 +1,69 @@
+.TH GOAHEAD "1" "March 2014" "goahead" "User Commands"
+.SH NAME
+goahead\- Embedded HTTP Web Server
+.SH SYNOPSIS
+.B goahead [options] [documents] [[IP][:port] ...]
+.P
+.B goahead
+    \fB--auth authFile\fR
+    \fB--background\fR
+    \fB--debugger\fR
+    \fB--home directory\fR
+    \fB--log logSpec\fR
+    \fB--route routeFile\fR
+    \fB--version\fR
+    \fB--verbose\fR
+    \fB[IP][:port] [documents]\fR
+.SH DESCRIPTION
+GoAhead is popular, simple embedded HTTP web server.  It is a fast, small-footprint, single-threaded, standards-based,
+portable server developed for use by embedded devices and applications.  It can run as a stand-alone web server or the
+GoAhead library can be embedded in applications.
+.P
+GoAhead supports HTTP/1.1, SSL, digest, basic and web-form authentication, chunked transfers,
+file upload and sandbox security limits.
+.P
+When goahead is built, it is configured to open a port for HTTP requests and optionally one for SSL. However,
+if goahead is invoked with an IP address or port number on the command line, GoAhead will listen on these ports instead.
+If the PORT component is omitted, GoAhead will listen
+on port 80. If the IP address is omitted and a port is supplied, GoAhead will listen on all network interfaces.
+.SH OPTIONS
+.TP
+\fB\--auth filename\fR
+Define the name of the authentication configuration file. This is by default \fBauth.txt\fR.
+If GoAhead is built with PAM support (Unix Pluggable Authentication Modules), then passwords will be authenticated
+from the system password database.
+.TP
+\fB\--debugger\fR
+Run GoAhead in debug mode and disable all timeouts. This disables request and session timeouts.
+The \fB-d\fR option is an alias for --debugger.
+.TP
+\fB\--log logSpec\fR
+Name the GoAhead log file. This will override the ErrorLog directive
+in the configuration file.  When the maximum size is exceeded, the log file will be rotated to logName.old
+and a new log file will be started. The \fB-l\fR option is an alias for --log.
+The syntax is:
+.PP
+.RS 6
+ --log logName[:logLevel]
+.RE
+.TP
+\fB\--home directory\fR
+Define the server home directory for GoAhead.
+.TP
+\fB\--route routeFile\fR
+This option overrides the default route configuration file name of "route.txt". When GoAhead starts, it reads the
+route configuration file to load URI routes. These routes define what actions should be taken when various client
+requests are received.
+.TP
+\fB\--verbose\fR
+Shorthand for --log stdout:4. The \fB-v\fR option is an alias for --verbose.
+.TP
+\fB\--version\fR
+Output the product version number.
+.SH "REPORTING BUGS"
+Report bugs to <dev@embedthis.com>.
+.SH COPYRIGHT
+Copyright \(co Embedthis Software.
+.br
+.SH "SEE ALSO"
+gopass, webcomp

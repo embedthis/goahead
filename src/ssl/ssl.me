@@ -1,0 +1,64 @@
+/*
+    ssl.me - TLS Plugin. This is the interface above TLS providers.
+ */
+
+Me.load({
+    targets: {
+        ssl: {
+            configurable: true,
+            description: 'Transport Layer Security',
+            discovers: [ 'openssl', 'mbedtls' ],
+            uses:      [ 'openssl', 'mbedtls' ],
+            config: function (target) {
+                let provider
+                if (me.settings.tls == 'mbedtls') {
+                    target.discovers = target.discovers.reverse()
+                }
+                for each (p in target.discovers) {
+                    let ptarget = me.targets[p]
+                    if (ptarget.explicit) {
+                        if (ptarget.enable) {
+                            provider = p
+                            break
+                        } else if (ptarget.explicit != 'without') {
+                            throw 'Required TLS provider "' + p + '" is not enabled'
+                        }
+                    }
+                }
+                /*
+                    Select an ssl provider
+                 */
+                for each (p in target.discovers) {
+                    if (p == provider) {
+                        continue
+                    }
+                    if (me.targets[p] && me.targets[p].enable && !provider) {
+                        provider = p
+                    } else if (provider) {
+                        me.targets[p].enable = false
+                        me.targets[p].diagnostic = 'Using the "' + provider + '" SSL provider instead.'
+                    }
+                }
+                if (provider) {
+                    let from = me.targets[provider]
+                    target.provider = provider
+                    for each (field in ['defines', 'includes', 'libraries', 'libpaths']) {
+                        if (from[field]) {
+                            target[field] = from[field]
+                        }
+                    }
+                    target.description += ' (' + me.targets[provider].description + ')'
+
+                } else {
+                    throw 'No enabled SSL providers.\n'
+                }
+            },
+            without: function(target) {
+                for each (p in target.discovers) {
+                    me.targets[p].enable = false
+                    me.targets[p].diagnostic = 'configured --without ssl'
+                }
+            }
+        }
+    }
+})

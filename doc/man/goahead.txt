@@ -1,0 +1,85 @@
+GOAHEAD(1)                       User Commands                      GOAHEAD(1)
+
+NAME
+       goahead- Embedded HTTP Web Server
+
+SYNOPSIS
+       goahead [options] [documents] [[IP][:port] ...]
+
+       goahead
+           --auth authFile
+           --background
+           --debugger
+           --home directory
+           --log logSpec
+           --route routeFile
+           --version
+           --verbose
+           [IP][:port] [documents]
+
+DESCRIPTION
+       GoAhead is popular, simple embedded HTTP web server.  It is a fast,
+       small-footprint, single-threaded, standards-based, portable server
+       developed for use by embedded devices and applications.  It can run as
+       a stand-alone web server or the GoAhead library can be embedded in
+       applications.
+
+       GoAhead supports HTTP/1.1, SSL, digest, basic and web-form
+       authentication, chunked transfers, file upload and sandbox security
+       limits.
+
+       When goahead is built, it is configured to open a port for HTTP
+       requests and optionally one for SSL. However, if goahead is invoked
+       with an IP address or port number on the command line, GoAhead will
+       listen on these ports instead.  If the PORT component is omitted,
+       GoAhead will listen on port 80. If the IP address is omitted and a port
+       is supplied, GoAhead will listen on all network interfaces.
+
+OPTIONS
+       --auth filename
+              Define the name of the authentication configuration file. This
+              is by default auth.txt.  If GoAhead is built with PAM support
+              (Unix Pluggable Authentication Modules), then passwords will be
+              authenticated from the system password database.
+
+       --debugger
+              Run GoAhead in debug mode and disable all timeouts. This
+              disables request and session timeouts.  The -d option is an
+              alias for --debugger.
+
+       --log logSpec
+              Name the GoAhead log file. This will override the ErrorLog
+              directive in the configuration file.  When the maximum size is
+              exceeded, the log file will be rotated to logName.old and a new
+              log file will be started. The -l option is an alias for --log.
+              The syntax is:
+
+              --log logName[:logLevel]
+
+       --home directory
+              Define the server home directory for GoAhead.
+
+       --route routeFile
+              This option overrides the default route configuration file name
+              of "route.txt". When GoAhead starts, it reads the route
+              configuration file to load URI routes. These routes define what
+              actions should be taken when various client requests are
+              received.
+
+       --verbose
+              Shorthand for --log stdout:4. The -v option is an alias for
+              --verbose.
+
+       --version
+              Output the product version number.
+
+REPORTING BUGS
+       Report bugs to <dev@embedthis.com>.
+
+COPYRIGHT
+       Copyright © Embedthis Software.
+
+SEE ALSO
+       gopass, webcomp
+
+goahead                           March 2014                        GOAHEAD(1)

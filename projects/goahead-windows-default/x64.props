@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+      <ImportGroup Label="PropertySheets" />
+      <PropertyGroup Label="UserMacros">
+        <CfgDir>..\..\build\windows-x64-$(Cfg)</CfgDir>
+        <IncDir>$([System.IO.Path]::GetFullPath($(ProjectDir)\$(CfgDir)\inc))</IncDir>
+        <ObjDir>$([System.IO.Path]::GetFullPath($(ProjectDir)\$(CfgDir)\obj))</ObjDir>
+        <BinDir>$([System.IO.Path]::GetFullPath($(ProjectDir)\$(CfgDir)\bin))</BinDir>
+      </PropertyGroup>
+      <ItemGroup>
+        <BuildMacro Include="CfgDir">
+          <Value>$(CfgDir)</Value>
+          <EnvironmentVariable>true</EnvironmentVariable>
+        </BuildMacro>
+        <BuildMacro Include="BinDir">
+          <Value>$(BinDir)</Value>
+          <EnvironmentVariable>true</EnvironmentVariable>
+        </BuildMacro>
+        <BuildMacro Include="IncDir">
+          <Value>$(IncDir)</Value>
+          <EnvironmentVariable>true</EnvironmentVariable>
+        </BuildMacro>
+        <BuildMacro Include="ObjDir">
+          <Value>$(ObjDir)</Value>
+          <EnvironmentVariable>true</EnvironmentVariable>
+        </BuildMacro>
+      </ItemGroup>
+    </Project>

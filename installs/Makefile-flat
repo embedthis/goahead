@@ -1,0 +1,19 @@
+#
+#   Makefile -- Makefile to build Embedthis GoAhead for macosx on x86_64
+#
+
+CFLAGS      := -g -w
+LDFLAGS     := -L. -Wl,-rpath,@executable_path/../lib -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
+LIBS        := -lpthread -lm -ldl -lpam
+
+all: libgo.dylib goahead
+
+libgo.dylib: goaheadLib.o deps.o pcre.o sqlite3.o
+	cc -o libgo.dylib -dynamiclib $(CFLAGS) $(DFLAGS) $(LDFLAGS) goaheadLib.o deps.o pcre.o sqlite3.o $(LIBS)
+
+goahead: libgo.dylib 
+	cc -o goahead $(LDFLAGS) goahead.c -lgoahead $(LIBS)
+
+clean: 
+	rm goahead libgo.dylib *.o
+	rm -fr *.dSYM

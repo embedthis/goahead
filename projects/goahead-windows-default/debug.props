@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+      <ImportGroup Label="PropertySheets" />
+      <PropertyGroup Label="UserMacros">
+        <Cfg>default</Cfg>
+      </PropertyGroup>
+      <ItemDefinitionGroup>
+        <ClCompile>
+          <PreprocessorDefinitions>_DEBUG;ME_DEBUG;DEBUG_IDE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+          <Optimization>Disabled</Optimization>
+          <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+          <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+        </ClCompile>
+        <Link>
+          <GenerateDebugInformation>true</GenerateDebugInformation>
+        </Link>
+      </ItemDefinitionGroup>
+      <ItemGroup>
+        <BuildMacro Include="Cfg">
+        <Value>$(Cfg)</Value>
+        <EnvironmentVariable>true</EnvironmentVariable>
+      </BuildMacro>
+      </ItemGroup>
+    </Project>

@@ -1,0 +1,41 @@
+/*
+    TOP.es.set - Server-side test setup for GoAhead unit tests
+ */
+require ejs.unix
+
+if (tphase() == 'Setup') {
+    const HTTP      = 'http://127.0.0.1:18080'
+    const HTTPS     = 'https://127.0.0.1:14443'
+    const HTTPV6    = 'http://[::1]:18090'
+    const HTTPSV6   = 'https://[::1]:14453'
+
+    tset('TM_HTTP', HTTP)
+    tset('TM_HTTPS', HTTPS)
+    tset('TM_HTTPV6', HTTPV6)
+    tset('TM_HTTPSV6', HTTPSV6)
+
+    let service
+/* Extra testing for VxWorks
+    if (test.hostOs == 'VXWORKS') {
+        // Configuration for VxWorks simulator 
+        if (!App.getenv('WIND_BASE')) {
+            tskip('WIND_BASE is not defined')
+        } else if (!App.getenv('WIND_HOST_TYPE')) {
+            tskip('WIND_HOST_TYPE is not defined')
+        } else {
+            let base: Path = App.getenv('WIND_BASE')
+            let vxsim: Path = base.join('host', App.getenv('WIND_HOST_TYPE', 'bin/vxsim')
+            let image: Path = test.top.join('out', test.hostSystem, 'bin', 'goahead.out')
+            service = vxsim + ' -f ' + base.join('target/proj/linux_diab/default/vxWorks') + 
+                ' -d simnet -tn vxsim0 -e ' + HOST + ' -size 134217728 -s vxargs'
+            Path('vxargs').write('ld < ' + image + '\n' + 'taskSpawn 'goahead',100,0,200000,goahead\n')
+            if (!App.getenv('NOSERVER')) {
+                Cmd.killall('vxsim')
+            }
+        }
+    }
+*/
+    Cmd.run('me test-prep')
+}
+
+startStopService('goahead-test', {address: tget('TM_HTTP')})

@@ -1,0 +1,51 @@
+AUTH(1)                          User Commands                         AUTH(1)
+
+NAME
+       gopass - Create and manage passwords
+
+SYNOPSIS
+       gopass [--cipher blowfish|md5] [--file filename] [--password password]
+       realm username roles...
+
+
+DESCRIPTION
+       The gopass program creates authentication passwords for GoAhead in the
+       nominated authentication configuration file.  GoAhead uses the same
+       authorization file and format for Basic, Digest and web-form
+       authentication. This simplifies           administration.
+
+            gopass --file auth.conf --password pass1 example.com joshua
+            administrator buyer
+
+       To calculate the passwword only, omit the "--file" option and the
+       password will be displayed to the standard output.
+
+            gopass --password pass1 example.com joshua administrator buyer
+
+
+OPTIONS
+       --cipher blowfish|md5
+              Specifies the cipher to use to hash the password. Default is
+              blowfish. Blowfish is substantially more secure.  MD5 must be
+              used for digest authentication.
+
+       --password password
+              Specifies a password to use to for the user.
+
+       --file filename
+              Update the specified password configuration file.
+
+DESCRIPTION
+       The gopass program is used to create and manage user passwords.
+       GoAhead uses the same authorization file and format for Basic, Digest
+       and Post authentication stores. This simplifies administration.
+
+REPORTING BUGS
+       Report bugs to dev@embedthis.com.
+
+COPYRIGHT
+       Copyright © Embedthis Software.
+
+SEE ALSO
+
+auth                             February 2014                         AUTH(1)

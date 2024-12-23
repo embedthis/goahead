@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="eng">
+<head>
+<title>Webcomp Man Page</title>
+</head>
+<HTML>
+<BODY>
+<PRE>
+<!-- Manpage converted by man2html 3.0.1 -->
+
+       [--files fileList] [--name structName] [--strip prefix]
+
+DESCRIPTION
+       To enable files to be accessed on embedded systems without a file
+       system, the webcomp command converts arbitrary files into C code that
+       can be compiled and linked into a program. This is useful for
+       applications that must execute completely from ROM and not access a
+       file system.  This facility can also enhance security by preventing the
+       modification of files.
+
+       The MPR portable runtime provides routines which can then read these
+       files much as you would read any file on disk.
+
+OPTIONS
+       --files fileList
+              Option to provide a list of files that should be converted.  --p
+              strip Specifies a prefix to remove from each of the compiled
+              file names.
+
+       --name structName
+              Specifies the name of top level C structure that holds the
+              converted files.
+
+EXAMPLE
+       This example will create a list of web files and then convert these
+       files into C structures in the file romFiles.c.
+
+
+           find web -type f -print &gt;;fileList
+
+           webcomp --files filelist &gt;;romFiles.c
+
+           cc -o romFiles.o romFiles.c
+
+
+REPORTING BUGS
+       Report bugs to &lt;;dev@embedthis.com&gt;;.
+
+COPYRIGHT
+       Copyright © Embedthis Software.
+
+SEE ALSO
+
+makerom                           March 2014                        <B>MAKEROM(1)</B>
+</PRE>
+<HR>
+<ADDRESS>
+Man(1) output converted with
+<a href="http://www.oac.uci.edu/indiv/ehood/man2html.html">man2html</a>
+</ADDRESS>
+</BODY>
+</HTML>
+</html>
