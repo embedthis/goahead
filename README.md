@@ -52,7 +52,17 @@ recent Visual Studio version.
 
 ### To Build with Visual Studio
 
-Open the solution file at:
+
+To build with Visual Studio, you will need to install the
+[vcpkg](https://vcpkg.io/en/) dependency manager and install openssl.
+
+    git clone https://github.com/microsoft/vcpkg.git
+    cd vcpkg
+    .\bootstrap-vcpkg.bat
+    .\vcpkg integrate install
+    .\vcpkg install openssl
+
+Then open the Visual Studio solution file at:
 
     projects/goahead-windows-default.sln
 
@@ -68,6 +78,12 @@ Set the arguments to be
     -v
 
 Then start debugging.
+
+You may need to install the Windows Power Shell if not already installed on
+your system.
+
+    winget install --id Microsoft.PowerShell --source winget
+
 
 ### To Build with Xcode.
 
