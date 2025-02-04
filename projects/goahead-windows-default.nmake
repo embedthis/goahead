@@ -30,7 +30,7 @@ CC_ARCH               = i686
 ENTRY                 = _DllMainCRTStartup@12
 !ENDIF
 
-!IF "$(CONFIG" == ""
+!IF "$(CONFIG)" == ""
 CONFIG                = $(OS)-$(ARCH)-$(PROFILE)
 !ENDIF
 
