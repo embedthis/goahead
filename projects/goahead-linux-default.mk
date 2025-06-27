@@ -132,7 +132,7 @@ ME_ROM_TIME           ?= 1505449519432
 ME_TITLE              ?= \"Embedthis GoAhead\"
 ME_VERSION            ?= \"6.0.4\"
 
-CFLAGS                += -Wno-unknown-warning-option  -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack  -w
+CFLAGS                += -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack  -w
 DFLAGS                += -D_REENTRANT -DPIC $(patsubst %,-D%,$(filter ME_%,$(MAKEFLAGS))) -DME_COM_COMPILER=$(ME_COM_COMPILER) -DME_COM_LIB=$(ME_COM_LIB) -DME_COM_MBEDTLS=$(ME_COM_MBEDTLS) -DME_COM_OPENSSL=$(ME_COM_OPENSSL) -DME_COM_OSDEP=$(ME_COM_OSDEP) -DME_COM_SSL=$(ME_COM_SSL) -DME_COM_VXWORKS=$(ME_COM_VXWORKS) -DME_CERTS_GENDH=$(ME_CERTS_GENDH) -DME_GOAHEAD_ACCESSLOG=$(ME_GOAHEAD_ACCESSLOG) -DME_GOAHEAD_AUTH=$(ME_GOAHEAD_AUTH) -DME_GOAHEAD_AUTHSTORE=$(ME_GOAHEAD_AUTHSTORE) -DME_GOAHEAD_AUTOLOGIN=$(ME_GOAHEAD_AUTOLOGIN) -DME_GOAHEAD_CGI=$(ME_GOAHEAD_CGI) -DME_GOAHEAD_CGIVARPREFIX=$(ME_GOAHEAD_CGIVARPREFIX) -DME_GOAHEAD_CLIENTCACHE=$(ME_GOAHEAD_CLIENTCACHE) -DME_GOAHEAD_CLIENTCACHELIFESPAN=$(ME_GOAHEAD_CLIENTCACHELIFESPAN) -DME_GOAHEAD_DIGEST=$(ME_GOAHEAD_DIGEST) -DME_GOAHEAD_DOCUMENTS=$(ME_GOAHEAD_DOCUMENTS) -DME_GOAHEAD_JAVASCRIPT=$(ME_GOAHEAD_JAVASCRIPT) -DME_GOAHEAD_LEGACY=$(ME_GOAHEAD_LEGACY) -DME_GOAHEAD_LIMITBUFFER=$(ME_GOAHEAD_LIMITBUFFER) -DME_GOAHEAD_LIMITCGIARGS=$(ME_GOAHEAD_LIMITCGIARGS) -DME_GOAHEAD_LIMITFILENAME=$(ME_GOAHEAD_LIMITFILENAME) -DME_GOAHEAD_LIMITFILES=$(ME_GOAHEAD_LIMITFILES) -DME_GOAHEAD_LIMITHEADER=$(ME_GOAHEAD_LIMITHEADER) -DME_GOAHEAD_LIMITHEADERS=$(ME_GOAHEAD_LIMITHEADERS) -DME_GOAHEAD_LIMITNUMHEADERS=$(ME_GOAHEAD_LIMITNUMHEADERS) -DME_GOAHEAD_LIMITPARSETIMEOUT=$(ME_GOAHEAD_LIMITPARSETIMEOUT) -DME_GOAHEAD_LIMITPASSWORD=$(ME_GOAHEAD_LIMITPASSWORD) -DME_GOAHEAD_LIMITPOST=$(ME_GOAHEAD_LIMITPOST) -DME_GOAHEAD_LIMITPUT=$(ME_GOAHEAD_LIMITPUT) -DME_GOAHEAD_LIMITSESSIONCOUNT=$(ME_GOAHEAD_LIMITSESSIONCOUNT) -DME_GOAHEAD_LIMITSESSIONLIFE=$(ME_GOAHEAD_LIMITSESSIONLIFE) -DME_GOAHEAD_LIMITSTRING=$(ME_GOAHEAD_LIMITSTRING) -DME_GOAHEAD_LIMITTIMEOUT=$(ME_GOAHEAD_LIMITTIMEOUT) -DME_GOAHEAD_LIMITUPLOAD=$(ME_GOAHEAD_LIMITUPLOAD) -DME_GOAHEAD_LIMITURI=$(ME_GOAHEAD_LIMITURI) -DME_GOAHEAD_LISTEN=$(ME_GOAHEAD_LISTEN) -DME_GOAHEAD_LOGFILE=$(ME_GOAHEAD_LOGFILE) -DME_GOAHEAD_LOGGING=$(ME_GOAHEAD_LOGGING) -DME_GOAHEAD_PUTDIR=$(ME_GOAHEAD_PUTDIR) -DME_GOAHEAD_REALM=$(ME_GOAHEAD_REALM) -DME_GOAHEAD_REPLACE_MALLOC=$(ME_GOAHEAD_REPLACE_MALLOC) -DME_GOAHEAD_SSL=$(ME_GOAHEAD_SSL) -DME_GOAHEAD_STEALTH=$(ME_GOAHEAD_STEALTH) -DME_GOAHEAD_TRACING=$(ME_GOAHEAD_TRACING) -DME_GOAHEAD_UPLOAD=$(ME_GOAHEAD_UPLOAD) -DME_GOAHEAD_UPLOADDIR=$(ME_GOAHEAD_UPLOADDIR) -DME_GOAHEAD_XFRAMEHEADER=$(ME_GOAHEAD_XFRAMEHEADER) -DME_MBEDTLS_COMPACT=$(ME_MBEDTLS_COMPACT) -DME_OPENSSL_VERSION=$(ME_OPENSSL_VERSION) 
 IFLAGS                += "-I$(BUILD)/inc"
 LDFLAGS               += -z noexecstack -g -rdynamic -Wl,--enable-new-dtags -Wl,-rpath,$$ORIGIN/
@@ -431,7 +431,7 @@ DEPS_25 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/action.o: \
     src/action.c $(DEPS_25)
 	@echo '   [Compile] $(BUILD)/obj/action.o'
-	$(CC) -c -o $(BUILD)/obj/action.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/action.c
+	$(CC) -c -o $(BUILD)/obj/action.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/action.c
 
 #
 #   alloc.o
@@ -441,7 +441,7 @@ DEPS_26 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/alloc.o: \
     src/alloc.c $(DEPS_26)
 	@echo '   [Compile] $(BUILD)/obj/alloc.o'
-	$(CC) -c -o $(BUILD)/obj/alloc.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/alloc.c
+	$(CC) -c -o $(BUILD)/obj/alloc.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/alloc.c
 
 #
 #   auth.o
@@ -451,7 +451,7 @@ DEPS_27 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/auth.o: \
     src/auth.c $(DEPS_27)
 	@echo '   [Compile] $(BUILD)/obj/auth.o'
-	$(CC) -c -o $(BUILD)/obj/auth.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/auth.c
+	$(CC) -c -o $(BUILD)/obj/auth.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/auth.c
 
 #
 #   cgi.o
@@ -461,7 +461,7 @@ DEPS_28 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/cgi.o: \
     src/cgi.c $(DEPS_28)
 	@echo '   [Compile] $(BUILD)/obj/cgi.o'
-	$(CC) -c -o $(BUILD)/obj/cgi.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/cgi.c
+	$(CC) -c -o $(BUILD)/obj/cgi.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/cgi.c
 
 #
 #   cgitest.o
@@ -470,7 +470,7 @@ $(BUILD)/obj/cgi.o: \
 $(BUILD)/obj/cgitest.o: \
     test/cgitest.c $(DEPS_29)
 	@echo '   [Compile] $(BUILD)/obj/cgitest.o'
-	$(CC) -c -o $(BUILD)/obj/cgitest.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) $(IFLAGS) test/cgitest.c
+	$(CC) -c -o $(BUILD)/obj/cgitest.o $(CFLAGS) $(DFLAGS) $(IFLAGS) test/cgitest.c
 
 #
 #   crypt.o
@@ -480,7 +480,7 @@ DEPS_30 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/crypt.o: \
     src/crypt.c $(DEPS_30)
 	@echo '   [Compile] $(BUILD)/obj/crypt.o'
-	$(CC) -c -o $(BUILD)/obj/crypt.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/crypt.c
+	$(CC) -c -o $(BUILD)/obj/crypt.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/crypt.c
 
 #
 #   file.o
@@ -490,7 +490,7 @@ DEPS_31 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/file.o: \
     src/file.c $(DEPS_31)
 	@echo '   [Compile] $(BUILD)/obj/file.o'
-	$(CC) -c -o $(BUILD)/obj/file.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/file.c
+	$(CC) -c -o $(BUILD)/obj/file.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/file.c
 
 #
 #   fs.o
@@ -500,7 +500,7 @@ DEPS_32 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/fs.o: \
     src/fs.c $(DEPS_32)
 	@echo '   [Compile] $(BUILD)/obj/fs.o'
-	$(CC) -c -o $(BUILD)/obj/fs.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/fs.c
+	$(CC) -c -o $(BUILD)/obj/fs.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/fs.c
 
 #
 #   goahead.o
@@ -510,7 +510,7 @@ DEPS_33 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/goahead.o: \
     src/goahead.c $(DEPS_33)
 	@echo '   [Compile] $(BUILD)/obj/goahead.o'
-	$(CC) -c -o $(BUILD)/obj/goahead.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/goahead.c
+	$(CC) -c -o $(BUILD)/obj/goahead.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/goahead.c
 
 #
 #   gopass.o
@@ -520,7 +520,7 @@ DEPS_34 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/gopass.o: \
     src/utils/gopass.c $(DEPS_34)
 	@echo '   [Compile] $(BUILD)/obj/gopass.o'
-	$(CC) -c -o $(BUILD)/obj/gopass.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/utils/gopass.c
+	$(CC) -c -o $(BUILD)/obj/gopass.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/utils/gopass.c
 
 #
 #   http.o
@@ -530,7 +530,7 @@ DEPS_35 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/http.o: \
     src/http.c $(DEPS_35)
 	@echo '   [Compile] $(BUILD)/obj/http.o'
-	$(CC) -c -o $(BUILD)/obj/http.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/http.c
+	$(CC) -c -o $(BUILD)/obj/http.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/http.c
 
 #
 #   js.o
@@ -540,7 +540,7 @@ DEPS_36 += $(BUILD)/inc/js.h
 $(BUILD)/obj/js.o: \
     src/js.c $(DEPS_36)
 	@echo '   [Compile] $(BUILD)/obj/js.o'
-	$(CC) -c -o $(BUILD)/obj/js.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/js.c
+	$(CC) -c -o $(BUILD)/obj/js.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/js.c
 
 #
 #   jst.o
@@ -551,7 +551,7 @@ DEPS_37 += $(BUILD)/inc/js.h
 $(BUILD)/obj/jst.o: \
     src/jst.c $(DEPS_37)
 	@echo '   [Compile] $(BUILD)/obj/jst.o'
-	$(CC) -c -o $(BUILD)/obj/jst.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/jst.c
+	$(CC) -c -o $(BUILD)/obj/jst.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/jst.c
 
 #
 #   mbedtls.o
@@ -561,7 +561,7 @@ DEPS_38 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/mbedtls.o: \
     src/mbedtls.c $(DEPS_38)
 	@echo '   [Compile] $(BUILD)/obj/mbedtls.o'
-	$(CC) -c -o $(BUILD)/obj/mbedtls.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/mbedtls.c
+	$(CC) -c -o $(BUILD)/obj/mbedtls.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/mbedtls.c
 
 #
 #   openssl.o
@@ -571,7 +571,7 @@ DEPS_39 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/openssl.o: \
     src/openssl.c $(DEPS_39)
 	@echo '   [Compile] $(BUILD)/obj/openssl.o'
-	$(CC) -c -o $(BUILD)/obj/openssl.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/openssl.c
+	$(CC) -c -o $(BUILD)/obj/openssl.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/openssl.c
 
 #
 #   options.o
@@ -581,7 +581,7 @@ DEPS_40 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/options.o: \
     src/options.c $(DEPS_40)
 	@echo '   [Compile] $(BUILD)/obj/options.o'
-	$(CC) -c -o $(BUILD)/obj/options.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/options.c
+	$(CC) -c -o $(BUILD)/obj/options.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/options.c
 
 #
 #   osdep.o
@@ -591,7 +591,7 @@ DEPS_41 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/osdep.o: \
     src/osdep.c $(DEPS_41)
 	@echo '   [Compile] $(BUILD)/obj/osdep.o'
-	$(CC) -c -o $(BUILD)/obj/osdep.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/osdep.c
+	$(CC) -c -o $(BUILD)/obj/osdep.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/osdep.c
 
 #
 #   rom.o
@@ -601,7 +601,7 @@ DEPS_42 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/rom.o: \
     src/rom.c $(DEPS_42)
 	@echo '   [Compile] $(BUILD)/obj/rom.o'
-	$(CC) -c -o $(BUILD)/obj/rom.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/rom.c
+	$(CC) -c -o $(BUILD)/obj/rom.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/rom.c
 
 #
 #   route.o
@@ -611,7 +611,7 @@ DEPS_43 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/route.o: \
     src/route.c $(DEPS_43)
 	@echo '   [Compile] $(BUILD)/obj/route.o'
-	$(CC) -c -o $(BUILD)/obj/route.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/route.c
+	$(CC) -c -o $(BUILD)/obj/route.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/route.c
 
 #
 #   runtime.o
@@ -621,7 +621,7 @@ DEPS_44 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/runtime.o: \
     src/runtime.c $(DEPS_44)
 	@echo '   [Compile] $(BUILD)/obj/runtime.o'
-	$(CC) -c -o $(BUILD)/obj/runtime.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/runtime.c
+	$(CC) -c -o $(BUILD)/obj/runtime.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/runtime.c
 
 #
 #   socket.o
@@ -631,7 +631,7 @@ DEPS_45 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/socket.o: \
     src/socket.c $(DEPS_45)
 	@echo '   [Compile] $(BUILD)/obj/socket.o'
-	$(CC) -c -o $(BUILD)/obj/socket.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/socket.c
+	$(CC) -c -o $(BUILD)/obj/socket.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/socket.c
 
 #
 #   test.o
@@ -642,7 +642,7 @@ DEPS_46 += $(BUILD)/inc/js.h
 $(BUILD)/obj/test.o: \
     test/test.c $(DEPS_46)
 	@echo '   [Compile] $(BUILD)/obj/test.o'
-	$(CC) -c -o $(BUILD)/obj/test.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) test/test.c
+	$(CC) -c -o $(BUILD)/obj/test.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) test/test.c
 
 #
 #   time.o
@@ -652,7 +652,7 @@ DEPS_47 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/time.o: \
     src/time.c $(DEPS_47)
 	@echo '   [Compile] $(BUILD)/obj/time.o'
-	$(CC) -c -o $(BUILD)/obj/time.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/time.c
+	$(CC) -c -o $(BUILD)/obj/time.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/time.c
 
 #
 #   upload.o
@@ -662,7 +662,7 @@ DEPS_48 += $(BUILD)/inc/goahead.h
 $(BUILD)/obj/upload.o: \
     src/upload.c $(DEPS_48)
 	@echo '   [Compile] $(BUILD)/obj/upload.o'
-	$(CC) -c -o $(BUILD)/obj/upload.o -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,-z,noexecstack -Wl,--no-warn-execstack $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/upload.c
+	$(CC) -c -o $(BUILD)/obj/upload.o $(CFLAGS) $(DFLAGS) -D_FILE_OFFSET_BITS=64 $(IFLAGS) src/upload.c
 
 #
 #   libgo
@@ -840,8 +840,6 @@ installBinary: $(DEPS_55)
 	mkdir -p "$(ME_MAN_PREFIX)/man1" ; \
 	chmod 755 "$(ME_MAN_PREFIX)/man1" ; \
 	mkdir -p "$(ME_VAPP_PREFIX)/bin" ; \
-	cp $(BUILD)/bin/goahead $(ME_VAPP_PREFIX)/bin/goahead ; \
-	chmod 755 "$(ME_VAPP_PREFIX)/bin/goahead" ; \
 	mkdir -p "$(ME_BIN_PREFIX)" ; \
 	rm -f "$(ME_BIN_PREFIX)/goahead" ; \
 	ln -s "$(ME_VAPP_PREFIX)/bin/goahead" "$(ME_BIN_PREFIX)/goahead" ; \
@@ -858,7 +856,6 @@ installBinary: $(DEPS_55)
 	cp src/auth.txt $(ME_ETC_PREFIX)/auth.txt ; \
 	cp src/route.txt $(ME_ETC_PREFIX)/route.txt ; \
 	mkdir -p "$(ME_VAPP_PREFIX)/bin" ; \
-	cp $(BUILD)/bin/libgo.so $(ME_VAPP_PREFIX)/bin/libgo.so ; \
 	mkdir -p "$(ME_VAPP_PREFIX)/doc/man/man1" ; \
 	cp doc/man/goahead.1 $(ME_VAPP_PREFIX)/doc/man/man1/goahead.1 ; \
 	mkdir -p "$(ME_MAN_PREFIX)/man1" ; \

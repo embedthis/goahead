@@ -2750,7 +2750,6 @@ PUBLIC int websUrlParse(cchar *url, char **pbuf, char **pscheme, char **phost, c
             path = buf2;
             *path = sep;
         }
-        // websDecodeUrl(path, path, -1);
         *ppath = path;
     }
     if (pquery) {

@@ -3,16 +3,25 @@ Embedthis GoAhead
 
 The most popular little embedded web server.
 
-Licensing
----
+## Upgrading
+
+If you are creating a new device or planning your upgrade path for the future,
+we recommend you consider the [Ioto Device
+Agent](https://www.embedthis.com/ioto/). It incorporates everything we've
+learned from GoAhead over 20 years of developing device management software.
+Talk to us about how to upgrade to Ioto at
+[Support](mailto:support@embedthis.com).
+
+## Licensing
+
 See [LICENSE.md](LICENSE.md) and
 https://www.embedthis.com/goahead/licensing.html for details.
 
-### Documentation
+## Documentation
 
   See https://www.embedthis.com/goahead/doc/index.html.
 
-### Building from Source
+## Building from Source
 
 You can build GoAhead with make, Visual Studio or Xcode.
 
@@ -21,9 +30,9 @@ The IDE projects and Makefiles will build with SSL using the
 OpenSSL or other modules, read the [projects/README.md](projects/README.md) for
 details.
 
-### To Build with Make
+## To Build with Make
 
-#### Linux or MacOS
+### Linux or MacOS
 
     make
 
@@ -39,7 +48,7 @@ To run
 
 	make run
 
-#### Windows
+### Windows
 
     make
 
@@ -50,7 +59,7 @@ vsvarsall.bat, then that edition of
 Visual Studio will be used. If not, windows.bat will attempt to locate the most
 recent Visual Studio version.
 
-### To Build with Visual Studio
+## To Build with Visual Studio
 
 
 To build with Visual Studio, you will need to install the
@@ -85,7 +94,7 @@ your system.
     winget install --id Microsoft.PowerShell --source winget
 
 
-### To Build with Xcode.
+## To Build with Xcode.
 
 Open the solution file:
 
@@ -103,18 +112,18 @@ Click Project -> Build to build.
 
 Click Project -> Run to run.
 
-### To run
+## To run
 
     make run
 
-### To install
+## To install
 
 If you have built from source using Make, you can install the software using:
 
 
     sudo make install
 
-### To uninstall
+## To uninstall
 
     sudo make uninstall
 

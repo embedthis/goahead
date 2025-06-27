@@ -30,7 +30,7 @@ CC_ARCH               = i686
 ENTRY                 = _DllMainCRTStartup@12
 !ENDIF
 
-!IF "$(CONFIG" == ""
+!IF "$(CONFIG)" == ""
 CONFIG                = $(OS)-$(ARCH)-$(PROFILE)
 !ENDIF
 
@@ -1085,7 +1085,6 @@ stop: $(DEPS_54)
 installBinary: $(DEPS_55)
 	if not exist "$(ME_VAPP_PREFIX)\man\man1" md "$(ME_VAPP_PREFIX)\man\man1"
 	if not exist "$(ME_VAPP_PREFIX)\bin" md "$(ME_VAPP_PREFIX)\bin"
-	copy /Y /B build\$(CONFIG)\bin\goahead.exe+modified "$(ME_VAPP_PREFIX)\bin\goahead.exe" $(LOG)
 	if not exist "$(ME_VAPP_PREFIX)\bin" md "$(ME_VAPP_PREFIX)\bin"
 	copy /Y /B certs\roots.crt+modified "$(ME_VAPP_PREFIX)\bin\roots.crt" $(LOG)
 	if not exist "$(ME_VAPP_PREFIX)" md "$(ME_VAPP_PREFIX)"
@@ -1099,7 +1098,6 @@ installBinary: $(DEPS_55)
 	copy /Y /B src\auth.txt+modified "$(ME_VAPP_PREFIX)\auth.txt" $(LOG)
 	copy /Y /B src\route.txt+modified "$(ME_VAPP_PREFIX)\route.txt" $(LOG)
 	if not exist "$(ME_VAPP_PREFIX)\bin" md "$(ME_VAPP_PREFIX)\bin"
-	copy /Y /B build\$(CONFIG)\bin\libgo.dll+modified "$(ME_VAPP_PREFIX)\bin\libgo.dll" $(LOG)
 
 #
 #   start

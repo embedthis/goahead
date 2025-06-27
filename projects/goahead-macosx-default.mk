@@ -882,8 +882,6 @@ installBinary: $(DEPS_55)
 	mkdir -p "$(ME_MAN_PREFIX)/man1" ; \
 	chmod 755 "$(ME_MAN_PREFIX)/man1" ; \
 	mkdir -p "$(ME_VAPP_PREFIX)/bin" ; \
-	cp $(BUILD)/bin/goahead $(ME_VAPP_PREFIX)/bin/goahead ; \
-	chmod 755 "$(ME_VAPP_PREFIX)/bin/goahead" ; \
 	mkdir -p "$(ME_BIN_PREFIX)" ; \
 	rm -f "$(ME_BIN_PREFIX)/goahead" ; \
 	ln -s "$(ME_VAPP_PREFIX)/bin/goahead" "$(ME_BIN_PREFIX)/goahead" ; \
@@ -900,7 +898,6 @@ installBinary: $(DEPS_55)
 	cp src/auth.txt $(ME_ETC_PREFIX)/auth.txt ; \
 	cp src/route.txt $(ME_ETC_PREFIX)/route.txt ; \
 	mkdir -p "$(ME_VAPP_PREFIX)/bin" ; \
-	cp $(BUILD)/bin/libgo.dylib $(ME_VAPP_PREFIX)/bin/libgo.dylib ; \
 	mkdir -p "$(ME_VAPP_PREFIX)/doc/man/man1" ; \
 	cp doc/man/goahead.1 $(ME_VAPP_PREFIX)/doc/man/man1/goahead.1 ; \
 	mkdir -p "$(ME_MAN_PREFIX)/man1" ; \
