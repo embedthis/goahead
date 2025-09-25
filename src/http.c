@@ -3031,7 +3031,9 @@ static char *getToken(Webs *wp, char *delim, int validation)
     /*
         Eat white space before token
      */
-    for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) {}
+    if (validation != TOKEN_HEADER_VALUE && validation != TOKEN_HEADER_KEY) {
+        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) { }
+    }
 
     if (delim) {
         if ((endToken = strstr(token, delim)) == NULL) {
