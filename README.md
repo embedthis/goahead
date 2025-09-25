@@ -3,7 +3,14 @@ Embedthis GoAhead
 
 The most popular little embedded web server.
 
-## Upgrading
+GoAhead is a small, fast, and secure web server that is easy to embed in your
+products. It is used in millions of devices worldwide and is the foundation of
+the [Ioto Device Agent](https://www.embedthis.com/ioto/).
+
+## Status
+
+GoAhead is in a maintenance phase. It is actively supported and will receive
+security updates as required, but it will not have new features added. 
 
 If you are creating a new device or planning your upgrade path for the future,
 we recommend you consider the [Ioto Device
@@ -11,6 +18,20 @@ Agent](https://www.embedthis.com/ioto/). It incorporates everything we've
 learned from GoAhead over 20 years of developing device management software.
 Talk to us about how to upgrade to Ioto at
 [Support](mailto:support@embedthis.com).
+
+## Security for Devices
+
+The European Union has introduced the Cyber Resilience Act (CRA), a regulation
+aimed at enhancing cybersecurity for IoT products. This legislation mandates
+that manufacturers ensure their products are secure throughout their entire
+lifecycle, from design to decommissioning. This requires that software updates
+are provided for the lifetime of the device.
+
+To meet this need, GoAhead now includes the [Embedthis Updater](src/updater/)
+library and command line utility that can be used to automatically download and
+apply software updates to all your GoAhead-enabled devices. The [EmbedThis
+Builder](https://www.embedthis.com/builder/) can be used to publish,
+distribute, manage and track software updates for your GoAhead devices.
 
 ## Licensing
 

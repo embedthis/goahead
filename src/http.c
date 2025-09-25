@@ -205,7 +205,7 @@ static int      pruneId;                            /* Callback ID */
 static void     checkTimeout(void *arg, int id);
 static bool     filterChunkData(Webs *wp);
 static int      getTimeSinceMark(Webs *wp);
-static char     *getToken(Webs *wp, char *delim, int validation);
+static char *getToken(Webs *wp, char *delim, int validation);
 static void     parseFirstLine(Webs *wp);
 static void     parseHeaders(Webs *wp);
 static bool     processContent(Webs *wp);
@@ -3045,7 +3045,8 @@ static char *getToken(Webs *wp, char *delim, int validation)
         Eat white space before token
      */
     if (validation != TOKEN_HEADER_VALUE && validation != TOKEN_HEADER_KEY) {
-        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) { }
+        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) {
+        }
     }
 
     if (delim) {

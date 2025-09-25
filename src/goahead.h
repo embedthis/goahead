@@ -12,7 +12,7 @@
 /*
     Override osdep defaults
  */
-#define ME_MAX_IP  64               /**< Maximum IP address size */
+#define ME_MAX_IP 64                /**< Maximum IP address size */
 
 /************************************ Includes ********************************/
 
@@ -167,8 +167,10 @@ PUBLIC HINSTANCE websGetInst();
     requirements and constraints.
  */
 
-#define WEBS_MAX_LISTEN   8             /**< Maximum number of listening endpoints that can be configured simultaneously */
-#define WEBS_SMALL_HASH   31            /**< Default size for small hash tables (should be prime number for good distribution) */
+#define WEBS_MAX_LISTEN   8             /**< Maximum number of listening endpoints that can be configured simultaneously
+                                        */
+#define WEBS_SMALL_HASH   31            /**< Default size for small hash tables (should be prime number for good
+                                           distribution) */
 #define WEBS_MAX_PASSWORD 32            /**< Default maximum length for user passwords in authentication systems */
 
 /************************************* Error **********************************/
@@ -367,14 +369,14 @@ PUBLIC void traceProc(int level, cchar *fmt, ...);
     Standard HTTP/1.1 status codes and GoAhead-specific extensions. These codes are used
     throughout GoAhead to indicate the status of HTTP requests and responses. They follow the
     RFC 7231 specification for HTTP/1.1 semantics and content.
-    
+
     Status codes are organized into classes:
-    - 1xx: Informational responses  
+    - 1xx: Informational responses
     - 2xx: Successful responses
     - 3xx: Redirection messages
-    - 4xx: Client error responses  
+    - 4xx: Client error responses
     - 5xx: Server error responses
-    
+
     @see websError websErrorMsg websSetStatus websResponse
  */
 #define HTTP_CODE_CONTINUE               100   /**< Continue with request, only partial content transmitted */
@@ -540,27 +542,27 @@ PUBLIC void valueFree(WebsValue *value);
 /**
     Dynamic buffer (ring queue) for efficient I/O operations
     @description WebsBuf provides a highly efficient ring buffer implementation optimized for I/O operations
-        and dynamic string handling. It allows maximum memory utilization by reusing buffer space and 
-        minimizing memory allocations. The buffer automatically grows as needed and supports both 
+        and dynamic string handling. It allows maximum memory utilization by reusing buffer space and
+        minimizing memory allocations. The buffer automatically grows as needed and supports both
         queue-like operations and string building.
-        
+
         Key Features:
         - Ring buffer architecture for efficient memory usage
-        - Automatic growth when more space is needed  
+        - Automatic growth when more space is needed
         - Support for both binary data and string operations
         - Efficient data compaction and reset operations
         - Printf-style formatted output support
-        
+
         Buffer Layout:
         The buffer maintains four key pointers:
         - buf: Start of allocated buffer memory
-        - servp: Points to first unconsumed data byte (read position)  
+        - servp: Points to first unconsumed data byte (read position)
         - endp: Points to next free location for new data (write position)
         - endbuf: Points to one byte past end of allocated buffer
-        
+
         When servp == endp, the buffer is empty. The buffer can hold at most (buflen - 1) bytes
         to distinguish between empty and full states.
-        
+
     @warning This structure exposes internal pointers for performance. Handle with care and prefer
         using the provided APIs over direct field access.
     @see bufCreate bufFree bufPut bufGet bufLen bufStart
@@ -612,7 +614,7 @@ PUBLIC void bufCompact(WebsBuf *bp);
     @description Initializes a WebsBuf structure for dynamic buffer operations. The buffer will
         automatically grow as needed up to the specified maximum size. Growth occurs in increments
         that double each time to minimize frequent reallocations.
-        
+
         WebsBuf provides efficient ring buffer functionality ideal for:
         - HTTP request/response buffering
         - Dynamic string building
@@ -841,7 +843,7 @@ PUBLIC void *wrealloc(void *blk, ssize newsize);
     @param ptr Original block reference
     @param usize Size to allocate
     @return Reference to the new memory block
-     */
+ */
 PUBLIC void *wdup(cvoid *ptr, ssize usize);
 
 typedef void (*WebsMemNotifier)(ssize size);
@@ -868,18 +870,18 @@ PUBLIC void wvalid(cvoid *blk);
     @description Represents a single key-value pair stored in a GoAhead hash table. Hash tables in GoAhead
         provide fast O(1) average-case lookup, insertion, and deletion operations. Each entry contains
         both a key name and associated value, along with internal linking for collision resolution.
-        
+
         Hash tables are used extensively throughout GoAhead for:
         - HTTP headers and form variables
-        - Session data storage  
+        - Session data storage
         - Route configuration
         - User roles and abilities
         - General configuration data
-        
+
         The hash implementation uses separate chaining for collision resolution, where entries with
         the same hash value are linked together in chains. The hash function is designed to minimize
         collisions for typical web server key patterns.
-        
+
     @note Applications should not access this structure directly. Use the hash table API functions
         to manipulate hash entries safely.
     @see hashCreate hashFree hashLookup hashEnter hashDelete hashFirst hashNext
@@ -1034,7 +1036,7 @@ typedef int (*SocketAccept)(int sid, cchar *ipaddr, int port, int listenSid);
         needed to manage network I/O operations. GoAhead uses an event-driven, non-blocking I/O model
         where multiple connections can be efficiently handled by a single thread. Each socket has
         associated buffers, event handlers, and connection state.
-        
+
         Key Features:
         - Non-blocking I/O with event callbacks
         - Integrated line buffering for HTTP parsing
@@ -1042,13 +1044,13 @@ typedef int (*SocketAccept)(int sid, cchar *ipaddr, int port, int listenSid);
         - SSL/TLS encryption capability
         - IPv4 and IPv6 support
         - Connection state tracking
-        
+
         Socket Lifecycle:
         1. Allocation via socketAlloc() or socketConnect()
         2. Event handler registration via socketCreateHandler()
         3. I/O operations via socketRead()/socketWrite()
         4. Cleanup via socketFree()
-        
+
     @warning This structure should be considered opaque. Use the socket API functions rather
         than accessing fields directly.
     @see socketAlloc socketConnect socketCreateHandler socketRead socketWrite socketFree
@@ -1776,18 +1778,18 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
 #endif
 /********************************** Defines ***********************************/
 
-#define WEBS_MAX_PORT_LEN     16            /**< Maximum number of digits in a port number string */
-#define WEBS_HASH_INIT        67            /**< Initial hash table size for form variables (prime number) */
-#define WEBS_SESSION_HASH     31            /**< Hash table size for session storage (prime number) */
-#define WEBS_SESSION_PRUNE    (60 * 1000)   /**< Session pruning interval in milliseconds (1 minute) */
+#define WEBS_MAX_PORT_LEN  16               /**< Maximum number of digits in a port number string */
+#define WEBS_HASH_INIT     67               /**< Initial hash table size for form variables (prime number) */
+#define WEBS_SESSION_HASH  31               /**< Hash table size for session storage (prime number) */
+#define WEBS_SESSION_PRUNE (60 * 1000)      /**< Session pruning interval in milliseconds (1 minute) */
 
 /*
     The license agreement stipulates that you must not change this definition.
  */
-#define WEBS_NAME             "Server: GoAhead-http"
+#define WEBS_NAME          "Server: GoAhead-http"
 
 /**
-    Bit flags that track the state and characteristics of HTTP requests. These flags 
+    Bit flags that track the state and characteristics of HTTP requests. These flags
     are stored in the Webs.flags field and are used internally by GoAhead to manage request
     processing state and enable various features.
  */
@@ -1797,23 +1799,23 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
     @description Flags that track the current state of the connection and request processing.
     @{
  */
-#define WEBS_ACCEPTED         0x1            /**< TLS/SSL connection has been accepted and established */
-#define WEBS_CLOSED           0x4            /**< Connection has been closed and is ready to be freed */
-#define WEBS_FINALIZED        0x10           /**< Response output has been finalized, no more data can be sent */
-#define WEBS_HEADERS_CREATED  0x40           /**< Response headers have been created and buffered */
-#define WEBS_RESPONSE_TRACED  0x800          /**< Response tracing has been started for debugging */
-#define WEBS_REROUTE          0x400          /**< Request should restart route matching process */
+#define WEBS_ACCEPTED        0x1             /**< TLS/SSL connection has been accepted and established */
+#define WEBS_CLOSED          0x4             /**< Connection has been closed and is ready to be freed */
+#define WEBS_FINALIZED       0x10            /**< Response output has been finalized, no more data can be sent */
+#define WEBS_HEADERS_CREATED 0x40            /**< Response headers have been created and buffered */
+#define WEBS_RESPONSE_TRACED 0x800           /**< Response tracing has been started for debugging */
+#define WEBS_REROUTE         0x400           /**< Request should restart route matching process */
 /** @} */
 
 /**
-    @name Protocol and Format Flags  
+    @name Protocol and Format Flags
     @description Flags that indicate the HTTP protocol version and content formats.
     @{
  */
-#define WEBS_HTTP11           0x80           /**< Request is using HTTP/1.1 protocol */
-#define WEBS_KEEP_ALIVE       0x200          /**< HTTP/1.1 persistent connection (keep-alive) */
-#define WEBS_CHUNKING         0x2            /**< Currently using chunked transfer encoding for output */
-#define WEBS_SECURE           0x1000         /**< Connection is secured with SSL/TLS encryption */
+#define WEBS_HTTP11          0x80            /**< Request is using HTTP/1.1 protocol */
+#define WEBS_KEEP_ALIVE      0x200           /**< HTTP/1.1 persistent connection (keep-alive) */
+#define WEBS_CHUNKING        0x2             /**< Currently using chunked transfer encoding for output */
+#define WEBS_SECURE          0x1000          /**< Connection is secured with SSL/TLS encryption */
 /** @} */
 
 /**
@@ -1821,10 +1823,10 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
     @description Flags that identify the type of request content being processed.
     @{
  */
-#define WEBS_FORM             0x20           /**< Request contains form data (application/x-www-form-urlencoded) */
-#define WEBS_JSON             0x100          /**< Request contains JSON payload data */
-#define WEBS_UPLOAD           0x2000         /**< Request is a multipart/form-data file upload */
-#define WEBS_COOKIE           0x8            /**< Request contains cookie data */
+#define WEBS_FORM            0x20            /**< Request contains form data (application/x-www-form-urlencoded) */
+#define WEBS_JSON            0x100           /**< Request contains JSON payload data */
+#define WEBS_UPLOAD          0x2000          /**< Request is a multipart/form-data file upload */
+#define WEBS_COOKIE          0x8             /**< Request contains cookie data */
 /** @} */
 
 /**
@@ -1832,9 +1834,9 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
     @description Flags that track internal processing state.
     @{
  */
-#define WEBS_VARS_ADDED       0x4000         /**< Query string and form variables have been parsed and added */
+#define WEBS_VARS_ADDED      0x4000          /**< Query string and form variables have been parsed and added */
 #if ME_GOAHEAD_LEGACY
-#define WEBS_LOCAL            0x8000         /**< Request originated from the local system (legacy) */
+#define WEBS_LOCAL           0x8000          /**< Request originated from the local system (legacy) */
 #endif
 /** @} */
 
@@ -1883,15 +1885,15 @@ typedef void (*WebsWriteProc)(struct Webs *wp);
         Each active client connection has its own Webs structure containing all the request state,
         response buffers, and connection information. This structure is passed to all request handlers
         and contains everything needed to process HTTP requests and generate responses.
-        
+
         Key components:
         - Request parsing state and headers
-        - Response generation buffers  
+        - Response generation buffers
         - Session and authentication information
         - File upload handling state
         - CGI processing state
         - SSL/TLS connection context
-        
+
     @note This structure should be treated as opaque by user code. Use the provided APIs to access
         and manipulate request/response data rather than accessing fields directly.
     @see websAccept websAlloc websFree websValid
@@ -2044,7 +2046,7 @@ typedef void (*WebsAction)(Webs *wp);
     @description Callback function type used in legacy GoAhead versions. New code should use
         WebsHandlerProc instead which provides more flexibility and features.
     @param wp Webs request object
-    @param path Request path string 
+    @param path Request path string
     @param query Query string from the URL
     @deprecated Use WebsHandlerProc for new development
     @stability Legacy
@@ -2229,8 +2231,8 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len);
 
 /**
     Define a custom request handler
-    @description Registers a custom handler to process specific types of HTTP requests. Handlers are 
-        responsible for generating responses to HTTP requests. GoAhead comes with built-in handlers for 
+    @description Registers a custom handler to process specific types of HTTP requests. Handlers are
+        responsible for generating responses to HTTP requests. GoAhead comes with built-in handlers for
         static files, CGI, and actions, but you can create custom handlers for specialized processing.
         Handlers are matched against requests in the order they were registered.
     @param name Unique name for the handler (e.g., "myHandler", "apiHandler")
@@ -2243,7 +2245,7 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len);
     @param close Handler callback close procedure. Called when GoAhead is shutting down to allow
         cleanup of handler-specific resources. Can be NULL if no cleanup needed.
         Signature: void close(void)
-    @param flags Handler control flags. Set to WEBS_LEGACY_HANDLER to support the legacy handler API 
+    @param flags Handler control flags. Set to WEBS_LEGACY_HANDLER to support the legacy handler API
         calling sequence, or 0 for standard handlers.
     @return Zero if successful, otherwise -1 on error.
     @see websDefineAction websHandlerProc websOpen
@@ -2571,16 +2573,16 @@ PUBLIC cchar *websGetUsername(Webs *wp);
         - HTTP headers prefixed with "HTTP_" (e.g., "HTTP_USER_AGENT")
         - CGI environment variables (when using CGI handler)
         - Custom variables set by handlers
-        
-        Variable names are case-sensitive. HTTP headers are converted to uppercase with 
+
+        Variable names are case-sensitive. HTTP headers are converted to uppercase with
         hyphens replaced by underscores and prefixed with "HTTP_".
     @param wp Webs request object representing the current HTTP request
     @param name Variable name to retrieve. Common examples:
         - "name", "email" (form fields)
-        - "q", "page" (query parameters)  
+        - "q", "page" (query parameters)
         - "HTTP_USER_AGENT", "HTTP_REFERER" (HTTP headers)
         - "REQUEST_METHOD", "QUERY_STRING" (CGI variables)
-    @param defaultValue Default value to return if the variable is not defined. 
+    @param defaultValue Default value to return if the variable is not defined.
         Can be NULL if you want to detect missing variables.
     @return Variable value string, or defaultValue if not found. Caller should not free the returned string.
     @see websSetVar websTestVar websSetFormVars websSetQueryVars
@@ -2596,7 +2598,7 @@ PUBLIC cchar *websGetVar(Webs *wp, cchar *name, cchar *defaultValue);
     @param endpoint Network endpoint specification in the format "IP:PORT". Supported formats:
         - "127.0.0.1:8080" - IPv4 address with port
         - ":8080" - All IPv4 interfaces on port 8080
-        - "*:8080" - All interfaces on port 8080  
+        - "*:8080" - All interfaces on port 8080
         - "[::1]:8080" - IPv6 loopback with port
         - "[::]:8080" - All IPv6 interfaces on port 8080
         - "192.168.1.100:80" - Specific IPv4 interface
@@ -2665,7 +2667,7 @@ PUBLIC int websRuntimeOpen(void);
     @param documents Optional web documents directory path. This becomes the document root where web files
         are served from. If set to NULL, the build-time default ME_GOAHEAD_DOCUMENTS value is used.
         The directory should contain your web content (HTML, CSS, JS, images, etc.).
-    @param routes Optional filename for a route configuration file to load. This file defines URL routing 
+    @param routes Optional filename for a route configuration file to load. This file defines URL routing
         rules, authentication requirements, and handler mappings. If set to NULL, no routes are loaded.
         Additional route or authentication configuration files can be loaded later via websLoad().
     @return Zero if successful, otherwise -1 on error.
@@ -2781,8 +2783,8 @@ PUBLIC void websPump(Webs *wp);
 
 /**
     Define an action callback for use with the action handler.
-    @description The action handler provides a simple way to bind C functions to specific URIs under 
-        the "/action" prefix. This is an easy way to add dynamic functionality without creating a full 
+    @description The action handler provides a simple way to bind C functions to specific URIs under
+        the "/action" prefix. This is an easy way to add dynamic functionality without creating a full
         custom handler. Actions are ideal for form processing, AJAX endpoints, and simple dynamic content.
     @param name URI path suffix. This suffix is added to "/action" to form the bound URI path.
         For example, if name is "login", the action will be accessible at "/action/login".
@@ -2822,7 +2824,7 @@ PUBLIC char *websReadWholeFile(cchar *path);
         - Temporary URL changes
         - Load balancing between servers
         - Routing after form submissions
-        
+
         The function automatically calls websDone() to complete the response, so no additional
         content should be written after calling this function.
     @param wp Webs request object representing the current HTTP request
@@ -2900,14 +2902,14 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf);
     One line embedding API.
     @description This is the simplest way to create a GoAhead web server. This call will automatically:
         - Initialize the web server
-        - Load authentication configuration from auth.txt 
+        - Load authentication configuration from auth.txt
         - Load routing configuration from route.txt
         - Start listening on the specified endpoint
         - Set the document root directory
     This function is ideal for simple embedded applications that need a quick web server setup.
-    @param endpoint IP:PORT address on which to listen. Format examples: 
+    @param endpoint IP:PORT address on which to listen. Format examples:
         - "127.0.0.1:8080" (IPv4)
-        - "[::1]:8080" (IPv6)  
+        - "[::1]:8080" (IPv6)
         - ":8080" (all interfaces)
         - "192.168.1.100:80" (specific interface)
     @param documents Directory containing web documents to serve. This becomes the document root
@@ -2920,10 +2922,10 @@ PUBLIC int websServer(cchar *endpoint, cchar *documents);
 
 /**
     Service I/O events until finished
-    @description This is the main event loop for GoAhead. It will wait for socket events and service 
-        incoming HTTP requests until the finished flag is set to true. This function blocks and should 
-        be called from your main thread after starting the web server. The function will return when 
-        *finished is set to a non-zero value.
+    @description This is the main event loop for GoAhead. It will wait for socket events and service
+        incoming HTTP requests until the finished flag is set to true. This function blocks and should
+        be called from your main thread after starting the web server. The function will return when
+ * finished is set to a non-zero value.
     @param finished Pointer to an integer flag. When set to non-zero, the event loop will exit.
         Note: Setting finished will not automatically wake up the service routine if it's waiting
         for events. The routine will check this flag during the next I/O event or timeout.
@@ -2937,9 +2939,9 @@ PUBLIC void websServiceEvents(int *finished);
     @description Controls whether GoAhead runs as a background daemon process. When the background
         flag is set to true, GoAhead will detach from the controlling terminal and run as a daemon.
         This is typically used in production deployments where the web server should run independently
-        of the user session. The flag is automatically set when GoAhead is started with the 
+        of the user session. The flag is automatically set when GoAhead is started with the
         --background command line option.
-        
+
         When running in background mode:
         - Process detaches from terminal
         - Standard I/O is redirected
@@ -2956,11 +2958,11 @@ PUBLIC void websSetBackground(int on);
     @description Sets up a callback function to handle background writing of response data. This function
         is useful for streaming large amounts of data or implementing server-sent events. The callback
         will be invoked when the socket becomes writable and the output buffer has space available.
-        
+
         The callback function should write data to the response using websWrite() or websWriteBlock().
         When the callback has finished writing all data, it should not write anything and the framework
         will automatically complete the request.
-        
+
         This mechanism allows for non-blocking, event-driven data transmission that doesn't hold up
         the main request processing thread.
     @param wp Webs request object representing the current HTTP request
@@ -2999,13 +3001,13 @@ PUBLIC void websSetCookie(Webs *wp, cchar *name, cchar *value, cchar *path, ccha
     @description Controls whether GoAhead operates in debug mode with enhanced diagnostic output.
         When debug mode is enabled, GoAhead provides additional logging, error reporting, and
         diagnostic information that can be helpful during development and troubleshooting.
-        
+
         Debug mode typically enables:
         - More verbose error messages
         - Additional runtime checks
         - Enhanced logging output
         - Development-oriented diagnostics
-        
+
         This flag is automatically set when GoAhead is started with the --debugger command line option.
         Debug mode should generally be disabled in production environments for optimal performance.
     @param on Set to 1 to enable debug mode, 0 to disable debug mode
@@ -3028,7 +3030,7 @@ PUBLIC void websSetDocuments(cchar *dir);
         and programs. This function creates environment variables based on the current HTTP request
         that follow the CGI 1.1 specification. The variables include information about the server,
         request method, headers, query parameters, and client details.
-        
+
         Standard CGI variables created include:
         - SERVER_NAME, SERVER_PORT, SERVER_PROTOCOL
         - REQUEST_METHOD, REQUEST_URI, QUERY_STRING
@@ -3036,7 +3038,7 @@ PUBLIC void websSetDocuments(cchar *dir);
         - HTTP_* variables for all request headers
         - REMOTE_ADDR, REMOTE_HOST
         - SCRIPT_NAME, PATH_INFO
-        
+
         This function is automatically called by the CGI handler before executing CGI scripts.
     @param wp Webs request object representing the current HTTP request
     @see websSetFormVars websSetQueryVars
@@ -3062,7 +3064,7 @@ PUBLIC void websSetFormVars(Webs *wp);
         - Virtual host processing and routing
         - Server identification in responses
         - SSL certificate validation
-        
+
         If not explicitly set, GoAhead will attempt to determine the hostname automatically from
         the system configuration. The hostname should be a fully qualified domain name (FQDN)
         or IP address that clients can use to reach the server.
@@ -3082,7 +3084,7 @@ PUBLIC void websSetHost(cchar *host);
         - Access control and filtering
         - Logging and diagnostics
         - Multi-homed server configurations
-        
+
         The IP address should match one of the network interfaces on the server. Common values
         include specific interface addresses or "0.0.0.0" to bind to all available interfaces.
     @param ipaddr String containing the IP address in dotted decimal notation (IPv4) or
@@ -3097,10 +3099,10 @@ PUBLIC void websSetIpAddr(cchar *ipaddr);
     @description Sets the default document that will be served when a client requests a directory
         (URL ending with "/"). This is commonly used to serve a default page like "index.html"
         when users access the root directory or any subdirectory without specifying a filename.
-        
+
         For example, if the index is set to "index.html", then a request for "/" will actually
         serve "/index.html", and a request for "/docs/" will serve "/docs/index.html".
-        
+
         The default index document is typically "index.html" but can be changed to any filename
         such as "default.htm", "home.html", or "main.html".
     @param filename The filename to use as the default index document. This should be just the
@@ -3115,13 +3117,13 @@ PUBLIC void websSetIndex(cchar *filename);
     @description Parses the query string from the current request URL and creates request variables
         that can be accessed using websGetVar(). The query string is the portion of the URL after
         the "?" character containing key=value pairs separated by "&" characters.
-        
+
         For example, for the URL "/search?name=john&age=25&active=true", this function will create
         request variables that can be retrieved as:
         - websGetVar(wp, "name", NULL) returns "john"
-        - websGetVar(wp, "age", NULL) returns "25"  
+        - websGetVar(wp, "age", NULL) returns "25"
         - websGetVar(wp, "active", NULL) returns "true"
-        
+
         Query variables are automatically URL-decoded, so "%20" becomes a space character, etc.
         This function is typically called automatically during request processing.
     @param wp Webs request object representing the current HTTP request
@@ -3135,16 +3137,16 @@ PUBLIC void websSetQueryVars(Webs *wp);
     @description Sets the HTTP status code that will be sent in the response to the client.
         The status code indicates the result of the HTTP request processing. This function
         should be called before sending the response headers or body content.
-        
+
         Common status codes include:
         - 200: OK (success)
         - 301/302: Redirect
         - 400: Bad Request
-        - 401: Unauthorized  
+        - 401: Unauthorized
         - 403: Forbidden
         - 404: Not Found
         - 500: Internal Server Error
-        
+
         If not explicitly set, GoAhead will automatically set an appropriate status code
         based on the request processing results (typically 200 for successful requests).
     @param wp Webs request object representing the current HTTP request
@@ -3160,13 +3162,13 @@ PUBLIC void websSetStatus(Webs *wp, int status);
         of the response body in bytes. This header tells the client how much data to expect
         in the response body, which enables proper handling of the response and connection
         management.
-        
+
         Setting the content length is important for:
         - Enabling HTTP/1.1 persistent connections (keep-alive)
         - Allowing clients to display download progress
         - Proper handling of binary content
         - Compliance with HTTP specifications
-        
+
         If the content length is not set, GoAhead may use chunked transfer encoding or
         close the connection after sending the response body.
     @param wp Webs request object representing the current HTTP request
@@ -3192,15 +3194,15 @@ PUBLIC WebsKey *websSetVarFmt(Webs *wp, cchar *name, cchar *fmt, ...);
 
 /**
     Set a request variable to a string value
-    @description Sets a request variable that can be retrieved later with websGetVar(). Request 
+    @description Sets a request variable that can be retrieved later with websGetVar(). Request
         variables provide a key-value store for the current request context. Common uses include:
         - Setting HTTP headers (prefixed with "HTTP_")
         - Storing form processing results
         - Passing data between handlers
         - CGI environment variables
-        
+
         Variable names should follow these conventions:
-        - HTTP headers: "HTTP_" prefix (e.g., "HTTP_USER_AGENT")  
+        - HTTP headers: "HTTP_" prefix (e.g., "HTTP_USER_AGENT")
         - Form data: field names (e.g., "username", "email")
         - Custom data: descriptive names (e.g., "authLevel", "userRole")
     @param wp Webs request object representing the current HTTP request
@@ -3354,8 +3356,8 @@ PUBLIC int websWriteHeader(Webs *wp, cchar *key, cchar *fmt, ...);
 
 /**
     Write formatted data to the response
-    @description Writes formatted data to the HTTP response buffer. The data is buffered internally and 
-        will be sent to the client when the buffer becomes full, when websFlush() is called, or when 
+    @description Writes formatted data to the HTTP response buffer. The data is buffered internally and
+        will be sent to the client when the buffer becomes full, when websFlush() is called, or when
         the request completes. This is the primary function for sending dynamic content to clients.
         Supports all standard printf formatting options.
     @param wp Webs request object representing the current HTTP request/response
@@ -3821,7 +3823,7 @@ PUBLIC WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles);
         - Validating credentials (Basic, Digest, or Form authentication)
         - Verifying user roles and permissions
         - Setting authentication state for the request
-        
+
         If authentication fails, appropriate HTTP status codes are set (401 Unauthorized).
         For routes that don't require authentication, this function returns true immediately.
     @param wp Webs request object representing the current HTTP request

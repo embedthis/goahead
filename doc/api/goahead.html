@@ -4751,7 +4751,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request.</td></tr>
-    <tr><td class="param">name</td><td>Variable name to retrieve. Common examples:<ul><li>&quot;name&quot;, &quot;email&quot; (form fields)</li><li>&quot;q&quot;, &quot;page&quot; (query parameters) <br/></li><li>&quot;HTTP_USER_AGENT&quot;, &quot;HTTP_REFERER&quot; (HTTP headers)</li><li>&quot;REQUEST_METHOD&quot;, &quot;QUERY_STRING&quot; (CGI variables) </li></ul></td></tr>
+    <tr><td class="param">name</td><td>Variable name to retrieve. Common examples:<ul><li>&quot;name&quot;, &quot;email&quot; (form fields)</li><li>&quot;q&quot;, &quot;page&quot; (query parameters)</li><li>&quot;HTTP_USER_AGENT&quot;, &quot;HTTP_REFERER&quot; (HTTP headers)</li><li>&quot;REQUEST_METHOD&quot;, &quot;QUERY_STRING&quot; (CGI variables) </li></ul></td></tr>
     <tr><td class="param">defaultValue</td><td>Default value to return if the variable is not defined. Can be NULL if you want to detect missing variables.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Variable value string, or defaultValue if not found. Caller should not free the returned string.</dd></dl>
@@ -4803,7 +4803,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
     <dl><dt><b>Description</b>:</dt><dd>Creates a listening socket on the specified network endpoint to accept incoming HTTP connections. The server will bind to the specified IP address and port and begin accepting connections from clients. Multiple endpoints can be created by calling this function multiple times with different addresses.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
-    <tr><td class="param">endpoint</td><td>Network endpoint specification in the format &quot;IP:PORT&quot;. Supported formats:<ul><li>&quot;127.0.0.1:8080&quot; - IPv4 address with port</li><li>&quot;:8080&quot; - All IPv4 interfaces on port 8080</li><li>&quot;*:8080&quot; - All interfaces on port 8080 <br/></li><li>&quot;[::1]:8080&quot; - IPv6 loopback with port</li><li>&quot;[::]:8080&quot; - All IPv6 interfaces on port 8080</li><li>&quot;192.168.1.100:80&quot; - Specific IPv4 interface </li></ul></td></tr>
+    <tr><td class="param">endpoint</td><td>Network endpoint specification in the format &quot;IP:PORT&quot;. Supported formats:<ul><li>&quot;127.0.0.1:8080&quot; - IPv4 address with port</li><li>&quot;:8080&quot; - All IPv4 interfaces on port 8080</li><li>&quot;*:8080&quot; - All interfaces on port 8080</li><li>&quot;[::1]:8080&quot; - IPv6 loopback with port</li><li>&quot;[::]:8080&quot; - All IPv6 interfaces on port 8080</li><li>&quot;192.168.1.100:80&quot; - Specific IPv4 interface </li></ul></td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Positive integer holding a Socket ID handle if successful, otherwise -1 on error. The socket ID can be used with other socket APIs for management.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
@@ -5629,7 +5629,7 @@ The function automatically calls websDone() to complete the response, so no addi
     <dl><dt><b>Description</b>:</dt><dd>This is the simplest way to create a GoAhead web server. This call will automatically:<ul><li>Initialize the web server</li><li>Load authentication configuration from auth.txt</li><li>Load routing configuration from route.txt</li><li>Start listening on the specified endpoint</li><li>Set the document root directory This function is ideal for simple embedded applications that need a quick web server setup. </li></ul></dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
-    <tr><td class="param">endpoint</td><td>IP:PORT address on which to listen. Format examples:<ul><li>&quot;127.0.0.1:8080&quot; (IPv4)</li><li>&quot;[::1]:8080&quot; (IPv6) <br/></li><li>&quot;:8080&quot; (all interfaces)</li><li>&quot;192.168.1.100:80&quot; (specific interface) </li></ul></td></tr>
+    <tr><td class="param">endpoint</td><td>IP:PORT address on which to listen. Format examples:<ul><li>&quot;127.0.0.1:8080&quot; (IPv4)</li><li>&quot;[::1]:8080&quot; (IPv6)</li><li>&quot;:8080&quot; (all interfaces)</li><li>&quot;192.168.1.100:80&quot; (specific interface) </li></ul></td></tr>
     <tr><td class="param">documents</td><td>Directory containing web documents to serve. This becomes the document root where index.html and other web files are located. Use NULL to use the default.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1 on error.</dd></dl>
@@ -5899,7 +5899,7 @@ The IP address should match one of the network interfaces on the server. Common 
 <p>Create request variables for query string data.</p>
     <dl><dt><b>Description</b>:</dt><dd>Parses the query string from the current request URL and creates request variables that can be accessed using websGetVar(). The query string is the portion of the URL after the &quot;?&quot; character containing key=value pairs separated by &quot;&amp;&quot; characters.</dd></dl>
 For example, for the URL &quot;/search?name=john&amp;age=25&amp;active=true&quot;, this function will create request variables that can be retrieved as:
-<ul><li>websGetVar(wp, &quot;name&quot;, NULL) returns &quot;john&quot;</li><li>websGetVar(wp, &quot;age&quot;, NULL) returns &quot;25&quot; <br/></li><li>websGetVar(wp, &quot;active&quot;, NULL) returns &quot;true&quot;</li></ul>
+<ul><li>websGetVar(wp, &quot;name&quot;, NULL) returns &quot;john&quot;</li><li>websGetVar(wp, &quot;age&quot;, NULL) returns &quot;25&quot;</li><li>websGetVar(wp, &quot;active&quot;, NULL) returns &quot;true&quot;</li></ul>
 Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a space character, etc. This function is typically called automatically during request processing
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
@@ -5980,7 +5980,7 @@ Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a spac
 <p>Set the response HTTP status code.</p>
     <dl><dt><b>Description</b>:</dt><dd>Sets the HTTP status code that will be sent in the response to the client. The status code indicates the result of the HTTP request processing. This function should be called before sending the response headers or body content.</dd></dl>
 Common status codes include:
-<ul><li>200: OK (success)</li><li>301/302: Redirect</li><li>400: Bad Request</li><li>401: Unauthorized <br/></li><li>403: Forbidden</li><li>404: Not Found</li><li>500: Internal Server Error</li></ul>
+<ul><li>200: OK (success)</li><li>301/302: Redirect</li><li>400: Bad Request</li><li>401: Unauthorized</li><li>403: Forbidden</li><li>404: Not Found</li><li>500: Internal Server Error</li></ul>
 If not explicitly set, GoAhead will automatically set an appropriate status code based on the request processing results (typically 200 for successful requests)
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
@@ -6058,7 +6058,7 @@ If the content length is not set, GoAhead may use chunked transfer encoding or c
 <p>Set a request variable to a string value.</p>
     <dl><dt><b>Description</b>:</dt><dd>Sets a request variable that can be retrieved later with websGetVar(). Request variables provide a key-value store for the current request context. Common uses include:<ul><li>Setting HTTP headers (prefixed with &quot;HTTP_&quot;)</li><li>Storing form processing results</li><li>Passing data between handlers</li><li>CGI environment variables</li></ul></dd></dl>
 Variable names should follow these conventions:
-<ul><li>HTTP headers: &quot;HTTP_&quot; prefix (e.g., &quot;HTTP_USER_AGENT&quot;) <br/></li><li>Form data: field names (e.g., &quot;username&quot;, &quot;email&quot;)</li><li>Custom data: descriptive names (e.g., &quot;authLevel&quot;, &quot;userRole&quot;) <parameterlist kind="param"><parameteritem><parameternamelist><parametername>wp</parametername></parameternamelist><parameterdescription><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request </parameterdescription></parameteritem><parameteritem><parameternamelist><parametername>name</parametername></parameternamelist><parameterdescription>Variable name to set. Names are case-sensitive. </parameterdescription></parameteritem><parameteritem><parameternamelist><parametername>value</parametername></parameternamelist><parameterdescription>String value to store. The value is copied so the original can be freed. </parameterdescription></parameteritem></parameterlist><simplesect kind="return">Pointer to the allocated <a class="ref" href="#struct_webs_key">WebsKey</a> structure, or NULL on error </simplesect><simplesect kind="par"><b>API</b> Stability:Stable </simplesect></li></ul>
+<ul><li>HTTP headers: &quot;HTTP_&quot; prefix (e.g., &quot;HTTP_USER_AGENT&quot;)</li><li>Form data: field names (e.g., &quot;username&quot;, &quot;email&quot;)</li><li>Custom data: descriptive names (e.g., &quot;authLevel&quot;, &quot;userRole&quot;) <parameterlist kind="param"><parameteritem><parameternamelist><parametername>wp</parametername></parameternamelist><parameterdescription><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request </parameterdescription></parameteritem><parameteritem><parameternamelist><parametername>name</parametername></parameternamelist><parameterdescription>Variable name to set. Names are case-sensitive. </parameterdescription></parameteritem><parameteritem><parameternamelist><parametername>value</parametername></parameternamelist><parameterdescription>String value to store. The value is copied so the original can be freed. </parameterdescription></parameteritem></parameterlist><simplesect kind="return">Pointer to the allocated <a class="ref" href="#struct_webs_key">WebsKey</a> structure, or NULL on error </simplesect><simplesect kind="par"><b>API</b> Stability:Stable </simplesect></li></ul>
   </div>
 </div>
 <a name="goahead_8h_1a9a90db3b557d20dfb131ae675b66f783"></a>
