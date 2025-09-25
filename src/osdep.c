@@ -11,8 +11,8 @@
 /*********************************** Defines **********************************/
 
 #if ME_WIN_LIKE
-    static HINSTANCE appInstance;
-    PUBLIC void syslog(int priority, char *fmt, ...);
+static HINSTANCE appInstance;
+PUBLIC void syslog(int priority, char *fmt, ...);
 #endif
 
 /************************************* Code ***********************************/
@@ -44,7 +44,7 @@ PUBLIC void websOsClose(void)
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
 {
     static int count = 0;
-    char   sep;
+    char       sep;
 
     sep = '/';
     if (!dir || *dir == '\0') {
@@ -76,35 +76,34 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
 static char *getAbsolutePath(char *path)
 {
 #if _WRS_VXWORKS_MAJOR >= 6
-    const char  *tail;
+    const char *tail;
 #else
-    char        *tail;
+    char *tail;
 #endif
-    char  *dev;
+    char cwd[ME_GOAHEAD_LIMIT_FILENAME];
 
     /*
         Determine if path is relative or absolute.  If relative, prepend the current working directory to the name.
         Otherwise, use it.  Note the getcwd call below must not be getcwd or else we go into an infinite loop
-    */
+     */
     if (iosDevFind(path, &tail) != NULL && path != tail) {
         return sclone(path);
     }
-    dev = walloc(ME_GOAHEAD_LIMIT_FILENAME);
 #if ME_ROM
-    dev[0] = '\0';
+    cwd[0] = '\0';
 #else
-    getcwd(dev, ME_GOAHEAD_LIMIT_FILENAME);
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        cwd[0] = '\0';
+    }
 #endif
-    strcat(dev, "/");
-    strcat(dev, path);
-    return dev;
+    return sfmt("%s/%s", cwd, path);
 }
 
 
 PUBLIC int vxchdir(char *dirname)
 {
-    char  *path;
-    int     rc;
+    char *path;
+    int  rc;
 
     path = getAbsolutePath(dirname);
     #undef chdir
@@ -144,14 +143,14 @@ HINSTANCE websGetInst()
 
 PUBLIC void syslog(int priority, char *fmt, ...)
 {
-    va_list     args;
-    HKEY        hkey;
-    void        *event;
-    long        errorType;
-    ulong       exists;
-    char        *buf, logName[ME_GOAHEAD_LIMIT_STRING], *lines[9], *cp, *value;
-    int         type;
-    static int  once = 0;
+    va_list    args;
+    HKEY       hkey;
+    void       *event;
+    long       errorType;
+    ulong      exists;
+    char       *buf, logName[ME_GOAHEAD_LIMIT_STRING], *lines[9], *cp, *value;
+    int        type;
+    static int once = 0;
 
     va_start(args, fmt);
     buf = sfmtv(fmt, args);
@@ -173,17 +172,17 @@ PUBLIC void syslog(int priority, char *fmt, ...)
         hkey = 0;
 
         if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, logName, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &hkey, &exists) ==
-                ERROR_SUCCESS) {
+            ERROR_SUCCESS) {
             value = "%SystemRoot%\\System32\\netmsg.dll";
             if (RegSetValueEx(hkey, "EventMessageFile", 0, REG_EXPAND_SZ,
-                    (uchar*) value, (int) slen(value) + 1) != ERROR_SUCCESS) {
+                              (uchar*) value, (int) slen(value) + 1) != ERROR_SUCCESS) {
                 RegCloseKey(hkey);
                 wfree(buf);
                 return;
             }
             errorType = EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_INFORMATION_TYPE;
             if (RegSetValueEx(hkey, "TypesSupported", 0, REG_DWORD, (uchar*) &errorType, sizeof(DWORD)) !=
-                    ERROR_SUCCESS) {
+                ERROR_SUCCESS) {
                 RegCloseKey(hkey);
                 wfree(buf);
                 return;
@@ -212,7 +211,7 @@ PUBLIC void sleep(int secs)
 #if !ME_UNIX_LIKE
 PUBLIC char *basename(char *name)
 {
-    char  *cp;
+    char *cp;
 
 #if ME_WIN_LIKE
     if (((cp = strrchr(name, '\\')) == NULL) && ((cp = strrchr(name, '/')) == NULL)) {
@@ -237,19 +236,19 @@ static char _inet_result[16];
 
 char *inet_ntoa(struct in_addr addr)
 {
-    uchar       *bytes;
+    uchar *bytes;
 
     bytes = (uchar*) &addr;
-    sprintf(_inet_result, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
+    snprintf(_inet_result, sizeof(_inet_result), "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
     return _inet_result;
 }
 
 
-struct hostent* gethostbyname(char *name)
+struct hostent * gethostbyname(char *name)
 {
     static char buffer[ME_MAX_PATH];
 
-    if(!DNSGetHostByName(name, buffer, ME_MAX_PATH)) {
+    if (!DNSGetHostByName(name, buffer, ME_MAX_PATH)) {
         return 0;
     }
     return (struct hostent*) buffer;

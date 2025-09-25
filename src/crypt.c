@@ -10,47 +10,47 @@
 
 /*********************************** Locals ***********************************/
 
-#define BLOWFISH_SALT_LENGTH   16
-#define BLOWFISH_ROUNDS        128
+#define BLOWFISH_SALT_LENGTH 16
+#define BLOWFISH_ROUNDS      128
 
 /*
     Constants for transform routine
  */
-#define S11 7
-#define S12 12
-#define S13 17
-#define S14 22
-#define S21 5
-#define S22 9
-#define S23 14
-#define S24 20
-#define S31 4
-#define S32 11
-#define S33 16
-#define S34 23
-#define S41 6
-#define S42 10
-#define S43 15
-#define S44 21
+#define S11                  7
+#define S12                  12
+#define S13                  17
+#define S14                  22
+#define S21                  5
+#define S22                  9
+#define S23                  14
+#define S24                  20
+#define S31                  4
+#define S32                  11
+#define S33                  16
+#define S34                  23
+#define S41                  6
+#define S42                  10
+#define S43                  15
+#define S44                  21
 
 static uchar PADDING[64] = {
-  0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 /*
    F, G, H and I are basic MD5 functions.
  */
-#define F(x, y, z) (((x) & (y)) | ((~x) & (z)))
-#define G(x, y, z) (((x) & (z)) | ((y) & (~z)))
-#define H(x, y, z) ((x) ^ (y) ^ (z))
-#define I(x, y, z) ((y) ^ ((x) | (~z)))
+#define F(x, y, z)               (((x) & (y)) | ((~x) & (z)))
+#define G(x, y, z)               (((x) & (z)) | ((y) & (~z)))
+#define H(x, y, z)               ((x) ^ (y) ^ (z))
+#define I(x, y, z)               ((y) ^ ((x) | (~z)))
 
 /*
    ROTATE_LEFT rotates x left n bits.
  */
-#define ROTATE_LEFT(x, n) (((x) << (n)) | ((x) >> (32-(n))))
+#define ROTATE_LEFT(x, n)        (((x) << (n)) | ((x) >> (32 - (n))))
 
 /*
      FF, GG, HH, and II transformations for rounds 1, 2, 3, and 4.
@@ -58,25 +58,25 @@ static uchar PADDING[64] = {
  */
 
 #define FF(a, b, c, d, x, s, ac) { \
- (a) += F ((b), (c), (d)) + (x) + (uint)(ac); \
- (a) = ROTATE_LEFT ((a), (s)); \
- (a) += (b); \
-  }
+            (a) += F((b), (c), (d)) + (x) + (uint) (ac); \
+            (a) = ROTATE_LEFT((a), (s)); \
+            (a) += (b); \
+}
 #define GG(a, b, c, d, x, s, ac) { \
- (a) += G ((b), (c), (d)) + (x) + (uint)(ac); \
- (a) = ROTATE_LEFT ((a), (s)); \
- (a) += (b); \
-  }
+            (a) += G((b), (c), (d)) + (x) + (uint) (ac); \
+            (a) = ROTATE_LEFT((a), (s)); \
+            (a) += (b); \
+}
 #define HH(a, b, c, d, x, s, ac) { \
- (a) += H ((b), (c), (d)) + (x) + (uint)(ac); \
- (a) = ROTATE_LEFT ((a), (s)); \
- (a) += (b); \
-  }
+            (a) += H((b), (c), (d)) + (x) + (uint) (ac); \
+            (a) = ROTATE_LEFT((a), (s)); \
+            (a) += (b); \
+}
 #define II(a, b, c, d, x, s, ac) { \
- (a) += I ((b), (c), (d)) + (x) + (uint)(ac); \
- (a) = ROTATE_LEFT ((a), (s)); \
- (a) += (b); \
-  }
+            (a) += I((b), (c), (d)) + (x) + (uint) (ac); \
+            (a) = ROTATE_LEFT((a), (s)); \
+            (a) += (b); \
+}
 
 typedef struct {
     uint state[4];
@@ -86,7 +86,7 @@ typedef struct {
 
 /******************************* Base 64 Data *********************************/
 
-#define CRYPT_HASH_SIZE   16
+#define CRYPT_HASH_SIZE 16
 
 /*
     Encoding map lookup
@@ -155,11 +155,11 @@ PUBLIC char *websDecode64(char *s)
  */
 PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
 {
-    uint    bitBuf;
+    uint  bitBuf;
     char  *buffer, *bp;
     char  *end;
-    ssize   size;
-    int     c, i, j, shift;
+    ssize size;
+    int   c, i, j, shift;
 
     size = strlen(s);
     if ((buffer = walloc(size + 1)) == 0) {
@@ -205,13 +205,13 @@ PUBLIC char *websMD5(cchar *s)
  */
 PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
 {
-    MD5CONTEXT      context;
-    uchar           hash[CRYPT_HASH_SIZE];
-    cchar           *hex = "0123456789abcdef";
-    char            *r, *str;
-    char            result[(CRYPT_HASH_SIZE * 2) + 1];
-    ssize           len;
-    int             i;
+    MD5CONTEXT context;
+    uchar      hash[CRYPT_HASH_SIZE];
+    cchar      *hex = "0123456789abcdef";
+    char       *r, *str;
+    char       result[(CRYPT_HASH_SIZE * 2) + 1];
+    ssize      len;
+    int        i;
 
     if (length < 0) {
         length = strlen(buf);
@@ -256,14 +256,14 @@ static void initMD5(MD5CONTEXT *context)
  */
 static void update(MD5CONTEXT *context, uchar *input, uint inputLen)
 {
-    uint    i, index, partLen;
+    uint i, index, partLen;
 
     index = (uint) ((context->count[0] >> 3) & 0x3F);
 
-    if ((context->count[0] += ((uint)inputLen << 3)) < ((uint)inputLen << 3)){
+    if ((context->count[0] += ((uint) inputLen << 3)) < ((uint) inputLen << 3)) {
         context->count[1]++;
     }
-    context->count[1] += ((uint)inputLen >> 29);
+    context->count[1] += ((uint) inputLen >> 29);
     partLen = 64 - index;
 
     if (inputLen >= partLen) {
@@ -276,7 +276,7 @@ static void update(MD5CONTEXT *context, uchar *input, uint inputLen)
     } else {
         i = 0;
     }
-    memcpy((uchar*) &context->buffer[index], (uchar*) &input[i], inputLen-i);
+    memcpy((uchar*) &context->buffer[index], (uchar*) &input[i], inputLen - i);
 }
 
 
@@ -285,14 +285,14 @@ static void update(MD5CONTEXT *context, uchar *input, uint inputLen)
  */
 static void finalizeMD5(uchar digest[16], MD5CONTEXT *context)
 {
-    uchar   bits[8];
-    uint    index, padLen;
+    uchar bits[8];
+    uint  index, padLen;
 
     /* Save number of bits */
     encode(bits, context->count, 8);
 
     /* Pad out to 56 mod 64. */
-    index = (uint)((context->count[0] >> 3) & 0x3f);
+    index = (uint) ((context->count[0] >> 3) & 0x3f);
     padLen = (index < 56) ? (56 - index) : (120 - index);
     update(context, PADDING, padLen);
 
@@ -302,7 +302,7 @@ static void finalizeMD5(uchar digest[16], MD5CONTEXT *context)
     encode(digest, context->state, 16);
 
     /* Zero sensitive information. */
-    memset((uchar*)context, 0, sizeof (*context));
+    memset((uchar*) context, 0, sizeof(*context));
 }
 
 
@@ -406,9 +406,9 @@ static void encode(uchar *output, uint *input, uint len)
 
     for (i = 0, j = 0; j < len; i++, j += 4) {
         output[j] = (uchar) (input[i] & 0xff);
-        output[j+1] = (uchar) ((input[i] >> 8) & 0xff);
-        output[j+2] = (uchar) ((input[i] >> 16) & 0xff);
-        output[j+3] = (uchar) ((input[i] >> 24) & 0xff);
+        output[j + 1] = (uchar) ((input[i] >> 8) & 0xff);
+        output[j + 2] = (uchar) ((input[i] >> 16) & 0xff);
+        output[j + 3] = (uchar) ((input[i] >> 24) & 0xff);
     }
 }
 
@@ -418,11 +418,11 @@ static void encode(uchar *output, uint *input, uint len)
  */
 static void decode(uint *output, uchar *input, uint len)
 {
-    uint    i, j;
+    uint i, j;
 
     for (i = 0, j = 0; j < len; i++, j += 4)
-        output[i] = ((uint) input[j]) | (((uint) input[j+1]) << 8) | (((uint) input[j+2]) << 16) |
-            (((uint) input[j+3]) << 24);
+        output[i] = ((uint) input[j]) | (((uint) input[j + 1]) << 8) | (((uint) input[j + 2]) << 16) |
+                    (((uint) input[j + 3]) << 24);
 }
 
 
@@ -442,11 +442,11 @@ PUBLIC char *websEncode64(char *s)
  */
 PUBLIC char *websEncode64Block(char *s, ssize len)
 {
-    uint    shiftbuf;
-    char    *buffer, *bp;
-    cchar   *end;
-    ssize   size;
-    int     i, j, shift;
+    uint  shiftbuf;
+    char  *buffer, *bp;
+    cchar *end;
+    ssize size;
+    int   i, j, shift;
 
     size = len * 2;
     if ((buffer = walloc(size + 1)) == 0) {
@@ -457,7 +457,7 @@ PUBLIC char *websEncode64Block(char *s, ssize len)
     end = &s[len];
     while (s < end) {
         shiftbuf = 0;
-        for (j = 2; j >= 0 && *s; j--, s++) {
+        for (j = 2; j >= 0 && s < end; j--, s++) {
             shiftbuf |= ((*s & 0xff) << (j * 8));
         }
         shift = 18;
@@ -478,16 +478,16 @@ PUBLIC char *websEncode64Block(char *s, ssize len)
 #define BF_ROUNDS 16
 
 typedef struct {
-  uint P[16 + 2];
-  uint S[4][256];
+    uint P[16 + 2];
+    uint S[4][256];
 } WebsBlowfish;
 
 static const uint ORIG_P[16 + 2] = {
-        0x243F6A88L, 0x85A308D3L, 0x13198A2EL, 0x03707344L,
-        0xA4093822L, 0x299F31D0L, 0x082EFA98L, 0xEC4E6C89L,
-        0x452821E6L, 0x38D01377L, 0xBE5466CFL, 0x34E90C6CL,
-        0xC0AC29B7L, 0xC97C50DDL, 0x3F84D5B5L, 0xB5470917L,
-        0x9216D5D9L, 0x8979FB1BL
+    0x243F6A88L, 0x85A308D3L, 0x13198A2EL, 0x03707344L,
+    0xA4093822L, 0x299F31D0L, 0x082EFA98L, 0xEC4E6C89L,
+    0x452821E6L, 0x38D01377L, 0xBE5466CFL, 0x34E90C6CL,
+    0xC0AC29B7L, 0xC97C50DDL, 0x3F84D5B5L, 0xB5470917L,
+    0x9216D5D9L, 0x8979FB1BL
 };
 
 /*
@@ -557,8 +557,7 @@ static const uint ORIG_S[4][256] = {
         0xD60F573FL, 0xBC9BC6E4L, 0x2B60A476L, 0x81E67400L,
         0x08BA6FB5L, 0x571BE91FL, 0xF296EC6BL, 0x2A0DD915L,
         0xB6636521L, 0xE7B9F9B6L, 0xFF34052EL, 0xC5855664L,
-        0x53B02D5DL, 0xA99F8FA1L, 0x08BA4799L, 0x6E85076AL
-    }, {
+        0x53B02D5DL, 0xA99F8FA1L, 0x08BA4799L, 0x6E85076AL }, {
         0x4B7A70E9L, 0xB5B32944L, 0xDB75092EL, 0xC4192623L,
         0xAD6EA6B0L, 0x49A7DF7DL, 0x9CEE60B8L, 0x8FEDB266L,
         0xECAA8C71L, 0x699A17FFL, 0x5664526CL, 0xC2B19EE1L,
@@ -759,8 +758,8 @@ static const uint ORIG_S[4][256] = {
 
 static uint BF(WebsBlowfish *bp, uint x)
 {
-   ushort a, b, c, d;
-   uint  y;
+    ushort a, b, c, d;
+    uint   y;
 
     d = x & 0x00FF;
     x >>= 8;
@@ -779,8 +778,8 @@ static uint BF(WebsBlowfish *bp, uint x)
 
 static void bencrypt(WebsBlowfish *bp, uint *xl, uint *xr)
 {
-    uint    Xl, Xr, temp;
-    int     i;
+    uint Xl, Xr, temp;
+    int  i;
 
     Xl = *xl;
     Xr = *xr;
@@ -805,8 +804,8 @@ static void bencrypt(WebsBlowfish *bp, uint *xl, uint *xr)
 #if KEEP
 static void bdecrypt(WebsBlowfish *bp, uint *xl, uint *xr)
 {
-    uint    Xl, Xr, temp;
-    int     i;
+    uint Xl, Xr, temp;
+    int  i;
 
     Xl = *xl;
     Xr = *xr;
@@ -831,8 +830,8 @@ static void bdecrypt(WebsBlowfish *bp, uint *xl, uint *xr)
 
 static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
 {
-  uint  data, datal, datar;
-  int   i, j, k;
+    uint data, datal, datar;
+    int  i, j, k;
 
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 256; j++) {
@@ -878,8 +877,8 @@ static uint cipherText[6] = {
 PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
 {
 #if ME_UNIX_LIKE
-    ssize   sofar, rc;
-    int     fd;
+    ssize sofar, rc;
+    int   fd;
 
     if ((fd = open((block) ? "/dev/random" : "/dev/urandom", O_RDONLY, 0666)) < 0) {
         return -1;
@@ -897,8 +896,8 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
     } while (length > 0);
     close(fd);
 #elif ME_WIN_LIKE
-    HCRYPTPROV      prov;
-    int             rc;
+    HCRYPTPROV prov;
+    int        rc;
 
     rc = 0;
     if (!CryptAcquireContext(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | 0x40)) {
@@ -910,11 +909,13 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
     CryptReleaseContext(prov, 0);
     return rc;
 #else
-    int     i;
-
-    for (i = 0; i < length; i++) {
+/*
+    for (int i = 0; i < length; i++) {
         buf[i] = (char) (rand() & 0xff);
     }
+ */
+    #error \
+    "websGetRandomBytes must be implemented for your platform using a cryptographically secure random number generator."
 #endif
     return 0;
 }
@@ -922,11 +923,11 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
 
 PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
 {
-    WebsBlowfish    bf;
-    char            *result, *key;
-    uint            *text;
-    ssize           len, limit;
-    int             i, j;
+    WebsBlowfish bf;
+    char         *result, *key;
+    uint         *text;
+    ssize        len, limit;
+    int          i, j;
 
     if (slen(password) > WEBS_MAX_PASSWORD) {
         return 0;
@@ -953,9 +954,9 @@ PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
 
 PUBLIC char *websMakeSalt(ssize size)
 {
-    char    *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    char    *rp, *result, *random;
-    ssize   clen, i;
+    char  *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    char  *rp, *result, *random;
+    ssize clen, i;
 
     size = (size + sizeof(int) - 1) & ~(sizeof(int) - 1);
     random = walloc(size + 1);
@@ -979,10 +980,10 @@ PUBLIC char *websMakeSalt(ssize size)
     Format of hashed password is:
 
     Algorithm: Rounds: Salt: Hash
-*/
+ */
 PUBLIC char *websMakePassword(cchar *password, int saltLength, int rounds)
 {
-    char    *salt;
+    char *salt;
 
     if (slen(password) > WEBS_MAX_PASSWORD) {
         return 0;
@@ -1000,8 +1001,8 @@ PUBLIC char *websMakePassword(cchar *password, int saltLength, int rounds)
 
 PUBLIC bool websCheckPassword(cchar *plainTextPassword, cchar *passwordHash)
 {
-    char    *given, *rounds, *salt, *s1, *s2, *tok, *hash, *ph;
-    ssize   match;
+    char  *given, *rounds, *salt, *s1, *s2, *tok, *hash, *ph;
+    ssize match;
 
     if (!passwordHash || !plainTextPassword) {
         return 0;
@@ -1031,10 +1032,10 @@ PUBLIC bool websCheckPassword(cchar *plainTextPassword, cchar *passwordHash)
 
 PUBLIC char *websReadPassword(cchar *prompt)
 {
-    char    *cp, *password, *result;
+    char *cp, *password, *result;
 
 #if ME_BSD_LIKE
-    char    passbuf[WEBS_MAX_PASSWORD];
+    char passbuf[WEBS_MAX_PASSWORD];
 
     if (!prompt || !*prompt) {
         prompt = "Password: ";
@@ -1050,8 +1051,8 @@ PUBLIC char *websReadPassword(cchar *prompt)
         return 0;
     }
 #elif ME_WIN_LIKE || VXWORKS
-    char    passbuf[WEBS_MAX_PASSWORD];
-    int     c, i;
+    char passbuf[WEBS_MAX_PASSWORD];
+    int  c, i;
 
     if (!prompt || !*prompt) {
         prompt = "Password: ";

@@ -10,7 +10,7 @@
         role: name: ability [ability...]
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
-*/
+ */
 
 /********************************* Includes ***********************************/
 
@@ -19,9 +19,9 @@
 /*********************************** Locals ***********************************/
 
 static WebsRoute **routes = 0;
-static WebsHash handlers = -1;
-static int routeCount = 0;
-static int routeMax = 0;
+static WebsHash  handlers = -1;
+static int       routeCount = 0;
+static int       routeMax = 0;
 
 #define WEBS_MAX_ROUTE 16               /* Maximum passes over route set */
 
@@ -138,7 +138,7 @@ PUBLIC void websRouteRequest(Webs *wp)
 
 PUBLIC bool websRunRequest(Webs *wp)
 {
-    WebsRoute   *route;
+    WebsRoute *route;
 
     assert(wp);
     assert(wp->path);
@@ -198,8 +198,8 @@ static bool can(Webs *wp, char *ability)
 
 PUBLIC bool websCan(Webs *wp, WebsHash abilities)
 {
-    WebsKey     *key;
-    char        *ability, *cp, *start, abuf[ME_GOAHEAD_LIMIT_STRING];
+    WebsKey *key;
+    char    *ability, *cp, *start, abuf[ME_GOAHEAD_LIMIT_STRING];
 
     assert(wp);
     assert(abilities >= 0);
@@ -252,8 +252,8 @@ PUBLIC bool websCan(Webs *wp, WebsHash abilities)
 #if KEEP
 PUBLIC bool websCanString(Webs *wp, char *abilities)
 {
-    WebsUser    *user;
-    char        *ability, *tok;
+    WebsUser *user;
+    char     *ability, *tok;
 
     if (!wp->user) {
         if (!wp->username) {
@@ -282,8 +282,8 @@ PUBLIC bool websCanString(Webs *wp, char *abilities)
  */
 PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
 {
-    WebsRoute   *route;
-    WebsKey     *key;
+    WebsRoute *route;
+    WebsKey   *key;
 
     if (uri == 0 || *uri == '\0') {
         error("Route has bad URI");
@@ -324,7 +324,7 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
 
 
 PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, WebsHash methods, WebsHash extensions,
-        WebsHash abilities, WebsHash redirects)
+                             WebsHash abilities, WebsHash redirects)
 {
     assert(route);
 
@@ -353,8 +353,8 @@ static void growRoutes(void)
 
 static int lookupRoute(cchar *uri)
 {
-    WebsRoute   *route;
-    int         i;
+    WebsRoute *route;
+    int       i;
 
     assert(uri && *uri);
 
@@ -394,7 +394,7 @@ static void freeRoute(WebsRoute *route)
 
 PUBLIC int websRemoveRoute(cchar *uri)
 {
-    int         i;
+    int i;
 
     assert(uri && *uri);
 
@@ -403,7 +403,7 @@ PUBLIC int websRemoveRoute(cchar *uri)
     }
     freeRoute(routes[i]);
     for (; i < routeCount; i++) {
-        routes[i] = routes[i+1];
+        routes[i] = routes[i + 1];
     }
     routeCount--;
     return 0;
@@ -450,9 +450,10 @@ PUBLIC void websCloseRoute(void)
 }
 
 
-PUBLIC int websDefineHandler(cchar *name, WebsHandlerProc match, WebsHandlerProc service, WebsHandlerClose close, int flags)
+PUBLIC int websDefineHandler(cchar *name, WebsHandlerProc match, WebsHandlerProc service, WebsHandlerClose close,
+                             int flags)
 {
-    WebsHandler     *handler;
+    WebsHandler *handler;
 
     assert(name && *name);
 
@@ -473,7 +474,7 @@ PUBLIC int websDefineHandler(cchar *name, WebsHandlerProc match, WebsHandlerProc
 
 static void addOption(WebsHash *hash, char *keys, char *value)
 {
-    char    *sep, *key, *tok;
+    char *sep, *key, *tok;
 
     if (*hash < 0) {
         *hash = hashCreate(-1);
@@ -497,11 +498,11 @@ static void addOption(WebsHash *hash, char *keys, char *value)
  */
 PUBLIC int websLoad(cchar *path)
 {
-    WebsRoute   *route;
-    WebsHash    abilities, extensions, methods, redirects;
-    char        *buf, *line, *kind, *next, *auth, *dir, *handler, *protocol, *uri, *option, *key, *value, *status;
-    char        *redirectUri, *token;
-    int         rc;
+    WebsRoute *route;
+    WebsHash  abilities, extensions, methods, redirects;
+    char      *buf, *line, *kind, *next, *auth, *dir, *handler, *protocol, *uri, *option, *key, *value, *status;
+    char      *redirectUri, *token;
+    int       rc;
 
     assert(path && *path);
 
@@ -636,9 +637,9 @@ static bool redirectHandler(Webs *wp)
 #if ME_GOAHEAD_LEGACY
 PUBLIC int websUrlHandlerDefine(cchar *prefix, cchar *dir, int arg, WebsLegacyHandlerProc handler, int flags)
 {
-    WebsRoute   *route;
-    static int  legacyCount = 0;
-    char        name[ME_GOAHEAD_LIMIT_STRING];
+    WebsRoute  *route;
+    static int legacyCount = 0;
+    char       name[ME_GOAHEAD_LIMIT_STRING];
 
     assert(prefix && *prefix);
     assert(handler);
@@ -659,7 +660,7 @@ PUBLIC int websUrlHandlerDefine(cchar *prefix, cchar *dir, int arg, WebsLegacyHa
 
 PUBLIC int websPublish(cchar *prefix, cchar *dir)
 {
-    WebsRoute   *route;
+    WebsRoute *route;
 
     if ((route = websAddRoute(prefix, 0, 0)) == 0) {
         return -1;

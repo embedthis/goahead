@@ -630,7 +630,7 @@ void error(char *fmt, ...)
 
     if (responseMsg == 0) {
         va_start(args, fmt);
-        vsprintf(buf, fmt, args);
+        vsnprintf(buf, sizeof(buf), fmt, args);
         responseStatus = 400;
         responseMsg = strdup(buf);
         va_end(args);

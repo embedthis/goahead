@@ -23,13 +23,14 @@ static WebsRomIndex *lookup(WebsHash fs, char *path);
 PUBLIC int websFsOpen(void)
 {
 #if ME_ROM
-    WebsRomIndex    *wip;
-    char            name[ME_GOAHEAD_LIMIT_FILENAME];
-    ssize           len;
+    WebsRomIndex *wip;
+    char         name[ME_GOAHEAD_LIMIT_FILENAME];
+    ssize        len;
 
     romFs = hashCreate(WEBS_HASH_INIT);
     for (wip = websRomIndex; wip->path; wip++) {
-        strncpy(name, wip->path, ME_GOAHEAD_LIMIT_FILENAME);
+        strncpy(name, wip->path, ME_GOAHEAD_LIMIT_FILENAME - 1);
+        name[ME_GOAHEAD_LIMIT_FILENAME - 1] = '\0';
         len = strlen(name) - 1;
         if (len > 0 && (name[len] == '/' || name[len] == '\\')) {
             name[len] = '\0';
@@ -52,7 +53,7 @@ PUBLIC void websFsClose(void)
 PUBLIC int websOpenFile(cchar *path, int flags, int mode)
 {
 #if ME_ROM
-    WebsRomIndex    *wip;
+    WebsRomIndex *wip;
 
     if ((wip = lookup(romFs, path)) == NULL) {
         return -1;
@@ -78,7 +79,7 @@ PUBLIC void websCloseFile(int fd)
 PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
 {
 #if ME_ROM
-    WebsRomIndex    *wip;
+    WebsRomIndex *wip;
 
     assert(path && *path);
 
@@ -97,20 +98,20 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
     }
     return 0;
 #else
-    WebsStat    s;
-    int         rc;
+    WebsStat s;
+    int      rc;
 #if ME_WIN_LIKE
-{
-    ssize       len = slen(path) - 1;
-    char        *p = sclone(path);
-    if (p[len] == '/') {
-        p[len] = '\0';
-    } else if (p[len] == '\\') {
-        p[len] = '\0';
+    {
+        ssize len = slen(path) - 1;
+        char  *p = sclone(path);
+        if (p[len] == '/') {
+            p[len] = '\0';
+        } else if (p[len] == '\\') {
+            p[len] = '\0';
+        }
+        rc = stat(p, &s);
+        wfree(p);
     }
-    rc = stat(p, &s);
-    wfree(p);
-}
 #else
     rc = stat(path, &s);
 #endif
@@ -128,8 +129,8 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
 PUBLIC ssize websReadFile(int fd, char *buf, ssize size)
 {
 #if ME_ROM
-    WebsRomIndex    *wip;
-    ssize           len;
+    WebsRomIndex *wip;
+    ssize        len;
 
     assert(buf);
     assert(fd >= 0);
@@ -148,9 +149,9 @@ PUBLIC ssize websReadFile(int fd, char *buf, ssize size)
 
 PUBLIC char *websReadWholeFile(cchar *path)
 {
-    WebsFileInfo    sbuf;
-    char            *buf;
-    int             fd;
+    WebsFileInfo sbuf;
+    char         *buf;
+    int          fd;
 
     if (websStatFile(path, &sbuf) < 0) {
         return 0;
@@ -170,8 +171,8 @@ PUBLIC char *websReadWholeFile(cchar *path)
 Offset websSeekFile(int fd, Offset offset, int origin)
 {
 #if ME_ROM
-    WebsRomIndex    *wip;
-    Offset          pos;
+    WebsRomIndex *wip;
+    Offset       pos;
 
     assert(origin == SEEK_SET || origin == SEEK_CUR || origin == SEEK_END);
     assert(fd >= 0);
@@ -201,7 +202,7 @@ Offset websSeekFile(int fd, Offset offset, int origin)
         errno = EBADF;
         return -1;
     }
-    return (wip->pos = pos);
+    return wip->pos = pos;
 #else
     return lseek(fd, (long) offset, origin);
 #endif
@@ -222,8 +223,8 @@ PUBLIC ssize websWriteFile(int fd, cchar *buf, ssize size)
 #if ME_ROM
 static WebsRomIndex *lookup(WebsHash fs, char *path)
 {
-    WebsKey     *sp;
-    ssize       len;
+    WebsKey *sp;
+    ssize   len;
 
     if ((sp = hashLookup(fs, path)) == NULL) {
         if (path[0] != '/') {

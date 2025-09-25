@@ -3,7 +3,7 @@
 #
 
 NAME                  := goahead
-VERSION               := 6.0.4
+VERSION               := 6.0.5
 PROFILE               ?= default
 ARCH                  ?= $(shell echo $(WIND_HOST_TYPE) | sed 's/-.*$(ME_ROOT_PREFIX)/')
 CPU                   ?= $(subst X86,PENTIUM,$(shell echo $(ARCH) | tr a-z A-Z))
@@ -135,7 +135,7 @@ ME_PREFIXES           ?= \"install-prefixes\"
 ME_ROM                ?= 0
 ME_ROM_TIME           ?= 1505449519432
 ME_TITLE              ?= \"Embedthis GoAhead\"
-ME_VERSION            ?= \"6.0.4\"
+ME_VERSION            ?= \"6.0.5\"
 
 export PATH           := $(WIND_GNU_PATH)/$(WIND_HOST_TYPE)/bin:$(PATH)
 CFLAGS                += -fno-builtin -fno-defer-pop -fvolatile  -w
@@ -252,158 +252,18 @@ clobber: clean
 	rm -fr ./$(BUILD)
 
 #
-#   esp_crt_bundle.h
-#
-
-$(BUILD)/inc/esp_crt_bundle.h: $(DEPS_1)
-
-#
-#   esp_err.h
-#
-
-$(BUILD)/inc/esp_err.h: $(DEPS_2)
-
-#
-#   esp_event.h
-#
-
-$(BUILD)/inc/esp_event.h: $(DEPS_3)
-
-#
-#   esp_heap_caps.h
-#
-
-$(BUILD)/inc/esp_heap_caps.h: $(DEPS_4)
-
-#
-#   esp_littlefs.h
-#
-
-$(BUILD)/inc/esp_littlefs.h: $(DEPS_5)
-
-#
-#   esp_log.h
-#
-
-$(BUILD)/inc/esp_log.h: $(DEPS_6)
-
-#
-#   esp_netif.h
-#
-
-$(BUILD)/inc/esp_netif.h: $(DEPS_7)
-
-#
-#   esp_psram.h
-#
-
-$(BUILD)/inc/esp_psram.h: $(DEPS_8)
-
-#
-#   esp_pthread.h
-#
-
-$(BUILD)/inc/esp_pthread.h: $(DEPS_9)
-
-#
-#   esp_system.h
-#
-
-$(BUILD)/inc/esp_system.h: $(DEPS_10)
-
-#
-#   esp_wifi.h
-#
-
-$(BUILD)/inc/esp_wifi.h: $(DEPS_11)
-
-#
-#   FreeRTOS.h
-#
-
-$(BUILD)/inc/freertos/FreeRTOS.h: $(DEPS_12)
-
-#
-#   event_groups.h
-#
-
-$(BUILD)/inc/freertos/event_groups.h: $(DEPS_13)
-
-#
-#   task.h
-#
-
-$(BUILD)/inc/freertos/task.h: $(DEPS_14)
-
-#
 #   me.h
 #
 
-$(BUILD)/inc/me.h: $(DEPS_15)
-
-#
-#   time.h
-#
-
-$(BUILD)/inc/time.h: $(DEPS_16)
-
-#
-#   nvs_flash.h
-#
-
-$(BUILD)/inc/nvs_flash.h: $(DEPS_17)
-
-#
-#   err.h
-#
-
-$(BUILD)/inc/lwip/err.h: $(DEPS_18)
-
-#
-#   sockets.h
-#
-
-$(BUILD)/inc/lwip/sockets.h: $(DEPS_19)
-
-#
-#   sys.h
-#
-
-$(BUILD)/inc/lwip/sys.h: $(DEPS_20)
-
-#
-#   netdb.h
-#
-
-$(BUILD)/inc/lwip/netdb.h: $(DEPS_21)
+$(BUILD)/inc/me.h: $(DEPS_1)
 
 #
 #   osdep.h
 #
-DEPS_22 += src/osdep/osdep.h
-DEPS_22 += $(BUILD)/inc/me.h
-DEPS_22 += $(BUILD)/inc/freertos/FreeRTOS.h
-DEPS_22 += $(BUILD)/inc/freertos/event_groups.h
-DEPS_22 += $(BUILD)/inc/freertos/task.h
-DEPS_22 += $(BUILD)/inc/time.h
-DEPS_22 += $(BUILD)/inc/esp_system.h
-DEPS_22 += $(BUILD)/inc/esp_log.h
-DEPS_22 += $(BUILD)/inc/esp_heap_caps.h
-DEPS_22 += $(BUILD)/inc/esp_err.h
-DEPS_22 += $(BUILD)/inc/esp_event.h
-DEPS_22 += $(BUILD)/inc/esp_psram.h
-DEPS_22 += $(BUILD)/inc/esp_pthread.h
-DEPS_22 += $(BUILD)/inc/esp_littlefs.h
-DEPS_22 += $(BUILD)/inc/esp_crt_bundle.h
-DEPS_22 += $(BUILD)/inc/esp_wifi.h
-DEPS_22 += $(BUILD)/inc/esp_netif.h
-DEPS_22 += $(BUILD)/inc/nvs_flash.h
-DEPS_22 += $(BUILD)/inc/lwip/err.h
-DEPS_22 += $(BUILD)/inc/lwip/sockets.h
-DEPS_22 += $(BUILD)/inc/lwip/sys.h
-DEPS_22 += $(BUILD)/inc/lwip/netdb.h
+DEPS_2 += src/osdep/osdep.h
+DEPS_2 += $(BUILD)/inc/me.h
 
-$(BUILD)/inc/osdep.h: $(DEPS_22)
+$(BUILD)/inc/osdep.h: $(DEPS_2)
 	@echo '      [Copy] $(BUILD)/inc/osdep.h'
 	mkdir -p "$(BUILD)/inc"
 	cp src/osdep/osdep.h $(BUILD)/inc/osdep.h
@@ -411,11 +271,11 @@ $(BUILD)/inc/osdep.h: $(DEPS_22)
 #
 #   goahead.h
 #
-DEPS_23 += src/goahead.h
-DEPS_23 += $(BUILD)/inc/me.h
-DEPS_23 += $(BUILD)/inc/osdep.h
+DEPS_3 += src/goahead.h
+DEPS_3 += $(BUILD)/inc/me.h
+DEPS_3 += $(BUILD)/inc/osdep.h
 
-$(BUILD)/inc/goahead.h: $(DEPS_23)
+$(BUILD)/inc/goahead.h: $(DEPS_3)
 	@echo '      [Copy] $(BUILD)/inc/goahead.h'
 	mkdir -p "$(BUILD)/inc"
 	cp src/goahead.h $(BUILD)/inc/goahead.h
@@ -423,10 +283,10 @@ $(BUILD)/inc/goahead.h: $(DEPS_23)
 #
 #   js.h
 #
-DEPS_24 += src/js.h
-DEPS_24 += $(BUILD)/inc/goahead.h
+DEPS_4 += src/js.h
+DEPS_4 += $(BUILD)/inc/goahead.h
 
-$(BUILD)/inc/js.h: $(DEPS_24)
+$(BUILD)/inc/js.h: $(DEPS_4)
 	@echo '      [Copy] $(BUILD)/inc/js.h'
 	mkdir -p "$(BUILD)/inc"
 	cp src/js.h $(BUILD)/inc/js.h
@@ -434,40 +294,40 @@ $(BUILD)/inc/js.h: $(DEPS_24)
 #
 #   action.o
 #
-DEPS_25 += $(BUILD)/inc/goahead.h
+DEPS_5 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/action.o: \
-    src/action.c $(DEPS_25)
+    src/action.c $(DEPS_5)
 	@echo '   [Compile] $(BUILD)/obj/action.o'
 	$(CC) -c -o $(BUILD)/obj/action.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/action.c
 
 #
 #   alloc.o
 #
-DEPS_26 += $(BUILD)/inc/goahead.h
+DEPS_6 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/alloc.o: \
-    src/alloc.c $(DEPS_26)
+    src/alloc.c $(DEPS_6)
 	@echo '   [Compile] $(BUILD)/obj/alloc.o'
 	$(CC) -c -o $(BUILD)/obj/alloc.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/alloc.c
 
 #
 #   auth.o
 #
-DEPS_27 += $(BUILD)/inc/goahead.h
+DEPS_7 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/auth.o: \
-    src/auth.c $(DEPS_27)
+    src/auth.c $(DEPS_7)
 	@echo '   [Compile] $(BUILD)/obj/auth.o'
 	$(CC) -c -o $(BUILD)/obj/auth.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/auth.c
 
 #
 #   cgi.o
 #
-DEPS_28 += $(BUILD)/inc/goahead.h
+DEPS_8 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/cgi.o: \
-    src/cgi.c $(DEPS_28)
+    src/cgi.c $(DEPS_8)
 	@echo '   [Compile] $(BUILD)/obj/cgi.o'
 	$(CC) -c -o $(BUILD)/obj/cgi.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/cgi.c
 
@@ -476,325 +336,325 @@ $(BUILD)/obj/cgi.o: \
 #
 
 $(BUILD)/obj/cgitest.o: \
-    test/cgitest.c $(DEPS_29)
+    test/cgitest.c $(DEPS_9)
 	@echo '   [Compile] $(BUILD)/obj/cgitest.o'
 	$(CC) -c -o $(BUILD)/obj/cgitest.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" $(IFLAGS) test/cgitest.c
 
 #
 #   crypt.o
 #
-DEPS_30 += $(BUILD)/inc/goahead.h
+DEPS_10 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/crypt.o: \
-    src/crypt.c $(DEPS_30)
+    src/crypt.c $(DEPS_10)
 	@echo '   [Compile] $(BUILD)/obj/crypt.o'
 	$(CC) -c -o $(BUILD)/obj/crypt.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/crypt.c
 
 #
 #   file.o
 #
-DEPS_31 += $(BUILD)/inc/goahead.h
+DEPS_11 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/file.o: \
-    src/file.c $(DEPS_31)
+    src/file.c $(DEPS_11)
 	@echo '   [Compile] $(BUILD)/obj/file.o'
 	$(CC) -c -o $(BUILD)/obj/file.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/file.c
 
 #
 #   fs.o
 #
-DEPS_32 += $(BUILD)/inc/goahead.h
+DEPS_12 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/fs.o: \
-    src/fs.c $(DEPS_32)
+    src/fs.c $(DEPS_12)
 	@echo '   [Compile] $(BUILD)/obj/fs.o'
 	$(CC) -c -o $(BUILD)/obj/fs.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/fs.c
 
 #
 #   goahead.o
 #
-DEPS_33 += $(BUILD)/inc/goahead.h
+DEPS_13 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/goahead.o: \
-    src/goahead.c $(DEPS_33)
+    src/goahead.c $(DEPS_13)
 	@echo '   [Compile] $(BUILD)/obj/goahead.o'
 	$(CC) -c -o $(BUILD)/obj/goahead.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/goahead.c
 
 #
 #   gopass.o
 #
-DEPS_34 += $(BUILD)/inc/goahead.h
+DEPS_14 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/gopass.o: \
-    src/utils/gopass.c $(DEPS_34)
+    src/utils/gopass.c $(DEPS_14)
 	@echo '   [Compile] $(BUILD)/obj/gopass.o'
 	$(CC) -c -o $(BUILD)/obj/gopass.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/utils/gopass.c
 
 #
 #   http.o
 #
-DEPS_35 += $(BUILD)/inc/goahead.h
+DEPS_15 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/http.o: \
-    src/http.c $(DEPS_35)
+    src/http.c $(DEPS_15)
 	@echo '   [Compile] $(BUILD)/obj/http.o'
 	$(CC) -c -o $(BUILD)/obj/http.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/http.c
 
 #
 #   js.o
 #
-DEPS_36 += $(BUILD)/inc/js.h
+DEPS_16 += $(BUILD)/inc/js.h
 
 $(BUILD)/obj/js.o: \
-    src/js.c $(DEPS_36)
+    src/js.c $(DEPS_16)
 	@echo '   [Compile] $(BUILD)/obj/js.o'
 	$(CC) -c -o $(BUILD)/obj/js.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/js.c
 
 #
 #   jst.o
 #
-DEPS_37 += $(BUILD)/inc/goahead.h
-DEPS_37 += $(BUILD)/inc/js.h
+DEPS_17 += $(BUILD)/inc/goahead.h
+DEPS_17 += $(BUILD)/inc/js.h
 
 $(BUILD)/obj/jst.o: \
-    src/jst.c $(DEPS_37)
+    src/jst.c $(DEPS_17)
 	@echo '   [Compile] $(BUILD)/obj/jst.o'
 	$(CC) -c -o $(BUILD)/obj/jst.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/jst.c
 
 #
 #   mbedtls.o
 #
-DEPS_38 += $(BUILD)/inc/goahead.h
+DEPS_18 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/mbedtls.o: \
-    src/mbedtls.c $(DEPS_38)
+    src/mbedtls.c $(DEPS_18)
 	@echo '   [Compile] $(BUILD)/obj/mbedtls.o'
 	$(CC) -c -o $(BUILD)/obj/mbedtls.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/mbedtls.c
 
 #
 #   openssl.o
 #
-DEPS_39 += $(BUILD)/inc/goahead.h
+DEPS_19 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/openssl.o: \
-    src/openssl.c $(DEPS_39)
+    src/openssl.c $(DEPS_19)
 	@echo '   [Compile] $(BUILD)/obj/openssl.o'
 	$(CC) -c -o $(BUILD)/obj/openssl.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/openssl.c
 
 #
 #   options.o
 #
-DEPS_40 += $(BUILD)/inc/goahead.h
+DEPS_20 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/options.o: \
-    src/options.c $(DEPS_40)
+    src/options.c $(DEPS_20)
 	@echo '   [Compile] $(BUILD)/obj/options.o'
 	$(CC) -c -o $(BUILD)/obj/options.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/options.c
 
 #
 #   osdep.o
 #
-DEPS_41 += $(BUILD)/inc/goahead.h
+DEPS_21 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/osdep.o: \
-    src/osdep.c $(DEPS_41)
+    src/osdep.c $(DEPS_21)
 	@echo '   [Compile] $(BUILD)/obj/osdep.o'
 	$(CC) -c -o $(BUILD)/obj/osdep.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/osdep.c
 
 #
 #   rom.o
 #
-DEPS_42 += $(BUILD)/inc/goahead.h
+DEPS_22 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/rom.o: \
-    src/rom.c $(DEPS_42)
+    src/rom.c $(DEPS_22)
 	@echo '   [Compile] $(BUILD)/obj/rom.o'
 	$(CC) -c -o $(BUILD)/obj/rom.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/rom.c
 
 #
 #   route.o
 #
-DEPS_43 += $(BUILD)/inc/goahead.h
+DEPS_23 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/route.o: \
-    src/route.c $(DEPS_43)
+    src/route.c $(DEPS_23)
 	@echo '   [Compile] $(BUILD)/obj/route.o'
 	$(CC) -c -o $(BUILD)/obj/route.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/route.c
 
 #
 #   runtime.o
 #
-DEPS_44 += $(BUILD)/inc/goahead.h
+DEPS_24 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/runtime.o: \
-    src/runtime.c $(DEPS_44)
+    src/runtime.c $(DEPS_24)
 	@echo '   [Compile] $(BUILD)/obj/runtime.o'
 	$(CC) -c -o $(BUILD)/obj/runtime.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/runtime.c
 
 #
 #   socket.o
 #
-DEPS_45 += $(BUILD)/inc/goahead.h
+DEPS_25 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/socket.o: \
-    src/socket.c $(DEPS_45)
+    src/socket.c $(DEPS_25)
 	@echo '   [Compile] $(BUILD)/obj/socket.o'
 	$(CC) -c -o $(BUILD)/obj/socket.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/socket.c
 
 #
 #   test.o
 #
-DEPS_46 += $(BUILD)/inc/goahead.h
-DEPS_46 += $(BUILD)/inc/js.h
+DEPS_26 += $(BUILD)/inc/goahead.h
+DEPS_26 += $(BUILD)/inc/js.h
 
 $(BUILD)/obj/test.o: \
-    test/test.c $(DEPS_46)
+    test/test.c $(DEPS_26)
 	@echo '   [Compile] $(BUILD)/obj/test.o'
 	$(CC) -c -o $(BUILD)/obj/test.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" test/test.c
 
 #
 #   time.o
 #
-DEPS_47 += $(BUILD)/inc/goahead.h
+DEPS_27 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/time.o: \
-    src/time.c $(DEPS_47)
+    src/time.c $(DEPS_27)
 	@echo '   [Compile] $(BUILD)/obj/time.o'
 	$(CC) -c -o $(BUILD)/obj/time.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/time.c
 
 #
 #   upload.o
 #
-DEPS_48 += $(BUILD)/inc/goahead.h
+DEPS_28 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/upload.o: \
-    src/upload.c $(DEPS_48)
+    src/upload.c $(DEPS_28)
 	@echo '   [Compile] $(BUILD)/obj/upload.o'
 	$(CC) -c -o $(BUILD)/obj/upload.o $(CFLAGS) -DME_DEBUG=1 -DVXWORKS -DRW_MULTI_THREAD -DCPU=PENTIUM -DTOOL_FAMILY=gnu -DTOOL=gnu -D_GNU_TOOL -D_WRS_KERNEL_ -D_VSB_CONFIG_FILE=\"/WindRiver/vxworks-7/samples/prebuilt_projects/vsb_vxsim_linux/h/config/vsbConfig.h\" -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -D_FILE_OFFSET_BITS=64 $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" src/upload.c
 
 #
 #   libgo
 #
-DEPS_49 += $(BUILD)/inc/osdep.h
-DEPS_49 += $(BUILD)/inc/goahead.h
-DEPS_49 += $(BUILD)/inc/js.h
-DEPS_49 += $(BUILD)/obj/action.o
-DEPS_49 += $(BUILD)/obj/alloc.o
-DEPS_49 += $(BUILD)/obj/auth.o
-DEPS_49 += $(BUILD)/obj/cgi.o
-DEPS_49 += $(BUILD)/obj/crypt.o
-DEPS_49 += $(BUILD)/obj/file.o
-DEPS_49 += $(BUILD)/obj/fs.o
-DEPS_49 += $(BUILD)/obj/http.o
-DEPS_49 += $(BUILD)/obj/js.o
-DEPS_49 += $(BUILD)/obj/jst.o
-DEPS_49 += $(BUILD)/obj/mbedtls.o
-DEPS_49 += $(BUILD)/obj/openssl.o
-DEPS_49 += $(BUILD)/obj/options.o
-DEPS_49 += $(BUILD)/obj/osdep.o
-DEPS_49 += $(BUILD)/obj/rom.o
-DEPS_49 += $(BUILD)/obj/route.o
-DEPS_49 += $(BUILD)/obj/runtime.o
-DEPS_49 += $(BUILD)/obj/socket.o
-DEPS_49 += $(BUILD)/obj/time.o
-DEPS_49 += $(BUILD)/obj/upload.o
+DEPS_29 += $(BUILD)/inc/osdep.h
+DEPS_29 += $(BUILD)/inc/goahead.h
+DEPS_29 += $(BUILD)/inc/js.h
+DEPS_29 += $(BUILD)/obj/action.o
+DEPS_29 += $(BUILD)/obj/alloc.o
+DEPS_29 += $(BUILD)/obj/auth.o
+DEPS_29 += $(BUILD)/obj/cgi.o
+DEPS_29 += $(BUILD)/obj/crypt.o
+DEPS_29 += $(BUILD)/obj/file.o
+DEPS_29 += $(BUILD)/obj/fs.o
+DEPS_29 += $(BUILD)/obj/http.o
+DEPS_29 += $(BUILD)/obj/js.o
+DEPS_29 += $(BUILD)/obj/jst.o
+DEPS_29 += $(BUILD)/obj/mbedtls.o
+DEPS_29 += $(BUILD)/obj/openssl.o
+DEPS_29 += $(BUILD)/obj/options.o
+DEPS_29 += $(BUILD)/obj/osdep.o
+DEPS_29 += $(BUILD)/obj/rom.o
+DEPS_29 += $(BUILD)/obj/route.o
+DEPS_29 += $(BUILD)/obj/runtime.o
+DEPS_29 += $(BUILD)/obj/socket.o
+DEPS_29 += $(BUILD)/obj/time.o
+DEPS_29 += $(BUILD)/obj/upload.o
 
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_49 += -lssl
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_29 += -lssl
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_49 += -lcrypto
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_29 += -lcrypto
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/libgo.out: $(DEPS_49)
+$(BUILD)/bin/libgo.out: $(DEPS_29)
 	@echo '      [Link] $(BUILD)/bin/libgo.out'
-	$(CC) -r -o $(BUILD)/bin/libgo.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/action.o" "$(BUILD)/obj/alloc.o" "$(BUILD)/obj/auth.o" "$(BUILD)/obj/cgi.o" "$(BUILD)/obj/crypt.o" "$(BUILD)/obj/file.o" "$(BUILD)/obj/fs.o" "$(BUILD)/obj/http.o" "$(BUILD)/obj/js.o" "$(BUILD)/obj/jst.o" "$(BUILD)/obj/mbedtls.o" "$(BUILD)/obj/openssl.o" "$(BUILD)/obj/options.o" "$(BUILD)/obj/osdep.o" "$(BUILD)/obj/rom.o" "$(BUILD)/obj/route.o" "$(BUILD)/obj/runtime.o" "$(BUILD)/obj/socket.o" "$(BUILD)/obj/time.o" "$(BUILD)/obj/upload.o" $(LIBPATHS_49) $(LIBS_49) $(LIBS_49) $(LIBS) 
+	$(CC) -r -o $(BUILD)/bin/libgo.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/action.o" "$(BUILD)/obj/alloc.o" "$(BUILD)/obj/auth.o" "$(BUILD)/obj/cgi.o" "$(BUILD)/obj/crypt.o" "$(BUILD)/obj/file.o" "$(BUILD)/obj/fs.o" "$(BUILD)/obj/http.o" "$(BUILD)/obj/js.o" "$(BUILD)/obj/jst.o" "$(BUILD)/obj/mbedtls.o" "$(BUILD)/obj/openssl.o" "$(BUILD)/obj/options.o" "$(BUILD)/obj/osdep.o" "$(BUILD)/obj/rom.o" "$(BUILD)/obj/route.o" "$(BUILD)/obj/runtime.o" "$(BUILD)/obj/socket.o" "$(BUILD)/obj/time.o" "$(BUILD)/obj/upload.o" $(LIBPATHS_29) $(LIBS_29) $(LIBS_29) $(LIBS) 
 
 #
 #   goahead
 #
-DEPS_50 += $(BUILD)/bin/libgo.out
-DEPS_50 += $(BUILD)/inc/goahead.h
-DEPS_50 += $(BUILD)/inc/js.h
-DEPS_50 += $(BUILD)/obj/goahead.o
+DEPS_30 += $(BUILD)/bin/libgo.out
+DEPS_30 += $(BUILD)/inc/goahead.h
+DEPS_30 += $(BUILD)/inc/js.h
+DEPS_30 += $(BUILD)/obj/goahead.o
 
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_50 += -lssl
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_30 += -lssl
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_50 += -lcrypto
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_30 += -lcrypto
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/goahead.out: $(DEPS_50)
+$(BUILD)/bin/goahead.out: $(DEPS_30)
 	@echo '      [Link] $(BUILD)/bin/goahead.out'
-	$(CC) -o $(BUILD)/bin/goahead.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/goahead.o" $(LIBPATHS_50) $(LIBS_50) $(LIBS_50) $(LIBS) -Wl,-r 
+	$(CC) -o $(BUILD)/bin/goahead.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/goahead.o" $(LIBPATHS_30) $(LIBS_30) $(LIBS_30) $(LIBS) -Wl,-r 
 
 #
 #   goahead-test
 #
-DEPS_51 += $(BUILD)/bin/libgo.out
-DEPS_51 += $(BUILD)/obj/test.o
+DEPS_31 += $(BUILD)/bin/libgo.out
+DEPS_31 += $(BUILD)/obj/test.o
 
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_51 += -lssl
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_31 += -lssl
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_51 += -lcrypto
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_31 += -lcrypto
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/goahead-test.out: $(DEPS_51)
+$(BUILD)/bin/goahead-test.out: $(DEPS_31)
 	@echo '      [Link] $(BUILD)/bin/goahead-test.out'
-	$(CC) -o $(BUILD)/bin/goahead-test.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/test.o" $(LIBPATHS_51) $(LIBS_51) $(LIBS_51) $(LIBS) -Wl,-r 
+	$(CC) -o $(BUILD)/bin/goahead-test.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/test.o" $(LIBPATHS_31) $(LIBS_31) $(LIBS_31) $(LIBS) -Wl,-r 
 
 #
 #   gopass
 #
-DEPS_52 += $(BUILD)/bin/libgo.out
-DEPS_52 += $(BUILD)/inc/goahead.h
-DEPS_52 += $(BUILD)/inc/js.h
-DEPS_52 += $(BUILD)/obj/gopass.o
+DEPS_32 += $(BUILD)/bin/libgo.out
+DEPS_32 += $(BUILD)/inc/goahead.h
+DEPS_32 += $(BUILD)/inc/js.h
+DEPS_32 += $(BUILD)/obj/gopass.o
 
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_52 += -lssl
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_32 += -lssl
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_52 += -lcrypto
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_32 += -lcrypto
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/gopass.out: $(DEPS_52)
+$(BUILD)/bin/gopass.out: $(DEPS_32)
 	@echo '      [Link] $(BUILD)/bin/gopass.out'
-	$(CC) -o $(BUILD)/bin/gopass.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/gopass.o" $(LIBPATHS_52) $(LIBS_52) $(LIBS_52) $(LIBS) -Wl,-r 
+	$(CC) -o $(BUILD)/bin/gopass.out $(LDFLAGS) $(LIBPATHS)   "$(BUILD)/obj/gopass.o" $(LIBPATHS_32) $(LIBS_32) $(LIBS_32) $(LIBS) -Wl,-r 
 
 #
 #   install-roots
 #
-DEPS_53 += certs/roots.crt
+DEPS_33 += certs/roots.crt
 
-$(BUILD)/.install-roots-modified: $(DEPS_53)
+$(BUILD)/.install-roots-modified: $(DEPS_33)
 	@echo '      [Copy] $(BUILD)/bin'
 	mkdir -p "$(BUILD)/bin"
 	cp certs/roots.crt $(BUILD)/bin/roots.crt
@@ -804,34 +664,34 @@ $(BUILD)/.install-roots-modified: $(DEPS_53)
 #   stop
 #
 
-stop: $(DEPS_54)
+stop: $(DEPS_34)
 
 #
 #   installBinary
 #
 
-installBinary: $(DEPS_55)
+installBinary: $(DEPS_35)
 
 #
 #   start
 #
 
-start: $(DEPS_56)
+start: $(DEPS_36)
 
 #
 #   install
 #
-DEPS_57 += stop
-DEPS_57 += installBinary
-DEPS_57 += start
+DEPS_37 += stop
+DEPS_37 += installBinary
+DEPS_37 += start
 
-install: $(DEPS_57)
+install: $(DEPS_37)
 
 #
 #   installPrep
 #
 
-installPrep: $(DEPS_58)
+installPrep: $(DEPS_38)
 	if [ "`id -u`" != 0 ] ; \
 	then echo "Must run as root. Rerun with sudo." ; \
 	exit 255 ; \
@@ -840,21 +700,21 @@ installPrep: $(DEPS_58)
 #
 #   uninstall
 #
-DEPS_59 += stop
+DEPS_39 += stop
 
-uninstall: $(DEPS_59)
+uninstall: $(DEPS_39)
 
 #
 #   uninstallBinary
 #
 
-uninstallBinary: $(DEPS_60)
+uninstallBinary: $(DEPS_40)
 
 #
 #   version
 #
 
-version: $(DEPS_61)
+version: $(DEPS_41)
 	echo $(VERSION)
 
 

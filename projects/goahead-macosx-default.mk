@@ -3,7 +3,7 @@
 #
 
 NAME                  := goahead
-VERSION               := 6.0.4
+VERSION               := 6.0.5
 PROFILE               ?= default
 ARCH                  ?= $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/;s/mips.*/mips/')
 CC_ARCH               ?= $(shell echo $(ARCH) | sed 's/x86/i686/;s/x64/x86_64/')
@@ -132,7 +132,7 @@ ME_PREFIXES           ?= \"install-prefixes\"
 ME_ROM                ?= 0
 ME_ROM_TIME           ?= 1505449519432
 ME_TITLE              ?= \"Embedthis GoAhead\"
-ME_VERSION            ?= \"6.0.4\"
+ME_VERSION            ?= \"6.0.5\"
 
 CFLAGS                += -Wno-unknown-warning-option  -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security  -w
 DFLAGS                += -D_REENTRANT -DPIC $(patsubst %,-D%,$(filter ME_%,$(MAKEFLAGS))) -DME_COM_COMPILER=$(ME_COM_COMPILER) -DME_COM_LIB=$(ME_COM_LIB) -DME_COM_MBEDTLS=$(ME_COM_MBEDTLS) -DME_COM_OPENSSL=$(ME_COM_OPENSSL) -DME_COM_OSDEP=$(ME_COM_OSDEP) -DME_COM_SSL=$(ME_COM_SSL) -DME_COM_VXWORKS=$(ME_COM_VXWORKS) -DME_CERTS_GENDH=$(ME_CERTS_GENDH) -DME_GOAHEAD_ACCESSLOG=$(ME_GOAHEAD_ACCESSLOG) -DME_GOAHEAD_AUTH=$(ME_GOAHEAD_AUTH) -DME_GOAHEAD_AUTHSTORE=$(ME_GOAHEAD_AUTHSTORE) -DME_GOAHEAD_AUTOLOGIN=$(ME_GOAHEAD_AUTOLOGIN) -DME_GOAHEAD_CGI=$(ME_GOAHEAD_CGI) -DME_GOAHEAD_CGIVARPREFIX=$(ME_GOAHEAD_CGIVARPREFIX) -DME_GOAHEAD_CLIENTCACHE=$(ME_GOAHEAD_CLIENTCACHE) -DME_GOAHEAD_CLIENTCACHELIFESPAN=$(ME_GOAHEAD_CLIENTCACHELIFESPAN) -DME_GOAHEAD_DIGEST=$(ME_GOAHEAD_DIGEST) -DME_GOAHEAD_DOCUMENTS=$(ME_GOAHEAD_DOCUMENTS) -DME_GOAHEAD_JAVASCRIPT=$(ME_GOAHEAD_JAVASCRIPT) -DME_GOAHEAD_LEGACY=$(ME_GOAHEAD_LEGACY) -DME_GOAHEAD_LIMITBUFFER=$(ME_GOAHEAD_LIMITBUFFER) -DME_GOAHEAD_LIMITCGIARGS=$(ME_GOAHEAD_LIMITCGIARGS) -DME_GOAHEAD_LIMITFILENAME=$(ME_GOAHEAD_LIMITFILENAME) -DME_GOAHEAD_LIMITFILES=$(ME_GOAHEAD_LIMITFILES) -DME_GOAHEAD_LIMITHEADER=$(ME_GOAHEAD_LIMITHEADER) -DME_GOAHEAD_LIMITHEADERS=$(ME_GOAHEAD_LIMITHEADERS) -DME_GOAHEAD_LIMITNUMHEADERS=$(ME_GOAHEAD_LIMITNUMHEADERS) -DME_GOAHEAD_LIMITPARSETIMEOUT=$(ME_GOAHEAD_LIMITPARSETIMEOUT) -DME_GOAHEAD_LIMITPASSWORD=$(ME_GOAHEAD_LIMITPASSWORD) -DME_GOAHEAD_LIMITPOST=$(ME_GOAHEAD_LIMITPOST) -DME_GOAHEAD_LIMITPUT=$(ME_GOAHEAD_LIMITPUT) -DME_GOAHEAD_LIMITSESSIONCOUNT=$(ME_GOAHEAD_LIMITSESSIONCOUNT) -DME_GOAHEAD_LIMITSESSIONLIFE=$(ME_GOAHEAD_LIMITSESSIONLIFE) -DME_GOAHEAD_LIMITSTRING=$(ME_GOAHEAD_LIMITSTRING) -DME_GOAHEAD_LIMITTIMEOUT=$(ME_GOAHEAD_LIMITTIMEOUT) -DME_GOAHEAD_LIMITUPLOAD=$(ME_GOAHEAD_LIMITUPLOAD) -DME_GOAHEAD_LIMITURI=$(ME_GOAHEAD_LIMITURI) -DME_GOAHEAD_LISTEN=$(ME_GOAHEAD_LISTEN) -DME_GOAHEAD_LOGFILE=$(ME_GOAHEAD_LOGFILE) -DME_GOAHEAD_LOGGING=$(ME_GOAHEAD_LOGGING) -DME_GOAHEAD_PUTDIR=$(ME_GOAHEAD_PUTDIR) -DME_GOAHEAD_REALM=$(ME_GOAHEAD_REALM) -DME_GOAHEAD_REPLACE_MALLOC=$(ME_GOAHEAD_REPLACE_MALLOC) -DME_GOAHEAD_SSL=$(ME_GOAHEAD_SSL) -DME_GOAHEAD_STEALTH=$(ME_GOAHEAD_STEALTH) -DME_GOAHEAD_TRACING=$(ME_GOAHEAD_TRACING) -DME_GOAHEAD_UPLOAD=$(ME_GOAHEAD_UPLOAD) -DME_GOAHEAD_UPLOADDIR=$(ME_GOAHEAD_UPLOADDIR) -DME_GOAHEAD_XFRAMEHEADER=$(ME_GOAHEAD_XFRAMEHEADER) -DME_MBEDTLS_COMPACT=$(ME_MBEDTLS_COMPACT) -DME_OPENSSL_VERSION=$(ME_OPENSSL_VERSION) 
@@ -246,158 +246,18 @@ clobber: clean
 	rm -fr ./$(BUILD)
 
 #
-#   esp_crt_bundle.h
-#
-
-$(BUILD)/inc/esp_crt_bundle.h: $(DEPS_1)
-
-#
-#   esp_err.h
-#
-
-$(BUILD)/inc/esp_err.h: $(DEPS_2)
-
-#
-#   esp_event.h
-#
-
-$(BUILD)/inc/esp_event.h: $(DEPS_3)
-
-#
-#   esp_heap_caps.h
-#
-
-$(BUILD)/inc/esp_heap_caps.h: $(DEPS_4)
-
-#
-#   esp_littlefs.h
-#
-
-$(BUILD)/inc/esp_littlefs.h: $(DEPS_5)
-
-#
-#   esp_log.h
-#
-
-$(BUILD)/inc/esp_log.h: $(DEPS_6)
-
-#
-#   esp_netif.h
-#
-
-$(BUILD)/inc/esp_netif.h: $(DEPS_7)
-
-#
-#   esp_psram.h
-#
-
-$(BUILD)/inc/esp_psram.h: $(DEPS_8)
-
-#
-#   esp_pthread.h
-#
-
-$(BUILD)/inc/esp_pthread.h: $(DEPS_9)
-
-#
-#   esp_system.h
-#
-
-$(BUILD)/inc/esp_system.h: $(DEPS_10)
-
-#
-#   esp_wifi.h
-#
-
-$(BUILD)/inc/esp_wifi.h: $(DEPS_11)
-
-#
-#   FreeRTOS.h
-#
-
-$(BUILD)/inc/freertos/FreeRTOS.h: $(DEPS_12)
-
-#
-#   event_groups.h
-#
-
-$(BUILD)/inc/freertos/event_groups.h: $(DEPS_13)
-
-#
-#   task.h
-#
-
-$(BUILD)/inc/freertos/task.h: $(DEPS_14)
-
-#
 #   me.h
 #
 
-$(BUILD)/inc/me.h: $(DEPS_15)
-
-#
-#   time.h
-#
-
-$(BUILD)/inc/time.h: $(DEPS_16)
-
-#
-#   nvs_flash.h
-#
-
-$(BUILD)/inc/nvs_flash.h: $(DEPS_17)
-
-#
-#   err.h
-#
-
-$(BUILD)/inc/lwip/err.h: $(DEPS_18)
-
-#
-#   sockets.h
-#
-
-$(BUILD)/inc/lwip/sockets.h: $(DEPS_19)
-
-#
-#   sys.h
-#
-
-$(BUILD)/inc/lwip/sys.h: $(DEPS_20)
-
-#
-#   netdb.h
-#
-
-$(BUILD)/inc/lwip/netdb.h: $(DEPS_21)
+$(BUILD)/inc/me.h: $(DEPS_1)
 
 #
 #   osdep.h
 #
-DEPS_22 += src/osdep/osdep.h
-DEPS_22 += $(BUILD)/inc/me.h
-DEPS_22 += $(BUILD)/inc/freertos/FreeRTOS.h
-DEPS_22 += $(BUILD)/inc/freertos/event_groups.h
-DEPS_22 += $(BUILD)/inc/freertos/task.h
-DEPS_22 += $(BUILD)/inc/time.h
-DEPS_22 += $(BUILD)/inc/esp_system.h
-DEPS_22 += $(BUILD)/inc/esp_log.h
-DEPS_22 += $(BUILD)/inc/esp_heap_caps.h
-DEPS_22 += $(BUILD)/inc/esp_err.h
-DEPS_22 += $(BUILD)/inc/esp_event.h
-DEPS_22 += $(BUILD)/inc/esp_psram.h
-DEPS_22 += $(BUILD)/inc/esp_pthread.h
-DEPS_22 += $(BUILD)/inc/esp_littlefs.h
-DEPS_22 += $(BUILD)/inc/esp_crt_bundle.h
-DEPS_22 += $(BUILD)/inc/esp_wifi.h
-DEPS_22 += $(BUILD)/inc/esp_netif.h
-DEPS_22 += $(BUILD)/inc/nvs_flash.h
-DEPS_22 += $(BUILD)/inc/lwip/err.h
-DEPS_22 += $(BUILD)/inc/lwip/sockets.h
-DEPS_22 += $(BUILD)/inc/lwip/sys.h
-DEPS_22 += $(BUILD)/inc/lwip/netdb.h
+DEPS_2 += src/osdep/osdep.h
+DEPS_2 += $(BUILD)/inc/me.h
 
-$(BUILD)/inc/osdep.h: $(DEPS_22)
+$(BUILD)/inc/osdep.h: $(DEPS_2)
 	@echo '      [Copy] $(BUILD)/inc/osdep.h'
 	mkdir -p "$(BUILD)/inc"
 	cp src/osdep/osdep.h $(BUILD)/inc/osdep.h
@@ -405,11 +265,11 @@ $(BUILD)/inc/osdep.h: $(DEPS_22)
 #
 #   goahead.h
 #
-DEPS_23 += src/goahead.h
-DEPS_23 += $(BUILD)/inc/me.h
-DEPS_23 += $(BUILD)/inc/osdep.h
+DEPS_3 += src/goahead.h
+DEPS_3 += $(BUILD)/inc/me.h
+DEPS_3 += $(BUILD)/inc/osdep.h
 
-$(BUILD)/inc/goahead.h: $(DEPS_23)
+$(BUILD)/inc/goahead.h: $(DEPS_3)
 	@echo '      [Copy] $(BUILD)/inc/goahead.h'
 	mkdir -p "$(BUILD)/inc"
 	cp src/goahead.h $(BUILD)/inc/goahead.h
@@ -417,10 +277,10 @@ $(BUILD)/inc/goahead.h: $(DEPS_23)
 #
 #   js.h
 #
-DEPS_24 += src/js.h
-DEPS_24 += $(BUILD)/inc/goahead.h
+DEPS_4 += src/js.h
+DEPS_4 += $(BUILD)/inc/goahead.h
 
-$(BUILD)/inc/js.h: $(DEPS_24)
+$(BUILD)/inc/js.h: $(DEPS_4)
 	@echo '      [Copy] $(BUILD)/inc/js.h'
 	mkdir -p "$(BUILD)/inc"
 	cp src/js.h $(BUILD)/inc/js.h
@@ -428,40 +288,40 @@ $(BUILD)/inc/js.h: $(DEPS_24)
 #
 #   action.o
 #
-DEPS_25 += $(BUILD)/inc/goahead.h
+DEPS_5 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/action.o: \
-    src/action.c $(DEPS_25)
+    src/action.c $(DEPS_5)
 	@echo '   [Compile] $(BUILD)/obj/action.o'
 	$(CC) -c -o $(BUILD)/obj/action.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/action.c
 
 #
 #   alloc.o
 #
-DEPS_26 += $(BUILD)/inc/goahead.h
+DEPS_6 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/alloc.o: \
-    src/alloc.c $(DEPS_26)
+    src/alloc.c $(DEPS_6)
 	@echo '   [Compile] $(BUILD)/obj/alloc.o'
 	$(CC) -c -o $(BUILD)/obj/alloc.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/alloc.c
 
 #
 #   auth.o
 #
-DEPS_27 += $(BUILD)/inc/goahead.h
+DEPS_7 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/auth.o: \
-    src/auth.c $(DEPS_27)
+    src/auth.c $(DEPS_7)
 	@echo '   [Compile] $(BUILD)/obj/auth.o'
 	$(CC) -c -o $(BUILD)/obj/auth.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/auth.c
 
 #
 #   cgi.o
 #
-DEPS_28 += $(BUILD)/inc/goahead.h
+DEPS_8 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/cgi.o: \
-    src/cgi.c $(DEPS_28)
+    src/cgi.c $(DEPS_8)
 	@echo '   [Compile] $(BUILD)/obj/cgi.o'
 	$(CC) -c -o $(BUILD)/obj/cgi.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/cgi.c
 
@@ -470,396 +330,396 @@ $(BUILD)/obj/cgi.o: \
 #
 
 $(BUILD)/obj/cgitest.o: \
-    test/cgitest.c $(DEPS_29)
+    test/cgitest.c $(DEPS_9)
 	@echo '   [Compile] $(BUILD)/obj/cgitest.o'
 	$(CC) -c -o $(BUILD)/obj/cgitest.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) $(IFLAGS) test/cgitest.c
 
 #
 #   crypt.o
 #
-DEPS_30 += $(BUILD)/inc/goahead.h
+DEPS_10 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/crypt.o: \
-    src/crypt.c $(DEPS_30)
+    src/crypt.c $(DEPS_10)
 	@echo '   [Compile] $(BUILD)/obj/crypt.o'
 	$(CC) -c -o $(BUILD)/obj/crypt.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/crypt.c
 
 #
 #   file.o
 #
-DEPS_31 += $(BUILD)/inc/goahead.h
+DEPS_11 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/file.o: \
-    src/file.c $(DEPS_31)
+    src/file.c $(DEPS_11)
 	@echo '   [Compile] $(BUILD)/obj/file.o'
 	$(CC) -c -o $(BUILD)/obj/file.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/file.c
 
 #
 #   fs.o
 #
-DEPS_32 += $(BUILD)/inc/goahead.h
+DEPS_12 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/fs.o: \
-    src/fs.c $(DEPS_32)
+    src/fs.c $(DEPS_12)
 	@echo '   [Compile] $(BUILD)/obj/fs.o'
 	$(CC) -c -o $(BUILD)/obj/fs.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/fs.c
 
 #
 #   goahead.o
 #
-DEPS_33 += $(BUILD)/inc/goahead.h
+DEPS_13 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/goahead.o: \
-    src/goahead.c $(DEPS_33)
+    src/goahead.c $(DEPS_13)
 	@echo '   [Compile] $(BUILD)/obj/goahead.o'
 	$(CC) -c -o $(BUILD)/obj/goahead.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/goahead.c
 
 #
 #   gopass.o
 #
-DEPS_34 += $(BUILD)/inc/goahead.h
+DEPS_14 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/gopass.o: \
-    src/utils/gopass.c $(DEPS_34)
+    src/utils/gopass.c $(DEPS_14)
 	@echo '   [Compile] $(BUILD)/obj/gopass.o'
 	$(CC) -c -o $(BUILD)/obj/gopass.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/utils/gopass.c
 
 #
 #   http.o
 #
-DEPS_35 += $(BUILD)/inc/goahead.h
+DEPS_15 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/http.o: \
-    src/http.c $(DEPS_35)
+    src/http.c $(DEPS_15)
 	@echo '   [Compile] $(BUILD)/obj/http.o'
 	$(CC) -c -o $(BUILD)/obj/http.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/http.c
 
 #
 #   js.o
 #
-DEPS_36 += $(BUILD)/inc/js.h
+DEPS_16 += $(BUILD)/inc/js.h
 
 $(BUILD)/obj/js.o: \
-    src/js.c $(DEPS_36)
+    src/js.c $(DEPS_16)
 	@echo '   [Compile] $(BUILD)/obj/js.o'
 	$(CC) -c -o $(BUILD)/obj/js.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/js.c
 
 #
 #   jst.o
 #
-DEPS_37 += $(BUILD)/inc/goahead.h
-DEPS_37 += $(BUILD)/inc/js.h
+DEPS_17 += $(BUILD)/inc/goahead.h
+DEPS_17 += $(BUILD)/inc/js.h
 
 $(BUILD)/obj/jst.o: \
-    src/jst.c $(DEPS_37)
+    src/jst.c $(DEPS_17)
 	@echo '   [Compile] $(BUILD)/obj/jst.o'
 	$(CC) -c -o $(BUILD)/obj/jst.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/jst.c
 
 #
 #   mbedtls.o
 #
-DEPS_38 += $(BUILD)/inc/goahead.h
+DEPS_18 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/mbedtls.o: \
-    src/mbedtls.c $(DEPS_38)
+    src/mbedtls.c $(DEPS_18)
 	@echo '   [Compile] $(BUILD)/obj/mbedtls.o'
 	$(CC) -c -o $(BUILD)/obj/mbedtls.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/mbedtls.c
 
 #
 #   openssl.o
 #
-DEPS_39 += $(BUILD)/inc/goahead.h
+DEPS_19 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/openssl.o: \
-    src/openssl.c $(DEPS_39)
+    src/openssl.c $(DEPS_19)
 	@echo '   [Compile] $(BUILD)/obj/openssl.o'
 	$(CC) -c -o $(BUILD)/obj/openssl.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/openssl.c
 
 #
 #   options.o
 #
-DEPS_40 += $(BUILD)/inc/goahead.h
+DEPS_20 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/options.o: \
-    src/options.c $(DEPS_40)
+    src/options.c $(DEPS_20)
 	@echo '   [Compile] $(BUILD)/obj/options.o'
 	$(CC) -c -o $(BUILD)/obj/options.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/options.c
 
 #
 #   osdep.o
 #
-DEPS_41 += $(BUILD)/inc/goahead.h
+DEPS_21 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/osdep.o: \
-    src/osdep.c $(DEPS_41)
+    src/osdep.c $(DEPS_21)
 	@echo '   [Compile] $(BUILD)/obj/osdep.o'
 	$(CC) -c -o $(BUILD)/obj/osdep.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/osdep.c
 
 #
 #   rom.o
 #
-DEPS_42 += $(BUILD)/inc/goahead.h
+DEPS_22 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/rom.o: \
-    src/rom.c $(DEPS_42)
+    src/rom.c $(DEPS_22)
 	@echo '   [Compile] $(BUILD)/obj/rom.o'
 	$(CC) -c -o $(BUILD)/obj/rom.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/rom.c
 
 #
 #   route.o
 #
-DEPS_43 += $(BUILD)/inc/goahead.h
+DEPS_23 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/route.o: \
-    src/route.c $(DEPS_43)
+    src/route.c $(DEPS_23)
 	@echo '   [Compile] $(BUILD)/obj/route.o'
 	$(CC) -c -o $(BUILD)/obj/route.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/route.c
 
 #
 #   runtime.o
 #
-DEPS_44 += $(BUILD)/inc/goahead.h
+DEPS_24 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/runtime.o: \
-    src/runtime.c $(DEPS_44)
+    src/runtime.c $(DEPS_24)
 	@echo '   [Compile] $(BUILD)/obj/runtime.o'
 	$(CC) -c -o $(BUILD)/obj/runtime.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/runtime.c
 
 #
 #   socket.o
 #
-DEPS_45 += $(BUILD)/inc/goahead.h
+DEPS_25 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/socket.o: \
-    src/socket.c $(DEPS_45)
+    src/socket.c $(DEPS_25)
 	@echo '   [Compile] $(BUILD)/obj/socket.o'
 	$(CC) -c -o $(BUILD)/obj/socket.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/socket.c
 
 #
 #   test.o
 #
-DEPS_46 += $(BUILD)/inc/goahead.h
-DEPS_46 += $(BUILD)/inc/js.h
+DEPS_26 += $(BUILD)/inc/goahead.h
+DEPS_26 += $(BUILD)/inc/js.h
 
 $(BUILD)/obj/test.o: \
-    test/test.c $(DEPS_46)
+    test/test.c $(DEPS_26)
 	@echo '   [Compile] $(BUILD)/obj/test.o'
 	$(CC) -c -o $(BUILD)/obj/test.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" test/test.c
 
 #
 #   time.o
 #
-DEPS_47 += $(BUILD)/inc/goahead.h
+DEPS_27 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/time.o: \
-    src/time.c $(DEPS_47)
+    src/time.c $(DEPS_27)
 	@echo '   [Compile] $(BUILD)/obj/time.o'
 	$(CC) -c -o $(BUILD)/obj/time.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/time.c
 
 #
 #   upload.o
 #
-DEPS_48 += $(BUILD)/inc/goahead.h
+DEPS_28 += $(BUILD)/inc/goahead.h
 
 $(BUILD)/obj/upload.o: \
-    src/upload.c $(DEPS_48)
+    src/upload.c $(DEPS_28)
 	@echo '   [Compile] $(BUILD)/obj/upload.o'
 	$(CC) -c -o $(BUILD)/obj/upload.o -arch $(CC_ARCH) -Wno-unknown-warning-option -fPIC -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security $(DFLAGS) -DME_COM_OPENSSL_PATH=$(ME_COM_OPENSSL_PATH) -DME_COM_MBEDTLS_PATH=$(ME_COM_MBEDTLS_PATH) $(IFLAGS) "-I$(ME_COM_OPENSSL_PATH)/include" "-I$(ME_COM_MBEDTLS_PATH)/include" src/upload.c
 
 #
 #   libgo
 #
-DEPS_49 += $(BUILD)/inc/osdep.h
-DEPS_49 += $(BUILD)/inc/goahead.h
-DEPS_49 += $(BUILD)/inc/js.h
-DEPS_49 += $(BUILD)/obj/action.o
-DEPS_49 += $(BUILD)/obj/alloc.o
-DEPS_49 += $(BUILD)/obj/auth.o
-DEPS_49 += $(BUILD)/obj/cgi.o
-DEPS_49 += $(BUILD)/obj/crypt.o
-DEPS_49 += $(BUILD)/obj/file.o
-DEPS_49 += $(BUILD)/obj/fs.o
-DEPS_49 += $(BUILD)/obj/http.o
-DEPS_49 += $(BUILD)/obj/js.o
-DEPS_49 += $(BUILD)/obj/jst.o
-DEPS_49 += $(BUILD)/obj/mbedtls.o
-DEPS_49 += $(BUILD)/obj/openssl.o
-DEPS_49 += $(BUILD)/obj/options.o
-DEPS_49 += $(BUILD)/obj/osdep.o
-DEPS_49 += $(BUILD)/obj/rom.o
-DEPS_49 += $(BUILD)/obj/route.o
-DEPS_49 += $(BUILD)/obj/runtime.o
-DEPS_49 += $(BUILD)/obj/socket.o
-DEPS_49 += $(BUILD)/obj/time.o
-DEPS_49 += $(BUILD)/obj/upload.o
+DEPS_29 += $(BUILD)/inc/osdep.h
+DEPS_29 += $(BUILD)/inc/goahead.h
+DEPS_29 += $(BUILD)/inc/js.h
+DEPS_29 += $(BUILD)/obj/action.o
+DEPS_29 += $(BUILD)/obj/alloc.o
+DEPS_29 += $(BUILD)/obj/auth.o
+DEPS_29 += $(BUILD)/obj/cgi.o
+DEPS_29 += $(BUILD)/obj/crypt.o
+DEPS_29 += $(BUILD)/obj/file.o
+DEPS_29 += $(BUILD)/obj/fs.o
+DEPS_29 += $(BUILD)/obj/http.o
+DEPS_29 += $(BUILD)/obj/js.o
+DEPS_29 += $(BUILD)/obj/jst.o
+DEPS_29 += $(BUILD)/obj/mbedtls.o
+DEPS_29 += $(BUILD)/obj/openssl.o
+DEPS_29 += $(BUILD)/obj/options.o
+DEPS_29 += $(BUILD)/obj/osdep.o
+DEPS_29 += $(BUILD)/obj/rom.o
+DEPS_29 += $(BUILD)/obj/route.o
+DEPS_29 += $(BUILD)/obj/runtime.o
+DEPS_29 += $(BUILD)/obj/socket.o
+DEPS_29 += $(BUILD)/obj/time.o
+DEPS_29 += $(BUILD)/obj/upload.o
 
 ifeq ($(ME_COM_MBEDTLS),1)
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_49 += -lmbedtls
-    LIBPATHS_49 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_29 += -lmbedtls
+    LIBPATHS_29 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_49 += -lmbedcrypto
-    LIBPATHS_49 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_29 += -lmbedcrypto
+    LIBPATHS_29 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_49 += -lmbedx509
-    LIBPATHS_49 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_29 += -lmbedx509
+    LIBPATHS_29 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_49 += -lssl
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_29 += -lssl
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_49 += -lcrypto
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_49 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_29 += -lcrypto
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_29 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/libgo.dylib: $(DEPS_49)
+$(BUILD)/bin/libgo.dylib: $(DEPS_29)
 	@echo '      [Link] $(BUILD)/bin/libgo.dylib'
-	$(CC) -dynamiclib -o $(BUILD)/bin/libgo.dylib -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     -install_name @rpath/libgo.dylib -compatibility_version 6.0 -current_version 6.0 "$(BUILD)/obj/action.o" "$(BUILD)/obj/alloc.o" "$(BUILD)/obj/auth.o" "$(BUILD)/obj/cgi.o" "$(BUILD)/obj/crypt.o" "$(BUILD)/obj/file.o" "$(BUILD)/obj/fs.o" "$(BUILD)/obj/http.o" "$(BUILD)/obj/js.o" "$(BUILD)/obj/jst.o" "$(BUILD)/obj/mbedtls.o" "$(BUILD)/obj/openssl.o" "$(BUILD)/obj/options.o" "$(BUILD)/obj/osdep.o" "$(BUILD)/obj/rom.o" "$(BUILD)/obj/route.o" "$(BUILD)/obj/runtime.o" "$(BUILD)/obj/socket.o" "$(BUILD)/obj/time.o" "$(BUILD)/obj/upload.o" $(LIBPATHS_49) $(LIBS_49) $(LIBS_49) $(LIBS) 
+	$(CC) -dynamiclib -o $(BUILD)/bin/libgo.dylib -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     -install_name @rpath/libgo.dylib -compatibility_version 6.0 -current_version 6.0 "$(BUILD)/obj/action.o" "$(BUILD)/obj/alloc.o" "$(BUILD)/obj/auth.o" "$(BUILD)/obj/cgi.o" "$(BUILD)/obj/crypt.o" "$(BUILD)/obj/file.o" "$(BUILD)/obj/fs.o" "$(BUILD)/obj/http.o" "$(BUILD)/obj/js.o" "$(BUILD)/obj/jst.o" "$(BUILD)/obj/mbedtls.o" "$(BUILD)/obj/openssl.o" "$(BUILD)/obj/options.o" "$(BUILD)/obj/osdep.o" "$(BUILD)/obj/rom.o" "$(BUILD)/obj/route.o" "$(BUILD)/obj/runtime.o" "$(BUILD)/obj/socket.o" "$(BUILD)/obj/time.o" "$(BUILD)/obj/upload.o" $(LIBPATHS_29) $(LIBS_29) $(LIBS_29) $(LIBS) 
 
 #
 #   goahead
 #
-DEPS_50 += $(BUILD)/bin/libgo.dylib
-DEPS_50 += $(BUILD)/inc/goahead.h
-DEPS_50 += $(BUILD)/inc/js.h
-DEPS_50 += $(BUILD)/obj/goahead.o
+DEPS_30 += $(BUILD)/bin/libgo.dylib
+DEPS_30 += $(BUILD)/inc/goahead.h
+DEPS_30 += $(BUILD)/inc/js.h
+DEPS_30 += $(BUILD)/obj/goahead.o
 
-LIBS_50 += -lgo
+LIBS_30 += -lgo
 ifeq ($(ME_COM_MBEDTLS),1)
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_50 += -lmbedtls
-    LIBPATHS_50 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_30 += -lmbedtls
+    LIBPATHS_30 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_50 += -lmbedcrypto
-    LIBPATHS_50 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_30 += -lmbedcrypto
+    LIBPATHS_30 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_50 += -lmbedx509
-    LIBPATHS_50 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_30 += -lmbedx509
+    LIBPATHS_30 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_50 += -lssl
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_30 += -lssl
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_50 += -lcrypto
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_50 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_30 += -lcrypto
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_30 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/goahead: $(DEPS_50)
+$(BUILD)/bin/goahead: $(DEPS_30)
 	@echo '      [Link] $(BUILD)/bin/goahead'
-	$(CC) -o $(BUILD)/bin/goahead -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     "$(BUILD)/obj/goahead.o" $(LIBPATHS_50) $(LIBS_50) $(LIBS_50) $(LIBS) 
+	$(CC) -o $(BUILD)/bin/goahead -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     "$(BUILD)/obj/goahead.o" $(LIBPATHS_30) $(LIBS_30) $(LIBS_30) $(LIBS) 
 
 #
 #   goahead-test
 #
-DEPS_51 += $(BUILD)/bin/libgo.dylib
-DEPS_51 += $(BUILD)/obj/test.o
+DEPS_31 += $(BUILD)/bin/libgo.dylib
+DEPS_31 += $(BUILD)/obj/test.o
 
-LIBS_51 += -lgo
+LIBS_31 += -lgo
 ifeq ($(ME_COM_MBEDTLS),1)
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_51 += -lmbedtls
-    LIBPATHS_51 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_31 += -lmbedtls
+    LIBPATHS_31 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_51 += -lmbedcrypto
-    LIBPATHS_51 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_31 += -lmbedcrypto
+    LIBPATHS_31 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_51 += -lmbedx509
-    LIBPATHS_51 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_31 += -lmbedx509
+    LIBPATHS_31 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_51 += -lssl
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_31 += -lssl
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_51 += -lcrypto
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_51 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_31 += -lcrypto
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_31 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/goahead-test: $(DEPS_51)
+$(BUILD)/bin/goahead-test: $(DEPS_31)
 	@echo '      [Link] $(BUILD)/bin/goahead-test'
-	$(CC) -o $(BUILD)/bin/goahead-test -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     "$(BUILD)/obj/test.o" $(LIBPATHS_51) $(LIBS_51) $(LIBS_51) $(LIBS) 
+	$(CC) -o $(BUILD)/bin/goahead-test -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     "$(BUILD)/obj/test.o" $(LIBPATHS_31) $(LIBS_31) $(LIBS_31) $(LIBS) 
 
 #
 #   gopass
 #
-DEPS_52 += $(BUILD)/bin/libgo.dylib
-DEPS_52 += $(BUILD)/inc/goahead.h
-DEPS_52 += $(BUILD)/inc/js.h
-DEPS_52 += $(BUILD)/obj/gopass.o
+DEPS_32 += $(BUILD)/bin/libgo.dylib
+DEPS_32 += $(BUILD)/inc/goahead.h
+DEPS_32 += $(BUILD)/inc/js.h
+DEPS_32 += $(BUILD)/obj/gopass.o
 
-LIBS_52 += -lgo
+LIBS_32 += -lgo
 ifeq ($(ME_COM_MBEDTLS),1)
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_52 += -lmbedtls
-    LIBPATHS_52 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_32 += -lmbedtls
+    LIBPATHS_32 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_52 += -lmbedcrypto
-    LIBPATHS_52 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_32 += -lmbedcrypto
+    LIBPATHS_32 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_MBEDTLS),1)
-    LIBS_52 += -lmbedx509
-    LIBPATHS_52 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_MBEDTLS_PATH)/library"
+    LIBS_32 += -lmbedx509
+    LIBPATHS_32 += -L"$(ME_COM_MBEDTLS_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_MBEDTLS_PATH)/library"
 endif
 ifeq ($(ME_COM_OPENSSL),1)
 ifeq ($(ME_COM_SSL),1)
-    LIBS_52 += -lssl
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_32 += -lssl
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 endif
 ifeq ($(ME_COM_OPENSSL),1)
-    LIBS_52 += -lcrypto
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)/lib"
-    LIBPATHS_52 += -L"$(ME_COM_OPENSSL_PATH)"
+    LIBS_32 += -lcrypto
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)/lib"
+    LIBPATHS_32 += -L"$(ME_COM_OPENSSL_PATH)"
 endif
 
-$(BUILD)/bin/gopass: $(DEPS_52)
+$(BUILD)/bin/gopass: $(DEPS_32)
 	@echo '      [Link] $(BUILD)/bin/gopass'
-	$(CC) -o $(BUILD)/bin/gopass -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     "$(BUILD)/obj/gopass.o" $(LIBPATHS_52) $(LIBS_52) $(LIBS_52) $(LIBS) 
+	$(CC) -o $(BUILD)/bin/gopass -arch $(CC_ARCH) $(LDFLAGS) $(LIBPATHS)     "$(BUILD)/obj/gopass.o" $(LIBPATHS_32) $(LIBS_32) $(LIBS_32) $(LIBS) 
 
 #
 #   install-roots
 #
-DEPS_53 += certs/roots.crt
+DEPS_33 += certs/roots.crt
 
-$(BUILD)/.install-roots-modified: $(DEPS_53)
+$(BUILD)/.install-roots-modified: $(DEPS_33)
 	@echo '      [Copy] $(BUILD)/bin'
 	mkdir -p "$(BUILD)/bin"
 	cp certs/roots.crt $(BUILD)/bin/roots.crt
@@ -869,13 +729,13 @@ $(BUILD)/.install-roots-modified: $(DEPS_53)
 #   stop
 #
 
-stop: $(DEPS_54)
+stop: $(DEPS_34)
 
 #
 #   installBinary
 #
 
-installBinary: $(DEPS_55)
+installBinary: $(DEPS_35)
 	mkdir -p "$(ME_APP_PREFIX)" ; \
 	rm -f "$(ME_APP_PREFIX)/latest" ; \
 	ln -s "$(VERSION)" "$(ME_APP_PREFIX)/latest" ; \
@@ -916,22 +776,22 @@ installBinary: $(DEPS_55)
 #   start
 #
 
-start: $(DEPS_56)
+start: $(DEPS_36)
 
 #
 #   install
 #
-DEPS_57 += stop
-DEPS_57 += installBinary
-DEPS_57 += start
+DEPS_37 += stop
+DEPS_37 += installBinary
+DEPS_37 += start
 
-install: $(DEPS_57)
+install: $(DEPS_37)
 
 #
 #   installPrep
 #
 
-installPrep: $(DEPS_58)
+installPrep: $(DEPS_38)
 	if [ "`id -u`" != 0 ] ; \
 	then echo "Must run as root. Rerun with sudo." ; \
 	exit 255 ; \
@@ -940,15 +800,15 @@ installPrep: $(DEPS_58)
 #
 #   uninstall
 #
-DEPS_59 += stop
+DEPS_39 += stop
 
-uninstall: $(DEPS_59)
+uninstall: $(DEPS_39)
 
 #
 #   uninstallBinary
 #
 
-uninstallBinary: $(DEPS_60)
+uninstallBinary: $(DEPS_40)
 	rm -fr "$(ME_WEB_PREFIX)" ; \
 	rm -fr "$(ME_VAPP_PREFIX)" ; \
 	rmdir -p "$(ME_ETC_PREFIX)" 2>/dev/null ; true ; \
@@ -960,7 +820,7 @@ uninstallBinary: $(DEPS_60)
 #   version
 #
 
-version: $(DEPS_61)
+version: $(DEPS_41)
 	echo $(VERSION)
 
 

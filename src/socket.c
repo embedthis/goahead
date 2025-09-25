@@ -10,12 +10,12 @@
 
 /************************************ Locals **********************************/
 
-PUBLIC WebsSocket   **socketList;           /* List of open sockets */
-PUBLIC int          socketMax;              /* Maximum size of socket */
-PUBLIC Socket       socketHighestFd = -1;   /* Highest socket fd opened */
-PUBLIC int          socketOpenCount = 0;    /* Number of task using sockets */
+PUBLIC WebsSocket **socketList;             /* List of open sockets */
+PUBLIC int        socketMax;                /* Maximum size of socket */
+PUBLIC Socket     socketHighestFd = -1;     /* Highest socket fd opened */
+PUBLIC int        socketOpenCount = 0;      /* Number of task using sockets */
 
-static int          hasIPv6;                /* System supports IPv6 */
+static int hasIPv6;                         /* System supports IPv6 */
 
 /***************************** Forward Declarations ***************************/
 
@@ -27,23 +27,23 @@ static void socketDoEvent(WebsSocket *sp);
 
 PUBLIC int socketOpen(void)
 {
-    Socket  fd;
+    Socket fd;
 
     if (++socketOpenCount > 1) {
         return 0;
     }
 
 #if ME_WIN_LIKE
-{
-    WSADATA     wsaData;
-    if (WSAStartup(MAKEWORD(1,1), &wsaData) != 0) {
-        return -1;
+    {
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(1, 1), &wsaData) != 0) {
+            return -1;
+        }
+        if (wsaData.wVersion != MAKEWORD(1, 1)) {
+            WSACleanup();
+            return -1;
+        }
     }
-    if (wsaData.wVersion != MAKEWORD(1,1)) {
-        WSACleanup();
-        return -1;
-    }
-}
 #endif
     socketList = NULL;
     socketMax = 0;
@@ -60,7 +60,7 @@ PUBLIC int socketOpen(void)
 
 PUBLIC void socketClose(void)
 {
-    int     i;
+    int i;
 
     if (--socketOpenCount <= 0) {
         for (i = socketMax; i >= 0; i--) {
@@ -112,7 +112,7 @@ PUBLIC int socketListen(cchar *ip, int port, SocketAccept accept, int flags)
     /*
         Change null IP address to be an IPv6 endpoint if the system is dual-stack. That way we can listen on
         both IPv4 and IPv6
-    */
+     */
     sip = ((ip == 0 || *ip == '\0') && socketHasDualNetworkStack()) ? "::" : ip;
 
     /*
@@ -259,8 +259,8 @@ static int tryAlternateConnect(int sock, struct sockaddr *sockaddr)
     char *ptr;
 
     ptr = (char*) sockaddr;
-    *ptr = *(ptr+1);
-    *(ptr+1) = 0;
+    *ptr = *(ptr + 1);
+    *(ptr + 1) = 0;
     return connect(sock, sockaddr, sizeof(struct sockaddr));
 #else
     return -1;
@@ -271,7 +271,7 @@ static int tryAlternateConnect(int sock, struct sockaddr *sockaddr)
 
 PUBLIC void socketCloseConnection(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return;
@@ -326,7 +326,8 @@ static void socketAccept(WebsSocket *sp)
     }
 
     /*
-        Call the user accept callback. The user must call socketCreateHandler to register for further events of interest.
+        Call the user accept callback. The user must call socketCreateHandler to register for further events of
+           interest.
      */
     if (sp->accept != NULL) {
         /* Get the remote client address */
@@ -340,7 +341,7 @@ static void socketAccept(WebsSocket *sp)
 
 PUBLIC void socketRegisterInterest(int sid, int handlerMask)
 {
-    WebsSocket  *sp;
+    WebsSocket *sp;
 
     assert(socketPtr(sid));
     sp = socketPtr(sid);
@@ -399,11 +400,11 @@ PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir)
 #if ME_WIN_LIKE
 PUBLIC int socketSelect(int sid, int timeout)
 {
-    struct timeval  tv;
-    WebsSocket      *sp;
-    fd_set          readFds, writeFds, exceptFds;
-    int             nEvents;
-    int             all, socketHighestFd;   /* Highest socket fd opened */
+    struct timeval tv;
+    WebsSocket     *sp;
+    fd_set         readFds, writeFds, exceptFds;
+    int            nEvents;
+    int            all, socketHighestFd;    /* Highest socket fd opened */
 
     FD_ZERO(&readFds);
     FD_ZERO(&writeFds);
@@ -447,7 +448,7 @@ PUBLIC int socketSelect(int sid, int timeout)
             tv.tv_sec = 0;
             tv.tv_usec = 0;
         }
-        if (! all) {
+        if (!all) {
             break;
         }
     }
@@ -490,7 +491,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         if (FD_ISSET(sp->sock, &exceptFds)) {
             sp->currentEvents |= SOCKET_EXCEPTION;
         }
-        if (! all) {
+        if (!all) {
             break;
         }
     }
@@ -502,11 +503,11 @@ PUBLIC int socketSelect(int sid, int timeout)
 
 PUBLIC int socketSelect(int sid, int timeout)
 {
-    WebsSocket      *sp;
-    struct timeval  tv;
-    fd_mask         *readFds, *writeFds, *exceptFds;
-    ssize           bit, index;
-    int             all, len, nwords, nEvents;
+    WebsSocket     *sp;
+    struct timeval tv;
+    fd_mask        *readFds, *writeFds, *exceptFds;
+    ssize          bit, index;
+    int            all, len, nwords, nEvents;
 
     /*
         Allocate and zero the select masks
@@ -564,14 +565,14 @@ PUBLIC int socketSelect(int sid, int timeout)
             tv.tv_sec = 0;
             tv.tv_usec = 0;
         }
-        if (! all) {
+        if (!all) {
             break;
         }
     }
     /*
         Wait for the event or a timeout
      */
-    nEvents = select(socketHighestFd + 1, (fd_set *) readFds, (fd_set *) writeFds, (fd_set *) exceptFds, &tv);
+    nEvents = select(socketHighestFd + 1, (fd_set*) readFds, (fd_set*) writeFds, (fd_set*) exceptFds, &tv);
     if (all) {
         sid = 0;
     }
@@ -605,7 +606,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         if (exceptFds[index] & bit) {
             sp->currentEvents |= SOCKET_EXCEPTION;
         }
-        if (! all) {
+        if (!all) {
             break;
         }
     }
@@ -619,8 +620,8 @@ PUBLIC int socketSelect(int sid, int timeout)
 
 PUBLIC void socketProcess(void)
 {
-    WebsSocket  *sp;
-    int         sid;
+    WebsSocket *sp;
+    int        sid;
 
     for (sid = 0; sid < socketMax; sid++) {
         if ((sp = socketList[sid]) != NULL) {
@@ -634,7 +635,7 @@ PUBLIC void socketProcess(void)
 
 static void socketDoEvent(WebsSocket *sp)
 {
-    int     sid;
+    int sid;
 
     assert(sp);
 
@@ -667,8 +668,8 @@ static void socketDoEvent(WebsSocket *sp)
  */
 PUBLIC int socketSetBlock(int sid, int on)
 {
-    WebsSocket  *sp;
-    int         oldBlock;
+    WebsSocket *sp;
+    int        oldBlock;
 
     if ((sp = socketPtr(sid)) == NULL) {
         assert(0);
@@ -694,7 +695,7 @@ PUBLIC int socketSetBlock(int sid, int on)
         int iflag = !on;
         ioctl(sp->sock, FIONBIO, &iflag);
 #elif TIDSP
-        setsockopt((SOCKET)sp->sock, SOL_SOCKET, SO_BLOCKING, &on, sizeof(on));
+        setsockopt((SOCKET) sp->sock, SOL_SOCKET, SO_BLOCKING, &on, sizeof(on));
 #else
         fcntl(sp->sock, F_SETFL, fcntl(sp->sock, F_GETFL) & ~O_NONBLOCK);
 #endif
@@ -702,7 +703,7 @@ PUBLIC int socketSetBlock(int sid, int on)
     } else {
 #if ME_WIN_LIKE
         ulong flag = !on;
-        int rc = ioctlsocket(sp->sock, FIONBIO, &flag);
+        int   rc = ioctlsocket(sp->sock, FIONBIO, &flag);
         rc = rc;
 #elif ECOS
         int on = 1;
@@ -711,7 +712,7 @@ PUBLIC int socketSetBlock(int sid, int on)
         int iflag = !on;
         ioctl(sp->sock, FIONBIO, &iflag);
 #elif TIDSP
-        setsockopt((SOCKET)sp->sock, SOL_SOCKET, SO_BLOCKING, &on, sizeof(on));
+        setsockopt((SOCKET) sp->sock, SOL_SOCKET, SO_BLOCKING, &on, sizeof(on));
 #else
         fcntl(sp->sock, F_SETFL, fcntl(sp->sock, F_GETFL) | O_NONBLOCK);
 #endif
@@ -730,8 +731,8 @@ PUBLIC int socketSetBlock(int sid, int on)
  */
 PUBLIC int socketSetNoDelay(int sid, bool on)
 {
-    WebsSocket  *sp;
-    int         oldDelay;
+    WebsSocket *sp;
+    int        oldDelay;
 
     if ((sp = socketPtr(sid)) == NULL) {
         assert(0);
@@ -745,13 +746,13 @@ PUBLIC int socketSetNoDelay(int sid, bool on)
     }
 #if ME_WIN_LIKE
     {
-        BOOL    noDelay;
+        BOOL noDelay;
         noDelay = on ? 1 : 0;
         setsockopt(sp->sock, IPPROTO_TCP, TCP_NODELAY, (FAR char*) &noDelay, sizeof(BOOL));
     }
 #else
     {
-        int     noDelay;
+        int noDelay;
         noDelay = on ? 1 : 0;
         setsockopt(sp->sock, IPPROTO_TCP, TCP_NODELAY, (char*) &noDelay, sizeof(int));
     }
@@ -766,9 +767,9 @@ PUBLIC int socketSetNoDelay(int sid, bool on)
  */
 PUBLIC ssize socketWrite(int sid, void *buf, ssize bufsize)
 {
-    WebsSocket  *sp;
-    ssize       len, written, sofar;
-    int         errCode;
+    WebsSocket *sp;
+    ssize      len, written, sofar;
+    int        errCode;
 
     if (buf == 0 || (sp = socketPtr(sid)) == NULL) {
         socketSetError(EBADF);
@@ -810,9 +811,9 @@ PUBLIC ssize socketWrite(int sid, void *buf, ssize bufsize)
  */
 PUBLIC ssize socketRead(int sid, void *buf, ssize bufsize)
 {
-    WebsSocket  *sp;
-    ssize       bytes;
-    int         errCode;
+    WebsSocket *sp;
+    ssize      bytes;
+    int        errCode;
 
     assert(buf);
     assert(bufsize > 0);
@@ -846,7 +847,7 @@ PUBLIC ssize socketRead(int sid, void *buf, ssize bufsize)
  */
 PUBLIC bool socketEof(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return 1;
@@ -857,7 +858,7 @@ PUBLIC bool socketEof(int sid)
 
 PUBLIC void socketReservice(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return;
@@ -872,7 +873,7 @@ PUBLIC void socketReservice(int sid)
  */
 PUBLIC void socketCreateHandler(int sid, int handlerMask, SocketHandler handler, void *data)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return;
@@ -885,7 +886,7 @@ PUBLIC void socketCreateHandler(int sid, int handlerMask, SocketHandler handler,
 
 PUBLIC void socketDeleteHandler(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return;
@@ -900,8 +901,8 @@ PUBLIC void socketDeleteHandler(int sid)
  */
 PUBLIC int socketAlloc(cchar *ip, int port, SocketAccept accept, int flags)
 {
-    WebsSocket  *sp;
-    int         sid;
+    WebsSocket *sp;
+    int        sid;
 
     if (socketMax >= FD_SETSIZE) {
         return -1;
@@ -928,9 +929,9 @@ PUBLIC int socketAlloc(cchar *ip, int port, SocketAccept accept, int flags)
  */
 PUBLIC void socketFree(int sid)
 {
-    WebsSocket  *sp;
-    char        buf[256];
-    int         i;
+    WebsSocket *sp;
+    char       buf[256];
+    int        i;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return;
@@ -944,9 +945,11 @@ PUBLIC void socketFree(int sid)
     socketRegisterInterest(sid, 0);
     if (sp->sock >= 0) {
         socketSetBlock(sid, 0);
-        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {}
+        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {
+        }
         if (shutdown(sp->sock, SHUT_RDWR) >= 0) {
-            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {}
+            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {
+            }
         }
         closesocket(sp->sock);
     }
@@ -1022,7 +1025,7 @@ PUBLIC void socketSetError(int error)
  */
 PUBLIC Socket socketGetHandle(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return -1;
@@ -1036,19 +1039,19 @@ PUBLIC Socket socketGetHandle(int sid)
  */
 PUBLIC int socketGetBlock(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         assert(0);
         return 0;
     }
-    return (sp->flags & SOCKET_BLOCK);
+    return sp->flags & SOCKET_BLOCK;
 }
 
 
 PUBLIC int socketGetMode(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         assert(0);
@@ -1060,7 +1063,7 @@ PUBLIC int socketGetMode(int sid)
 
 PUBLIC void socketSetMode(int sid, int mode)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         assert(0);
@@ -1072,7 +1075,7 @@ PUBLIC void socketSetMode(int sid, int mode)
 
 PUBLIC int socketGetPort(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return -1;
@@ -1089,9 +1092,9 @@ PUBLIC int socketGetPort(int sid)
  */
 PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)
 {
-    struct addrinfo     hints, *res, *r;
-    char                portBuf[16];
-    int                 v6;
+    struct addrinfo hints, *res, *r;
+    char            portBuf[16];
+    int             v6;
 
     assert(addr);
     memset((char*) &hints, '\0', sizeof(hints));
@@ -1150,7 +1153,7 @@ PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct so
 
 PUBLIC int socketInfo(char *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)
 {
-    struct sockaddr_in  sa;
+    struct sockaddr_in sa;
 
     memset((char*) &sa, '\0', sizeof(struct sockaddr_in));
     sa.sin_family = AF_INET;
@@ -1198,11 +1201,11 @@ PUBLIC int socketInfo(char *ip, int port, int *family, int *protocol, struct soc
 PUBLIC int socketAddress(struct sockaddr *addr, int addrlen, char *ip, int ipLen, int *port)
 {
 #if (ME_UNIX_LIKE || ME_WIN_LIKE)
-    char    service[NI_MAXSERV];
+    char service[NI_MAXSERV];
 
 #if ME_WIN_LIKE || defined(IN6_IS_ADDR_V4MAPPED)
     if (addr->sa_family == AF_INET6) {
-        struct sockaddr_in6* addr6 = (struct sockaddr_in6*) addr;
+        struct sockaddr_in6 *addr6 = (struct sockaddr_in6*) addr;
         if (IN6_IS_ADDR_V4MAPPED(&addr6->sin6_addr)) {
             struct sockaddr_in addr4;
             memset(&addr4, 0, sizeof(addr4));
@@ -1222,13 +1225,13 @@ PUBLIC int socketAddress(struct sockaddr *addr, int addrlen, char *ip, int ipLen
     }
 
 #else
-    struct sockaddr_in  *sa;
+    struct sockaddr_in *sa;
 
 #if HAVE_NTOA_R
     sa = (struct sockaddr_in*) addr;
     inet_ntoa_r(sa->sin_addr, ip, ipLen);
 #else
-    uchar   *cp;
+    uchar *cp;
     sa = (struct sockaddr_in*) addr;
     cp = (uchar*) &sa->sin_addr;
     fmt(ip, ipLen, "%d.%d.%d.%d", cp[0], cp[1], cp[2], cp[3]);
@@ -1246,8 +1249,8 @@ PUBLIC int socketAddress(struct sockaddr *addr, int addrlen, char *ip, int ipLen
  */
 static int ipv6(cchar *ip)
 {
-    char  *cp;
-    int     colons;
+    char *cp;
+    int  colons;
 
     if (ip == 0 || *ip == 0) {
         /*
@@ -1282,7 +1285,7 @@ static int ipv6(cchar *ip)
  */
 PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secure, int defaultPort)
 {
-    char    *ip, *cp;
+    char *ip, *cp;
 
     ip = 0;
     if (defaultPort < 0) {
@@ -1348,7 +1351,7 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
             *pport = defaultPort;
 
         } else {
-            if (isdigit((uchar) *ip)) {
+            if (isdigit((uchar) * ip)) {
                 *pport = atoi(ip);
                 wfree(ip);
                 ip = 0;
@@ -1369,7 +1372,7 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
 
 PUBLIC bool socketIsV6(int sid)
 {
-    WebsSocket    *sp;
+    WebsSocket *sp;
 
     if ((sp = socketPtr(sid)) == NULL) {
         return 0;

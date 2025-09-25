@@ -27,10 +27,10 @@ static char *skipWhite(char *s);
  */
 static bool jstHandler(Webs *wp)
 {
-    WebsFileInfo    sbuf;
-    char            *lang, *token, *result, *ep, *cp, *buf, *nextp, *last;
-    ssize           len;
-    int             rc, jid;
+    WebsFileInfo sbuf;
+    char         *lang, *token, *result, *ep, *cp, *buf, *nextp, *last;
+    ssize        len;
+    int          rc, jid;
 
     assert(websValid(wp));
     assert(wp->filename && *wp->filename);
@@ -66,7 +66,7 @@ static bool jstHandler(Webs *wp)
         goto done;
     }
     websPageClose(wp);
-    websWriteHeaders(wp, (ssize) -1, 0);
+    websWriteHeaders(wp, (ssize) - 1, 0);
     websWriteHeader(wp, "Pragma", "no-cache");
     websWriteHeader(wp, "Cache-Control", "no-cache");
     websWriteEndHeaders(wp);
@@ -196,7 +196,7 @@ PUBLIC int websDefineJst(cchar *name, WebsJstProc fn)
  */
 PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv)
 {
-    int     i;
+    int i;
 
     assert(websValid(wp));
 
@@ -220,11 +220,11 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv)
  */
 static char *strtokcmp(char *s1, char *s2)
 {
-    ssize     len;
+    ssize len;
 
     s1 = skipWhite(s1);
     len = strlen(s2);
-    for (len = strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
+    for (len = strlen(s2); len > 0 && (tolower((uchar) * s1) == tolower((uchar) * s2)); len--) {
         if (*s2 == '\0') {
             return s1;
         }
@@ -245,7 +245,7 @@ static char *skipWhite(char *s)
     if (s == NULL) {
         return s;
     }
-    while (*s && isspace((uchar) *s)) {
+    while (*s && isspace((uchar) * s)) {
         s++;
     }
     return s;

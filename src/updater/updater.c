@@ -5,34 +5,36 @@
  */
 
 /********************************** Includes **********************************/
-#include <ctype.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 
 #include "updater.h"
 
 /********************************** Locals ************************************/
 
-#define DEFAULT_IMAGE_PATH "/tmp/update.bin"
+/*
+    Adjust for path to your certificate bundle
+ */
+#ifndef UPDATER_CERTS
+    #if defined(__APPLE__)
+        #define UPDATER_CERTS "/opt/homebrew/etc/openssl@3/cert.pem"
+    #elif defined(__linux__)
+        #define UPDATER_CERTS "/etc/pki/tls/certs/ca-bundle.crt"
+    #elif defined(__MINGW32__)
+        #define UPDATER_CERTS "/etc/ssl/certs/ca-certificates.crt"
+    #else
+        #error "ERROR: Need to define UPDATER_CERTS to the path to your certificate bundle"
+    #endif
+#endif
 
-#define SERVER_PORT        443
-#define UBSIZE             4096
+#define SERVER_PORT 443
+#define UBSIZE      4096
 
 typedef struct Fetch {
     SSL_CTX *ctx;          //  TLS context
     SSL *ssl;              //  TLS config
     int fd;                //  Connection socket fd
-    char *response;        //  Response headers
-    char *firstBody;       //  Body read with headers
     size_t contentLength;  //  Response content length
+    size_t bodyLength;     //  Length of body segment
+    char *body;            //  First block of body data
     int status;            //  Response HTTP status
 } Fetch;
 
@@ -42,16 +44,18 @@ static int verbose;        //  Trace execution
 
 static int applyUpdate(cchar *path, cchar *script);
 static Fetch *fetch(char *method, char *url, char *headers, char *body);
-static Fetch *fetchAlloc(int fd);
+static Fetch *fetchAlloc(int fd, cchar *host);
 static void fetchFree(Fetch *fp);
 static char *fetchString(Fetch *fp);
 static int fetchFile(Fetch *fp, cchar *path);
-static char *fetchHeader(Fetch *fp, char *key);
-static size_t fetchRead(Fetch *fp, char *buf, size_t buflen);
-static size_t fetchWrite(Fetch *fp, char *buf, size_t buflen);
-static int getFileSum(cchar *path, char sum[EVP_MAX_MD_SIZE]);
-static char *json(cchar *json, cchar *key);
+static char *fetchHeader(cchar *response, char *key);
+static ssize_t fetchRead(Fetch *fp, char *buf, size_t buflen);
+static ssize_t fetchWrite(Fetch *fp, char *buf, size_t buflen);
+static int getFileSum(cchar *path, char sum[EVP_MAX_MD_SIZE * 2 + 1]);
+static char *json(cchar *jsonText, cchar *key);
+static void *memdup(cvoid *ptr, size_t size);
 static int postReport(int success, cchar *host, cchar *device, cchar *update, cchar *token);
+static int run(cchar *script, cchar *path);
 
 /************************************ Code ************************************/
 /*
@@ -65,14 +69,18 @@ static int postReport(int success, cchar *host, cchar *device, cchar *update, cc
     path - Path name to save the downloaded update image
     script - Script path to invoke to apply the update
     verbose - Trace execution
+
+    SECURITY Acceptable: - The developer is responsible for validating the inputs to this function.
  */
 int update(cchar *host, cchar *product, cchar *token, cchar *device, cchar *version,
            cchar *properties, cchar *path, cchar *script, int verboseArg)
 {
     Fetch *fp;
-    char  body[UBSIZE], request[UBSIZE], url[UBSIZE], headers[256], fileSum[EVP_MAX_MD_SIZE];
-    char  *checksum, *downloadUrl, *response, *update;
-    int   status;
+    char  body[UBSIZE], request[UBSIZE], url[UBSIZE], headers[256], fileSum[EVP_MAX_MD_SIZE * 2 + 1];
+    char  *checksum, *downloadUrl, *response, *update, *updateVersion;
+    int   count, rc, status;
+
+    rc = 0;
 
     if (!host || !product || !token || !device || !version || !path) {
         fprintf(stderr, "Bad update args");
@@ -84,11 +92,26 @@ int update(cchar *host, cchar *product, cchar *token, cchar *device, cchar *vers
         Issue update request to determine if there is an update.
         Authentication is using the CloudAPI builder token.
      */
-    snprintf(url, sizeof(url), "%s/tok/provision/update", host);
-    snprintf(body, sizeof(body), "{\"id\":\"%s\",\"product\":\"%s\",\"version\":\"%s\",%s}",
-             device, product, version, properties);
+    count = snprintf(url, sizeof(url), "%s/tok/provision/update", host);
+    if (count >= sizeof(url)) {
+        fprintf(stderr, "Host URL is too long\n");
+        return -1;
+    }
+    /*
+        SECURITY Acceptable: - The developer is responsible for validating the inputs to this function.
+     */
+    count = snprintf(body, sizeof(body),
+                     "{\"id\":\"%s\",\"product\":\"%s\",\"version\":\"%s\",%s}",
+                     device, product, version, properties ? properties : "");
+    if (count >= sizeof(body)) {
+        fprintf(stderr, "Request body is too long\n");
+        return -1;
+    }
     snprintf(headers, sizeof(headers), "Content-Type: application/json\r\nAuthorization: %s\r\n", token);
 
+    if (verbose) {
+        printf("\nCheck for update at: %s\n", url);
+    }
     if ((fp = fetch("POST", url, headers, body)) == NULL) {
         return -1;
     }
@@ -102,43 +125,52 @@ int update(cchar *host, cchar *product, cchar *token, cchar *device, cchar *vers
         If an update is available, the "url" will be defined to point to the update image
         The "update" field contains the selected update ID and is use when posting update status.
      */
+    downloadUrl = checksum = update = updateVersion = NULL;
+
     if ((downloadUrl = json(response, "url")) != NULL) {
         checksum = json(response, "checksum");
         update = json(response, "update");
+        updateVersion = json(response, "version");
+
         snprintf(headers, sizeof(headers), "Accept: */*\r\n");
         free(response);
 
-        if ((fp = fetch("GET", downloadUrl, headers, NULL)) == NULL) {
-            return -1;
-        }
-        //  Fetch the update and save to the given path
-        if (fetchFile(fp, path) < 0) {
+        printf("Update %s available\n", updateVersion);
+        rc = 0;
+        if (strncmp(downloadUrl, "https://", 8) != 0) {
+            fprintf(stderr, "Insecure download URL (HTTPS required)\n");
+            rc = -1;
+        } else if ((fp = fetch("GET", downloadUrl, headers, NULL)) == NULL) {
+            rc = -1;
+        } else {
+            //  Fetch the update and save to the given path
+            if (fetchFile(fp, path) < 0) {
+                rc = -1;
+            }
             fetchFree(fp);
-            return -1;
-        }
-        fetchFree(fp);
-
-        /*
-            Validate the SHA-256 checksum
-         */
-        getFileSum(path, fileSum);
-        if (strcmp(fileSum, checksum) != 0) {
-            fprintf(stderr, "Checksum does not match\n%s vs\n%s\n", fileSum, checksum);
-            return -1;
-        }
-        if (script) {
-            status = applyUpdate(path, script);
-            if (postReport(status, host, device, update, token) < 0) {
-                return -1;
+            if (rc == 0) {
+                printf("Verify update checksum in %s\n", path);
+                getFileSum(path, fileSum);
+                if (strcmp(fileSum, checksum) != 0) {
+                    fprintf(stderr, "Checksum does not match\n%s vs\n%s\n", fileSum, checksum);
+                    rc = -1;
+                } else if (script) {
+                    status = applyUpdate(path, script);
+                    if (postReport(status, host, device, update, token) < 0) {
+                        rc = -1;
+                    }
+                }
             }
         }
+        if (downloadUrl) free(downloadUrl);
+        if (checksum) free(checksum);
+        if (update) free(update);
+        if (updateVersion) free(updateVersion);
     } else {
         free(response);
-        if (verbose) {
-            printf("No update available\n");
-        }
+        printf("No update available\n");
     }
-    return 0;
+    return rc;
 }
 
 /*
@@ -147,13 +179,51 @@ int update(cchar *host, cchar *product, cchar *token, cchar *device, cchar *vers
  */
 static int applyUpdate(cchar *path, cchar *script)
 {
-    char command[UBSIZE];
+    int status;
 
-    snprintf(command, sizeof(command), "%s \"%s\"", script, path);
-    if (verbose) {
-        printf("Running command to apply update\n%s\n", command);
+    printf("Applying update: %s %s\n", script, path);
+    status = run(script, path);
+    printf("Update %s\n\n", status == 0 ? "Successful" : "Failed");
+    return status;
+}
+
+/*
+    SECURITY Acceptable: - The unix code above is preferred, but on systems without
+    fork() and execvp() we use the system() function. The inputs are all from
+    developer controlled input and not user controlled.
+ */
+static int run(cchar *script, cchar *path)
+{
+#if ME_UNIX_LIKE
+    char  *args[] = { (char*) script, (char*) path, NULL };
+    int   status;
+    pid_t pid;
+
+    if ((pid = fork()) < 0) {
+        fprintf(stderr, "Cannot fork to run command\n");
+        return -1;
     }
-    return system(command);
+    if (pid == 0) {
+        execvp(script, args);
+        fprintf(stderr, "Cannot run command\n");
+        _exit(127);
+    }
+    if (waitpid(pid, &status, 0) == -1) {
+        fprintf(stderr, "Cannot wait for command\n");
+        return -1;
+    }
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+#else
+    /*
+        SECURITY: The system() call is dangerous and should be avoided.
+        Replace this with a platform-specific implementation that does not use a shell,
+        such as CreateProcess() on Windows.
+     */
+    # error "ERROR: Secure process creation not implemented for this platform"
+    #error
+    return -1;
+#endif
 }
 
 /*
@@ -161,11 +231,16 @@ static int applyUpdate(cchar *path, cchar *script)
  */
 static int postReport(int status, cchar *host, cchar *device, cchar *update, cchar *token)
 {
-    Fetch *fp;
-    char  body[UBSIZE], url[256], headers[256];
+    Fetch  *fp;
+    char   body[UBSIZE], url[256], headers[256];
+    size_t count;
 
-    snprintf(body, sizeof(body), "{\"success\":%s,\"id\":\"%s\",\"update\":\"%s\"}",
-             status == 0 ? "true" : "false", device, update);
+    count = snprintf(body, sizeof(body), "{\"success\":%s,\"id\":\"%s\",\"update\":\"%s\"}",
+                     status == 0 ? "true" : "false", device, update);
+    if (count >= sizeof(body)) {
+        fprintf(stderr, "Report body is too long\n");
+        return -1;
+    }
     snprintf(url, sizeof(url), "%s/tok/provision/updateReport", host);
     snprintf(headers, sizeof(headers), "Content-Type: application/json\r\nAuthorization: %s\r\n", token);
 
@@ -174,9 +249,6 @@ static int postReport(int status, cchar *host, cchar *device, cchar *update, cch
         return -1;
     }
     fetchFree(fp);
-    if (verbose) {
-        printf("%s update status reported\n", status == 0 ? "Successful" : "Failed");
-    }
     return 0;
 }
 
@@ -187,12 +259,13 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
 {
     struct sockaddr_in server_addr;
     struct hostent     *server;
+    ssize_t            bytes;
     Fetch              *fp;
     char               request[UBSIZE], response[UBSIZE], uri[UBSIZE];
     char               *data, *header, *host, *path, *status;
     int                fd;
 
-    strncpy(uri, url, sizeof(uri));
+    snprintf(uri, sizeof(uri), "%s", url);
     if ((host = strstr(uri, "https://")) != NULL) {
         host += 8;
     } else {
@@ -224,7 +297,7 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
         close(fd);
         return NULL;
     }
-    if ((fp = fetchAlloc(fd)) == NULL) {
+    if ((fp = fetchAlloc(fd, host)) == NULL) {
         close(fd);
         return NULL;
     }
@@ -239,9 +312,6 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
              "%s",
              method, path, host, body ? (int) strlen(body) : 0, headers, body ? body : "");
 
-    if (verbose) {
-        printf("\nFetch Request:\n%s\n\n", request);
-    }
     /*
         Write the request and wait for a response
      */
@@ -250,7 +320,7 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
         return NULL;
     }
     memset(response, 0, UBSIZE);
-    if (fetchRead(fp, response, UBSIZE - 1) < 0) {
+    if ((bytes = fetchRead(fp, response, UBSIZE - 1)) < 0) {
         fetchFree(fp);
         return NULL;
     }
@@ -263,10 +333,6 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
         fprintf(stderr, "Bad response\n%s\n", response);
         fetchFree(fp);
         return NULL;
-    }
-    fp->response = strdup(response);
-    if (verbose) {
-        printf("Fetch response:\n%s\n\n", response);
     }
     fp->status = atoi(++status);
     if (fp->status != 200) {
@@ -281,12 +347,26 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
     }
     *data = '\0';
     data += 4;
-    if ((header = fetchHeader(fp, "Content-Length")) != NULL) {
+    if ((header = fetchHeader(response, "Content-Length")) != NULL) {
         fp->contentLength = atoi(header);
         free(header);
-        if (fp->contentLength) {
-            fp->firstBody = strdup(data);
+        if (fp->contentLength < 0 || fp->contentLength > 100 * 1024 * 1024) {
+            fprintf(stderr, "Invalid Content-Length\n");
+            fetchFree(fp);
+            return NULL;
         }
+        size_t headerBytes = (size_t) (data - response);
+        if ((size_t) bytes > headerBytes) {
+            fp->bodyLength = (size_t) ((size_t) bytes - headerBytes);
+            fp->body = memdup(data, fp->bodyLength);
+        } else {
+            fp->bodyLength = 0;
+            fp->body = NULL;
+        }
+    } else {
+        fprintf(stderr, "Missing Content-Length\n");
+        fetchFree(fp);
+        return NULL;
     }
     return fp;
 }
@@ -296,8 +376,9 @@ static Fetch *fetch(char *method, char *url, char *headers, char *body)
  */
 static char *fetchString(Fetch *fp)
 {
-    char   *bp, *body;
-    size_t bytes, len;
+    char    *bp, *body;
+    ssize_t bytes;
+    size_t  len = 0;
 
     if (fp->contentLength == 0) {
         return strdup("");
@@ -307,19 +388,21 @@ static char *fetchString(Fetch *fp)
         return NULL;
     }
     bp = body;
-    if (fp->firstBody) {
-        //  Use the body fragment already read
-        len = strlen(fp->firstBody);
-        memcpy(body, fp->firstBody, len);
-        bp += len;
+    if (fp->body && fp->bodyLength > 0) {
+        //  Use the body fragment already read with the headers
+        memcpy(body, fp->body, fp->bodyLength);
+        len = fp->bodyLength;
+        bp += fp->bodyLength;
+        free(fp->body);
+        fp->body = NULL;
     }
     while (len < fp->contentLength) {
-        printf("READ %d\n", (int) (fp->contentLength - (bp - body)));
         if ((bytes = fetchRead(fp, bp, fp->contentLength - (bp - body))) > 0) {
             len += bytes;
             bp += bytes;
         }
     }
+    body[fp->contentLength] = '\0';
     return body;
 }
 
@@ -329,23 +412,39 @@ static char *fetchString(Fetch *fp)
 static int fetchFile(Fetch *fp, cchar *path)
 {
     char   buf[UBSIZE], sum[EVP_MAX_MD_SIZE * 2 + 1], *body;
-    int    bytes, fd, seenHeaders;
+    int    bytes, fd, flags, seenHeaders;
     size_t len;
 
-    if (verbose) {
-        printf("Downloading update image to %s\n", path);
+    if (strncmp(path, "/tmp/", 5) == 0) {
+        fprintf(stderr, "WARNING: Saving update to /tmp is insecure due to potential symlink attacks.\n");
     }
-    if ((fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600)) < 0) {
-        fprintf(stderr, "Cannot open image temp file");
+    if (verbose) {
+        printf("Downloading update to %s\n", path);
+    }
+    unlink(path);
+    flags = O_WRONLY | O_CREAT | O_EXCL;
+#ifdef O_NOFOLLOW
+    flags |= O_NOFOLLOW;
+#endif
+    if ((fd = open(path, flags, 0600)) < 0) {
+        fprintf(stderr, "Cannot open image temp file securely. It may already exist or path is invalid.\n");
         return -1;
     }
-    if (fp->firstBody) {
-        len = strlen(fp->firstBody);
-        if (write(fd, fp->firstBody, len) < 0) {
+    struct stat st;
+    if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) {
+        fprintf(stderr, "Refusing to write to non-regular file\n");
+        close(fd);
+        return -1;
+    }
+    if (fp->body) {
+        //  Write the body fragment already read with the headers
+        if (write(fd, fp->body, fp->bodyLength) < 0) {
             fprintf(stderr, "Cannot write to file");
             close(fd);
             return -1;
         }
+        free(fp->body);
+        fp->body = NULL;
     }
     while ((bytes = fetchRead(fp, buf, sizeof(buf))) > 0) {
         if (write(fd, buf, bytes) != bytes) {
@@ -361,14 +460,14 @@ static int fetchFile(Fetch *fp, cchar *path)
 /*
     Return a response HTTP header. Caller must free.
  */
-static char *fetchHeader(Fetch *fp, char *key)
+static char *fetchHeader(cchar *response, char *key)
 {
     char   *end, *start, kbuf[80], *value;
     size_t len;
 
     snprintf(kbuf, sizeof(kbuf), "%s:", key);
     value = 0;
-    if ((start = strstr(fp->response, kbuf)) != NULL) {
+    if ((start = strstr(response, kbuf)) != NULL) {
         if ((end = strstr(start, "\r\n")) != NULL) {
             start += strlen(kbuf);
             while (start < end && isspace(*start)) start++;
@@ -384,35 +483,37 @@ static char *fetchHeader(Fetch *fp, char *key)
 /*
     Read response data
  */
-static size_t fetchRead(Fetch *fp, char *buf, size_t buflen)
+static ssize_t fetchRead(Fetch *fp, char *buf, size_t buflen)
 {
-    size_t bytes;
+    ssize_t rc;
 
-    if ((bytes = SSL_read(fp->ssl, buf, buflen)) < 0) {
+    rc = SSL_read(fp->ssl, buf, (int) buflen);
+    if (rc <= 0) {
         ERR_print_errors_fp(stderr);
         return -1;
     }
-    return bytes;
+    return rc;
 }
 
 /*
     Write request data
  */
-static size_t fetchWrite(Fetch *fp, char *buf, size_t buflen)
+static ssize_t fetchWrite(Fetch *fp, char *buf, size_t buflen)
 {
-    size_t bytes;
+    ssize_t rc;
 
-    if ((bytes = SSL_write(fp->ssl, buf, buflen)) <= 0) {
+    rc = SSL_write(fp->ssl, buf, (int) buflen);
+    if (rc <= 0) {
         ERR_print_errors_fp(stderr);
         return -1;
     }
-    return bytes;
+    return rc;
 }
 
 /*
     Allocate a Fetch control structure. This primarily sets up an OpenSSL context.
  */
-static Fetch *fetchAlloc(int fd)
+static Fetch *fetchAlloc(int fd, cchar *host)
 {
     Fetch            *fp;
     const SSL_METHOD *method;
@@ -425,13 +526,53 @@ static Fetch *fetchAlloc(int fd)
     if (!fp->ctx) {
         perror("Unable to create SSL context");
         ERR_print_errors_fp(stderr);
+        free(fp);
         return NULL;
     }
+    /* Enforce modern TLS */
+    SSL_CTX_set_min_proto_version(fp->ctx, TLS1_2_VERSION);
+
+    /*
+        Verify server certificate
+     */
+    SSL_CTX_set_verify(fp->ctx, SSL_VERIFY_PEER, NULL);
+    if (!SSL_CTX_load_verify_locations(fp->ctx, UPDATER_CERTS, NULL)) {
+        fprintf(stderr, "Failed to load CA bundle.\n");
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(fp->ctx);
+        free(fp);
+        return NULL;
+    }
+    /* Also use system default CA paths where available */
+    SSL_CTX_set_default_verify_paths(fp->ctx);
+
     fp->ssl = SSL_new(fp->ctx);
     fp->fd = fd;
     SSL_set_fd(fp->ssl, fd);
+    /* Send SNI */
+    SSL_set_tlsext_host_name(fp->ssl, host);
+
+    /*
+        Verify hostname
+     */
+    X509_VERIFY_PARAM *param = SSL_get0_param(fp->ssl);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+#endif
+    if (!X509_VERIFY_PARAM_set1_host(param, host, 0)) {
+        fprintf(stderr, "Failed to set hostname for verification\n");
+        ERR_print_errors_fp(stderr);
+        SSL_free(fp->ssl);
+        SSL_CTX_free(fp->ctx);
+        free(fp);
+        return NULL;
+    }
+
     if (SSL_connect(fp->ssl) != 1) {
         ERR_print_errors_fp(stderr);
+        SSL_free(fp->ssl);
+        SSL_CTX_free(fp->ctx);
+        free(fp);
         return NULL;
     }
     return fp;
@@ -457,13 +598,9 @@ static void fetchFree(Fetch *fp)
         close(fp->fd);
         fp->fd = -1;
     }
-    if (fp->response) {
-        free(fp->response);
-        fp->response = NULL;
-    }
-    if (fp->firstBody) {
-        free(fp->firstBody);
-        fp->firstBody = NULL;
+    if (fp->body) {
+        free(fp->body);
+        fp->body = NULL;
     }
     free(fp);
 }
@@ -473,27 +610,31 @@ static void fetchFree(Fetch *fp)
     This is NOT a generic JSON parser and does NOT handle use other than required by the Updater API.
     Caller must free result.
  */
-static char *json(cchar *json, cchar *key)
+static char *json(cchar *jsonText, cchar *key)
 {
-    char *end, keybuf[80], *keyPos, *start;
-    int  quoted;
+    char *end, keybuf[80], *keyPos, *start, *value;
+    int  quoted, count;
 
-    snprintf(keybuf, sizeof(keybuf), "%s\":", key);
-    keyPos = strstr(json, keybuf);
+    count = snprintf(keybuf, sizeof(keybuf), "\"%s\":", key);
+    if (count >= sizeof(keybuf)) {
+        fprintf(stderr, "Key is too long\n");
+        return NULL;
+    }
+    keyPos = strstr(jsonText, keybuf);
     if (keyPos) {
-        keyPos += strlen(key) + 2;  // assuming format is "key":<space>
-        quoted = (*keyPos == '"') ? 1 : 0;
-        start = quoted ? keyPos + 1 : keyPos;
+        value = keyPos + strlen(keybuf);  // assuming format is "key":<space>
+        quoted = (*value == '"') ? 1 : 0;
+        start = quoted ? value + 1 : value;
         end = start;
         while (*end && ((quoted && *end != '"') || (!quoted && *end != ',' && *end != '}'))) {
             end++;
         }
         int  size = end - start;
-        char *value = (char*) malloc(size + 1);
-        if (value) {
-            strncpy(value, start, size);
-            value[size] = '\0';
-            return value;
+        char *vbuf = (char*) malloc(size + 1);
+        if (vbuf) {
+            strncpy(vbuf, start, size);
+            vbuf[size] = '\0';
+            return vbuf;
         }
     }
     return NULL;
@@ -502,13 +643,13 @@ static char *json(cchar *json, cchar *key)
 /*
     Calculate a SHA-256 checksum for a file
  */
-static int getFileSum(cchar *path, char sum[EVP_MAX_MD_SIZE])
+static int getFileSum(cchar *path, char sum[EVP_MAX_MD_SIZE * 2 + 1])
 {
-    FILE          *file;
-    EVP_MD_CTX    *mdctx;
-    unsigned char buf[UBSIZE], hash[EVP_MAX_MD_SIZE];
-    unsigned int  len;
-    size_t        bytes;
+    EVP_MD_CTX *mdctx;
+    FILE       *file;
+    uchar      buf[UBSIZE], hash[EVP_MAX_MD_SIZE];
+    uint       len;
+    size_t     bytes;
 
     file = fopen(path, "rb");
     if (!file) {
@@ -545,7 +686,22 @@ static int getFileSum(cchar *path, char sum[EVP_MAX_MD_SIZE])
     fclose(file);
 
     for (int i = 0; i < len; i++) {
-        sprintf(&sum[i * 2], "%02x", hash[i]);
+        snprintf(&sum[i * 2], 3, "%02x", hash[i]);
     }
+    sum[len * 2] = '\0';
     return 0;
+}
+
+static void *memdup(cvoid *ptr, size_t size)
+{
+    char *newp;
+
+    if (ptr == NULL) {
+        return NULL;
+    }
+    if ((newp = malloc(size + 1)) != 0) {
+        memcpy(newp, ptr, size);
+        newp[size] = '\0';
+    }
+    return newp;
 }

@@ -61,7 +61,6 @@ recent Visual Studio version.
 
 ## To Build with Visual Studio
 
-
 To build with Visual Studio, you will need to install the
 [vcpkg](https://vcpkg.io/en/) dependency manager and install openssl.
 
@@ -119,7 +118,6 @@ Click Project -> Run to run.
 ## To install
 
 If you have built from source using Make, you can install the software using:
-
 
     sudo make install
 

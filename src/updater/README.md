@@ -43,13 +43,15 @@ update policy to determine which devices receive the update.
 
 ### Example:
 
-    updater -v --device "A123456789" \
-        --host "https://ygp2t8ckqj.execute-api.ap-southeast-1.amazonaws.com" \
-        --product "XABCDACC2T1234567890123455" \
-        --token "TT488ETG5H1234567890123456" \
-        --version "2.1.2" \
-        --cmd ./apply.sh \
-        pro=true
+```Bash
+updater -v --device "A123456789" \
+    --host "https://ygp2t8ckqj.execute-api.ap-southeast-1.amazonaws.com" \
+    --product "XABCDACC2T1234567890123455" \
+    --token "TT488ETG5H1234567890123456" \
+    --version "2.1.2" \
+    --cmd ./apply.sh \
+    pro=true
+```
     
 Replace the host, product and token with values from your Builder account.
 
@@ -72,3 +74,7 @@ updater.c | Update library source.
 updater.h | Update library header.
 updater.sh | Sample shell script to customize.
 updater.js | NodeJS command line updater utility.
+
+## Repository
+
+You can find the source for the updater at [https://github.com/embedthis/updater](https://github.com/embedthis/updater).

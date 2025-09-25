@@ -23,10 +23,10 @@ static WebsHash actionTable = -1;            /* Symbol table for actions */
  */
 static bool actionHandler(Webs *wp)
 {
-    WebsKey     *sp;
-    char        actionBuf[ME_GOAHEAD_LIMIT_URI + 1];
-    char        *cp, *actionName;
-    WebsAction  fn;
+    WebsKey    *sp;
+    char       actionBuf[ME_GOAHEAD_LIMIT_URI + 1];
+    char       *cp, *actionName;
+    WebsAction fn;
 
     assert(websValid(wp));
     assert(actionTable >= 0);

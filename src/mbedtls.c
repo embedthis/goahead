@@ -13,9 +13,9 @@
 #include    "goahead.h"
 
 #if ME_COM_MBEDTLS
-   /*
-      Indent to bypass MakeMe dependencies
-    */
+/*
+   Indent to bypass MakeMe dependencies
+ */
     #include "mbedtls/mbedtls_config.h"
     #include "mbedtls/ssl.h"
     #include "mbedtls/ssl_cache.h"
@@ -30,32 +30,32 @@
 /************************************* Defines ********************************/
 
 typedef struct MbedConfig {
-    mbedtls_x509_crt            ca;             /* Certificate authority bundle to verify peer */
-    mbedtls_ssl_cache_context   cache;          /* Session cache context */
-    mbedtls_ssl_config          conf;           /* SSL configuration */
-    mbedtls_x509_crt            cert;           /* Certificate (own) */
-    mbedtls_ctr_drbg_context    ctr;            /* Counter random generator state */
-    mbedtls_ssl_ticket_context  tickets;        /* Session tickets */
-    mbedtls_entropy_context     entropy;        /* Entropy context */
-    mbedtls_x509_crl            revoke;         /* Certificate authority bundle to verify peer */
-    mbedtls_pk_context          pkey;           /* Private key */
-    int                         *ciphers;       /* Set of acceptable ciphers - null terminated */
+    mbedtls_x509_crt ca;                        /* Certificate authority bundle to verify peer */
+    mbedtls_ssl_cache_context cache;            /* Session cache context */
+    mbedtls_ssl_config conf;                    /* SSL configuration */
+    mbedtls_x509_crt cert;                      /* Certificate (own) */
+    mbedtls_ctr_drbg_context ctr;               /* Counter random generator state */
+    mbedtls_ssl_ticket_context tickets;         /* Session tickets */
+    mbedtls_entropy_context entropy;            /* Entropy context */
+    mbedtls_x509_crl revoke;                    /* Certificate authority bundle to verify peer */
+    mbedtls_pk_context pkey;                    /* Private key */
+    int *ciphers;                               /* Set of acceptable ciphers - null terminated */
 } MbedConfig;
 
 /*
     Per socket state
  */
 typedef struct MbedSocket {
-    mbedtls_ssl_context         ctx;            /* SSL state */
-    mbedtls_ssl_session         session;        /* SSL sessions */
+    mbedtls_ssl_context ctx;                    /* SSL state */
+    mbedtls_ssl_session session;                /* SSL sessions */
 } MbedSocket;
 
-static MbedConfig   cfg;
+static MbedConfig cfg;
 
 /*
     GoAhead Log level to start SSL tracing
  */
-static int          mbedLogLevel = ME_GOAHEAD_SSL_LOG_LEVEL;
+static int mbedLogLevel = ME_GOAHEAD_SSL_LOG_LEVEL;
 
 /************************************ Forwards ********************************/
 
@@ -72,10 +72,10 @@ static void traceMbed(void *context, int level, cchar *file, int line, cchar *st
 
 PUBLIC int sslOpen()
 {
-    mbedtls_ssl_config  *conf;
-    cuchar              dhm_p[] = MBEDTLS_DHM_RFC3526_MODP_2048_P_BIN;
-    cuchar              dhm_g[] = MBEDTLS_DHM_RFC3526_MODP_2048_G_BIN;
-    int                 rc;
+    mbedtls_ssl_config *conf;
+    cuchar             dhm_p[] = MBEDTLS_DHM_RFC3526_MODP_2048_P_BIN;
+    cuchar             dhm_g[] = MBEDTLS_DHM_RFC3526_MODP_2048_G_BIN;
+    int                rc;
 
     trace(7, "Initializing MbedTLS SSL");
 
@@ -95,7 +95,9 @@ PUBLIC int sslOpen()
     mbedtls_x509_crt_init(&cfg.cert);
     mbedtls_ssl_ticket_init(&cfg.tickets);
 
-    if ((rc = mbedtls_ctr_drbg_seed(&cfg.ctr, mbedtls_entropy_func, &cfg.entropy, (cuchar*) ME_NAME, slen(ME_NAME))) < 0) {
+    if ((rc =
+             mbedtls_ctr_drbg_seed(&cfg.ctr, mbedtls_entropy_func, &cfg.entropy, (cuchar*) ME_NAME,
+                                   slen(ME_NAME))) < 0) {
         merror(rc, "Cannot seed rng");
         return -1;
     }
@@ -137,7 +139,7 @@ PUBLIC int sslOpen()
     }
 
     if ((rc = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
-            MBEDTLS_SSL_PRESET_DEFAULT)) < 0) {
+                                          MBEDTLS_SSL_PRESET_DEFAULT)) < 0) {
         merror(rc, "Cannot set mbedtls defaults");
         return -1;
     }
@@ -152,16 +154,16 @@ PUBLIC int sslOpen()
     }
 
     /*
-        Set auth mode if peer cert should be verified
+        Set auth mode: require valid peer certificate when verification is enabled
      */
-	mbedtls_ssl_conf_authmode(conf, ME_GOAHEAD_SSL_VERIFY_PEER ? MBEDTLS_SSL_VERIFY_OPTIONAL : MBEDTLS_SSL_VERIFY_NONE);
+    mbedtls_ssl_conf_authmode(conf, ME_GOAHEAD_SSL_VERIFY_PEER ? MBEDTLS_SSL_VERIFY_REQUIRED : MBEDTLS_SSL_VERIFY_NONE);
 
     /*
         Configure ticket-based sessions
      */
     if (ME_GOAHEAD_SSL_TICKET) {
         if ((rc = mbedtls_ssl_ticket_setup(&cfg.tickets, mbedtls_ctr_drbg_random, &cfg.ctr,
-                MBEDTLS_CIPHER_AES_256_GCM, ME_GOAHEAD_SSL_TIMEOUT)) < 0) {
+                                           MBEDTLS_CIPHER_AES_256_GCM, ME_GOAHEAD_SSL_TIMEOUT)) < 0) {
             merror(rc, "Cannot setup ticketing sessions");
             return -1;
         }
@@ -187,7 +189,8 @@ PUBLIC int sslOpen()
     /*
         Configure CA certificate bundle and revocation list
      */
-    mbedtls_ssl_conf_ca_chain(conf, *ME_GOAHEAD_SSL_AUTHORITY ? &cfg.ca : NULL, *ME_GOAHEAD_SSL_REVOKE ? &cfg.revoke : NULL);
+    mbedtls_ssl_conf_ca_chain(conf, *ME_GOAHEAD_SSL_AUTHORITY ? &cfg.ca : NULL,
+                              *ME_GOAHEAD_SSL_REVOKE ? &cfg.revoke : NULL);
 
     /*
         Configure server cert and key
@@ -199,8 +202,8 @@ PUBLIC int sslOpen()
         }
     }
     if (websGetLogLevel() >= 5) {
-        char    cipher[80];
-        cint    *cp;
+        char cipher[80];
+        cint *cp;
         trace(5, "mbedtls: Supported Ciphers");
         for (cp = mbedtls_ssl_list_ciphersuites(); *cp; cp++) {
             scopy(cipher, sizeof(cipher), (char*) mbedtls_ssl_get_ciphersuite_name(*cp));
@@ -245,7 +248,7 @@ PUBLIC int sslUpgrade(Webs *wp)
 
     mbedtls_ssl_init(ctx);
     mbedtls_ssl_setup(ctx, &cfg.conf);
-	mbedtls_ssl_set_bio(ctx, &sp->sock, mbedtls_net_send, mbedtls_net_recv, 0);
+    mbedtls_ssl_set_bio(ctx, &sp->sock, mbedtls_net_send, mbedtls_net_recv, 0);
 
     if (mbedHandshake(wp) < 0) {
         return -1;
@@ -256,8 +259,8 @@ PUBLIC int sslUpgrade(Webs *wp)
 
 PUBLIC void sslFree(Webs *wp)
 {
-    MbedSocket  *mb;
-    WebsSocket  *sp;
+    MbedSocket *mb;
+    WebsSocket *sp;
 
     mb = wp->ssl;
     sp = socketPtr(wp->sid);
@@ -278,9 +281,9 @@ PUBLIC void sslFree(Webs *wp)
  */
 static int mbedHandshake(Webs *wp)
 {
-    WebsSocket  *sp;
-    MbedSocket  *mb;
-    int         rc, vrc;
+    WebsSocket *sp;
+    MbedSocket *mb;
+    int        rc, vrc;
 
     mb = (MbedSocket*) wp->ssl;
     rc = 0;
@@ -289,7 +292,7 @@ static int mbedHandshake(Webs *wp)
     sp->flags |= SOCKET_HANDSHAKING;
 
     while ((rc = mbedtls_ssl_handshake(&mb->ctx)) != 0) {
-        if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE)  {
+        if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) {
             return 0;
         }
         break;
@@ -301,7 +304,7 @@ static int mbedHandshake(Webs *wp)
      */
     if (rc < 0) {
         if (rc == MBEDTLS_ERR_SSL_PRIVATE_KEY_REQUIRED &&
-                (ME_GOAHEAD_SSL_KEY[0] == '\0' || ME_GOAHEAD_SSL_CERTIFICATE[0] == '\0')) {
+            (ME_GOAHEAD_SSL_KEY[0] == '\0' || ME_GOAHEAD_SSL_CERTIFICATE[0] == '\0')) {
             error("Missing required certificate and key");
         } else if (rc == MBEDTLS_ERR_SSL_CA_CHAIN_REQUIRED) {
             error("Server requires a client certificate");
@@ -365,9 +368,9 @@ static int mbedHandshake(Webs *wp)
 
 PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
 {
-    WebsSocket      *sp;
-    MbedSocket      *mb;
-    int             rc;
+    WebsSocket *sp;
+    MbedSocket *mb;
+    int        rc;
 
     if (!wp->ssl) {
         assert(0);
@@ -417,10 +420,10 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
 
 PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 {
-    MbedSocket  *mb;
-    WebsSocket  *sp;
-    ssize       totalWritten;
-    int         rc;
+    MbedSocket *mb;
+    WebsSocket *sp;
+    ssize      totalWritten;
+    int        rc;
 
     if (wp->ssl == 0 || len <= 0) {
         assert(0);
@@ -471,14 +474,15 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
  */
 static int *getCipherSuite(char *ciphers, int *len)
 {
-    char    *cipher, *next;
-    cint    *cp;
-    int     nciphers, i, *result, code;
+    char *cipher, *next;
+    cint *cp;
+    int  nciphers, i, *result, code;
 
     if (!ciphers || *ciphers == 0) {
         return 0;
     }
-    for (nciphers = 0, cp = mbedtls_ssl_list_ciphersuites(); cp && *cp; cp++, nciphers++) { }
+    for (nciphers = 0, cp = mbedtls_ssl_list_ciphersuites(); cp && *cp; cp++, nciphers++) {
+    }
     result = walloc((nciphers + 1) * sizeof(int));
 
     next = ciphers = sclone(ciphers);
@@ -501,8 +505,8 @@ static int *getCipherSuite(char *ciphers, int *len)
 
 static int parseCert(mbedtls_x509_crt *cert, char *path)
 {
-    char    *buf;
-    ssize   len;
+    char  *buf;
+    ssize len;
 
     if ((buf = websReadWholeFile(path)) == 0) {
         error("Unable to read certificate %s", path);
@@ -526,8 +530,8 @@ static int parseCert(mbedtls_x509_crt *cert, char *path)
 
 static int parseKey(mbedtls_pk_context *key, char *path)
 {
-    char    *buf;
-    ssize   len;
+    char  *buf;
+    ssize len;
 
     if ((buf = websReadWholeFile(path)) == 0) {
         error("Unable to read key %s", path);
@@ -550,8 +554,8 @@ static int parseKey(mbedtls_pk_context *key, char *path)
 
 static int parseCrl(mbedtls_x509_crl *crl, char *path)
 {
-    char    *buf;
-    ssize   len;
+    char  *buf;
+    ssize len;
 
     if ((buf = websReadWholeFile(path)) == 0) {
         error("Unable to read crl %s", path);
@@ -574,7 +578,7 @@ static int parseCrl(mbedtls_x509_crl *crl, char *path)
 
 static void traceMbed(void *context, int level, cchar *file, int line, cchar *str)
 {
-    char    *buf;
+    char *buf;
 
     level += mbedLogLevel;
     if (level <= websGetLogLevel()) {
@@ -588,8 +592,8 @@ static void traceMbed(void *context, int level, cchar *file, int line, cchar *st
 
 static void merror(int rc, char *fmt, ...)
 {
-    va_list     ap;
-    char        ebuf[ME_MAX_BUFFER];
+    va_list ap;
+    char    ebuf[ME_MAX_BUFFER];
 
     va_start(ap, fmt);
     mbedtls_strerror(-rc, ebuf, sizeof(ebuf));
@@ -600,7 +604,7 @@ static void merror(int rc, char *fmt, ...)
 
 static char *replaceHyphen(char *cipher, char from, char to)
 {
-    char    *cp;
+    char *cp;
 
     for (cp = cipher; *cp; cp++) {
         if (*cp == from) {
@@ -611,7 +615,9 @@ static char *replaceHyphen(char *cipher, char from, char to)
 }
 
 #else
-void mbedDummy() {}
+void mbedDummy()
+{
+}
 #endif /* ME_COM_MBEDTLS */
 
 /*

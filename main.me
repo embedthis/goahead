@@ -370,5 +370,9 @@ Me.load({
         mine: {
             action: `genProjects('--with openssl', 'mine', ['macosx-arm64'])`
         },
+
+        format: {
+            shell: `uncrustify -q -c .uncrustify --replace --no-backup  src/*.{c,h}`
+        },
     },
 })

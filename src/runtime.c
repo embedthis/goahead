@@ -13,10 +13,10 @@
     This structure stores scheduled events.
  */
 typedef struct Callback {
-    void        (*routine)(void *arg, int id);
-    void        *arg;
-    WebsTime    at;
-    int         id;
+    void (*routine)(void *arg, int id);
+    void *arg;
+    WebsTime at;
+    int id;
 } Callback;
 
 /*********************************** Defines **********************************/
@@ -46,15 +46,15 @@ typedef struct Callback {
 PUBLIC char stateMap[] = {
     /*     STATES:  Normal Percent Modifier Width  Dot  Prec Bits Type */
     /* CLASS           0      1       2       3     4     5    6    7  */
-    /* Normal   0 */   0,     0,      0,      0,    0,    0,   0,   0,
-    /* Percent  1 */   1,     0,      1,      1,    1,    1,   1,   1,
-    /* Modifier 2 */   0,     2,      2,      0,    0,    0,   0,   0,
-    /* Zero     3 */   0,     2,      2,      3,    5,    5,   0,   0,
-    /* Star     4 */   0,     3,      3,      0,    5,    0,   0,   0,
-    /* Digit    5 */   0,     3,      3,      3,    5,    5,   0,   0,
-    /* Dot      6 */   0,     4,      4,      4,    0,    0,   0,   0,
-    /* Bits     7 */   0,     6,      6,      6,    6,    6,   6,   0,
-    /* Types    8 */   0,     7,      7,      7,    7,    7,   7,   0,
+    /* Normal   0 */ 0,     0,      0,      0,    0,    0,   0,   0,
+    /* Percent  1 */ 1,     0,      1,      1,    1,    1,   1,   1,
+    /* Modifier 2 */ 0,     2,      2,      0,    0,    0,   0,   0,
+    /* Zero     3 */ 0,     2,      2,      3,    5,    5,   0,   0,
+    /* Star     4 */ 0,     3,      3,      0,    5,    0,   0,   0,
+    /* Digit    5 */ 0,     3,      3,      3,    5,    5,   0,   0,
+    /* Dot      6 */ 0,     4,      4,      4,    0,    0,   0,   0,
+    /* Bits     7 */ 0,     6,      6,      6,    6,    6,   6,   0,
+    /* Types    8 */ 0,     7,      7,      7,    7,    7,   7,   0,
 };
 
 /*
@@ -64,112 +64,112 @@ PUBLIC char stateMap[] = {
  */
 PUBLIC char classMap[] = {
     /*   0  ' '    !     "     #     $     %     &     ' */
-             2,    0,    0,    2,    0,    1,    0,    0,
+    2,    0,    0,    2,    0,    1,    0,    0,
     /*  07   (     )     *     +     ,     -     .     / */
-             0,    0,    4,    2,    2,    2,    6,    0,
+    0,    0,    4,    2,    2,    2,    6,    0,
     /*  10   0     1     2     3     4     5     6     7 */
-             3,    5,    5,    5,    5,    5,    5,    5,
+    3,    5,    5,    5,    5,    5,    5,    5,
     /*  17   8     9     :     ;     <     =     >     ? */
-             5,    5,    0,    0,    0,    0,    0,    0,
+    5,    5,    0,    0,    0,    0,    0,    0,
     /*  20   @     A     B     C     D     E     F     G */
-             8,    0,    0,    0,    0,    0,    0,    0,
+    8,    0,    0,    0,    0,    0,    0,    0,
     /*  27   H     I     J     K     L     M     N     O */
-             0,    0,    0,    0,    7,    0,    8,    0,
+    0,    0,    0,    0,    7,    0,    8,    0,
     /*  30   P     Q     R     S     T     U     V     W */
-             0,    0,    0,    8,    0,    0,    0,    0,
+    0,    0,    0,    8,    0,    0,    0,    0,
     /*  37   X     Y     Z     [     \     ]     ^     _ */
-             8,    0,    0,    0,    0,    0,    0,    0,
+    8,    0,    0,    0,    0,    0,    0,    0,
     /*  40   '     a     b     c     d     e     f     g */
-             0,    0,    0,    8,    8,    8,    8,    8,
+    0,    0,    0,    8,    8,    8,    8,    8,
     /*  47   h     i     j     k     l     m     n     o */
-             7,    8,    0,    0,    7,    0,    8,    8,
+    7,    8,    0,    0,    7,    0,    8,    8,
     /*  50   p     q     r     s     t     u     v     w */
-             8,    0,    0,    8,    0,    8,    0,    8,
+    8,    0,    0,    8,    0,    8,    0,    8,
     /*  57   x     y     z  */
-             8,    0,    0,
+    8,    0,    0,
 };
 
 /*
     Flags
  */
-#define SPRINTF_LEFT        0x1         /* Left align */
-#define SPRINTF_SIGN        0x2         /* Always sign the result */
-#define SPRINTF_LEAD_SPACE  0x4         /* put leading space for +ve numbers */
-#define SPRINTF_ALTERNATE   0x8         /* Alternate format */
-#define SPRINTF_LEAD_ZERO   0x10        /* Zero pad */
-#define SPRINTF_SHORT       0x20        /* 16-bit */
-#define SPRINTF_LONG        0x40        /* 32-bit */
-#define SPRINTF_INT64       0x80        /* 64-bit */
-#define SPRINTF_COMMA       0x100       /* Thousand comma separators */
-#define SPRINTF_UPPER_CASE  0x200       /* As the name says for numbers */
+#define SPRINTF_LEFT       0x1          /* Left align */
+#define SPRINTF_SIGN       0x2          /* Always sign the result */
+#define SPRINTF_LEAD_SPACE 0x4          /* put leading space for +ve numbers */
+#define SPRINTF_ALTERNATE  0x8          /* Alternate format */
+#define SPRINTF_LEAD_ZERO  0x10         /* Zero pad */
+#define SPRINTF_SHORT      0x20         /* 16-bit */
+#define SPRINTF_LONG       0x40         /* 32-bit */
+#define SPRINTF_INT64      0x80         /* 64-bit */
+#define SPRINTF_COMMA      0x100        /* Thousand comma separators */
+#define SPRINTF_UPPER_CASE 0x200        /* As the name says for numbers */
 
 typedef struct Format {
-    uchar   *buf;
-    uchar   *endbuf;
-    uchar   *start;
-    uchar   *end;
-    ssize   growBy;
-    ssize   maxsize;
-    int     precision;
-    int     radix;
-    int     width;
-    int     flags;
-    int     len;
+    uchar *buf;
+    uchar *endbuf;
+    uchar *start;
+    uchar *end;
+    ssize growBy;
+    ssize maxsize;
+    int precision;
+    int radix;
+    int width;
+    int flags;
+    int len;
 } Format;
 
 #define BPUT(fmt, c) \
-    do { \
-        /* Less one to allow room for the null */ \
-        if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
-            if (growBuf(fmt) > 0) { \
+        do { \
+            /* Less one to allow room for the null */ \
+            if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
+                if (growBuf(fmt) > 0) { \
+                    *(fmt)->end++ = (c); \
+                } \
+            } else { \
                 *(fmt)->end++ = (c); \
             } \
-        } else { \
-            *(fmt)->end++ = (c); \
-        } \
-    } while (0)
+        } while (0)
 
 #define BPUTNULL(fmt) \
-    do { \
-        if ((fmt)->end > (fmt)->endbuf) { \
-            if (growBuf(fmt) > 0) { \
+        do { \
+            if ((fmt)->end > (fmt)->endbuf) { \
+                if (growBuf(fmt) > 0) { \
+                    *(fmt)->end = '\0'; \
+                } \
+            } else { \
                 *(fmt)->end = '\0'; \
             } \
-        } else { \
-            *(fmt)->end = '\0'; \
-        } \
-    } while (0)
+        } while (0)
 
 /*
     The handle list stores the length of the list and the number of used handles in the first two words.  These are
     hidden from the caller by returning a pointer to the third word to the caller.
  */
-#define H_LEN       0       /* First entry holds length of list */
-#define H_USED      1       /* Second entry holds number of used */
-#define H_OFFSET    2       /* Offset to real start of list */
-#define H_INCR      16      /* Grow handle list in chunks this size */
+#define H_LEN    0          /* First entry holds length of list */
+#define H_USED   1          /* Second entry holds number of used */
+#define H_OFFSET 2          /* Offset to real start of list */
+#define H_INCR   16         /* Grow handle list in chunks this size */
 
 #define RINGQ_LEN(bp) ((bp->servp > bp->endp) ? (bp->buflen + (bp->endp - bp->servp)) : (bp->endp - bp->servp))
 
-typedef struct HashTable {              /* Symbol table descriptor */
-    WebsKey     **hash_table;           /* Allocated at run time */
-    int         inuse;                  /* Is this entry in use */
-    int         size;                   /* Size of the table below */
+typedef struct HashTable {  /* Symbol table descriptor */
+    WebsKey **hash_table;   /* Allocated at run time */
+    int inuse;              /* Is this entry in use */
+    int size;               /* Size of the table below */
 } HashTable;
 
 #ifndef LOG_ERR
     #define LOG_ERR 0
 #endif
 #if ME_WIN_LIKE
-    PUBLIC void syslog(int priority, char *fmt, ...);
+PUBLIC void syslog(int priority, char *fmt, ...);
 #endif
 
-PUBLIC int       logLevel;          /* Log verbosity level */
+PUBLIC int logLevel;                /* Log verbosity level */
 
 /************************************* Locals *********************************/
 
-static Callback  **callbacks;
-static int       callbackMax;
+static Callback **callbacks;
+static int      callbackMax;
 
 static HashTable **sym;             /* List of symbol tables */
 static int       symMax;            /* One past the max symbol table */
@@ -177,8 +177,8 @@ static int       symMax;            /* One past the max symbol table */
 char *embedthisGoAheadCopyright = EMBEDTHIS_GOAHEAD_COPYRIGHT;
 
 #if ME_GOAHEAD_LOGGING
-static char      *logPath;          /* Log file name */
-static int       logFd;             /* Log file handle */
+static char *logPath;               /* Log file name */
+static int  logFd;                  /* Log file handle */
 #endif
 
 /********************************** Forwards **********************************/
@@ -223,7 +223,7 @@ PUBLIC void websRuntimeClose(void)
  */
 static void callEvent(int id)
 {
-    Callback    *cp;
+    Callback *cp;
 
     assert(0 <= id && id < callbackMax);
     cp = callbacks[id];
@@ -238,8 +238,8 @@ static void callEvent(int id)
  */
 PUBLIC int websStartEvent(int delay, WebsEventProc proc, void *arg)
 {
-    Callback    *s;
-    int         id;
+    Callback *s;
+    int      id;
 
     if ((id = wallocObject(&callbacks, &callbackMax, sizeof(Callback))) < 0) {
         return -1;
@@ -259,7 +259,7 @@ PUBLIC int websStartEvent(int delay, WebsEventProc proc, void *arg)
 
 PUBLIC void websRestartEvent(int id, int delay)
 {
-    Callback    *s;
+    Callback *s;
 
     if (callbacks == NULL || id == -1 || id >= callbackMax || (s = callbacks[id]) == NULL) {
         return;
@@ -270,7 +270,7 @@ PUBLIC void websRestartEvent(int id, int delay)
 
 PUBLIC void websStopEvent(int id)
 {
-    Callback    *s;
+    Callback *s;
 
     if (callbacks == NULL || id == -1 || id >= callbackMax || (s = callbacks[id]) == NULL) {
         return;
@@ -282,9 +282,9 @@ PUBLIC void websStopEvent(int id)
 
 int websRunEvents(void)
 {
-    Callback    *s;
-    WebsTime    now;
-    int         i, delay, nextEvent;
+    Callback *s;
+    WebsTime now;
+    int      i, delay, nextEvent;
 
     nextEvent = (MAXINT / 1000);
     now = time(0);
@@ -311,8 +311,8 @@ int websRunEvents(void)
  */
 PUBLIC char *sfmt(cchar *format, ...)
 {
-    va_list     ap;
-    char        *result;
+    va_list ap;
+    char    *result;
 
     assert(format);
 
@@ -328,8 +328,8 @@ PUBLIC char *sfmt(cchar *format, ...)
  */
 PUBLIC char *fmt(char *buf, ssize bufsize, cchar *format, ...)
 {
-    va_list     ap;
-    char        *result;
+    va_list ap;
+    char    *result;
 
     assert(buf);
     assert(format);
@@ -356,7 +356,7 @@ PUBLIC char *sfmtv(cchar *fmt, va_list arg)
 
 static int getState(char c, int state)
 {
-    int     chrClass;
+    int chrClass;
 
     if (c < ' ' || c > 'z') {
         chrClass = CLASS_NORMAL;
@@ -372,12 +372,12 @@ static int getState(char c, int state)
 
 static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
 {
-    Format        fmt;
-    ssize         len;
-    int64         iValue;
-    uint64        uValue;
-    int           state;
-    char          c, *safe;
+    Format fmt;
+    ssize  len;
+    int64  iValue;
+    uint64 uValue;
+    int    state;
+    char   c, *safe;
 
     if (spec == 0) {
         spec = "";
@@ -540,7 +540,7 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                     outWideString(&fmt, va_arg(args, wchar*), -1);
                 } else
 #endif
-                    outString(&fmt, va_arg(args, char*), -1);
+                outString(&fmt, va_arg(args, char*), -1);
                 break;
 
             case 'i':
@@ -571,12 +571,12 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
             case 'X':
                 fmt.flags |= SPRINTF_UPPER_CASE;
 #if ME_64
-                fmt.flags &= ~(SPRINTF_SHORT|SPRINTF_LONG);
+                fmt.flags &= ~(SPRINTF_SHORT | SPRINTF_LONG);
                 fmt.flags |= SPRINTF_INT64;
 #else
                 fmt.flags &= ~(SPRINTF_INT64);
 #endif
-                /*  Fall through  */
+            /*  Fall through  */
             case 'o':
             case 'x':
             case 'u':
@@ -621,7 +621,7 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                     long *count = va_arg(args, long*);
                     *count = (int) (fmt.end - fmt.start);
                 } else {
-                    int *count = va_arg(args, int *);
+                    int *count = va_arg(args, int*);
                     *count = (int) (fmt.end - fmt.start);
                 }
                 break;
@@ -648,15 +648,15 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
 
 static void outString(Format *fmt, char *str, ssize len)
 {
-    char    *cp;
-    ssize   i;
+    char  *cp;
+    ssize i;
 
     if (str == NULL) {
         str = "null";
         len = 4;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (ssize) *str;
+        len = (ssize) * str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == '\0') {
@@ -685,8 +685,8 @@ static void outString(Format *fmt, char *str, ssize len)
 #if ME_CHAR_LEN > 1 && KEEP
 static void outWideString(Format *fmt, wchar *str, ssize len)
 {
-    wchar     *cp;
-    int         i;
+    wchar *cp;
+    int   i;
 
     if (str == 0) {
         BPUT(fmt, (char) 'n');
@@ -696,7 +696,7 @@ static void outWideString(Format *fmt, wchar *str, ssize len)
         return;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (ssize) *str;
+        len = (ssize) * str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == 0) {
@@ -704,7 +704,7 @@ static void outWideString(Format *fmt, wchar *str, ssize len)
             }
         }
     } else if (len < 0) {
-        for (cp = str, len = 0; *cp++ == 0; len++) ;
+        for (cp = str, len = 0; *cp++ == 0; len++);
     }
     if (!(fmt->flags & SPRINTF_LEFT)) {
         for (i = len; i < fmt->width; i++) {
@@ -725,11 +725,11 @@ static void outWideString(Format *fmt, wchar *str, ssize len)
 
 static void outNum(Format *fmt, char *prefix, uint64 value)
 {
-    char    numBuf[64];
-    char    *cp;
-    char    *endp;
-    char    c;
-    int     letter, len, leadingZeros, i, fill;
+    char numBuf[64];
+    char *cp;
+    char *endp;
+    char c;
+    int  letter, len, leadingZeros, i, fill;
 
     endp = &numBuf[sizeof(numBuf) - 1];
     *endp = '\0';
@@ -808,18 +808,18 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
 #if ME_FLOAT
 static void outFloat(Format *fmt, char specChar, double value)
 {
-    char    result[ME_GOAHEAD_LIMIT_STRING], *cp;
-    int     c, fill, i, len, index;
+    char result[ME_GOAHEAD_LIMIT_STRING], *cp;
+    int  c, fill, i, len, index;
 
     result[0] = '\0';
     if (specChar == 'f') {
-        sprintf(result, "%.*f", fmt->precision, value);
+        snprintf(result, sizeof(result), "%.*f", fmt->precision, value);
 
     } else if (specChar == 'g') {
-        sprintf(result, "%*.*g", fmt->width, fmt->precision, value);
+        snprintf(result, sizeof(result), "%*.*g", fmt->width, fmt->precision, value);
 
     } else if (specChar == 'e') {
-        sprintf(result, "%*.*e", fmt->width, fmt->precision, value);
+        snprintf(result, sizeof(result), "%*.*e", fmt->width, fmt->precision, value);
     }
     len = (int) slen(result);
     fill = fmt->width - len;
@@ -864,8 +864,8 @@ static void outFloat(Format *fmt, char specChar, double value)
  */
 static int growBuf(Format *fmt)
 {
-    uchar   *newbuf;
-    ssize   buflen;
+    uchar *newbuf;
+    ssize buflen;
 
     buflen = (int) (fmt->endbuf - fmt->buf);
     if (fmt->maxsize >= 0 && buflen >= fmt->maxsize) {
@@ -942,7 +942,7 @@ WebsValue valueString(cchar *value, int flags)
 }
 
 
-PUBLIC void valueFree(WebsValue* v)
+PUBLIC void valueFree(WebsValue *v)
 {
     if (v->valid && v->allocated && v->type == string && v->value.string != NULL) {
         wfree(v->value.string);
@@ -957,7 +957,7 @@ PUBLIC void valueFree(WebsValue* v)
 #if ME_GOAHEAD_LOGGING
 static void defaultLogHandler(int flags, cchar *buf)
 {
-    char    prefix[ME_GOAHEAD_LIMIT_STRING];
+    char prefix[ME_GOAHEAD_LIMIT_STRING];
 
     if (logFd >= 0) {
         if (flags & WEBS_RAW_MSG) {
@@ -979,8 +979,8 @@ static void defaultLogHandler(int flags, cchar *buf)
 
 PUBLIC void error(cchar *fmt, ...)
 {
-    va_list     args;
-    char        *message;
+    va_list args;
+    char    *message;
 
     if (!logHandler) {
         return;
@@ -995,8 +995,8 @@ PUBLIC void error(cchar *fmt, ...)
 
 PUBLIC void assertError(WEBS_ARGS_DEC, char *fmt, ...)
 {
-    va_list     args;
-    char        *fmtBuf, *message;
+    va_list args;
+    char    *fmtBuf, *message;
 
     va_start(args, fmt);
     fmtBuf = sfmtv(fmt, args);
@@ -1013,8 +1013,8 @@ PUBLIC void assertError(WEBS_ARGS_DEC, char *fmt, ...)
 
 PUBLIC void logmsgProc(int level, cchar *fmt, ...)
 {
-    va_list     args;
-    char        *message;
+    va_list args;
+    char    *message;
 
     if ((level & WEBS_LEVEL_MASK) <= logLevel && logHandler) {
         va_start(args, fmt);
@@ -1028,8 +1028,8 @@ PUBLIC void logmsgProc(int level, cchar *fmt, ...)
 
 PUBLIC void traceProc(int level, cchar *fmt, ...)
 {
-    va_list     args;
-    char        *message;
+    va_list args;
+    char    *message;
 
     if ((level & WEBS_LEVEL_MASK) <= logLevel && logHandler) {
         va_start(args, fmt);
@@ -1064,7 +1064,7 @@ WebsLogHandler logGetHandler(void)
  */
 WebsLogHandler logSetHandler(WebsLogHandler handler)
 {
-    WebsLogHandler    oldHandler;
+    WebsLogHandler oldHandler;
 
     oldHandler = logHandler;
     if (handler) {
@@ -1110,7 +1110,7 @@ PUBLIC void logClose(void)
 
 PUBLIC void logSetPath(cchar *path)
 {
-    char  *lp;
+    char *lp;
 
     wfree(logPath);
     logPath = sclone(path);
@@ -1127,7 +1127,7 @@ PUBLIC void logSetPath(cchar *path)
  */
 PUBLIC char *slower(char *string)
 {
-    char  *s;
+    char *s;
 
     if (string == NULL) {
         return NULL;
@@ -1135,7 +1135,7 @@ PUBLIC char *slower(char *string)
     s = string;
     while (*s) {
         if (isupper(*s)) {
-            *s = (char) tolower((uchar) *s);
+            *s = (char) tolower((uchar) * s);
         }
         s++;
     }
@@ -1149,15 +1149,15 @@ PUBLIC char *slower(char *string)
  */
 PUBLIC char *supper(char *string)
 {
-    char  *s;
+    char *s;
 
     if (string == NULL) {
         return NULL;
     }
     s = string;
     while (*s) {
-        if (islower((uchar) *s)) {
-            *s = (char) toupper((uchar) *s);
+        if (islower((uchar) * s)) {
+            *s = (char) toupper((uchar) * s);
         }
         s++;
     }
@@ -1168,9 +1168,9 @@ PUBLIC char *supper(char *string)
 
 PUBLIC char *itosbuf(char *buf, ssize size, int64 value, int radix)
 {
-    char    *cp, *end;
-    char    digits[] = "0123456789ABCDEF";
-    int     negative;
+    char *cp, *end;
+    char digits[] = "0123456789ABCDEF";
+    int  negative;
 
     if ((radix != 10 && radix != 16) || size < 2) {
         return 0;
@@ -1210,9 +1210,9 @@ PUBLIC char *itosbuf(char *buf, ssize size, int64 value, int radix)
  */
 PUBLIC int wallocHandle(void *mapArg)
 {
-    void    ***map;
-    ssize   *mp;
-    int     handle, len, memsize, incr;
+    void  ***map;
+    ssize *mp;
+    int   handle, len, memsize, incr;
 
     map = (void***) mapArg;
     assert(map);
@@ -1228,7 +1228,7 @@ PUBLIC int wallocHandle(void *mapArg)
         mp[H_USED] = 0;
         *map = (void*) &mp[H_OFFSET];
     } else {
-        mp = &((*(ssize**)map)[-H_OFFSET]);
+        mp = &((*(ssize**) map)[-H_OFFSET]);
     }
     len = (int) mp[H_LEN];
 
@@ -1267,13 +1267,13 @@ PUBLIC int wallocHandle(void *mapArg)
  */
 PUBLIC int wfreeHandle(void *mapArg, int handle)
 {
-    void    ***map;
-    ssize   *mp;
-    int     len;
+    void  ***map;
+    ssize *mp;
+    int   len;
 
     map = (void***) mapArg;
     assert(map);
-    mp = &((*(ssize**)map)[-H_OFFSET]);
+    mp = &((*(ssize**) map)[-H_OFFSET]);
     assert(mp[H_LEN] >= H_INCR);
 
     assert(mp[handle + H_OFFSET]);
@@ -1308,9 +1308,9 @@ PUBLIC int wfreeHandle(void *mapArg, int handle)
  */
 PUBLIC int wallocObject(void *listArg, int *max, int size)
 {
-    void    ***list;
-    char    *cp;
-    int     id;
+    void ***list;
+    char *cp;
+    int  id;
 
     list = (void***) listArg;
     assert(list);
@@ -1337,7 +1337,8 @@ PUBLIC int wallocObject(void *listArg, int *max, int size)
 
 /*
     Create a new buf. "increment" is the amount to increase the size of the buf should it need to grow to accommodate
-    data being added. "maxsize" is an upper limit (sanity level) beyond which the buffer must not grow. Set maxsize to -1 to
+    data being added. "maxsize" is an upper limit (sanity level) beyond which the buffer must not grow. Set maxsize to
+       -1 to
     imply no upper limit. The buffer for the buf is always *  dynamically allocated. Set maxsize
  */
 PUBLIC int bufCreate(WebsBuf *bp, int initSize, int maxsize)
@@ -1422,7 +1423,7 @@ PUBLIC char *bufStart(WebsBuf *bp)
  */
 PUBLIC int bufGetc(WebsBuf *bp)
 {
-    char    c, *cp;
+    char c, *cp;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1442,7 +1443,8 @@ PUBLIC int bufGetc(WebsBuf *bp)
 
 
 /*
-    Add a char to the queue. Note if being used to store wide strings this does not add a trailing '\0'. Grow the buffer as
+    Add a char to the queue. Note if being used to store wide strings this does not add a trailing '\0'. Grow the buffer
+       as
     required.
  */
 PUBLIC int bufPutc(WebsBuf *bp, char c)
@@ -1490,9 +1492,9 @@ PUBLIC int bufInsertc(WebsBuf *bp, char c)
 
 PUBLIC ssize bufPut(WebsBuf *bp, cchar *fmt, ...)
 {
-    va_list     ap;
-    char        *str;
-    ssize       rc;
+    va_list ap;
+    char    *str;
+    ssize   rc;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1517,7 +1519,7 @@ PUBLIC ssize bufPut(WebsBuf *bp, cchar *fmt, ...)
  */
 PUBLIC ssize bufPutStr(WebsBuf *bp, cchar *str)
 {
-    ssize   rc;
+    ssize rc;
 
     assert(bp);
     assert(str);
@@ -1553,7 +1555,7 @@ PUBLIC void bufAddNull(WebsBuf *bp)
  */
 PUBLIC int bufGetcA(WebsBuf *bp)
 {
-    uchar   c;
+    uchar c;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1614,7 +1616,7 @@ PUBLIC int bufInsertcA(WebsBuf *bp, char c)
  */
 PUBLIC int bufPutStrA(WebsBuf *bp, char *str)
 {
-    int     rc;
+    int rc;
 
     assert(bp);
     assert(str);
@@ -1632,7 +1634,7 @@ PUBLIC int bufPutStrA(WebsBuf *bp, char *str)
  */
 PUBLIC ssize bufPutBlk(WebsBuf *bp, cchar *buf, ssize size)
 {
-    ssize   this, added;
+    ssize this, added;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1646,7 +1648,7 @@ PUBLIC ssize bufPutBlk(WebsBuf *bp, cchar *buf, ssize size)
     while (size > 0) {
         this = min(bufRoom(bp), size);
         if (this <= 0) {
-            if (! bufGrow(bp, 0)) {
+            if (!bufGrow(bp, 0)) {
                 break;
             }
             this = min(bufRoom(bp), size);
@@ -1669,7 +1671,7 @@ PUBLIC ssize bufPutBlk(WebsBuf *bp, cchar *buf, ssize size)
  */
 PUBLIC ssize bufGetBlk(WebsBuf *bp, char *buf, ssize size)
 {
-    ssize   this, bytes_read;
+    ssize this, bytes_read;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1706,7 +1708,7 @@ PUBLIC ssize bufGetBlk(WebsBuf *bp, char *buf, ssize size)
  */
 PUBLIC ssize bufRoom(WebsBuf *bp)
 {
-    ssize   space, in_a_line;
+    ssize space, in_a_line;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1724,7 +1726,7 @@ PUBLIC ssize bufRoom(WebsBuf *bp)
  */
 PUBLIC ssize bufGetBlkMax(WebsBuf *bp)
 {
-    ssize   len, in_a_line;
+    ssize len, in_a_line;
 
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
@@ -1795,14 +1797,14 @@ PUBLIC void bufFlush(WebsBuf *bp)
         bp->endp = bp->buf;
         if (bp->servp) {
             *bp->servp = '\0';
-	    }
+        }
     }
 }
 
 
 PUBLIC void bufCompact(WebsBuf *bp)
 {
-    ssize   len;
+    ssize len;
 
     if (bp->buf) {
         if ((len = bufLen(bp)) > 0) {
@@ -1838,8 +1840,8 @@ PUBLIC void bufReset(WebsBuf *bp)
  */
 PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
 {
-    char    *newbuf;
-    ssize   len;
+    char  *newbuf;
+    ssize len;
 
     assert(bp);
 
@@ -1884,14 +1886,14 @@ static int  getBinBlockSize(int size)
     for (q = 0; size; size >>= 1) {
         q++;
     }
-    return (1 << (WEBS_SHIFT + q));
+    return 1 << (WEBS_SHIFT + q);
 }
 
 
 WebsHash hashCreate(int size)
 {
-    WebsHash    sd;
-    HashTable   *tp;
+    WebsHash  sd;
+    HashTable *tp;
 
     if (size < 0) {
         size = WEBS_SMALL_HASH;
@@ -1940,9 +1942,9 @@ WebsHash hashCreate(int size)
  */
 PUBLIC void hashFree(WebsHash sd)
 {
-    HashTable   *tp;
-    WebsKey     *sp, *forw;
-    int         i;
+    HashTable *tp;
+    WebsKey   *sp, *forw;
+    int       i;
 
     if (sd < 0) {
         return;
@@ -1975,12 +1977,12 @@ PUBLIC void hashFree(WebsHash sd)
  */
 WebsKey *hashFirst(WebsHash sd)
 {
-    HashTable   *tp;
-    WebsKey     *sp;
-    int         i;
+    HashTable *tp;
+    WebsKey   *sp;
+    int       i;
 
     assert(0 <= sd && sd < symMax);
-    if (sd < 0 || sd >=symMax) {
+    if (sd < 0 || sd >= symMax) {
         return 0;
     }
     tp = sym[sd];
@@ -2003,9 +2005,9 @@ WebsKey *hashFirst(WebsHash sd)
  */
 WebsKey *hashNext(WebsHash sd, WebsKey *last)
 {
-    HashTable   *tp;
-    WebsKey     *sp;
-    int         i;
+    HashTable *tp;
+    WebsKey   *sp;
+    int       i;
 
     assert(0 <= sd && sd < symMax);
     if (sd < 0) {
@@ -2033,9 +2035,9 @@ WebsKey *hashNext(WebsHash sd, WebsKey *last)
  */
 WebsKey *hashLookup(WebsHash sd, cchar *name)
 {
-    HashTable   *tp;
-    WebsKey     *sp;
-    char        *cp;
+    HashTable *tp;
+    WebsKey   *sp;
+    char      *cp;
 
     assert(0 <= sd && sd < symMax);
     if (sd < 0 || (tp = sym[sd]) == NULL) {
@@ -2059,7 +2061,7 @@ WebsKey *hashLookup(WebsHash sd, cchar *name)
 
 void *hashLookupSymbol(WebsHash sd, cchar *name)
 {
-    WebsKey     *kp;
+    WebsKey *kp;
 
     if ((kp = hashLookup(sd, name)) == 0) {
         return 0;
@@ -2075,10 +2077,10 @@ void *hashLookupSymbol(WebsHash sd, cchar *name)
  */
 WebsKey *hashEnter(WebsHash sd, cchar *name, WebsValue v, int arg)
 {
-    HashTable   *tp;
-    WebsKey     *sp, *last;
-    char        *cp;
-    int         hindex;
+    HashTable *tp;
+    WebsKey   *sp, *last;
+    char      *cp;
+    int       hindex;
 
     assert(name);
     assert(0 <= sd && sd < symMax);
@@ -2151,10 +2153,10 @@ WebsKey *hashEnter(WebsHash sd, cchar *name, WebsValue v, int arg)
  */
 PUBLIC int hashDelete(WebsHash sd, cchar *name)
 {
-    HashTable   *tp;
-    WebsKey     *sp, *last;
-    char        *cp;
-    int         hindex;
+    HashTable *tp;
+    WebsKey   *sp, *last;
+    char      *cp;
+    int       hindex;
 
     assert(name && *name);
     assert(0 <= sd && sd < symMax);
@@ -2212,8 +2214,8 @@ static WebsKey *hash(HashTable *tp, cchar *name)
  */
 static int hashIndex(HashTable *tp, cchar *name)
 {
-    uint        sum;
-    int         i;
+    uint sum;
+    int  i;
 
     assert(tp);
     /*
@@ -2235,7 +2237,7 @@ static int hashIndex(HashTable *tp, cchar *name)
  */
 static int isPrime(int n)
 {
-    int     i, max;
+    int i, max;
 
     assert(n > 0);
 
@@ -2272,18 +2274,18 @@ static int calcPrime(int size)
  */
 uint hextoi(cchar *hexstring)
 {
-    cchar   *h;
-    uint    c, v;
+    cchar *h;
+    uint  c, v;
 
     if (!hexstring) {
         return 0;
     }
     v = 0;
     h = hexstring;
-    if (*h == '0' && (*(h+1) == 'x' || *(h+1) == 'X')) {
+    if (*h == '0' && (*(h + 1) == 'x' || *(h + 1) == 'X')) {
         h += 2;
     }
-    while ((c = (uint)*h++) != 0) {
+    while ((c = (uint) * h++) != 0) {
         if (c >= '0' && c <= '9') {
             c -= '0';
         } else if (c >= 'a' && c <= 'f') {
@@ -2301,13 +2303,15 @@ uint hextoi(cchar *hexstring)
 
 PUBLIC char *sclone(cchar *s)
 {
-    char    *buf;
+    char  *buf;
+    ssize len;
 
     if (s == NULL) {
         s = "";
     }
-    if ((buf = walloc(strlen(s) + 1)) != 0) {
-        strcpy(buf, s);
+    len = strlen(s) + 1;
+    if ((buf = walloc(len)) != 0) {
+        scopy(buf, len, s);
     }
     return buf;
 }
@@ -2320,8 +2324,8 @@ PUBLIC char *sclone(cchar *s)
  */
 PUBLIC char *snclone(cchar *str, ssize len)
 {
-    char    *ptr;
-    ssize   size, l;
+    char  *ptr;
+    ssize size, l;
 
     if (str == 0) {
         str = "";
@@ -2354,7 +2358,7 @@ PUBLIC bool snumber(cchar *s)
  */
 uint strtoi(char *s)
 {
-    if (*s == '0' && (*(s+1) == 'x' || *(s+1) == 'X')) {
+    if (*s == '0' && (*(s + 1) == 'x' || *(s + 1) == 'X')) {
         s += 2;
         return hextoi(s);
     }
@@ -2418,7 +2422,7 @@ PUBLIC ssize slen(cchar *s)
 
 PUBLIC ssize scopy(char *dest, ssize destMax, cchar *src)
 {
-    ssize      len;
+    ssize len;
 
     assert(src);
     assert(dest);
@@ -2442,7 +2446,7 @@ PUBLIC ssize scopy(char *dest, ssize destMax, cchar *src)
  */
 PUBLIC ssize sncopy(char *dest, ssize destMax, cchar *src, ssize count)
 {
-    ssize      len;
+    ssize len;
 
     assert(dest);
     assert(src);
@@ -2476,7 +2480,7 @@ PUBLIC ssize sncopy(char *dest, ssize destMax, cchar *src, ssize count)
  */
 PUBLIC ssize strnlen(cchar *s, ssize n)
 {
-    ssize   len;
+    ssize len;
 
     len = strlen(s);
     return min(len, n);
@@ -2489,7 +2493,7 @@ PUBLIC ssize strnlen(cchar *s, ssize n)
  */
 PUBLIC int sncmp(cchar *s1, cchar *s2, ssize n)
 {
-    int     rc;
+    int rc;
 
     assert(0 <= n && n < MAXINT);
 
@@ -2520,7 +2524,7 @@ PUBLIC int sncmp(cchar *s1, cchar *s2, ssize n)
 
 PUBLIC int sncaselesscmp(cchar *s1, cchar *s2, ssize n)
 {
-    int     rc;
+    int rc;
 
     assert(0 <= n && n < MAXINT);
 
@@ -2530,7 +2534,7 @@ PUBLIC int sncaselesscmp(cchar *s1, cchar *s2, ssize n)
         return 1;
     }
     for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
-        rc = tolower((uchar) *s1) - tolower((uchar) *s2);
+        rc = tolower((uchar) * s1) - tolower((uchar) * s2);
     }
     if (rc) {
         return (rc > 0) ? 1 : -1;
@@ -2555,7 +2559,7 @@ PUBLIC int sncaselesscmp(cchar *s1, cchar *s2, ssize n)
  */
 PUBLIC char *ssplit(char *str, cchar *delim, char **last)
 {
-    char    *end;
+    char *end;
 
     if (last) {
         *last = "";
@@ -2586,7 +2590,7 @@ PUBLIC char *ssplit(char *str, cchar *delim, char **last)
 PUBLIC char *stok(char *str, cchar *delim, char **last)
 {
     char  *start, *end;
-    ssize   i;
+    ssize i;
 
     start = str ? str : *last;
     if (start == 0) {
@@ -2612,8 +2616,8 @@ PUBLIC char *stok(char *str, cchar *delim, char **last)
 
 PUBLIC char *strim(char *str, cchar *set, int where)
 {
-    char    *s;
-    ssize   len, i;
+    char  *s;
+    ssize len, i;
 
     if (str == 0 || set == 0) {
         return 0;
@@ -2642,18 +2646,18 @@ PUBLIC char *strim(char *str, cchar *set, int where)
  */
 PUBLIC int websParseArgs(char *args, char **argv, int maxArgc)
 {
-    char    *dest, *src, *start;
-    int     quote, argc;
+    char *dest, *src, *start;
+    int  quote, argc;
 
     /*
         Example     "showColors" red 'light blue' "yellow white" 'Cannot \"render\"'
         Becomes:    ["showColors", "red", "light blue", "yellow white", "Cannot \"render\""]
      */
     for (argc = 0, src = args; src && *src != '\0' && argc < maxArgc; argc++) {
-        while (isspace((uchar) *src)) {
+        while (isspace((uchar) * src)) {
             src++;
         }
-        if (*src == '\0')  {
+        if (*src == '\0') {
             break;
         }
         start = dest = src;
@@ -2705,7 +2709,7 @@ PUBLIC int fmtValloc(char **sp, int n, cchar *format, va_list args)
 
 PUBLIC int fmtAlloc(char **sp, int n, cchar *format, ...)
 {
-    va_list     args;
+    va_list args;
 
     va_start(args, format);
     *sp = sfmtv(format, args);

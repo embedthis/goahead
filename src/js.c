@@ -11,15 +11,15 @@
 #if ME_GOAHEAD_JAVASCRIPT
 /********************************** Defines ***********************************/
 
-#define     OCTAL   8
-#define     HEX     16
+#define     OCTAL 8
+#define     HEX   16
 
-static Js   **jsHandles;    /* List of js handles */
-static int  jsMax = -1;     /* Maximum size of  */
+static Js  **jsHandles;     /* List of js handles */
+static int jsMax = -1;      /* Maximum size of  */
 
 /****************************** Forward Declarations **************************/
 
-static Js       *jsPtr(int jid);
+static Js *jsPtr(int jid);
 static void     clearString(char **ptr);
 static void     setString(char **ptr, cchar *s);
 static void     appendString(char **ptr, cchar *s);
@@ -45,8 +45,8 @@ static int      charConvert(Js *ep, int base, int maxDig);
 
 PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
 {
-    Js      *ep;
-    int     jid, vid;
+    Js  *ep;
+    int jid, vid;
 
     if ((jid = wallocObject(&jsHandles, &jsMax, sizeof(Js))) < 0) {
         return -1;
@@ -78,6 +78,7 @@ PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
         ep->functions = functions;
     }
     jsLexOpen(ep);
+    ep->recursionDepth = 0;
 
     /*
         Define standard constants
@@ -89,8 +90,8 @@ PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
 
 PUBLIC void jsCloseEngine(int jid)
 {
-    Js      *ep;
-    int     i;
+    Js  *ep;
+    int i;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return;
@@ -121,10 +122,10 @@ PUBLIC void jsCloseEngine(int jid)
 #if !ECOS && KEEP
 PUBLIC char *jsEvalFile(int jid, char *path, char **emsg)
 {
-    WebsStat    sbuf;
-    Js          *ep;
-    char      *script, *rs;
-    int         fd;
+    WebsStat sbuf;
+    Js       *ep;
+    char     *script, *rs;
+    int      fd;
 
     assert(path && *path);
 
@@ -148,7 +149,7 @@ PUBLIC char *jsEvalFile(int jid, char *path, char **emsg)
         jsError(ep, "Cannot allocate %d", sbuf.st_size);
         return NULL;
     }
-    if (read(fd, script, sbuf.st_size) != (int)sbuf.st_size) {
+    if (read(fd, script, sbuf.st_size) != (int) sbuf.st_size) {
         close(fd);
         wfree(script);
         jsError(ep, "Error reading %s", path);
@@ -169,10 +170,10 @@ PUBLIC char *jsEvalFile(int jid, char *path, char **emsg)
  */
 PUBLIC int jsOpenBlock(int jid)
 {
-    Js      *ep;
-    int     vid;
+    Js  *ep;
+    int vid;
 
-    if((ep = jsPtr(jid)) == NULL) {
+    if ((ep = jsPtr(jid)) == NULL) {
         return -1;
     }
     if ((vid = wallocHandle(&ep->variables)) < 0) {
@@ -189,9 +190,9 @@ PUBLIC int jsOpenBlock(int jid)
 
 PUBLIC int jsCloseBlock(int jid, int vid)
 {
-    Js    *ep;
+    Js *ep;
 
-    if((ep = jsPtr(jid)) == NULL) {
+    if ((ep = jsPtr(jid)) == NULL) {
         return -1;
     }
     hashFree(ep->variables[vid] - JS_OFFSET);
@@ -207,8 +208,8 @@ PUBLIC int jsCloseBlock(int jid, int vid)
  */
 PUBLIC char *jsEvalBlock(int jid, cchar *script, char **emsg)
 {
-    char* returnVal;
-    int     vid;
+    char *returnVal;
+    int  vid;
 
     assert(script);
 
@@ -306,6 +307,12 @@ static int parse(Js *ep, int state, int flags)
 {
     assert(ep);
 
+    ep->recursionDepth++;
+    if (ep->recursionDepth > JS_MAX_RECURSE) {
+        jsError(ep, "Script recursion too deep");
+        ep->recursionDepth--;
+        return STATE_ERR;
+    }
     switch (state) {
     /*
         Any statement, function arguments or conditional expressions
@@ -354,7 +361,7 @@ static int parse(Js *ep, int state, int flags)
         break;
 
     /*
-     j  Expression list
+       j  Expression list
      */
     case STATE_RELEXP:
         state = parseExpr(ep, state, flags);
@@ -364,6 +371,7 @@ static int parse(Js *ep, int state, int flags)
     if (state == STATE_ERR && ep->error == NULL) {
         jsError(ep, "Syntax error");
     }
+    ep->recursionDepth--;
     return state;
 }
 
@@ -373,13 +381,13 @@ static int parse(Js *ep, int state, int flags)
  */
 static int parseStmt(Js *ep, int state, int flags)
 {
-    JsFun       func;
-    JsFun       *saveFunc;
-    JsInput     condScript, endScript, bodyScript, incrScript;
-    cchar       *value;
-    char        *identifier;
-    int         done, expectSemi, thenFlags, elseFlags, tid, cond, forFlags;
-    int         jsVarType;
+    JsFun   func;
+    JsFun   *saveFunc;
+    JsInput condScript, endScript, bodyScript, incrScript;
+    cchar   *value;
+    char    *identifier;
+    int     done, expectSemi, thenFlags, elseFlags, tid, cond, forFlags;
+    int     jsVarType;
 
     assert(ep);
 
@@ -482,7 +490,7 @@ static int parseStmt(Js *ep, int state, int flags)
                 if (state == STATE_DEC) {
                     if (jsGetVar(ep->jid, identifier, &value) > 0) {
                         jsError(ep, "Variable already declared",
-                            identifier);
+                                identifier);
                         clearString(&identifier);
                         goto error;
                     }
@@ -834,7 +842,7 @@ error:
  */
 static int parseDeclaration(Js *ep, int state, int flags)
 {
-    int     tid;
+    int tid;
 
     assert(ep);
 
@@ -882,7 +890,7 @@ static int parseDeclaration(Js *ep, int state, int flags)
  */
 static int parseFunctionArgs(Js *ep, int state, int flags)
 {
-    int     tid, aid;
+    int tid, aid;
 
     assert(ep);
 
@@ -917,8 +925,8 @@ static int parseFunctionArgs(Js *ep, int state, int flags)
  */
 static int parseCond(Js *ep, int state, int flags)
 {
-    char  *lhs, *rhs;
-    int     tid, operator;
+    char *lhs, *rhs;
+    int  tid, operator;
 
     assert(ep);
 
@@ -928,7 +936,8 @@ static int parseCond(Js *ep, int state, int flags)
 
     do {
         /*
-            Recurse to handle one side of a conditional. Accumulate the left hand side and the final result in ep->result.
+            Recurse to handle one side of a conditional. Accumulate the left hand side and the final result in
+               ep->result.
          */
         state = parse(ep, STATE_RELEXP, flags);
         if (state != STATE_RELEXP_DONE) {
@@ -975,8 +984,8 @@ static int parseCond(Js *ep, int state, int flags)
  */
 static int parseExpr(Js *ep, int state, int flags)
 {
-    char  *lhs, *rhs;
-    int     rel, tid;
+    char *lhs, *rhs;
+    int  rel, tid;
 
     assert(ep);
 
@@ -1019,7 +1028,7 @@ static int parseExpr(Js *ep, int state, int flags)
         setString(&lhs, ep->result);
 
         if ((tid = jsLexGetToken(ep, state)) == TOK_EXPR ||
-             tid == TOK_INC_DEC || tid == TOK_LOGICAL) {
+            tid == TOK_INC_DEC || tid == TOK_LOGICAL) {
             rel = (int) *ep->token;
 
         } else {
@@ -1044,15 +1053,15 @@ static int parseExpr(Js *ep, int state, int flags)
  */
 static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
 {
-    char  buf[16];
-    int     l, r, lval;
+    char buf[16];
+    int  l, r, lval;
 
     assert(lhs);
     assert(rhs);
     assert(rel > 0);
 
     lval = 0;
-    if (isdigit((uchar) *lhs) && isdigit((uchar) *rhs)) {
+    if (isdigit((uchar) * lhs) && isdigit((uchar) * rhs)) {
         l = atoi(lhs);
         r = atoi(rhs);
         switch (rel) {
@@ -1067,7 +1076,7 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
             return -1;
         }
     } else {
-        if (!isdigit((uchar) *lhs)) {
+        if (!isdigit((uchar) * lhs)) {
             jsError(ep, "Conditional must be numeric", lhs);
         } else {
             jsError(ep, "Conditional must be numeric", rhs);
@@ -1084,9 +1093,9 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
  */
 static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
 {
-    cchar   *cp;
-    char    buf[16];
-    int     numeric, l, r, lval;
+    cchar *cp;
+    char  buf[16];
+    int   numeric, l, r, lval;
 
     assert(lhs);
     assert(rhs);
@@ -1097,14 +1106,14 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
      */
     numeric = 1;
     for (cp = lhs; *cp; cp++) {
-        if (!isdigit((uchar) *cp)) {
+        if (!isdigit((uchar) * cp)) {
             numeric = 0;
             break;
         }
     }
     if (numeric) {
         for (cp = rhs; *cp; cp++) {
-            if (!isdigit((uchar) *cp)) {
+            if (!isdigit((uchar) * cp)) {
                 numeric = 0;
                 break;
             }
@@ -1222,8 +1231,9 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
  */
 static int evalFunction(Js *ep)
 {
-    WebsKey   *sp;
-    int     (*fn)(int jid, void *handle, int argc, char **argv);
+    WebsKey *sp;
+
+    int (*fn)(int jid, void *handle, int argc, char **argv);
 
     if ((sp = hashLookup(ep->functions, ep->func->fname)) == NULL) {
         jsError(ep, "Undefined procedure %s", ep->func->fname);
@@ -1241,11 +1251,11 @@ static int evalFunction(Js *ep)
 /*
     Output a parse js_error message
  */
-PUBLIC void jsError(Js *ep, cchar* fmt, ...)
+PUBLIC void jsError(Js *ep, cchar *fmt, ...)
 {
-    va_list     args;
-    JsInput     *ip;
-    char      *errbuf, *msgbuf;
+    va_list args;
+    JsInput *ip;
+    char    *errbuf, *msgbuf;
 
     assert(ep);
     assert(fmt);
@@ -1288,7 +1298,7 @@ static void setString(char **ptr, cchar *s)
 
 static void appendString(char **ptr, cchar *s)
 {
-    ssize   len, oldlen, size;
+    ssize len, oldlen, size;
 
     assert(ptr);
 
@@ -1309,7 +1319,7 @@ static void appendString(char **ptr, cchar *s)
  */
 PUBLIC int jsSetGlobalFunction(int jid, cchar *name, JsProc fn)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
@@ -1335,7 +1345,7 @@ PUBLIC int jsSetGlobalFunctionDirect(WebsHash functions, cchar *name, JsProc fn)
  */
 PUBLIC int jsRemoveGlobalFunction(int jid, cchar *name)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
@@ -1348,7 +1358,8 @@ PUBLIC void *jsGetGlobalFunction(int jid, cchar *name)
 {
     Js      *ep;
     WebsKey *sp;
-    int     (*fn)(int jid, void *handle, int argc, char **argv);
+
+    int (*fn)(int jid, void *handle, int argc, char **argv);
 
     if ((ep = jsPtr(jid)) == NULL) {
         return NULL;
@@ -1415,9 +1426,9 @@ PUBLIC int jsArgs(int argc, char **argv, cchar *fmt, ...)
 }
 
 
-PUBLIC void jsSetUserHandle(int jid, void* handle)
+PUBLIC void jsSetUserHandle(int jid, void *handle)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return;
@@ -1426,9 +1437,9 @@ PUBLIC void jsSetUserHandle(int jid, void* handle)
 }
 
 
-void* jsGetUserHandle(int jid)
+void * jsGetUserHandle(int jid)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return NULL;
@@ -1439,7 +1450,7 @@ void* jsGetUserHandle(int jid)
 
 PUBLIC int jsGetLineNumber(int jid)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
@@ -1450,7 +1461,7 @@ PUBLIC int jsGetLineNumber(int jid)
 
 PUBLIC void jsSetResult(int jid, cchar *s)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return;
@@ -1461,7 +1472,7 @@ PUBLIC void jsSetResult(int jid, cchar *s)
 
 PUBLIC cchar *jsGetResult(int jid)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return NULL;
@@ -1475,8 +1486,8 @@ PUBLIC cchar *jsGetResult(int jid)
  */
 PUBLIC void jsSetVar(int jid, cchar *var, cchar *value)
 {
-    Js          *ep;
-    WebsValue   v;
+    Js        *ep;
+    WebsValue v;
 
     assert(var && *var);
 
@@ -1498,8 +1509,8 @@ PUBLIC void jsSetVar(int jid, cchar *var, cchar *value)
  */
 PUBLIC void jsSetLocalVar(int jid, cchar *var, cchar *value)
 {
-    Js          *ep;
-    WebsValue   v;
+    Js        *ep;
+    WebsValue v;
 
     assert(var && *var);
 
@@ -1521,8 +1532,8 @@ PUBLIC void jsSetLocalVar(int jid, cchar *var, cchar *value)
  */
 PUBLIC void jsSetGlobalVar(int jid, cchar *var, cchar *value)
 {
-    Js          *ep;
-    WebsValue   v;
+    Js        *ep;
+    WebsValue v;
 
     assert(var && *var);
 
@@ -1543,9 +1554,9 @@ PUBLIC void jsSetGlobalVar(int jid, cchar *var, cchar *value)
  */
 PUBLIC int jsGetVar(int jid, cchar *var, cchar **value)
 {
-    Js          *ep;
-    WebsKey     *sp;
-    int         i;
+    Js      *ep;
+    WebsKey *sp;
+    int     i;
 
     assert(var && *var);
     assert(value);
@@ -1568,7 +1579,7 @@ PUBLIC int jsGetVar(int jid, cchar *var, cchar **value)
 
 WebsHash jsGetVariableTable(int jid)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
@@ -1579,7 +1590,7 @@ WebsHash jsGetVariableTable(int jid)
 
 WebsHash jsGetFunctionTable(int jid)
 {
-    Js    *ep;
+    Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
@@ -1648,7 +1659,7 @@ PUBLIC void jsLexClose(Js *ep)
 
 PUBLIC int jsLexOpenScript(Js *ep, cchar *script)
 {
-    JsInput     *ip;
+    JsInput *ip;
 
     assert(ep);
     assert(script);
@@ -1690,7 +1701,7 @@ PUBLIC int jsLexOpenScript(Js *ep, cchar *script)
 
 PUBLIC void jsLexCloseScript(Js *ep)
 {
-    JsInput     *ip;
+    JsInput *ip;
 
     assert(ep);
 
@@ -1715,7 +1726,7 @@ PUBLIC void jsLexCloseScript(Js *ep)
 
 PUBLIC void jsLexSaveInputState(Js *ep, JsInput *state)
 {
-    JsInput     *ip;
+    JsInput *ip;
 
     assert(ep);
 
@@ -1730,7 +1741,7 @@ PUBLIC void jsLexSaveInputState(Js *ep, JsInput *state)
 
 PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
 {
-    JsInput     *ip;
+    JsInput *ip;
 
     assert(ep);
 
@@ -1768,9 +1779,9 @@ PUBLIC int jsLexGetToken(Js *ep, int state)
 
 static int getLexicalToken(Js *ep, int state)
 {
-    WebsBuf     *tokq;
-    JsInput     *ip;
-    int         done, tid, c, quote, style;
+    WebsBuf *tokq;
+    JsInput *ip;
+    int     done, tid, c, quote, style;
 
     assert(ep);
     ip = ep->input;
@@ -2030,7 +2041,7 @@ static int getLexicalToken(Js *ep, int state)
                                 unicode support, \x0401 maps to 65 = 'A'
                              */
                             c = charConvert(ep, HEX, 2);
-                            c = c*16 + charConvert(ep, HEX, 2);
+                            c = c * 16 + charConvert(ep, HEX, 2);
 
                             break;
                         case '\'':
@@ -2079,7 +2090,7 @@ static int getLexicalToken(Js *ep, int state)
                         just ignore any \ characters.
                      */
                 } else if (tokenAddChar(ep, c) < 0) {
-                        break;
+                    break;
                 }
                 if ((c = inputGetc(ep)) < 0) {
                     break;
@@ -2088,7 +2099,7 @@ static int getLexicalToken(Js *ep, int state)
                     break;
                 }
             }
-            if (! isalpha((uchar) *tokq->servp) && *tokq->servp != '$' && *tokq->servp != '_') {
+            if (!isalpha((uchar) * tokq->servp) && *tokq->servp != '$' && *tokq->servp != '_') {
                 jsError(ep, "Invalid identifier %s", tokq->servp);
                 return TOK_ERR;
             }
@@ -2161,7 +2172,7 @@ static int tokenAddChar(Js *ep, int c)
         jsError(ep, "Token too big");
         return -1;
     }
-    * ((char*) ip->tokbuf.endp) = '\0';
+    *((char*) ip->tokbuf.endp) = '\0';
     ep->token = (char*) ip->tokbuf.servp;
 
     return 0;
@@ -2170,9 +2181,9 @@ static int tokenAddChar(Js *ep, int c)
 
 static int inputGetc(Js *ep)
 {
-    JsInput     *ip;
-    ssize       len;
-    int         c;
+    JsInput *ip;
+    ssize   len;
+    int     c;
 
     assert(ep);
     ip = ep->input;
@@ -2198,7 +2209,7 @@ static int inputGetc(Js *ep)
 
 static void inputPutback(Js *ep, int c)
 {
-    JsInput   *ip;
+    JsInput *ip;
 
     assert(ep);
 
@@ -2206,7 +2217,7 @@ static void inputPutback(Js *ep, int c)
     bufInsertc(&ip->script, (char) c);
     /* Fix by Fred Sauer, 2002/12/23 */
     if (ip->lineColumn > 0) {
-        ip->lineColumn-- ;
+        ip->lineColumn--;
     }
     ip->line[ip->lineColumn] = '\0';
 }
@@ -2217,7 +2228,7 @@ static void inputPutback(Js *ep, int c)
  */
 static int charConvert(Js *ep, int base, int maxDig)
 {
-    int     i, c, lval, convChar;
+    int i, c, lval, convChar;
 
     lval = 0;
     for (i = 0; i < maxDig; i++) {

@@ -18,15 +18,15 @@
 /*
     Token types
  */
-#define TOKEN_DAY       0x01000000
-#define TOKEN_MONTH     0x02000000
-#define TOKEN_ZONE      0x04000000
-#define TOKEN_OFFSET    0x08000000
+#define TOKEN_DAY    0x01000000
+#define TOKEN_MONTH  0x02000000
+#define TOKEN_ZONE   0x04000000
+#define TOKEN_OFFSET 0x08000000
 
 typedef struct TimeToken {
-    char    *name;
-    int     value;
-    int     type;
+    char *name;
+    int value;
+    int type;
 } TimeToken;
 
 static WebsHash timeTokens = -1;
@@ -40,7 +40,7 @@ static TimeToken days[] = {
     { "fri",  5, TOKEN_DAY },
     { "sat",  6, TOKEN_DAY },
     { 0, 0 },
- };
+};
 
 static TimeToken fullDays[] = {
     { "sunday",     0, TOKEN_DAY },
@@ -51,7 +51,7 @@ static TimeToken fullDays[] = {
     { "friday",     5, TOKEN_DAY },
     { "saturday",   6, TOKEN_DAY },
     { 0, 0 },
- };
+};
 
 /*
     Make origin 1 to correspond to user date entries 10/28/2014
@@ -70,7 +70,7 @@ static TimeToken months[] = {
     { "nov", 11, TOKEN_MONTH },
     { "dec", 12, TOKEN_MONTH },
     { 0, 0 },
- };
+};
 
 static TimeToken fullMonths[] = {
     { "january",    1, TOKEN_MONTH },
@@ -86,13 +86,13 @@ static TimeToken fullMonths[] = {
     { "november",  11, TOKEN_MONTH },
     { "december",  12, TOKEN_MONTH },
     { 0, 0 }
- };
+};
 
 static TimeToken ampm[] = {
     { "am", 0, TOKEN_OFFSET },
     { "pm", (12 * 3600), TOKEN_OFFSET },
     { 0, 0 },
- };
+};
 
 
 static TimeToken zones[] = {
@@ -108,7 +108,7 @@ static TimeToken zones[] = {
     { "pdt",  -420, TOKEN_ZONE },
     { "pst",  -480, TOKEN_ZONE },
     { 0, 0 },
- };
+};
 
 
 static TimeToken offsets[] = {
@@ -135,7 +135,7 @@ static void validateTime(struct tm *tm, struct tm *defaults);
 
 PUBLIC int websTimeOpen(void)
 {
-    TimeToken           *tt;
+    TimeToken *tt;
 
     timeTokens = hashCreate(59);
     for (tt = days; tt->name; tt++) {
@@ -187,19 +187,19 @@ static int leapYear(int year)
 
 static int daysSinceEpoch(int year)
 {
-    int     days;
+    int days;
 
     days = 365 * (year - 1970);
-    days += ((year-1) / 4) - (1970 / 4);
-    days -= ((year-1) / 100) - (1970 / 100);
-    days += ((year-1) / 400) - (1970 / 400);
+    days += ((year - 1) / 4) - (1970 / 4);
+    days -= ((year - 1) / 100) - (1970 / 100);
+    days += ((year - 1) / 400) - (1970 / 400);
     return days;
 }
 
 
 static WebsTime makeTime(struct tm *tp)
 {
-    int     days, year, month;
+    int days, year, month;
 
     year = tp->tm_year + 1900 + tp->tm_mon / 12;
     month = tp->tm_mon % 12;
@@ -216,7 +216,7 @@ static WebsTime makeTime(struct tm *tp)
 
 static int lookupSym(char *token, int kind)
 {
-    TimeToken   *tt;
+    TimeToken *tt;
 
     if ((tt = (TimeToken*) hashLookupSymbol(timeTokens, token)) == 0) {
         return -1;
@@ -230,7 +230,7 @@ static int lookupSym(char *token, int kind)
 
 static int getNum(char **token, int sep)
 {
-    int     num;
+    int num;
 
     if (*token == 0) {
         return 0;
@@ -247,15 +247,15 @@ static int getNum(char **token, int sep)
 
 static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
 {
-    char    *cp;
-    int     num;
+    char *cp;
+    int  num;
 
     assert(token && *token);
 
     if (token == NULL || *token == NULL || **token == '\0') {
         return 0;
     }
-    if (isalpha((uchar) **token)) {
+    if (isalpha((uchar) * *token)) {
         *isAlpah = 1;
         cp = strchr(*token, sep);
         if (cp) {
@@ -277,7 +277,7 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
 
 static void swapDayMonth(struct tm *tp)
 {
-    int     tmp;
+    int tmp;
 
     tmp = tp->tm_mday;
     tp->tm_mday = tp->tm_mon;
@@ -292,12 +292,12 @@ static void swapDayMonth(struct tm *tp)
  */
 PUBLIC int websParseDateTime(WebsTime *time, cchar *dateString, struct tm *defaults)
 {
-    TimeToken       *tt;
-    struct tm       tm;
-    char            *str, *next, *token, *cp, *sep;
-    int64           value;
-    int             kind, hour, min, negate, value1, value2, value3, alpha, alpha2, alpha3;
-    int             dateSep, offset, zoneOffset, fullYear;
+    TimeToken *tt;
+    struct tm tm;
+    char      *str, *next, *token, *cp, *sep;
+    int64     value;
+    int       kind, hour, min, negate, value1, value2, value3, alpha, alpha2, alpha3;
+    int       dateSep, offset, zoneOffset, fullYear;
 
     if (!dateString) {
         dateString = "";
@@ -383,7 +383,7 @@ PUBLIC int websParseDateTime(WebsTime *time, cchar *dateString, struct tm *defau
             }
             zoneOffset = negate * (hour * 60 + min);
 
-        } else if (isalpha((uchar) *token)) {
+        } else if (isalpha((uchar) * token)) {
             if ((tt = (TimeToken*) hashLookupSymbol(timeTokens, token)) != 0) {
                 kind = tt->type;
                 value = tt->value;
@@ -506,7 +506,7 @@ PUBLIC int websParseDateTime(WebsTime *time, cchar *dateString, struct tm *defau
 
 static void validateTime(struct tm *tp, struct tm *defaults)
 {
-    struct tm   empty;
+    struct tm empty;
 
     /*
         Fix apparent day-mon-year ordering issues. Cannot fix everything!
@@ -605,7 +605,7 @@ static void validateTime(struct tm *tp, struct tm *defaults)
     if (tp->tm_yday < 0) {
         if (tp->tm_mon <= 11) {
             tp->tm_yday = (leapYear(tp->tm_year + 1900) ?
-                leapMonthStart[tp->tm_mon] : normalMonthStart[tp->tm_mon]) + tp->tm_mday - 1;
+                           leapMonthStart[tp->tm_mon] : normalMonthStart[tp->tm_mon]) + tp->tm_mday - 1;
         } else {
             tp->tm_yday = defaults->tm_yday;
         }

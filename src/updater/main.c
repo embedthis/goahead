@@ -1,5 +1,5 @@
 /*
-    update -- Fetch software updates
+    updater -- Main program
 
     update --host Domain --token Token --product ProductID --device DeviceID --version 1.2.3 \
         key=value key=value ...
@@ -16,7 +16,7 @@
 
 /********************************** Locals ************************************/
 
-#define IMAGE_PATH  "/tmp/update.bin"
+#define IMAGE_PATH  "update.bin"
 #define SERVER_PORT 443
 #define BUFFER_SIZE 4096
 
@@ -47,16 +47,17 @@ static int usage(void)
 
 int main(int argc, char **argv)
 {
+    int rc;
+
     if (parseArgs(argc, argv) < 0) {
         return -1;
     }
     if (!host || !product || !token || !device || !version) {
         usage();
     }
-    if (update(host, product, token, device, version, properties, file, cmd, verbose) < 0) {
-        return -1;
-    }
-    return 0;
+    rc = update(host, product, token, device, version, properties, file, cmd, verbose);
+    free(properties);
+    return rc;
 }
 
 static int parseArgs(int argc, char **argv)
@@ -125,6 +126,10 @@ static int parseArgs(int argc, char **argv)
                 usage();
             }
             count = snprintf(&pbuf[mark], sizeof(pbuf) - mark - 1, "\"%s\":\"%s\",", key, value);
+            if (count < 0 || mark + count >= BUFFER_SIZE) {
+                fprintf(stderr, "Parameter buffer overflow - arguments too long");
+                usage();
+            }
             mark += count;
             if (mark >= BUFFER_SIZE) {
                 fprintf(stderr, "Too many parameters");

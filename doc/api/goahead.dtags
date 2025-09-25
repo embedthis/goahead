@@ -1,6 +1,609 @@
 <?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <tagfile doxygen_version="1.9.6">
   <compound kind="struct">
+    <name>Webs</name>
+    <filename>struct_webs.html</filename>
+    <member kind="variable">
+      <type>char *</type>
+      <name>authDetails</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a22c8eb59efa1e432685b3f94cc7e271b</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>authResponse</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a5be37bc666bcf2b8d5e563d1bc4e2d9a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>authType</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a259475e6ccebc81969d8c7d9ded86ce8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>boundary</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a5ddf1855ac370f260275b4bc32f02acb</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>boundaryLen</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a2a858c57baa126b0e3016af1e99481e5</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>cgifd</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a85a8b893a147d8a2d1657941baaa507a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>cgiStdin</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae78d20de04a1ce1268d1e5e2723ec162</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsBuf</type>
+      <name>chunkbuf</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae1a4b5f0781662f3b7c6e48c213ff5c5</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>clientFilename</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ab1fc11d79086325d891155fcbc9b68c9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>code</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a07280837556d5e09f58ce2d5bd76fa03</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>uint</type>
+      <name>connError</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a57e249c5d479eaafe904918afdc1176a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>contentType</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af3a2a8523437ec1bb79ebeed2999dec7</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>cookie</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a7dbac67c8612141b49622cf70368ae02</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsUpload *</type>
+      <name>currentFile</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af203e79f7735b34a45613f48a494abaf</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>decodedQuery</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae0a9dfed5cfaa61aa70d8cc5235613b6</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>digest</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a5addcf0afa2fb09553a7333089dcf6e7</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>docfd</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a290fab9610350b200ee9c15bc89ca77c</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>encoded</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a568d9a796e4f0cbc96aa5c924d48f1a8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>bool</type>
+      <name>eof</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aac68366c7f1f2f7375e327812a03c862</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>uint</type>
+      <name>error</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a74e0108bce02fa2896ad4a2d9e77f07a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>ext</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae14a0dc2b70bce0063128242c01ada44</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>filename</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aa200ee801dbd009ae39256ba638b7bbb</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>files</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a41507f63365fd355d3b417379a247615</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>uint</type>
+      <name>finalized</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a6b024d0cbb6da8491ffd85e6a1b580cf</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>flags</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aef7051fbea1d0a0477a3f1f5c0a40f0d</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>host</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a5434d9823cdbbd5f5a3c001f84184bf1</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char</type>
+      <name>ifaddr</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af4eddf70464df95a1258bb788820e726</anchor>
+      <arglist>[ME_MAX_IP]</arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsBuf</type>
+      <name>input</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a800404274bde5d7c2c4b1c539ba6da64</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char</type>
+      <name>ipaddr</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ac21f6941c9734ea4f38dabb92c097d3f</anchor>
+      <arglist>[ME_MAX_IP]</arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>lastRead</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a20c9fadc13c2032d653158629ff4a074</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>listenSid</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a4e1a745354ce9892d7acda9574ddb8cd</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>method</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a7a11618feb24f9927499c841c5c29dd3</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsBuf</type>
+      <name>output</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a1317cecfc3b0fbcc331f934081015d1c</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>password</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a08b308c9cd80aba4d729751f639fd712</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>path</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ac4442c23ab5c4136fa6e9826dc025bd9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>port</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a65ea36d000fb176ac59b6ad9eb5f9faa</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>protocol</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aca189f1f7581f0cfd98c5d860bb169bd</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>protoVersion</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aeff2353e3d58f97d38a83791cc61091f</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>putLen</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aff450bb9acccf9b50042c856dd1ec9b1</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>putname</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a07ff1d04a0ae1f6d838d409e5a921f94</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>query</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a708c3dbe1ffb8c2e4bc9c262cbf0020e</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>realm</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a298698945e34627953a8d30e18f660cc</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>referrer</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af2232eb6ed59de08e9af90da0ea8659b</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>responseCookies</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>afd73f2a3554b6ac32582f9fbe82304ce</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>struct WebsRoute *</type>
+      <name>route</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a889567641f48625216dfcb1aa849609c</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>routeCount</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a83be0bfccd487a56e44bfb7079cc8962</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsBuf</type>
+      <name>rxbuf</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a1a738fde4f7c4c64fe314c31450785aa</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>rxChunkSize</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a450615ebbcfedb2372adf5418d71b6c9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>rxChunkState</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a876f5171ec53af85877ba190299c03b3</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>rxEndp</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a5bec0e0c808b319e4363532a966e99e8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>rxLen</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>abef5826066a9fce6f6849bf8116b8147</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>rxRemaining</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a2190eee075132f8f4edc8af9129603b5</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>struct WebsSession *</type>
+      <name>session</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a295a4e70dcea835252e22e13e25ab9f9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>sid</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af927115586c22ea064f654f5252bde7d</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsTime</type>
+      <name>since</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ab14accaad5d21572d066229adf29e5ef</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>void *</type>
+      <name>ssl</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aecf8e2ec7bb0ed6ed23c530863e9a972</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>state</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae0e6e306f995073af892b36178fdf80e</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>timeout</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a0bda3e8f3fa23bd00e987cd9bd49dd9a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsTime</type>
+      <name>timestamp</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aee18408d0b22b9587f814d91cbdc739a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>txChunkLen</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ab1a7e4459270ce8f52e31fb094cb875d</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char</type>
+      <name>txChunkPrefix</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af304cf646fe3be3592e7562b31fdbac1</anchor>
+      <arglist>[16]</arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>txChunkPrefixLen</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>adc76b46289adde26318e8ec5f5263bba</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>txChunkPrefixNext</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a6c87f9e1e89a9c9e787cb684a2e25750</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>txChunkState</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a125139d742e2c40a5d0fe11e3467bccc</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>txLen</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a1a7f1f5f078448015482cbaba8b17836</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>txRemaining</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ad4e07bb1cefb9553587d601ba86f17cc</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>upfd</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aa20891b8f5a0e1ddd490e3a3bb0531c2</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>uploadState</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af9fdfeecdc16075df72b35a4f484c2ee</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>uploadTmp</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>abcb7fd712add91217228c181e0b6fad9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>uploadVar</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af052577806d36f6cfe89cc33aa97ec88</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>url</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae4925919d049650b61098dd7d6c5ae15</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>struct WebsUser *</type>
+      <name>user</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a0a5ae8221021c6e5c61a25fa9c5e0da8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>userAgent</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>afecab1181c3866a2c48ad5a1cb48544a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>username</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a43f6cec2a7321ce80c157131af16bb72</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>vars</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a975a09f4ba5b82c851c29937659374ad</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>wid</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae597664c20d60ac83c8bd608ce452609</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsWriteProc</type>
+      <name>writeData</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a684c0828f93b9989243f292f1f7c543c</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>written</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ac8277d328a7af48384af3662f739a830</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
+    <name>WebsBuf</name>
+    <filename>struct_webs_buf.html</filename>
+    <member kind="variable">
+      <type>char *</type>
+      <name>buf</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>a46b8fcdd026d28a3d4eeaa193a3c9f3b</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>buflen</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>a09ec3371ec524f2de13e6d728d105d70</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>endbuf</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>aa2aa481e2477b06c1c8fedefd6d545a0</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>endp</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>afb9036a3495b2f0f8a1f411648be4bf9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>increment</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>a8c7906ee76c3918fc6d279998271e45d</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>maxsize</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>a8b54b3434d9366fb3cb8655ad1b4bacb</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>servp</name>
+      <anchorfile>struct_webs_buf.html</anchorfile>
+      <anchor>a3e5d4c4d94cb3f3a30c2c7621e4bc54d</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
     <name>WebsError</name>
     <filename>struct_webs_error.html</filename>
     <member kind="variable">
@@ -83,6 +686,10 @@
     </member>
   </compound>
   <compound kind="struct">
+    <name>WebsKey</name>
+    <filename>struct_webs_key.html</filename>
+  </compound>
+  <compound kind="struct">
     <name>WebsMime</name>
     <filename>struct_webs_mime.html</filename>
     <member kind="variable">
@@ -144,6 +751,302 @@
     </member>
   </compound>
   <compound kind="struct">
+    <name>WebsRoute</name>
+    <filename>struct_webs_route.html</filename>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>abilities</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a6b36075d6382e32697e05aeda10d794a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsAskLogin</type>
+      <name>askLogin</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>ab7891065b681ae4e97b59549fcec2ac0</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>authType</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a3a765ffa4b04a2894b6339b74e3ea052</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>dir</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>aeda98dd9c256c100b2cffcbfc103957a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>extensions</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a3b6d9f5c99ef9c6173f3f03cd35ce94e</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>flags</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a7cc717c6a3af5994df5ae0431484ea18</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHandler *</type>
+      <name>handler</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>ab985fb228b809c062eccc682ba1088e6</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>methods</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a73466455629e64a98a63a2ad4608203c</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsParseAuth</type>
+      <name>parseAuth</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>acf21d47b2a9737673f45889a2ce470c8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>prefix</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a9db850d11aa22f03751c09ddd5c30eb8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>prefixLen</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a4e112fed9db575b6df3337a270f7c9a1</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>protocol</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>ad7f94b7cfc5afe624005d604e41e475e</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>redirects</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>a92fc240d24467bba90a5956828e6a3da</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsVerify</type>
+      <name>verify</name>
+      <anchorfile>struct_webs_route.html</anchorfile>
+      <anchor>ae453dc5566524c2ed75fa6f9f43f03da</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
+    <name>WebsSession</name>
+    <filename>struct_webs_session.html</filename>
+    <member kind="variable">
+      <type>WebsHash</type>
+      <name>cache</name>
+      <anchorfile>struct_webs_session.html</anchorfile>
+      <anchor>a427c2355a42f25793c3338b4e9f4749a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsTime</type>
+      <name>expires</name>
+      <anchorfile>struct_webs_session.html</anchorfile>
+      <anchor>a5ac6b51268f0c8d43701be6bb375a0c1</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>id</name>
+      <anchorfile>struct_webs_session.html</anchorfile>
+      <anchor>ac4232e3ca348135d581b3de7edae7ae3</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>lifespan</name>
+      <anchorfile>struct_webs_session.html</anchorfile>
+      <anchor>aaf9823c1b658c32dfe1a13d12bcbe3bb</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
+    <name>WebsSocket</name>
+    <filename>struct_webs_socket.html</filename>
+    <member kind="variable">
+      <type>SocketAccept</type>
+      <name>accept</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a1e1f24634288bf3a5d5da55d65d0ad14</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>currentEvents</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>abcd15a4df8da39430f5c72a3ec757a40</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>error</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a0e48b40e58b6703eccf776b91c4fe3df</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>fileHandle</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>adaac028690918de9fb08b0fb96a6c7bb</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>flags</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a8f395a9d2909367e76ff7f9adb3569dd</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>SocketHandler</type>
+      <name>handler</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a062c28d3ccd1c90ec5489dddfa8b3370</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>void *</type>
+      <name>handler_data</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>ab6e5adf8e9507322ffad44d8bf9656b2</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>handlerMask</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>adb56a70a245aed05d9510d16ebf4fb7d</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>handshakes</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a67666377f0d478edc06836b4553e8c53</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>interestEvents</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a637ec50a2dc66526ec8ec3a65154e2e7</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>ip</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>ac3709373e393db41572ba139214fb5bd</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsBuf</type>
+      <name>lineBuf</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a117eeaaf35ed8316551c6ad033e34ca9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>port</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a3efaf6dc2e3f93eec350745855f7f148</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>saveMask</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a1f42a3e8c7ad2e02f388e0be426b62d4</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>secure</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>ab8cd9e93cf1d0917b08dfb036811242b</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>selectEvents</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>ac4a91a6fa08d8dfe835b0172bf14ec02</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>sid</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a8a9e4f4501cbbad87b40ced41700b873</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>Socket</type>
+      <name>sock</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>ae4e843a91fbbf809cfefdbea7b4029a7</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
+    <name>WebsUpload</name>
+    <filename>struct_webs_upload.html</filename>
+    <member kind="variable">
+      <type>char *</type>
+      <name>clientFilename</name>
+      <anchorfile>struct_webs_upload.html</anchorfile>
+      <anchor>ab37ccea6598c223a697d200ebed4fcc8</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>contentType</name>
+      <anchorfile>struct_webs_upload.html</anchorfile>
+      <anchor>a522d5e8fa2dfc9442f395c75f637a10a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>filename</name>
+      <anchorfile>struct_webs_upload.html</anchorfile>
+      <anchor>a18ed7ffb56b6b33cc4756e395e717362</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>size</name>
+      <anchorfile>struct_webs_upload.html</anchorfile>
+      <anchor>a3752b03efb019c546b082607083fdb3b</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
     <name>WebsUser</name>
     <filename>struct_webs_user.html</filename>
     <member kind="variable">
@@ -178,1940 +1081,5 @@
   <compound kind="struct">
     <name>WebsValue</name>
     <filename>struct_webs_value.html</filename>
-  </compound>
-  <compound kind="group">
-    <name>Webs</name>
-    <title>Webs</title>
-    <filename>group___webs.html</filename>
-    <class kind="struct">WebsError</class>
-    <class kind="struct">WebsFileInfo</class>
-    <class kind="struct">WebsHandler</class>
-    <class kind="struct">WebsMime</class>
-    <class kind="struct">WebsRomIndex</class>
-    <member kind="typedef">
-      <type>void(*</type>
-      <name>WebsAction</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gacbbbea4092b366e954f77916957cf6c5</anchor>
-      <arglist>)(Webs *wp)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>void(*</type>
-      <name>WebsAskLogin</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga00798847832d6e6b032e7423a3bf5bb2</anchor>
-      <arglist>)(Webs *wp)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>void(*</type>
-      <name>WebsHandlerClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga6b8f7c9a8138c1c585ec1c2b7aa7a954</anchor>
-      <arglist>)(void)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>bool(*</type>
-      <name>WebsHandlerProc</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga1b14d912d52adc694c3c713ec0a17412</anchor>
-      <arglist>)(Webs *wp)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>int(*</type>
-      <name>WebsJstProc</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga35aa7f7f128a9d1a4c4f3eeb7849d638</anchor>
-      <arglist>)(int jid, Webs *wp, int argc, char **argv)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>bool(*</type>
-      <name>WebsParseAuth</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga8813a82488191e0cb2df0f7cafcd1414</anchor>
-      <arglist>)(Webs *wp)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>bool(*</type>
-      <name>WebsVerify</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga196a6343b64e6944f3b77b8af709a7e8</anchor>
-      <arglist>)(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>sslClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7e6149e63a2f4ad6fc53ac6ac60cec1a</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>sslFree</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaeebef5121f49387a67fc33de42aefffe</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>sslOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga81e8547c8bf48f6b74e0ea2fab0a296c</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>sslRead</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga8063a955fe7c9d4f3f1ccb036d186835</anchor>
-      <arglist>(Webs *wp, void *buf, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>sslUpgrade</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga0ceefc6dfb2a71dec6c5a18b37097c64</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>sslWrite</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf190d807759ac01cad747d013b1893cf</anchor>
-      <arglist>(Webs *wp, void *buf, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websAccept</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga0a02508940140401b730219dba7295d5</anchor>
-      <arglist>(int sid, cchar *ipaddr, int port, int listenSid)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websActionOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf903a6d7928616f803d294de73f8cd11</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websAlloc</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga069bb8b6d336ca5f8ea2f3b8c113371b</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websCancelTimeout</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gad02e7e70e4f3b7bca1ee2a318a336e80</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websCgiHandler</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac05856f3dd04aeef0732570bedf044ad</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websCgiOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gae908f662db14b2f0571634f48dda790c</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websCgiPoll</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac14f9e9acabae760c4225c6a372747a5</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga94471225b733c21ebe13449aed71cf98</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websCloseFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac3d3297f51f566d7dcd0c1003180f210</anchor>
-      <arglist>(int fd)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websCompareVar</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga2ebc310e8ccbfd0e52a29d5f8d192b13</anchor>
-      <arglist>(Webs *wp, cchar *var, cchar *value)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websConsumeInput</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga6e0b2ea7b62d847fd10d7bb761d1189e</anchor>
-      <arglist>(Webs *wp, ssize nbytes)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websDecode64</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gab2de4f62778e48a29efb32367b7892aa</anchor>
-      <arglist>(char *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websDecode64Block</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf4a3078d67578f8a87e7c8bd00e98ab7</anchor>
-      <arglist>(char *str, ssize *len, int flags)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websDecodeUrl</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gab121f04477c839b0750fb24db5f25d8b</anchor>
-      <arglist>(char *decoded, char *input, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websDefineAction</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga16df3436fa7bff9179b1d278c24beef5</anchor>
-      <arglist>(cchar *name, void *fun)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websDefineHandler</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gabfae07af8717f3e8080cc4738db4ae1e</anchor>
-      <arglist>(cchar *name, WebsHandlerProc match, WebsHandlerProc service, WebsHandlerClose close, int flags)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websDefineJst</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7f4aa0888bf456eab90a010bcbcdb770</anchor>
-      <arglist>(cchar *name, WebsJstProc fn)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websDone</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac2af58b7a686cb33e44eb010cf755ce1</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websEncode64</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3b53aecc379c749b448bd2e7a97cd139</anchor>
-      <arglist>(char *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websEncode64Block</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3bf8a9fb4498ace5f110829a05a84b12</anchor>
-      <arglist>(char *str, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websError</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac898af1d6d0c6cccb905e6a53479b559</anchor>
-      <arglist>(Webs *wp, int code, cchar *fmt,...)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websErrorMsg</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaaec1002e4782fac4bb4efc164bf52852</anchor>
-      <arglist>(int code)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websEscapeHtml</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga4ec7e48d4586a004ae6e40ee3d9c412d</anchor>
-      <arglist>(cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websEscapeUri</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga147eafef2fb33fde77fd107b0a722333</anchor>
-      <arglist>(cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websFileOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf24cee2f9e39e20e09e73067b8b5b072</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websFlush</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga6525ac98afd32c69fd0a7985c0b87f5f</anchor>
-      <arglist>(Webs *wp, bool block)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websFree</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga34a9c871eaf4cba49ff81174318af979</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websFreeUpload</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga54bd8e9073aca8fe5ac527e0b26ae738</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websFsClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3d2d9787c3fd3b4338ae0a6995fbb338</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websFsOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga0014f224e979be944998d31c4faad46f</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websGetBackground</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga4ac722a8a552f9740ad97de6f23891a4</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websGetCgiCommName</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7d6a17eed675024232223dd1133a5a40</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetCookie</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga381cc690d7609586e26c24d21c725948</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websGetDateString</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gadb28bad0b0dcc291ba971fc6949704f6</anchor>
-      <arglist>(WebsFileInfo *sbuf)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websGetDebug</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga9cbfca3c673e58c64325460d6e0c5e74</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetDir</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga373fc33c76f0d5eeb9bec3ee7c6ce6ca</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websGetDocuments</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaea188696c0473f0a3fe97d25d0aab981</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websGetEof</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga2666ed7d6a56c3014d5ceb076cff0567</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetExt</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gae15073623be9002105addfd9784c3d8d</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetFilename</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gab35590a51bc395297a4f3836fbe61385</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetHost</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga1aae3ee1a79ab12ec11ef1e6b51d5841</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetIfaddr</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf9ec4b07d3ee57cdf70c2e80f50bab7a</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetIndex</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gab9ed6801ea291f004bfa7e4d1d29d30f</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websGetLogLevel</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga2746a02538e42a71d4ef272a9971f986</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetMethod</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gafb56be0642d762393983d5fefbbc4f58</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetPassword</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf3e788bc53c5dac3e34d56b39e219f5b</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetPath</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7ae7d916343ffc203769d1a7ae4644bb</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websGetPort</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaee772cdbaee60ec39567c47e9a83c2c6</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetProtocol</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga49c8adec4cb8bb688aa45861dbe10aa8</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetQuery</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gade3a531282ee4e222aac0213e0d030d0</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetServer</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga87052a0e38ceb1a7ea1eaed08db299c3</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetServerAddress</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3f0185f5a6205991daad2ea9d618ffc4</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetServerAddressUrl</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaab0f523ca4b53221c2222cf94ca413a8</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetServerUrl</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga6fb94c534e537b25126bb749373d78e2</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetUrl</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga4157349f9eb4d7fae05e71ca95e5639c</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetUserAgent</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3fff7b1d11edc1b1a1fd53c050db8eae</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetUsername</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga04a9621e056d63a6a7a97903a24a257d</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetVar</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga9ff72cba5d31a046a3f5bdebe70d7f4a</anchor>
-      <arglist>(Webs *wp, cchar *name, cchar *defaultValue)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websJstOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga75e53757d82543b1b27797967c0aefb6</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websJstWrite</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga88501f83c58a6ea9dc8fd14974db9130</anchor>
-      <arglist>(int jid, Webs *wp, int argc, char **argv)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websListen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaa883a6d5dfe21e9ae5fd6f1bae2b72c9</anchor>
-      <arglist>(cchar *endpoint)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websMD5</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga8d6e37e4e985ee9474de5f01a89c2aa4</anchor>
-      <arglist>(cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websMD5Block</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga290a5143ed17538273e3439fed007b09</anchor>
-      <arglist>(cchar *buf, ssize length, cchar *prefix)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websNormalizeUriPath</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga55dea2534ab560d3b59b276a93dca58d</anchor>
-      <arglist>(cchar *path)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websNoteRequestActivity</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3b5c4de81f247a9faf225c636ec8c79f</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga1cedecd14d83cdd8dcbffceb8b51791c</anchor>
-      <arglist>(cchar *documents, cchar *routes)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websOpenFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga3e3edc47c5f177466de9c3eabe664b88</anchor>
-      <arglist>(cchar *path, int flags, int mode)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websOptionsOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga690dbbada9274dd35ce9d2a96d981e07</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websOsClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gad56c750456cbcb6bde8f6e28d4ba3989</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websOsOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gada39f22333835280a7be57bd1770aef1</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websPageClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga42ac8fd2d43cd62e36de672897476033</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websPageIsDirectory</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gae3a5d48960ff548b64372bf79d151801</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websPageOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga550a444cd6c8991eef437ece0cff386a</anchor>
-      <arglist>(Webs *wp, int mode, int perms)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>websPageReadData</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga412045a224b12fad35f3ccb0eba21309</anchor>
-      <arglist>(Webs *wp, char *buf, ssize size)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websPageSeek</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gade99dac2cc10314deb754833298fc3af</anchor>
-      <arglist>(Webs *wp, Offset offset, int origin)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websPageStat</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gafa581d664b5cc3eacc073d1a5d113d7a</anchor>
-      <arglist>(Webs *wp, WebsFileInfo *sbuf)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websParseDateTime</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac893e2749beee259505e673c4e551f04</anchor>
-      <arglist>(WebsTime *time, cchar *date, struct tm *defaults)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websProcessCgiData</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga0853e59f6f1dba6c94c8d3d659106e7f</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websProcessUploadData</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gabf36424ddd2ef63ac20fc1419debc90e</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websPump</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf8cbf1876923de6cacc9654cb89692dd</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>websReadFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga648cc4a4536a44aefcffaa091b3ea37f</anchor>
-      <arglist>(int fd, char *buf, ssize size)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websReadWholeFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga0948f5c88884310f17646e553c6252a7</anchor>
-      <arglist>(cchar *path)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websRedirect</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga71919fc188e9b1f7130891b22181abd4</anchor>
-      <arglist>(Webs *wp, cchar *url)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRedirectByStatus</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga2071f8d94ddff6c2143caeca98e4b28d</anchor>
-      <arglist>(Webs *wp, int status)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websResponse</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gab0e25f7d5e2ab92116e94a3d2f0e6712</anchor>
-      <arglist>(Webs *wp, int status, cchar *msg)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRewriteRequest</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga5a766509244081e0f76bc70479b2a912</anchor>
-      <arglist>(Webs *wp, cchar *url)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websRuntimeClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaa36f628a3e14fe08420597095f0f74c2</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRuntimeOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga4d8e96f6b4a072ca8cadda04912a669e</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>Offset</type>
-      <name>websSeekFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaca0e8d193f5ad1592e7945ac95d9d96e</anchor>
-      <arglist>(int fd, Offset offset, int origin)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websServer</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gae1e0fc3c37a3050a6da804a42637b32e</anchor>
-      <arglist>(cchar *endpoint, cchar *documents)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websServiceEvents</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga81d8a2cfbe5360e1a46011172470368a</anchor>
-      <arglist>(int *finished)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetBackground</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaed3bf51e30277fe1b56379bb6a1b6699</anchor>
-      <arglist>(int on)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetCookie</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga628ad13f465a4c67339e2b53540ad01a</anchor>
-      <arglist>(Webs *wp, cchar *name, cchar *value, cchar *path, cchar *domain, int lifespan, int flags)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetDebug</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gae3b839fa0c223b457f109c61c177da96</anchor>
-      <arglist>(int on)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetDocuments</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaf0802eca30adb2cc9d2b7d2ccc2badc6</anchor>
-      <arglist>(cchar *dir)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetEnv</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga01f49a8761bd89203fa493a79a821e56</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetFormVars</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gacba78b1a19ef4ddade76807333243d5c</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetHost</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga826854eb79f23630f7f7905ccf862976</anchor>
-      <arglist>(cchar *host)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetIndex</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga346178ebf1361d67acab6a62ff15adc2</anchor>
-      <arglist>(cchar *filename)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetIpAddr</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7528ade178ede9cd6fe6abe011869dc1</anchor>
-      <arglist>(cchar *ipaddr)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetLogLevel</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga46d153b401bb7fc47ae5b17203541644</anchor>
-      <arglist>(int level)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetQueryVars</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga9b7ae14718f40340d9621529f4587548</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetStatus</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaef03eccfb6f0d42b34f1a7a90bac62b6</anchor>
-      <arglist>(Webs *wp, int status)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetTxLength</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga999bb54215bbc7d71c7d6e828fcf49c8</anchor>
-      <arglist>(Webs *wp, ssize length)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsKey *</type>
-      <name>websSetVar</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga17caa27f9a4cbb6ebd321351d4ae621b</anchor>
-      <arglist>(Webs *wp, cchar *name, cchar *value)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsKey *</type>
-      <name>websSetVarFmt</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga9a90db3b557d20dfb131ae675b66f783</anchor>
-      <arglist>(Webs *wp, cchar *name, cchar *fmt,...)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websStatFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga040b642a888cc259456bacfec4227217</anchor>
-      <arglist>(cchar *path, WebsFileInfo *sbuf)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websTempFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga6a9c3b30f23d8eec41ff6b261fa35105</anchor>
-      <arglist>(cchar *dir, cchar *prefix)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websTestVar</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gab42afeb8b16720903e8289fcb9c072ba</anchor>
-      <arglist>(Webs *wp, cchar *name)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websTimeClose</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gafc3db65ebb5f3a86ec0e3ccde56c1f31</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websTimeOpen</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga4a94586b4fdeb3c91b1555c3d70151a0</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websUrlParse</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga8c080d18fb0f34cb68759bce48eac7d9</anchor>
-      <arglist>(cchar *url, char **buf, char **protocol, char **host, char **port, char **path, char **ext, char **reference, char **query)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websValid</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gaebff2db9e8b7a70579082cf92593bcfe</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websValidateUriPath</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7c2f526fe8a0df22e1340eaac675b4d1</anchor>
-      <arglist>(cchar *uri)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websValidUriChars</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gafd15ff2fac3a34650837fec69124b2a2</anchor>
-      <arglist>(cchar *uri)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>websWrite</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gac41407ff97f138db72108cb142258f5e</anchor>
-      <arglist>(Webs *wp, cchar *fmt,...)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>websWriteBlock</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga9b63519c49d00fae1e06b2c918f970f7</anchor>
-      <arglist>(Webs *wp, cchar *buf, ssize size)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websWriteEndHeaders</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga7b3fddd74796c79f7e41e8bd9ce107a4</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>websWriteFile</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>gadd0a77daf2fd10766c587c179b09081e</anchor>
-      <arglist>(int fd, cchar *buf, ssize size)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websWriteHeader</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga34f4159f41e89e67c22a8767d6cd98bb</anchor>
-      <arglist>(Webs *wp, cchar *key, cchar *fmt,...)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websWriteHeaders</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga174c1184ac25621b34337fe47e3be7d6</anchor>
-      <arglist>(Webs *wp, ssize contentLength, cchar *redirect)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>websWriteSocket</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga8712767b916c5e7a281760ee5d0cbb12</anchor>
-      <arglist>(Webs *wp, cchar *buf, ssize size)</arglist>
-    </member>
-    <member kind="variable">
-      <type>PUBLIC_DATA WebsRomIndex</type>
-      <name>websRomIndex</name>
-      <anchorfile>group___webs.html</anchorfile>
-      <anchor>ga4080e369f00b64ecb029210c752c0162</anchor>
-      <arglist>[]</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsAuth</name>
-    <title>WebsAuth</title>
-    <filename>group___webs_auth.html</filename>
-    <class kind="struct">WebsRole</class>
-    <class kind="struct">WebsUser</class>
-    <member kind="function">
-      <type>WebsRole *</type>
-      <name>websAddRole</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga0409e3a0a7c0cc9db980e7801fda3112</anchor>
-      <arglist>(cchar *role, WebsHash abilities)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsUser *</type>
-      <name>websAddUser</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gaac1356d7b26e0b962d32eb1ee038731e</anchor>
-      <arglist>(cchar *username, cchar *password, cchar *roles)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websAuthenticate</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga2e7099150ce40f126e53901b37055164</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websCan</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga4b9213d33c030e357c81a97765a83ab3</anchor>
-      <arglist>(Webs *wp, WebsHash ability)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websCloseAuth</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gafd247c60a4a156f514fae54aba5c95af</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websComputeAllUserAbilities</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga4d6532cddbf3407711d240f6d2591bc9</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsVerify</type>
-      <name>websGetPasswordStoreVerify</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gac59e51db50106639503b066a95258b75</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsHash</type>
-      <name>websGetRoles</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gac4ce05bc63317ae4689e42b0bba4f6b7</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsHash</type>
-      <name>websGetUsers</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gad3d4ca84a25b0efea6d8aca2bf3784d5</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websLoginUser</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga0359ac96f9112adc03baa0ed6d4740d6</anchor>
-      <arglist>(Webs *wp, cchar *username, cchar *password)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websLogoutUser</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga2ce714b242d8f8d184daaa82eadb1aaf</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsUser *</type>
-      <name>websLookupUser</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gafb136123b24cc1793e1cd407b97756d6</anchor>
-      <arglist>(cchar *username)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websOpenAuth</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga7653f9dcb2904cd3632b019273c02ade</anchor>
-      <arglist>(int minimal)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRemoveRole</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga19bedf7e54b1993a08f2f6e7ae7dea9c</anchor>
-      <arglist>(cchar *role)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRemoveUser</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gaada9cd540cd4c0f488c0acfa1558d4fd</anchor>
-      <arglist>(cchar *name)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websSetPasswordStoreVerify</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gac050abeadb21db4a90197eab284b115b</anchor>
-      <arglist>(WebsVerify verify)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websSetUserPassword</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gabf304efa46ec70b19997a6587344c6d1</anchor>
-      <arglist>(cchar *username, cchar *password)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websSetUserRoles</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gad77d33b025ea6680b2172f2dac62639b</anchor>
-      <arglist>(cchar *username, cchar *roles)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websVerifyPasswordFromCustom</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>ga85dd3dca55f2cba94bd02ac206acb70f</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websVerifyPasswordFromFile</name>
-      <anchorfile>group___webs_auth.html</anchorfile>
-      <anchor>gacf13eed5b4f7dff570f75098a1e34923</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsBuf</name>
-    <title>WebsBuf</title>
-    <filename>group___webs_buf.html</filename>
-    <member kind="function">
-      <type>void</type>
-      <name>bufAddNull</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga1838678c03f471aed89edfa5db822272</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>bufAdjustEnd</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga7fb267b66c30173cf035560028e83eba</anchor>
-      <arglist>(WebsBuf *bp, ssize size)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>bufAdjustStart</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga89be85c8255bbe0b7a414af5f1587600</anchor>
-      <arglist>(WebsBuf *bp, ssize count)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>bufCompact</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga9ffe6a1664c7911d12e01f317fc18458</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>bufCreate</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga5acfca7bd6b154817530a4551de9a4a6</anchor>
-      <arglist>(WebsBuf *bp, int increment, int maxsize)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>bufFlush</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gaf5a93373e65f8a7ccb456eb4bf72bba8</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>bufFree</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gacda55401603f555af52faee39639d78c</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>bufGetBlk</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gaa3a7777b78cd891c746772b5c489fd99</anchor>
-      <arglist>(WebsBuf *bp, char *blk, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>bufGetBlkMax</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gafa8400821880a8f4d9f1cad4a9595626</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>bufGetc</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gaad216addfbff3e9ecacdf4f4a651ac90</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>bufGrow</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga48fc76d92c206efcfdf3a376f85214dd</anchor>
-      <arglist>(WebsBuf *bp, ssize room)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>bufInsertc</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gaa0ae470cc24e8e57db77e42ffb751b83</anchor>
-      <arglist>(WebsBuf *bp, char c)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>bufLen</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga284f3c18de56b775c0a13f58f78d4744</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>bufPut</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga31ab202e1cef11fa44e7232100fc500f</anchor>
-      <arglist>(WebsBuf *bp, cchar *fmt,...) PRINTF_ATTRIBUTE(2</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>bufPutBlk</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gad14675b48245dc6eaabd6e6da8686a73</anchor>
-      <arglist>(WebsBuf *bp, cchar *blk, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>bufPutc</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga7c38d63ce718b544ebdb32807a34ca3e</anchor>
-      <arglist>(WebsBuf *bp, char c)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize ssize</type>
-      <name>bufPutStr</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gaea6647f6507f65ea81faf7c47e8703e1</anchor>
-      <arglist>(WebsBuf *bp, cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>bufReset</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>gaa1f359ca367a6f72ebaa4b4028732333</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>bufRoom</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga2ffac4a06b33a774a59e0441bbf0a555</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>bufStart</name>
-      <anchorfile>group___webs_buf.html</anchorfile>
-      <anchor>ga11bc74b37775ab735849a2dfa60eda8e</anchor>
-      <arglist>(WebsBuf *bp)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsHash</name>
-    <title>WebsHash</title>
-    <filename>group___webs_hash.html</filename>
-    <member kind="function">
-      <type>WebsHash</type>
-      <name>hashCreate</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>ga38965650a2f6f2666e0120498594a135</anchor>
-      <arglist>(int size)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>hashDelete</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>ga9ba32a89679bec0a778ce61dbc7a8e7b</anchor>
-      <arglist>(WebsHash id, cchar *name)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsKey *</type>
-      <name>hashEnter</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>gaee271bb91786340b275d1871736e8bc1</anchor>
-      <arglist>(WebsHash id, cchar *name, WebsValue value, int arg)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsKey *</type>
-      <name>hashFirst</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>gad3ad79650666d9819f582f1825bfd273</anchor>
-      <arglist>(WebsHash id)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>hashFree</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>gae27ba1e72086c5fbc0019882c88129ea</anchor>
-      <arglist>(WebsHash id)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsKey *</type>
-      <name>hashLookup</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>ga15ade30a9e61530924a4e3213aa2ae2a</anchor>
-      <arglist>(WebsHash id, cchar *name)</arglist>
-    </member>
-    <member kind="function">
-      <type>void *</type>
-      <name>hashLookupSymbol</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>ga183c60bd52fc037aed6bd3a0f70d816f</anchor>
-      <arglist>(WebsHash sd, cchar *name)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsKey *</type>
-      <name>hashNext</name>
-      <anchorfile>group___webs_hash.html</anchorfile>
-      <anchor>ga7b29e4508c1f7428058c15c721fe48f6</anchor>
-      <arglist>(WebsHash id, WebsKey *last)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsRoute</name>
-    <title>WebsRoute</title>
-    <filename>group___webs_route.html</filename>
-    <member kind="function">
-      <type>WebsRoute *</type>
-      <name>websAddRoute</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>gaad89a24834ff5442cac949bc36818489</anchor>
-      <arglist>(cchar *uri, cchar *handler, int pos)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websCloseRoute</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>ga712fb5968ea34647fbd198b281576b4e</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websLoad</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>ga84cade4d96e10f90f48a89403ffe8585</anchor>
-      <arglist>(cchar *path)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websOpenRoute</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>ga22d74d0805089decff152b0a35d4442f</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRemoveRoute</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>gadccfe94478f976a3a93b8a5b9be1acc0</anchor>
-      <arglist>(cchar *uri)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websRouteRequest</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>gabac20ffa1da08fefb06d471c6a589c1d</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>websRunRequest</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>ga13356d1f5c87381edd681495e5187bcd</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websSetRouteAuth</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>ga0326b013f41e0911bfd8c28f7041f209</anchor>
-      <arglist>(WebsRoute *route, cchar *authType)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websSetRouteMatch</name>
-      <anchorfile>group___webs_route.html</anchorfile>
-      <anchor>ga02ded6cfc279652c2dca6d86f2adc8d8</anchor>
-      <arglist>(WebsRoute *route, cchar *dir, cchar *protocol, WebsHash methods, WebsHash extensions, WebsHash abilities, WebsHash redirects)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsRuntime</name>
-    <title>WebsRuntime</title>
-    <filename>group___webs_runtime.html</filename>
-    <member kind="typedef">
-      <type>void(*</type>
-      <name>WebsEventProc</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gacc671375a3241fd84d5151c9dd001dc7</anchor>
-      <arglist>)(void *data, int id)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>fmt</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gadcb481a002871c7f627ac99bf6a4725d</anchor>
-      <arglist>(char *buf, ssize maxSize, cchar *format,...)</arglist>
-    </member>
-    <member kind="function">
-      <type>uint</type>
-      <name>hextoi</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga0870ca42c7fd1330d5316792d9a9a04c</anchor>
-      <arglist>(cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>itosbuf</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga09d77f66f305e34c9d8f38d0f108a9b0</anchor>
-      <arglist>(char *buf, ssize size, int64 value, int radix)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>scaselesscmp</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gaf9cb27956141ddc4724cca9903fa69b2</anchor>
-      <arglist>(cchar *s1, cchar *s2)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>scaselessmatch</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga021eac46fe21719fb1f9c9d257f64280</anchor>
-      <arglist>(cchar *s1, cchar *s2)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>sclone</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gacb666da0fc979829bdfa3805d30690b8</anchor>
-      <arglist>(cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>scmp</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga130862b0d455d9584014457bfeb4c139</anchor>
-      <arglist>(cchar *s1, cchar *s2)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>scopy</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga96df0c576bf6004507a3d0d11e18599a</anchor>
-      <arglist>(char *dest, ssize destMax, cchar *src)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>sfmt</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gad5e0d437ef73e87ac046e67f03f85b30</anchor>
-      <arglist>(cchar *format,...)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>sfmtv</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga78d631aa2272557805c10ff2b704ced3</anchor>
-      <arglist>(cchar *format, va_list args)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>slen</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gade405095134ad54db6dc94fcd6216961</anchor>
-      <arglist>(cchar *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>slower</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga42007ed5398b5037a88270ab46e126b6</anchor>
-      <arglist>(char *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>smatch</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gabe7d2af6c4afc8a57904b9276a43ffea</anchor>
-      <arglist>(cchar *s1, cchar *s2)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>sncaselesscmp</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga30d6259caa94ed51abd25be83c0c4972</anchor>
-      <arglist>(cchar *s1, cchar *s2, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>snclone</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga86e917f9fb726d0399bc0f977d500718</anchor>
-      <arglist>(cchar *str, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>sncmp</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga5217429e3f1dd3731530fe287bd893a7</anchor>
-      <arglist>(cchar *s1, cchar *s2, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>sncopy</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga7750a3b5b71a637c1ba2b7d98d7997d0</anchor>
-      <arglist>(char *dest, ssize destMax, cchar *src, ssize count)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>ssplit</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga1098055d6e169edf28f29b216065920e</anchor>
-      <arglist>(char *str, cchar *delim, char **last)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>stok</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gadbeb0bae6f0eaa147eaab42666cc5fb2</anchor>
-      <arglist>(char *str, cchar *delim, char **last)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>strim</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga68a5bbcfe9b29e51522dc16335d31440</anchor>
-      <arglist>(char *str, cchar *set, int where)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>supper</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gaa382db637596478a9ad1176e485a2743</anchor>
-      <arglist>(char *str)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>wallocHandle</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>gaf7553e70a9cd19a472ed5af514776e09</anchor>
-      <arglist>(void *map)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>wallocObject</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga5bdd5a92db14503e6bb55c5c37c7580d</anchor>
-      <arglist>(void *map, int *max, int size)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websRestartEvent</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga766658ed30f45bec60eef120f2b74c08</anchor>
-      <arglist>(int id, int delay)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websRunEvents</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga31529c388cac3e90a71766bc445b6575</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websStartEvent</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga3d52faf06a56379bb23247aa9a0acb0f</anchor>
-      <arglist>(int delay, WebsEventProc proc, void *data)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websStopEvent</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga9a6524bc11288246c84651f99fd24425</anchor>
-      <arglist>(int id)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>wfreeHandle</name>
-      <anchorfile>group___webs_runtime.html</anchorfile>
-      <anchor>ga147dadfb8200bc1df51ea64bbaae5db2</anchor>
-      <arglist>(void *map, int handle)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsSession</name>
-    <title>WebsSession</title>
-    <filename>group___webs_session.html</filename>
-    <member kind="function">
-      <type>WebsSession *</type>
-      <name>websAllocSession</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>ga60bdd592b01b4a6aa66b018d8c89c061</anchor>
-      <arglist>(Webs *wp, cchar *id, int lifespan)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsSession *</type>
-      <name>websCreateSession</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>gac09375688ef922985f1a70da6cb57315</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websDestroySession</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>ga8f9464efab7e9045cab72863ccdb81db</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsSession *</type>
-      <name>websGetSession</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>ga6d450e9603911af4925c982704962090</anchor>
-      <arglist>(Webs *wp, int create)</arglist>
-    </member>
-    <member kind="function">
-      <type>char *</type>
-      <name>websGetSessionID</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>gaa06967f82b366b1dcfad7b300f7321cb</anchor>
-      <arglist>(Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>cchar *</type>
-      <name>websGetSessionVar</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>ga489bcce8635e02b6637e569afdc2c8bd</anchor>
-      <arglist>(Webs *wp, cchar *name, cchar *defaultValue)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websRemoveSessionVar</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>ga7ae8ed7ba925a225ee0bad96f3829c56</anchor>
-      <arglist>(Webs *wp, cchar *name)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>websSetSessionVar</name>
-      <anchorfile>group___webs_session.html</anchorfile>
-      <anchor>ga7392f09b1b9c7d9d230701d6d2636a5e</anchor>
-      <arglist>(Webs *wp, cchar *name, cchar *value)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsSocket</name>
-    <title>WebsSocket</title>
-    <filename>group___webs_socket.html</filename>
-    <member kind="typedef">
-      <type>int(*</type>
-      <name>SocketAccept</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gae03359f7e0b6d71d55a625ae867c0032</anchor>
-      <arglist>)(int sid, cchar *ipaddr, int port, int listenSid)</arglist>
-    </member>
-    <member kind="typedef">
-      <type>void(*</type>
-      <name>SocketHandler</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gabc472a96ad52eed12682302d4f0f5077</anchor>
-      <arglist>)(int sid, int mask, void *data)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketAddress</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gac14f3548201f71b558822b3c68153ebe</anchor>
-      <arglist>(struct sockaddr *addr, int addrlen, char *ipbuf, int ipLen, int *port)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>socketAddressIsV6</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga0c7d4452b77a1bb3095b24e2a61973d5</anchor>
-      <arglist>(cchar *ip)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketAlloc</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gadc4743b09e663cfa4fa59ad8679cf047</anchor>
-      <arglist>(cchar *host, int port, SocketAccept accept, int flags)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketClose</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gad7e885e55895fca1a1cdb9657d628959</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketCloseConnection</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga08b16008980854d2aa6d1ebf588724a7</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketConnect</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gada07f74963867ae158f0289c8483f846</anchor>
-      <arglist>(cchar *host, int port, int flags)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketCreateHandler</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga860aa94cb98a3f2c67426695060dba0c</anchor>
-      <arglist>(int sid, int mask, SocketHandler handler, void *arg)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketDeleteHandler</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga8844ac81357964309fd7e9f872ad1bd7</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>socketEof</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gab7e5de92ef3adf4262ccf4e5faacf150</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketFree</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gaff7039dc3fc07516017caf5a2b434dad</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketGetBlock</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga19ea155313fd58c2f9842185388e60f7</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketGetError</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gad5f2ef131f0ca1222ee4897589f9dc04</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>Socket</type>
-      <name>socketGetHandle</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga089eca4cadf481a213f44dcb783afe83</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsSocket **</type>
-      <name>socketGetList</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga01a19285ec51eb5d43974f2df83fc3a4</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketGetPort</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga41ef4201ad35371958671487b56689e3</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>socketHasDualNetworkStack</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gae6ec811c6a5800916ac00db2c7c9fb30</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>socketHasIPv6</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga764eb6101ccc3ba01f775436432cfd48</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketHiddenData</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga22d77c01e3349be30f4a24e790b72499</anchor>
-      <arglist>(WebsSocket *sp, ssize len, int dir)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketInfo</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gabd3226bb7b28114550f997df00067f8c</anchor>
-      <arglist>(cchar *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)</arglist>
-    </member>
-    <member kind="function">
-      <type>bool</type>
-      <name>socketIsV6</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga4f30ba4ad13456067e09eef36778caba</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketListen</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga0a776cf248c686363c87658082170a16</anchor>
-      <arglist>(cchar *host, int port, SocketAccept accept, int flags)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketOpen</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga1865f03055c014b5382e8d4a16ae9522</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketParseAddress</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gab341c6634c368ce4163bd88ccd2abcbd</anchor>
-      <arglist>(cchar *ipAddrPort, char **pip, int *pport, int *secure, int defaultPort)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketProcess</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gaa5aac3322c1eb29911e40c7b3058be15</anchor>
-      <arglist>(void)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsSocket *</type>
-      <name>socketPtr</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga7e15d6437e4c835bf6d03ec6b17bbebb</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>socketRead</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga19822e9bedff6170ab41c053a9ee29f8</anchor>
-      <arglist>(int sid, void *buf, ssize len)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketRegisterInterest</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gad9ad9874969bd051043a41147f5a9f01</anchor>
-      <arglist>(int sid, int mask)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketReservice</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga84620d0cf38e9279f91e6c71364233ac</anchor>
-      <arglist>(int sid)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketSelect</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gaa4d7c7dee5c5104c2f19b7b702ee8c4f</anchor>
-      <arglist>(int sid, int timeout)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketSetBlock</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga87a2c90218477d33c088510d629174c7</anchor>
-      <arglist>(int sid, int on)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>socketSetError</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga5c81a3a08f01ced0e6346142663c0bac</anchor>
-      <arglist>(int error)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketSetNoDelay</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>ga172c24a34fcdff1a79fdde165738e07c</anchor>
-      <arglist>(int sid, bool on)</arglist>
-    </member>
-    <member kind="function">
-      <type>int</type>
-      <name>socketWaitForEvent</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gafeb307811160403ba50be3739ddaf5f9</anchor>
-      <arglist>(WebsSocket *sp, int mask)</arglist>
-    </member>
-    <member kind="function">
-      <type>ssize</type>
-      <name>socketWrite</name>
-      <anchorfile>group___webs_socket.html</anchorfile>
-      <anchor>gab6d98261221e514d69b3f4e411fdea4a</anchor>
-      <arglist>(int sid, void *buf, ssize len)</arglist>
-    </member>
-  </compound>
-  <compound kind="group">
-    <name>WebsUpload</name>
-    <title>WebsUpload</title>
-    <filename>group___webs_upload.html</filename>
-    <member kind="function">
-      <type>WebsHash</type>
-      <name>websGetUpload</name>
-      <anchorfile>group___webs_upload.html</anchorfile>
-      <anchor>gaf80a429f3b30c1e621e917c8f04f0415</anchor>
-      <arglist>(struct Webs *wp)</arglist>
-    </member>
-    <member kind="function">
-      <type>WebsUpload *</type>
-      <name>websLookupUpload</name>
-      <anchorfile>group___webs_upload.html</anchorfile>
-      <anchor>gade70d1dc7b947e06cdff592420ddb7e7</anchor>
-      <arglist>(struct Webs *wp, cchar *key)</arglist>
-    </member>
-    <member kind="function">
-      <type>void</type>
-      <name>websUploadOpen</name>
-      <anchorfile>group___webs_upload.html</anchorfile>
-      <anchor>gab33d19bbf16e0437f2210fb832453f0b</anchor>
-      <arglist>(void)</arglist>
-    </member>
   </compound>
 </tagfile>

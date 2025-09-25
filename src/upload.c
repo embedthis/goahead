@@ -13,13 +13,13 @@
 /*
     Upload states
  */
-#define UPLOAD_REQUEST_HEADER    1   /* Request header */
-#define UPLOAD_BOUNDARY          2   /* Boundary divider */
-#define UPLOAD_CONTENT_HEADER    3   /* Content part header */
-#define UPLOAD_CONTENT_DATA      4   /* Content encoded data */
-#define UPLOAD_CONTENT_END       5   /* End of multipart message */
+#define UPLOAD_REQUEST_HEADER 1      /* Request header */
+#define UPLOAD_BOUNDARY       2      /* Boundary divider */
+#define UPLOAD_CONTENT_HEADER 3      /* Content part header */
+#define UPLOAD_CONTENT_DATA   4      /* Content encoded data */
+#define UPLOAD_CONTENT_END    5      /* End of multipart message */
 
-#define MAX_BOUNDARY             512
+#define MAX_BOUNDARY          512
 
 static char *uploadDir;
 
@@ -45,7 +45,7 @@ static bool uploadHandler(Webs *wp)
 
 static void initUpload(Webs *wp)
 {
-    char    *boundary;
+    char *boundary;
 
     if (wp->uploadState == 0) {
         wp->uploadState = UPLOAD_BOUNDARY;
@@ -81,8 +81,8 @@ static void freeUploadFile(WebsUpload *up)
 
 PUBLIC void websFreeUpload(Webs *wp)
 {
-    WebsUpload  *up;
-    WebsKey     *s;
+    WebsUpload *up;
+    WebsKey    *s;
 
     if (wp->files >= 0) {
         for (s = hashFirst(wp->files); s; s = hashNext(wp->files, s)) {
@@ -107,14 +107,14 @@ PUBLIC void websFreeUpload(Webs *wp)
 
 PUBLIC bool websProcessUploadData(Webs *wp)
 {
-    char    *line, *nextTok;
-    ssize   nbytes;
-    bool    canProceed;
+    char  *line, *nextTok;
+    ssize nbytes;
+    bool  canProceed;
 
     line = 0;
     canProceed = 1;
     while (canProceed && !wp->finalized && wp->uploadState != UPLOAD_CONTENT_END) {
-        if  (wp->uploadState == UPLOAD_BOUNDARY || wp->uploadState == UPLOAD_CONTENT_HEADER) {
+        if (wp->uploadState == UPLOAD_BOUNDARY || wp->uploadState == UPLOAD_CONTENT_HEADER) {
             /*
                 Parse the next input line
              */
@@ -180,8 +180,8 @@ static void processContentBoundary(Webs *wp, char *line)
 
 static void processUploadHeader(Webs *wp, char *line)
 {
-    WebsUpload  *file;
-    char        *key, *headerTok, *rest, *nextPair, *value;
+    WebsUpload *file;
+    char       *key, *headerTok, *rest, *nextPair, *value;
 
     if (line[0] == '\0') {
         wp->uploadState = UPLOAD_CONTENT_DATA;
@@ -244,7 +244,7 @@ static void processUploadHeader(Webs *wp, char *line)
                 wfree(wp->uploadTmp);
                 if ((wp->uploadTmp = websTempFile(uploadDir, "tmp")) == 0) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR,
-                        "Cannot create upload temp file %s. Check upload temp dir %s", wp->uploadTmp, uploadDir);
+                              "Cannot create upload temp file %s. Check upload temp dir %s", wp->uploadTmp, uploadDir);
                     return;
                 }
                 trace(5, "File upload of: %s stored as %s", wp->clientFilename, wp->uploadTmp);
@@ -276,8 +276,8 @@ static void processUploadHeader(Webs *wp, char *line)
 
 static void defineUploadVars(Webs *wp)
 {
-    WebsUpload      *file;
-    char            key[64];
+    WebsUpload *file;
+    char       key[64];
 
     file = wp->currentFile;
     fmt(key, sizeof(key), "FILE_CLIENT_FILENAME_%s", wp->uploadVar);
@@ -296,8 +296,8 @@ static void defineUploadVars(Webs *wp)
 
 static int writeToFile(Webs *wp, char *data, ssize len)
 {
-    WebsUpload      *file;
-    ssize           rc;
+    WebsUpload *file;
+    ssize      rc;
 
     file = wp->currentFile;
 
@@ -310,7 +310,8 @@ static int writeToFile(Webs *wp, char *data, ssize len)
             File upload. Write the file data.
          */
         if ((rc = write(wp->upfd, data, (int) len)) != len) {
-            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot write to upload temp file %s, rc %d", wp->uploadTmp, rc);
+            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot write to upload temp file %s, rc %d", wp->uploadTmp,
+                      rc);
             return -1;
         }
         file->size += len;
@@ -322,11 +323,11 @@ static int writeToFile(Webs *wp, char *data, ssize len)
 
 static bool processContentData(Webs *wp)
 {
-    WebsUpload  *file;
-    WebsBuf     *content;
-    WebsKey     *sp;
-    ssize       size, nbytes, len;
-    char        *data, *bp;
+    WebsUpload *file;
+    WebsBuf    *content;
+    WebsKey    *sp;
+    ssize      size, nbytes, len;
+    char       *data, *bp;
 
     content = &wp->input;
     file = wp->currentFile;
@@ -417,8 +418,8 @@ static bool processContentData(Webs *wp)
  */
 static char *getBoundary(Webs *wp, char *buf, ssize bufLen)
 {
-    char    *cp, *endp;
-    char    first;
+    char *cp, *endp;
+    char first;
 
     assert(buf);
 
@@ -429,7 +430,7 @@ static char *getBoundary(Webs *wp, char *buf, ssize bufLen)
     cp = buf;
     endp = cp + (bufLen - wp->boundaryLen) + 1;
     while (cp < endp) {
-        cp = (char *) memchr(cp, first, endp - cp);
+        cp = (char*) memchr(cp, first, endp - cp);
         if (!cp) {
             return 0;
         }
@@ -444,7 +445,7 @@ static char *getBoundary(Webs *wp, char *buf, ssize bufLen)
 
 WebsUpload *websLookupUpload(Webs *wp, cchar *key)
 {
-    WebsKey     *sp;
+    WebsKey *sp;
 
     if (wp->files >= 0) {
         if ((sp = hashLookup(wp->files, key)) == 0) {

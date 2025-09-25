@@ -10,7 +10,7 @@
     values on the first call to walloc(). Note that this code is not designed for multi-threading purposes and it
     depends on newly declared variables being initialized to zero.
 
-    You should ALWAYS configure a memory notifier and abort the process or perform other recover incase of 
+    You should ALWAYS configure a memory notifier and abort the process or perform other recover incase of
     memory exhaustion. You must set WEBS_DEFAULT_MEM to be sufficient memory for your needs.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
@@ -49,13 +49,13 @@ static void defaultMemNotifier(ssize size)
 /*
     qhead blocks are created as the original memory allocation is freed up. See wfree.
  */
-static WebsAlloc    *qhead[WEBS_MAX_CLASS];             /* Per class block q head */
-static char         *freeBuf;                           /* Pointer to free memory */
-static char         *freeNext;                          /* Pointer to next free mem */
-static int          freeSize;                           /* Size of free memory */
-static int          freeLeft;                           /* Size of free left for use */
-static int          controlFlags = WEBS_USE_MALLOC;     /* Default to auto-malloc */
-static int          wopenCount = 0;                     /* Num tasks using walloc */
+static WebsAlloc *qhead[WEBS_MAX_CLASS];                /* Per class block q head */
+static char      *freeBuf;                              /* Pointer to free memory */
+static char      *freeNext;                             /* Pointer to next free mem */
+static int       freeSize;                              /* Size of free memory */
+static int       freeLeft;                              /* Size of free left for use */
+static int       controlFlags = WEBS_USE_MALLOC;        /* Default to auto-malloc */
+static int       wopenCount = 0;                        /* Num tasks using walloc */
 
 static int wallocGetSize(ssize size, int *q);
 
@@ -64,7 +64,8 @@ static int wallocGetSize(ssize size, int *q);
 /********************************** Code **************************************/
 /*
     Initialize the walloc module. wopenAlloc should be called the very first thing after the application starts and
-    wcloseAlloc should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the first
+    wcloseAlloc should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the
+       first
     allocation with default values. "buf" points to memory to use of size "bufsize". If buf is NULL, memory is allocated
     using malloc. flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate *  an initial
     buffer of size bufsize for use by the application.
@@ -88,8 +89,8 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
         if ((buf = malloc(bufsize)) == NULL) {
             /*
                 Resetting wopenCount so client code can decide to call wopenAlloc() again with a smaller memory request.
-            */
-             --wopenCount;
+             */
+            --wopenCount;
             return -1;
         }
     } else {
@@ -124,8 +125,8 @@ PUBLIC void wcloseAlloc(void)
  */
 PUBLIC void *walloc(ssize size)
 {
-    WebsAlloc   *bp;
-    int         q, memSize;
+    WebsAlloc *bp;
+    int       q, memSize;
 
     /*
         Call wopen with default values if the application has not yet done so
@@ -149,13 +150,13 @@ PUBLIC void *walloc(ssize size)
             bp = (WebsAlloc*) malloc(memSize);
             if (bp == NULL) {
                 if (memNotifier) {
-                    (memNotifier)(memSize);
+                    (memNotifier) (memSize);
                 }
                 return NULL;
             }
         } else {
             if (memNotifier) {
-                (memNotifier)(memSize);
+                (memNotifier) (memSize);
             }
             return NULL;
         }
@@ -191,7 +192,7 @@ PUBLIC void *walloc(ssize size)
             memSize = ROUNDUP4(memSize);
             if ((bp = (WebsAlloc*) malloc(memSize)) == NULL) {
                 if (memNotifier) {
-                    (memNotifier)(memSize);
+                    (memNotifier) (memSize);
                 }
                 return NULL;
             }
@@ -200,7 +201,7 @@ PUBLIC void *walloc(ssize size)
 
         } else {
             if (memNotifier) {
-                (memNotifier)(memSize);
+                (memNotifier) (memSize);
             }
             return NULL;
         }
@@ -216,8 +217,8 @@ PUBLIC void *walloc(ssize size)
  */
 PUBLIC void wfree(void *mp)
 {
-    WebsAlloc   *bp;
-    int         q;
+    WebsAlloc *bp;
+    int       q;
 
     if (mp == 0) {
         return;
@@ -247,8 +248,8 @@ PUBLIC void wfree(void *mp)
  */
 PUBLIC void *wrealloc(void *mp, ssize newsize)
 {
-    WebsAlloc   *bp;
-    void    *newbuf;
+    WebsAlloc *bp;
+    void      *newbuf;
 
     if (mp == NULL) {
         return walloc(newsize);
@@ -279,17 +280,17 @@ static int wallocGetSize(ssize size, int *q)
 {
     ssize mask;
 
-    mask = (size == 0) ? 0 : (size-1) >> WEBS_SHIFT;
+    mask = (size == 0) ? 0 : (size - 1) >> WEBS_SHIFT;
     for (*q = 0; mask; mask >>= 1) {
         *q = *q + 1;
     }
-    return ((1 << (WEBS_SHIFT + *q)) + sizeof(WebsAlloc));
+    return (1 << (WEBS_SHIFT + *q)) + sizeof(WebsAlloc);
 }
 
 
 PUBLIC void wvalid(cvoid *mp)
 {
-    WebsAlloc   *bp;
+    WebsAlloc *bp;
 
     bp = (WebsAlloc*) ((char*) mp - sizeof(WebsAlloc));
     assert(bp->flags & WEBS_INTEGRITY);
@@ -299,11 +300,11 @@ PUBLIC void wvalid(cvoid *mp)
 
 PUBLIC void *walloc(ssize num)
 {
-    void    *mem;
+    void *mem;
 
     if ((mem = malloc(num)) == 0) {
         if (memNotifier) {
-            (memNotifier)(num);
+            (memNotifier) (num);
         }
     }
     return mem;
@@ -320,12 +321,12 @@ PUBLIC void wfree(void *mem)
 
 PUBLIC void *wrealloc(void *mem, ssize num)
 {
-    void    *old;
+    void *old;
 
     old = mem;
     if ((mem = realloc(mem, num)) == 0) {
         if (memNotifier) {
-            (memNotifier)(num);
+            (memNotifier) (num);
         }
         free(old);
     }
@@ -336,7 +337,7 @@ PUBLIC void *wrealloc(void *mem, ssize num)
 
 PUBLIC void *wdup(cvoid *ptr, ssize usize)
 {
-    char    *newp;
+    char *newp;
 
     if ((newp = walloc(usize)) != 0) {
         memcpy(newp, ptr, usize);

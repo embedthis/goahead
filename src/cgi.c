@@ -19,29 +19,29 @@
 #if ME_GOAHEAD_CGI
 
 #if ME_WIN_LIKE
-    typedef HANDLE CgiPid;
+typedef HANDLE CgiPid;
 #else
-    typedef pid_t CgiPid;
+typedef pid_t CgiPid;
 #endif
 
 typedef struct Cgi {            /* Struct for CGI tasks which have completed */
-    Webs    *wp;                /* Connection object */
-    char    *stdIn;             /* File desc. for task's temp input fd */
-    char    *stdOut;            /* File desc. for task's temp output fd */
-    char    *cgiPath;           /* Path to executable process file */
-    char    **argp;             /* Pointer to buf containing argv tokens */
-    char    **envp;             /* Pointer to array of environment strings */
-    CgiPid  handle;             /* Process handle of the task */
-    off_t   fplacemark;         /* Seek location for CGI output file */
+    Webs *wp;                   /* Connection object */
+    char *stdIn;                /* File desc. for task's temp input fd */
+    char *stdOut;               /* File desc. for task's temp output fd */
+    char *cgiPath;              /* Path to executable process file */
+    char **argp;                /* Pointer to buf containing argv tokens */
+    char **envp;                /* Pointer to array of environment strings */
+    CgiPid handle;              /* Process handle of the task */
+    off_t fplacemark;           /* Seek location for CGI output file */
 } Cgi;
 
-static Cgi      **cgiList;      /* walloc chain list of wp's to be closed */
-static int      cgiMax;         /* Size of walloc list */
+static Cgi **cgiList;           /* walloc chain list of wp's to be closed */
+static int cgiMax;              /* Size of walloc list */
 
 /*
     The real protection is via ME_GOAHEAD_CGI_VAR_PREFIX which prefixes user env vars with CGI_.
     This list is not complete and not intended to be. "Belt and suspenders".
-*/
+ */
 static cchar *envBlackList[] = {
     "AUTHSTATE",
     "BASHOPTS",
@@ -102,13 +102,13 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
  */
 PUBLIC bool cgiHandler(Webs *wp)
 {
-    Cgi         *cgip;
-    WebsKey     *s;
-    char        cgiPrefix[ME_GOAHEAD_LIMIT_FILENAME], *stdIn, *stdOut, cwd[ME_GOAHEAD_LIMIT_FILENAME];
-    char        *cp, *cgiName, *cgiPath, **argp, **envp, **ep, *tok, *query, *dir, *extraPath, *exe, *vp;
-    cchar       **bp;
-    CgiPid      pHandle;
-    int         n, envpsize, argpsize, cid;
+    Cgi     *cgip;
+    WebsKey *s;
+    char    cgiPrefix[ME_GOAHEAD_LIMIT_FILENAME], *stdIn, *stdOut, cwd[ME_GOAHEAD_LIMIT_FILENAME];
+    char    *cp, *cgiName, *cgiPath, **argp, **envp, **ep, *tok, *query, *dir, *extraPath, *exe, *vp;
+    cchar   **bp;
+    CgiPid  pHandle;
+    int     n, envpsize, argpsize, cid;
 
     assert(websValid(wp));
 
@@ -146,10 +146,14 @@ PUBLIC bool cgiHandler(Webs *wp)
 /*
     See if the file exists and is executable.  If not error out.  Don't do this step for VxWorks, since the module
     may already be part of the OS image, rather than in the file system.
-*/
+ */
 #if !VXWORKS
     {
         WebsStat sbuf;
+        /*
+            SECURITY Acceptable: TOCTOU race condition between stat/access and execution.
+            Embedded system file system security is out of scope for this project.
+         */
         if (stat(cgiPath, &sbuf) != 0 || (sbuf.st_mode & S_IFREG) == 0) {
             exe = sfmt("%s.exe", cgiPath);
             if (stat(exe, &sbuf) == 0 && (sbuf.st_mode & S_IFREG)) {
@@ -175,14 +179,17 @@ PUBLIC bool cgiHandler(Webs *wp)
     }
 #endif /* ! VXWORKS */
     /*
-        Build command line arguments.  Only used if there is no non-encoded = character.  This is indicative of a ISINDEX
+        Build command line arguments.  Only used if there is no non-encoded = character.  This is indicative of a
+           ISINDEX
         query.  POST separators are & and others are +.  argp will point to a walloc'd array of pointers.  Each pointer
-        will point to substring within the query string.  This array of string pointers is how the spawn or exec routines
-        expect command line arguments to be passed.  Since we don't know ahead of time how many individual items there are
+        will point to substring within the query string.  This array of string pointers is how the spawn or exec
+           routines
+        expect command line arguments to be passed.  Since we don't know ahead of time how many individual items there
+           are
         in the query string, the for loop includes logic to grow the array size via wrealloc.
      */
     argpsize = 10;
-    if ((argp = walloc(argpsize * sizeof(char *))) == 0) {
+    if ((argp = walloc(argpsize * sizeof(char*))) == 0) {
         websError(wp, HTTP_CODE_NOT_FOUND, "Cannot allocate CGI args");
         wfree(cgiPath);
         return 1;
@@ -196,8 +203,8 @@ PUBLIC bool cgiHandler(Webs *wp)
         query = sclone(wp->query);
         websDecodeUrl(query, query, strlen(query));
         for (cp = stok(query, " ", &tok); cp != NULL && argp != NULL; ) {
-            *(argp+n) = cp;
-            trace(5, "ARG[%d] %s", n, argp[n-1]);
+            *(argp + n) = cp;
+            trace(5, "ARG[%d] %s", n, argp[n - 1]);
             n++;
             if (n >= argpsize) {
                 argpsize *= 2;
@@ -206,12 +213,12 @@ PUBLIC bool cgiHandler(Webs *wp)
                     wfree(cgiPath);
                     return 1;
                 }
-                argp = wrealloc(argp, argpsize * sizeof(char *));
+                argp = wrealloc(argp, argpsize * sizeof(char*));
             }
             cp = stok(NULL, " ", &tok);
         }
     }
-    *(argp+n) = NULL;
+    *(argp + n) = NULL;
 
     /*
         Add all CGI variables to the environment strings to be passed to the spawned CGI process.
@@ -232,24 +239,26 @@ PUBLIC bool cgiHandler(Webs *wp)
                         continue;
                     }
                 }
-                if (sstarts(vp, "LD_") || sstarts(vp, "LDR_") || sstarts(vp, "_RLD") || sstarts(vp, "DYLD_") || strstr(vp, "=()")) {
+                if (sstarts(vp,
+                            "LD_") ||
+                    sstarts(vp, "LDR_") || sstarts(vp, "_RLD") || sstarts(vp, "DYLD_") || strstr(vp, "=()")) {
                     continue;
                 }
                 if (s->arg != 0 && *ME_GOAHEAD_CGI_VAR_PREFIX != '\0') {
                     envp[n++] = sfmt("%s%s=%s", ME_GOAHEAD_CGI_VAR_PREFIX, s->name.value.string,
-                        s->content.value.string);
+                                     s->content.value.string);
                 } else {
                     envp[n++] = sfmt("%s=%s", s->name.value.string, s->content.value.string);
                 }
-                trace(0, "Env[%d] %s", n, envp[n-1]);
+                trace(0, "Env[%d] %s", n, envp[n - 1]);
                 if (n >= envpsize) {
                     envpsize *= 2;
-                    envp = wrealloc(envp, envpsize * sizeof(char *));
+                    envp = wrealloc(envp, envpsize * sizeof(char*));
                 }
             }
         }
     }
-    *(envp+n) = NULL;
+    *(envp + n) = NULL;
 
     /*
         Create temporary file name(s) for the child's stdin and stdout. For POST data the stdin temp file (and name)
@@ -269,7 +278,7 @@ PUBLIC bool cgiHandler(Webs *wp)
         Now launch the process.  If not successful, do the cleanup of resources.  If successful, the cleanup will be
         done after the process completes.
      */
-    if ((pHandle = launchCgi(cgiPath, argp, envp, stdIn, stdOut)) == (CgiPid) -1) {
+    if ((pHandle = launchCgi(cgiPath, argp, envp, stdIn, stdOut)) == (CgiPid) - 1) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
         for (ep = envp; *ep != NULL; ep++) {
             wfree(*ep);
@@ -313,12 +322,12 @@ PUBLIC int websCgiOpen(void)
 
 PUBLIC bool websProcessCgiData(Webs *wp)
 {
-    ssize   nbytes;
+    ssize nbytes;
 
     nbytes = bufLen(&wp->input);
     trace(5, "cgi: write %d bytes to CGI program", nbytes);
     if (write(wp->cgifd, wp->input.servp, (int) nbytes) != nbytes) {
-        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR| WEBS_CLOSE, "Cannot write to CGI gateway");
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR | WEBS_CLOSE, "Cannot write to CGI gateway");
     } else {
         trace(5, "cgi: write %d bytes to CGI program", nbytes);
     }
@@ -342,9 +351,9 @@ static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, char *loc
 
 static ssize parseCgiHeaders(Webs *wp, char *buf)
 {
-    char    *end, *cp, *key, *value, *location, *contentType;
-    ssize   len, contentLength;
-    int     status, doneHeaders;
+    char  *end, *cp, *key, *value, *location, *contentType;
+    ssize len, contentLength;
+    int   status, doneHeaders;
 
     status = HTTP_CODE_OK;
     contentLength = -1;
@@ -401,7 +410,7 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
     }
     if (!doneHeaders) {
         writeCgiHeaders(wp, status, contentLength, location, contentType);
-     }
+    }
     websWriteEndHeaders(wp);
     return end - buf;
 }
@@ -409,11 +418,11 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
 
 PUBLIC void websCgiGatherOutput(Cgi *cgip)
 {
-    Webs        *wp;
-    WebsStat    sbuf;
-    char        buf[ME_GOAHEAD_LIMIT_HEADERS + 2];
-    ssize       nbytes, skip;
-    int         fdout;
+    Webs     *wp;
+    WebsStat sbuf;
+    char     buf[ME_GOAHEAD_LIMIT_HEADERS + 2];
+    ssize    nbytes, skip;
+    int      fdout;
 
     /*
         OPT - currently polling and doing a stat each poll. Also doing open/close each chunk.
@@ -460,10 +469,10 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
  */
 int websCgiPoll(void)
 {
-    Webs    *wp;
-    Cgi     *cgip;
-    char    **ep;
-    int     cid;
+    Webs *wp;
+    Cgi  *cgip;
+    char **ep;
+    int  cid;
 
     for (cid = 0; cid < cgiMax; cid++) {
         if ((cgip = cgiList[cid]) != NULL) {
@@ -527,7 +536,8 @@ int websCgiPoll(void)
 
 
 /*
-    Returns a pointer to an allocated qualified unique temporary file name. This filename must eventually be deleted with
+    Returns a pointer to an allocated qualified unique temporary file name. This filename must eventually be deleted
+       with
     wfree().
  */
 PUBLIC char *websGetCgiCommName(void)
@@ -591,10 +601,10 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
  */
 static int checkCgi(CgiPid handle)
 {
-    int     nReturn;
-    DWORD   exitCode;
+    int   nReturn;
+    DWORD exitCode;
 
-    nReturn = GetExitCodeProcess((HANDLE)handle, &exitCode);
+    nReturn = GetExitCodeProcess((HANDLE) handle, &exitCode);
     /*
         We must close process handle to free up the window resource, but only when we're done with it.
      */
@@ -613,7 +623,7 @@ static int checkCgi(CgiPid handle)
  */
 static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, char *stdOut)
 {
-    int     fdin, fdout, pid;
+    int fdin, fdout, pid;
 
     trace(5, "cgi: run %s", cgiPath);
 
@@ -662,7 +672,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
  */
 static int checkCgi(CgiPid handle)
 {
-    int     pid;
+    int pid;
 
     /*
         Check to see if the CGI child process has terminated or not yet.
@@ -681,7 +691,7 @@ static int checkCgi(CgiPid handle)
 #if _WRS_VXWORKS_MAJOR < 6 || (_WRS_VXWORKS_MAJOR == 6 && _WRS_VXWORKS_MINOR < 9)
 static int findVxSym(SYMTAB_ID sid, char *name, char **pvalue)
 {
-    SYM_TYPE    type;
+    SYM_TYPE type;
 
     return symFindByName(sid, name, pvalue, &type);
 }
@@ -689,7 +699,7 @@ static int findVxSym(SYMTAB_ID sid, char *name, char **pvalue)
 
 static int findVxSym(SYMTAB_ID sid, char *name, char **pvalue)
 {
-    SYMBOL_DESC     symDesc;
+    SYMBOL_DESC symDesc;
 
     memset(&symDesc, 0, sizeof(SYMBOL_DESC));
     symDesc.mask = SYM_FIND_BY_NAME;
@@ -705,7 +715,7 @@ static int findVxSym(SYMTAB_ID sid, char *name, char **pvalue)
 }
 #endif
 
-static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argv, char **envp, char *stdIn, char *stdOut);
+static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argv, char **envp, char *stdIn, char *stdOut);
 /*
     Launch the CGI process and return a handle to it. Process spawning is not supported in VxWorks.  Instead, we spawn a
     "task".  A major difference is that we have to know the entry point for the taskSpawn API.  Also the module may have
@@ -716,7 +726,8 @@ static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argv, 
     2. Search for a query string keyword=value pair in the environment variables where the keyword is cgientry.  If
         found use its value as the the entry point name.  If there is no such pair set the entry point name to the
         default: basename_cgientry, where basename is the name of the cgi file without the extension.  Use the entry
-        point name in a symbol table search for that name to use as the entry point address.  If successful go to step 5.
+        point name in a symbol table search for that name to use as the entry point address.  If successful go to step
+           5.
     3. Try to load the module into memory.  If not successful error out.
     4. If step 3 is successful repeat the entry point search from step 2. If the entry point exists, go to step 5.  If
         it does not, error out.
@@ -728,13 +739,13 @@ static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argv, 
  */
 static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, char *stdOut)
 {
-    char    *p, *basename, *pEntry, *pname, *entryAddr, **pp;
-    int     priority, rc, fd;
+    char *p, *basename, *pEntry, *pname, *entryAddr, **pp;
+    int  priority, rc, fd;
 
     /*
         Determine the basename, which is without path or the extension.
      */
-    if ((int)(p = strrchr(cgiPath, '/') + 1) == 1) {
+    if ((int) (p = strrchr(cgiPath, '/') + 1) == 1) {
         p = cgiPath;
     }
     basename = sclone(p);
@@ -749,7 +760,8 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     rc = fd = -1;
 
     /*
-         Set the entry point symbol name as described above.  Look for an already loaded entry point; if it exists, spawn
+         Set the entry point symbol name as described above.  Look for an already loaded entry point; if it exists,
+            spawn
          the task accordingly.
      */
     for (pp = envp, pEntry = NULL; pp != NULL && *pp != NULL; pp++) {
@@ -769,7 +781,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     }
     if (entryAddr != 0) {
         rc = taskSpawn(pEntry, priority, 0, 20000, (void*) vxWebsCgiEntry, (int) entryAddr, (int) argp,
-            (int) envp, (int) stdIn, (int) stdOut, 0, 0, 0, 0, 0);
+                       (int) envp, (int) stdIn, (int) stdOut, 0, 0, 0, 0, 0);
         goto done;
     }
 
@@ -787,7 +799,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     }
     if (entryAddr != 0) {
         rc = taskSpawn(pEntry, priority, 0, 20000, (void*) vxWebsCgiEntry, (int) entryAddr, (int) argp,
-            (int) envp, (int) stdIn, (int) stdOut, 0, 0, 0, 0, 0);
+                       (int) envp, (int) stdIn, (int) stdOut, 0, 0, 0, 0, 0);
     }
 done:
     if (fd != -1) {
@@ -804,17 +816,17 @@ done:
     to an argc, argv pair to pass to the user entry. It initializes the task environment with envp strings. Then it
     will call the user entry.
  */
-static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argp, char **envp, char *stdIn, char *stdOut)
+static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, char **envp, char *stdIn, char *stdOut)
 {
-    char    **p;
-    int     argc, taskId, fdin, fdout;
+    char **p;
+    int  argc, taskId, fdin, fdout;
 
     /*
         Open the stdIn and stdOut files and redirect stdin and stdout to them.
      */
     taskId = taskIdSelf();
     if ((fdout = open(stdOut, O_RDWR | O_CREAT, 0666)) < 0 &&
-            (fdout = creat(stdOut, O_RDWR)) < 0) {
+        (fdout = creat(stdOut, O_RDWR)) < 0) {
         exit(0);
     }
     ioTaskStdSet(taskId, 1, fdout);
@@ -822,14 +834,15 @@ static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argp, 
     if ((fdin = open(stdIn, O_RDONLY | O_CREAT, 0666)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
         printf("content-type: text/html\n\n" "Can not create CGI stdin to %s\n", stdIn);
         close(fdout);
-        exit (0);
+        exit(0);
     }
     ioTaskStdSet(taskId, 0, fdin);
 
     /*
         Count the number of entries in argv
      */
-    for (argc = 0, p = argp; p != NULL && *p != NULL; p++, argc++) { }
+    for (argc = 0, p = argp; p != NULL && *p != NULL; p++, argc++) {
+    }
 
     /*
         Create a private environment and copy the envp strings to it.
@@ -838,7 +851,7 @@ static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argp, 
         printf("content-type: text/html\n\n" "Can not create CGI environment space\n");
         close(fdin);
         close(fdout);
-        exit (0);
+        exit(0);
     }
     for (p = envp; p != NULL && *p != NULL; p++) {
         putenv(*p);
@@ -886,10 +899,10 @@ static int checkCgi(CgiPid handle)
  */
 static uchar *tableToBlock(char **table)
 {
-    uchar   *pBlock;        /*  Allocated block */
-    char    *pEntry;        /*  Pointer into block */
-    size_t  sizeBlock;      /*  Size of table */
-    int     index;          /*  Index into string table */
+    uchar  *pBlock;         /*  Allocated block */
+    char   *pEntry;         /*  Pointer into block */
+    size_t sizeBlock;       /*  Size of table */
+    int    index;           /*  Index into string table */
 
     assert(table);
 
@@ -930,7 +943,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     SECURITY_ATTRIBUTES security;
     PROCESS_INFORMATION procinfo;       /*  Information about created proc   */
     DWORD               dwCreateFlags;
-    char              *cmdLine, **pArgs;
+    char                *cmdLine, **pArgs;
     BOOL                bReturn;
     ssize               nLen;
     int                 i;
@@ -956,29 +969,44 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     }
 
     /*
-        Construct command line
+        Construct command line (safe length calculation and single-pass write)
      */
-    cmdLine = walloc(sizeof(char) * nLen);
-    assert(cmdLine);
-    strcpy(cmdLine, "");
-
+    nLen = 1; // for null terminator
     pArgs = argp;
     while (pArgs && *pArgs && **pArgs) {
-        strcat(cmdLine, *pArgs);
+        nLen += (ssize) strlen(*pArgs);
         if (pArgs[1]) {
-            strcat(cmdLine, " ");
+            nLen += 1; /* space between args */
         }
         pArgs++;
+    }
+
+    cmdLine = walloc(sizeof(char) * nLen);
+    assert(cmdLine);
+
+    {
+        char *p = cmdLine;
+        pArgs = argp;
+        while (pArgs && *pArgs && **pArgs) {
+            size_t alen = strlen(*pArgs);
+            memcpy(p, *pArgs, alen);
+            p += alen;
+            if (pArgs[1]) {
+                *p++ = ' ';
+            }
+            pArgs++;
+        }
+        *p = '\0';
     }
 
     /*
         Create the process start-up information
      */
-    memset (&newinfo, 0, sizeof(newinfo));
-    newinfo.cb          = sizeof(newinfo);
-    newinfo.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+    memset(&newinfo, 0, sizeof(newinfo));
+    newinfo.cb = sizeof(newinfo);
+    newinfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
     newinfo.wShowWindow = SW_HIDE;
-    newinfo.lpTitle     = NULL;
+    newinfo.lpTitle = NULL;
 
     /*
         Create file handles for the spawned processes stdin and stdout files
@@ -991,21 +1019,21 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         Stdin file should already exist.
      */
     newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-            NULL);
+                                   NULL);
     if (newinfo.hStdOutput == (HANDLE) -1) {
         error("Cannot open CGI stdin file");
-        return (CgiPid) -1;
+        return (CgiPid) - 1;
     }
 
     /*
         Stdout file is created and file pointer is reset to start.
      */
-    newinfo.hStdOutput = CreateFile(stdOut, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ + FILE_SHARE_WRITE,
-            &security, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    newinfo.hStdOutput = CreateFile(stdOut, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                    &security, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
     if (newinfo.hStdOutput == (HANDLE) -1) {
         error("Cannot create CGI stdout file");
         CloseHandle(newinfo.hStdInput);
-        return (CgiPid) -1;
+        return (CgiPid) - 1;
     }
     SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_END);
     newinfo.hStdError = newinfo.hStdOutput;
@@ -1016,7 +1044,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     /*
         CreateProcess returns errors sometimes, even when the process was started correctly.  The cause is not evident.
         Detect an error by checking the value of procinfo.hProcess after the call.
-    */
+     */
     procinfo.hProcess = NULL;
     bReturn = CreateProcess(
         NULL,               /*  Name of executable module        */
@@ -1030,7 +1058,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         &newinfo,           /*  STARTUPINFO                      */
         &procinfo);         /*  PROCESS_INFORMATION              */
 
-    if (procinfo.hThread != NULL)  {
+    if (procinfo.hThread != NULL) {
         CloseHandle(procinfo.hThread);
     }
     if (newinfo.hStdInput) {
@@ -1043,7 +1071,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     wfree(cmdLine);
 
     if (bReturn == 0) {
-        return (CgiPid) -1;
+        return (CgiPid) - 1;
     } else {
         return procinfo.hProcess;
     }
@@ -1055,8 +1083,8 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
  */
 static int checkCgi(CgiPid handle)
 {
-    DWORD   exitCode;
-    int     nReturn;
+    DWORD exitCode;
+    int   nReturn;
 
     nReturn = GetExitCodeProcess((HANDLE) handle, &exitCode);
     /*

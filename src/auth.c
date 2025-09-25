@@ -19,7 +19,7 @@
         Web form authentication which uses a web page form to login (insecure unless over TLS)
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
-*/
+ */
 
 /********************************* Includes ***********************************/
 
@@ -33,10 +33,10 @@
 
 /*********************************** Locals ***********************************/
 
-static WebsHash users = -1;
-static WebsHash roles = -1;
-static char *masterSecret;
-static int autoLogin = ME_GOAHEAD_AUTO_LOGIN;
+static WebsHash   users = -1;
+static WebsHash   roles = -1;
+static char       *masterSecret;
+static int        autoLogin = ME_GOAHEAD_AUTO_LOGIN;
 static WebsVerify verifyPassword = websVerifyPasswordFromFile;
 static bool pmatch(cchar *s1, cchar *s2);
 
@@ -46,14 +46,14 @@ static bool pmatch(cchar *s1, cchar *s2);
 
 #if ME_COMPILER_HAS_PAM
 typedef struct {
-    char    *name;
-    char    *password;
+    char *name;
+    char *password;
 } UserInfo;
 
 #if MACOSX
-    typedef int Gid;
+typedef int Gid;
 #else
-    typedef gid_t Gid;
+typedef gid_t Gid;
 #endif
 #endif
 
@@ -81,9 +81,9 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 PUBLIC bool websAuthenticate(Webs *wp)
 {
-    WebsRoute   *route;
-    char        *username;
-    int         cached;
+    WebsRoute *route;
+    char      *username;
+    int       cached;
 
     assert(wp);
     assert(wp->route);
@@ -141,7 +141,7 @@ PUBLIC bool websAuthenticate(Webs *wp)
 
 PUBLIC int websOpenAuth(int minimal)
 {
-    char    sbuf[64];
+    char sbuf[32];
 
     assert(minimal == 0 || minimal == 1);
 
@@ -152,8 +152,8 @@ PUBLIC int websOpenAuth(int minimal)
         return -1;
     }
     if (!minimal) {
-        fmt(sbuf, sizeof(sbuf), "%x:%x", rand(), time(0));
-        masterSecret = websMD5(sbuf);
+        websGetRandomBytes(sbuf, sizeof(sbuf), 0);
+        masterSecret = websEncode64Block(sbuf, sizeof(sbuf));
         websDefineAction("login", loginServiceProc);
         websDefineAction("logout", logoutServiceProc);
     }
@@ -170,7 +170,7 @@ PUBLIC int websOpenAuth(int minimal)
 
 PUBLIC void websCloseAuth(void)
 {
-    WebsKey     *key, *next;
+    WebsKey *key, *next;
 
     wfree(masterSecret);
     if (users >= 0) {
@@ -195,11 +195,11 @@ PUBLIC void websCloseAuth(void)
 #if KEEP
 PUBLIC int websWriteAuthFile(char *path)
 {
-    FILE        *fp;
-    WebsKey     *kp, *ap;
-    WebsRole    *role;
-    WebsUser    *user;
-    char        *tempFile;
+    FILE     *fp;
+    WebsKey  *kp, *ap;
+    WebsRole *role;
+    WebsUser *user;
+    char     *tempFile;
 
     assert(path && *path);
 
@@ -244,7 +244,7 @@ PUBLIC int websWriteAuthFile(char *path)
 
 static WebsUser *createUser(cchar *username, cchar *password, cchar *roles)
 {
-    WebsUser    *user;
+    WebsUser *user;
 
     assert(username);
 
@@ -261,7 +261,7 @@ static WebsUser *createUser(cchar *username, cchar *password, cchar *roles)
 
 WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles)
 {
-    WebsUser    *user;
+    WebsUser *user;
 
     if (!username) {
         error("User is missing name");
@@ -284,7 +284,7 @@ WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles)
 
 PUBLIC int websRemoveUser(cchar *username)
 {
-    WebsKey     *key;
+    WebsKey *key;
 
     assert(username);
     if ((key = hashLookup(users, username)) != 0) {
@@ -307,7 +307,7 @@ static void freeUser(WebsUser *up)
 
 PUBLIC int websSetUserPassword(cchar *username, cchar *password)
 {
-    WebsUser    *user;
+    WebsUser *user;
 
     assert(username);
     if ((user = websLookupUser(username)) == 0) {
@@ -321,7 +321,7 @@ PUBLIC int websSetUserPassword(cchar *username, cchar *password)
 
 PUBLIC int websSetUserRoles(cchar *username, cchar *roles)
 {
-    WebsUser    *user;
+    WebsUser *user;
 
     assert(username);
     if ((user = websLookupUser(username)) == 0) {
@@ -336,7 +336,7 @@ PUBLIC int websSetUserRoles(cchar *username, cchar *roles)
 
 WebsUser *websLookupUser(cchar *username)
 {
-    WebsKey     *key;
+    WebsKey *key;
 
     assert(username);
     if ((key = hashLookup(users, username)) == 0) {
@@ -348,8 +348,8 @@ WebsUser *websLookupUser(cchar *username)
 
 static void computeAbilities(WebsHash abilities, cchar *role, int depth)
 {
-    WebsRole    *rp;
-    WebsKey     *key;
+    WebsRole *rp;
+    WebsKey  *key;
 
     assert(abilities >= 0);
     assert(role && *role);
@@ -374,7 +374,7 @@ static void computeAbilities(WebsHash abilities, cchar *role, int depth)
 
 static void computeUserAbilities(WebsUser *user)
 {
-    char    *ability, *roles, *tok;
+    char *ability, *roles, *tok;
 
     assert(user);
     if ((user->abilities = hashCreate(-1)) == 0) {
@@ -401,8 +401,8 @@ static void computeUserAbilities(WebsUser *user)
 
 PUBLIC void websComputeAllUserAbilities(void)
 {
-    WebsUser    *user;
-    WebsKey     *sym;
+    WebsUser *user;
+    WebsKey  *sym;
 
     if (users) {
         for (sym = hashFirst(users); sym; sym = hashNext(users, sym)) {
@@ -415,7 +415,7 @@ PUBLIC void websComputeAllUserAbilities(void)
 
 WebsRole *websAddRole(cchar *name, WebsHash abilities)
 {
-    WebsRole    *rp;
+    WebsRole *rp;
 
     if (!name) {
         error("Role is missing name");
@@ -450,8 +450,8 @@ static void freeRole(WebsRole *rp)
  */
 PUBLIC int websRemoveRole(cchar *name)
 {
-    WebsRole    *rp;
-    WebsKey     *sym;
+    WebsRole *rp;
+    WebsKey  *sym;
 
     assert(name && *name);
     if (roles) {
@@ -524,7 +524,7 @@ PUBLIC bool websLogoutUser(Webs *wp)
  */
 static void loginServiceProc(Webs *wp)
 {
-    WebsRoute   *route;
+    WebsRoute *route;
 
     assert(wp);
     route = wp->route;
@@ -578,8 +578,8 @@ WebsVerify websGetPasswordStoreVerify(void)
 
 PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 {
-    char    passbuf[ME_GOAHEAD_LIMIT_PASSWORD * 3 + 3];
-    bool    success;
+    char passbuf[ME_GOAHEAD_LIMIT_PASSWORD * 3 + 3];
+    bool success;
 
     assert(wp);
     if (!wp->user && (wp->user = websLookupUser(wp->username)) == 0) {
@@ -587,10 +587,20 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
         return 0;
     }
     /*
-        Verify the password. If using Digest auth, we compare the digest of the password.
+        Verify the password. BF1 means blowfish salted hash.
+        If using Digest auth, we compare the digest of the password.
         Otherwise we encode the plain-text password and compare that
      */
-    if (!wp->encoded) {
+    if (sstarts(wp->user->password, "BF1:")) {
+        // Blowfish salted hash
+        success = websCheckPassword(wp->password, wp->user->password);
+        wfree(wp->password);
+        wp->password = sclone(wp->user->password);
+
+    } else if (!wp->encoded) {
+        /*
+            SECURITY Acceptable: - Legacy MD5 hash - required for backward compatibility with digest auth
+         */
         fmt(passbuf, sizeof(passbuf), "%s:%s:%s", wp->username, ME_GOAHEAD_REALM, wp->password);
         wfree(wp->password);
         wp->password = websMD5(passbuf);
@@ -612,20 +622,33 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 
 /*
     Constant time password match
-*/
+    Fixed to prevent timing attacks by ensuring constant execution time
+    regardless of string length differences
+ */
 static bool pmatch(cchar *s1, cchar *s2)
 {
-    ssize   i, len1, len2;
-    uchar   c;
+    ssize i, len1, len2, maxLen;
+    uchar c, lengthDiff;
 
     len1 = slen(s1);
     len2 = slen(s2);
-    if (len1 != len2) {
-        return 0;
+
+    /* Record if lengths differ, but don't return early */
+    lengthDiff = (uchar) (len1 != len2);
+
+    /* Always compare the maximum length to ensure constant time */
+    maxLen = (len1 > len2) ? len1 : len2;
+
+    /* Perform comparison over the full maximum length */
+    for (i = 0, c = 0; i < maxLen; i++) {
+        uchar c1 = (i < len1) ? (uchar) s1[i] : 0;
+        uchar c2 = (i < len2) ? (uchar) s2[i] : 0;
+        c |= c1 ^ c2;
     }
-    for (i = 0, c = 0; i < len1; i++) {
-        c |= (uchar) s1[i] ^ (uchar) s2[i];
-    }
+
+    /* Include length difference in the final result */
+    c |= lengthDiff;
+
     return !c;
 }
 
@@ -636,12 +659,12 @@ static bool pmatch(cchar *s1, cchar *s2)
  */
 PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
 {
-    WebsBuf             abilities;
-    pam_handle_t        *pamh;
-    UserInfo            info;
-    struct pam_conv     conv = { pamChat, &info };
-    struct group        *gp;
-    int                 res, i;
+    WebsBuf         abilities;
+    pam_handle_t    *pamh;
+    UserInfo        info;
+    struct pam_conv conv = { pamChat, &info };
+    struct group    *gp;
+    int             res, i;
 
     assert(wp);
     assert(wp->username && wp->username);
@@ -666,8 +689,8 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
         wp->user = websLookupUser(wp->username);
     }
     if (!wp->user) {
-        Gid     groups[32];
-        int     ngroups;
+        Gid groups[32];
+        int ngroups;
         /*
             Create a temporary user with a abilities set to the groups
          */
@@ -697,9 +720,9 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
  */
 static int pamChat(int msgCount, const struct pam_message **msg, struct pam_response **resp, void *data)
 {
-    UserInfo                *info;
-    struct pam_response     *reply;
-    int                     i;
+    UserInfo            *info;
+    struct pam_response *reply;
+    int                 i;
 
     i = 0;
     reply = 0;
@@ -738,7 +761,7 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 
 static bool parseBasicDetails(Webs *wp)
 {
-    char    *cp, *userAuth;
+    char *cp, *userAuth;
 
     assert(wp);
     /*
@@ -768,7 +791,7 @@ static bool parseBasicDetails(Webs *wp)
 #if ME_GOAHEAD_DIGEST
 static void digestLogin(Webs *wp)
 {
-    char  *nonce, *opaque;
+    char *nonce, *opaque;
 
     assert(wp);
     assert(wp->route);
@@ -786,26 +809,26 @@ static void digestLogin(Webs *wp)
 
 static bool parseDigestDetails(Webs *wp)
 {
-    WebsTime    when;
-    char        *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *realm;
-    int         seenComma;
+    WebsTime when;
+    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *realm;
+    int      seenComma;
 
     assert(wp);
     key = keyBuf = sclone(wp->authDetails);
 
     while (*key) {
-        while (*key && isspace((uchar) *key)) {
+        while (*key && isspace((uchar) * key)) {
             key++;
         }
         tok = key;
-        while (*tok && !isspace((uchar) *tok) && *tok != ',' && *tok != '=') {
+        while (*tok && !isspace((uchar) * tok) && *tok != ',' && *tok != '=') {
             tok++;
         }
         if (*tok) {
             *tok++ = '\0';
         }
 
-        while (isspace((uchar) *tok)) {
+        while (isspace((uchar) * tok)) {
             tok++;
         }
         seenComma = 0;
@@ -841,7 +864,7 @@ static bool parseDigestDetails(Webs *wp)
         /*
             user, response, oqaque, uri, realm, nonce, nc, cnonce, qop
          */
-        switch (tolower((uchar) *key)) {
+        switch (tolower((uchar) * key)) {
         case 'a':
             if (scaselesscmp(key, "algorithm") == 0) {
                 break;
@@ -893,6 +916,7 @@ static bool parseDigestDetails(Webs *wp)
                 wp->realm = sclone(value);
             } else if (scaselesscmp(key, "response") == 0) {
                 /*
+                    SECURITY Acceptable: MD5 is used for legacy digest authentication.
                     Store the response digest in the password field. This is MD5(HA1:nonce:HA2) where
                     HA1 is MD5(user:realm:password) and HA2 is MD5(method:digestUri)
                  */
@@ -947,6 +971,11 @@ static bool parseDigestDetails(Webs *wp)
      */
     when = 0; secret = 0; realm = 0;
     decoded = parseDigestNonce(wp->nonce, &secret, &realm, &when);
+    if (decoded == 0 || secret == 0 || realm == 0) {
+        trace(2, "Access denied: Bad nonce");
+        wfree(decoded);
+        return 0;
+    }
     if (!smatch(masterSecret, secret)) {
         trace(2, "Access denied: Nonce mismatch");
         wfree(decoded);
@@ -980,6 +1009,7 @@ static bool parseDigestDetails(Webs *wp)
 
 /*
     Create a nonce value for digest authentication (RFC 2617)
+    The masterSecret is cryptographically secure.
  */
 static char *createDigestNonce(Webs *wp)
 {
@@ -996,7 +1026,7 @@ static char *createDigestNonce(Webs *wp)
 
 static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime *when)
 {
-    char    *tok, *decoded, *whenStr;
+    char *tok, *decoded, *whenStr;
 
     assert(nonce && *nonce);
     assert(secret);
@@ -1006,21 +1036,25 @@ static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime
     if ((decoded = websDecode64(nonce)) == 0) {
         return 0;
     }
-    *secret = stok(decoded, ":", &tok);
-    *realm = stok(NULL, ":", &tok);
-    whenStr = stok(NULL, ":", &tok);
-    *when = hextoi(whenStr);
+    /* Legacy nonce format */
+    if (strchr(decoded, ':')) {
+        *secret = stok(decoded, ":", &tok);
+        *realm = stok(NULL, ":", &tok);
+        whenStr = stok(NULL, ":", &tok);
+        *when = hextoi(whenStr);
+    }
     return decoded;
 }
 
 
 /*
    Get a Digest value using the MD5 algorithm -- See RFC 2617 to understand this code.
+   SECURITY Acceptable: MD5 is used for legacy digest authentication.
  */
 static char *calcDigest(Webs *wp, char *username, char *password)
 {
-    char  a1Buf[256], a2Buf[256], digestBuf[256];
-    char  *ha1, *ha2, *method, *result;
+    char a1Buf[256], a2Buf[256], digestBuf[256];
+    char *ha1, *ha2, *method, *result;
 
     assert(wp);
     assert(password);

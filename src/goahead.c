@@ -40,10 +40,9 @@ static void sigHandler(int signo);
 
 /*********************************** Code *************************************/
 
-MAIN(goahead, int argc, char **argv, char **envp)
-{
-    char    *argp, *home, *documents, *endpoints, *endpoint, *route, *auth, *tok, *lspec;
-    int     argind;
+MAIN(goahead, int argc, char **argv, char **envp){
+    char *argp, *home, *documents, *endpoints, *endpoint, *route, *auth, *tok, *lspec;
+    int  argind;
 
 #if WINDOWS
     if (windowsInit() < 0) {
@@ -179,7 +178,7 @@ MAIN(goahead, int argc, char **argv, char **envp)
 
 static void logHeader(void)
 {
-    char    home[ME_GOAHEAD_LIMIT_STRING];
+    char home[ME_GOAHEAD_LIMIT_STRING];
 
     getcwd(home, sizeof(home));
     logmsg(2, "Configuration for %s", ME_TITLE);
@@ -196,23 +195,24 @@ static void logHeader(void)
 }
 
 
-static void usage(void) {
+static void usage(void)
+{
     fprintf(stderr, "\n%s Usage:\n\n"
-        "  %s [options] [documents] [[IPaddress][:port] ...]\n\n"
-        "  Options:\n"
+            "  %s [options] [documents] [[IPaddress][:port] ...]\n\n"
+            "  Options:\n"
 #if ME_GOAHEAD_AUTH
-        "    --auth authFile        # User and role configuration\n"
+            "    --auth authFile        # User and role configuration\n"
 #endif
 #if ME_UNIX_LIKE && !MACOSX
-        "    --background           # Run as a Unix daemon\n"
+            "    --background           # Run as a Unix daemon\n"
 #endif
-        "    --debugger             # Run in debug mode\n"
-        "    --home directory       # Change to directory to run\n"
-        "    --log logFile:level    # Log to file file at verbosity level\n"
-        "    --route routeFile      # Route configuration file\n"
-        "    --verbose              # Same as --log stdout:2\n"
-        "    --version              # Output version information\n\n",
-        ME_TITLE, ME_NAME);
+            "    --debugger             # Run in debug mode\n"
+            "    --home directory       # Change to directory to run\n"
+            "    --log logFile:level    # Log to file file at verbosity level\n"
+            "    --route routeFile      # Route configuration file\n"
+            "    --verbose              # Same as --log stdout:2\n"
+            "    --version              # Output version information\n\n",
+            ME_TITLE, ME_NAME);
     exit(-1);
 }
 
@@ -222,10 +222,10 @@ static void initPlatform(void)
 #if ME_UNIX_LIKE
     signal(SIGTERM, sigHandler);
     #ifdef SIGPIPE
-        signal(SIGPIPE, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
     #endif
 #elif ME_WIN_LIKE
-    _fmode=_O_BINARY;
+    _fmode = _O_BINARY;
 #endif
 }
 
@@ -244,29 +244,29 @@ static void sigHandler(int signo)
  */
 static int windowsInit()
 {
-    HINSTANCE   inst;
-    WNDCLASS    wc;                     /* Window class */
-    HMENU       hSysMenu;
-    HWND        hwnd;
+    HINSTANCE inst;
+    WNDCLASS  wc;                       /* Window class */
+    HMENU     hSysMenu;
+    HWND      hwnd;
 
     inst = websGetInst();
-    wc.style         = CS_HREDRAW | CS_VREDRAW;
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
-    wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = inst;
-    wc.hIcon         = NULL;
-    wc.lpfnWndProc   = (WNDPROC) websWindProc;
-    wc.lpszMenuName  = wc.lpszClassName = ME_NAME;
-    if (! RegisterClass(&wc)) {
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = inst;
+    wc.hIcon = NULL;
+    wc.lpfnWndProc = (WNDPROC) websWindProc;
+    wc.lpszMenuName = wc.lpszClassName = ME_NAME;
+    if (!RegisterClass(&wc)) {
         return -1;
     }
     /*
         Create a window just so we can have a taskbar to close this web server
      */
     hwnd = CreateWindow(ME_NAME, ME_TITLE, WS_MINIMIZE | WS_POPUPWINDOW, CW_USEDEFAULT,
-        0, 0, 0, NULL, NULL, inst, NULL);
+                        0, 0, 0, NULL, NULL, inst, NULL);
     if (hwnd == NULL) {
         return -1;
     }
@@ -286,7 +286,7 @@ static int windowsInit()
 
 static void windowsClose()
 {
-    HINSTANCE   inst;
+    HINSTANCE inst;
 
     inst = websGetInst();
     UnregisterClass(ME_NAME, inst);
@@ -299,13 +299,13 @@ static void windowsClose()
 static LRESULT CALLBACK websWindProc(HWND hwnd, UINT msg, UINT wp, LPARAM lp)
 {
     switch (msg) {
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            finished++;
-            return 0;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        finished++;
+        return 0;
 
-        case WM_SYSCOMMAND:
-            break;
+    case WM_SYSCOMMAND:
+        break;
     }
     return DefWindowProc(hwnd, msg, wp, lp);
 }
@@ -316,7 +316,7 @@ static LRESULT CALLBACK websWindProc(HWND hwnd, UINT msg, UINT wp, LPARAM lp)
  */
 WPARAM checkWindowsMsgLoop()
 {
-    MSG     msg;
+    MSG msg;
 
     if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
         if (!GetMessage(&msg, NULL, 0, 0) || msg.message == WM_QUIT) {
@@ -334,17 +334,17 @@ WPARAM checkWindowsMsgLoop()
  */
 static LRESULT CALLBACK websAboutProc(HWND hwndDlg, uint msg, uint wp, long lp)
 {
-    LRESULT    lResult;
+    LRESULT lResult;
 
     lResult = DefWindowProc(hwndDlg, msg, wp, lp);
 
     switch (msg) {
-        case WM_CREATE:
-            break;
-        case WM_DESTROY:
-            break;
-        case WM_COMMAND:
-            break;
+    case WM_CREATE:
+        break;
+    case WM_DESTROY:
+        break;
+    case WM_COMMAND:
+        break;
     }
     return lResult;
 }

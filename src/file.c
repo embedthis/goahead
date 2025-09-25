@@ -10,8 +10,8 @@
 
 /*********************************** Locals ***********************************/
 
-static char   *websIndex;                   /* Default page name */
-static char   *websDocuments;               /* Default Web page directory */
+static char *websIndex;                     /* Default page name */
+static char *websDocuments;                 /* Default Web page directory */
 
 /**************************** Forward Declarations ****************************/
 
@@ -24,10 +24,10 @@ static void fileWriteEvent(Webs *wp);
  */
 static bool fileHandler(Webs *wp)
 {
-    WebsFileInfo    info;
-    char            *tmp, *date;
-    ssize           nchars;
-    int             code;
+    WebsFileInfo info;
+    char         *tmp, *date;
+    ssize        nchars;
+    int          code;
 
     assert(websValid(wp));
     assert(wp->method);
@@ -111,9 +111,9 @@ static bool fileHandler(Webs *wp)
  */
 static void fileWriteEvent(Webs *wp)
 {
-    char    *buf;
-    ssize   size, len, wrote;
-    int     err;
+    char  *buf;
+    ssize size, len, wrote;
+    int   err;
 
     assert(wp);
     assert(websValid(wp));
@@ -141,7 +141,7 @@ static void fileWriteEvent(Webs *wp)
         }
         wp->txRemaining -= wrote;
         if (wrote != len) {
-            websPageSeek(wp, - (len - wrote), SEEK_CUR);
+            websPageSeek(wp, -(len - wrote), SEEK_CUR);
             break;
         }
     }
@@ -155,7 +155,7 @@ static void fileWriteEvent(Webs *wp)
 #if !ME_ROM
 PUBLIC bool websProcessPutData(Webs *wp)
 {
-    ssize   nbytes;
+    ssize nbytes;
 
     assert(wp);
     assert(wp->putfd >= 0);

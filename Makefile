@@ -40,8 +40,9 @@ BIN 	:= $(OS)-$(ARCH)-$(PROFILE)/bin
 PATH    := $(PWD)/build/$(BIN):$(PATH)
 
 .EXPORT_ALL_VARIABLES:
+.PHONY: all build compile clean clobber installBinary uninstall run deploy install version help test
 
-all compile:
+all build compile:
 	@if [ ! -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) ] ; then \
 		echo "The build configuration projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) is not supported" ; exit 255 ; \
 	fi
@@ -52,6 +53,9 @@ all compile:
 
 clean clobber installBinary uninstall run:
 	@$(MAKE) -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) $@
+
+doc:
+	@me doc
 
 deploy:
 	@echo '       [Deploy] $(MAKE) ME_ROOT_PREFIX=$(OS)-$(ARCH)-$(PROFILE)/deploy -f projects/$(NAME)-$(OS)-$(PROFILE).  $(EXT) installBinary'

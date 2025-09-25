@@ -9,7 +9,7 @@ Me.load({
             description: 'OpenSSL Support',
             config: function (target) {
                 let os = me.platform.os
-                let version = (me.settings.openssl || {}).version || '1.0'
+                let version = (me.settings.openssl || {}).version || '3.5'
                 if (me.options.gen) {
                     let result = {
                         includes: [ me.dir.inc ],

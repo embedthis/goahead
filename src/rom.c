@@ -7,10 +7,10 @@
 
 #if ME_ROM
 WebsRomIndex websRomIndex[] = {
-	{ 0, 0, 0, 0 }
+    { 0, 0, 0, 0 }
 };
 #else
 WebsRomIndex websRomIndex[] = {
-	{ 0, 0, 0, 0 }
+    { 0, 0, 0, 0 }
 };
 #endif

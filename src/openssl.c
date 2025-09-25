@@ -14,9 +14,9 @@
 #if ME_COM_OPENSSL
 
 #if ME_UNIX_LIKE
-    /*
-        Mac OS X OpenSSL stack is deprecated. Suppress those warnings.
-     */
+/*
+    Mac OS X OpenSSL stack is deprecated. Suppress those warnings.
+ */
     #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
@@ -24,15 +24,15 @@
 #undef OCSP_RESPONSE
 
 #ifndef ME_GOAHEAD_SSL_HANDSHAKES
-    #define ME_GOAHEAD_SSL_HANDSHAKES 0     /* Defaults to infinite */
+    #define ME_GOAHEAD_SSL_HANDSHAKES  0    /* Defaults to infinite */
 #endif
 #ifndef ME_GOAHEAD_SSL_RENEGOTIATE
     #define ME_GOAHEAD_SSL_RENEGOTIATE 1
 #endif
 
- /*
-    Indent includes to bypass MakeMe dependencies
-  */
+/*
+   Indent includes to bypass MakeMe dependencies
+ */
  #include    <openssl/ssl.h>
  #include    <openssl/evp.h>
  #include    <openssl/rand.h>
@@ -45,31 +45,33 @@
     See cipher mappings at: https://wiki.mozilla.org/Security/Server_Side_TLS#Cipher_names_correspondence_table
 
     Rationale:
-    * TLSv1.3 ciphers are preferred and listed first. 
-    * TLSv1 and v2 ciphers are legacy and only for backward compatibility with legacy systems.
-    * For TLSv2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
+ * TLSv1.3 ciphers are preferred and listed first.
+ * TLSv1 and v2 ciphers are legacy and only for backward compatibility with legacy systems.
+ * For TLSv2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
       devices support AESNI instructions and thus benefit from fast and constant time AES.
-    * For TLSv2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
+ * For TLSv2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
       on ECDSA certificates are permitted because very few CAs sign with ECDSA at the moment.
-    * For TLSv2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
+ * For TLSv2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
       elliptic curve key exchanges.
-    * For TLSv2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
-    * Recommended RSA and DH parameter size: 2048 bits.
+ * For TLSv2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
+ * Recommended RSA and DH parameter size: 2048 bits.
  */
 #define OPENSSL_TLSV3_DEFAULT_CIPHERS "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    #define OPENSSL_DEFAULT_CIPHERS OPENSSL_TLSV3_DEFAULT_CIPHERS ":ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256"
+    #define OPENSSL_DEFAULT_CIPHERS   OPENSSL_TLSV3_DEFAULT_CIPHERS \
+            ":ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256"
 #else
-    #define OPENSSL_DEFAULT_CIPHERS OPENSSL_TLSV3_DEFAULT_CIPHERS ":ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4:!SSLv3"
+    #define OPENSSL_DEFAULT_CIPHERS   OPENSSL_TLSV3_DEFAULT_CIPHERS \
+            ":ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4:!SSLv3"
 #endif
 
 /*
     Map Iana names to OpenSSL names
  */
 typedef struct CipherMap {
-    int     code;
-    char    *name;
-    char    *ossName;
+    int code;
+    char *name;
+    char *ossName;
 } CipherMap;
 
 static CipherMap cipherMap[] = {
@@ -185,11 +187,11 @@ static CipherMap cipherMap[] = {
 static SSL_CTX *sslctx = NULL;
 
 typedef struct RandBuf {
-    time_t      now;
-    int         pid;
+    time_t now;
+    int pid;
 } RandBuf;
 
-#define VERIFY_DEPTH 10
+#define VERIFY_DEPTH             10
 
 /*
     Used for OpenSSL versions < 1.0.2
@@ -201,13 +203,13 @@ typedef struct RandBuf {
 /*
     DH parameters
  */
-static DH *dhKey;
+static DH  *dhKey;
 static int maxHandshakes;
 
 /************************************ Forwards ********************************/
 
-static DH   *dhcallback(SSL *handle, int is_export, int keylength);
-static DH   *getDhKey();
+static DH *dhcallback(SSL *handle, int is_export, int keylength);
+static DH *getDhKey();
 static char *mapCipherNames(char *ciphers);
 static int  sslSetCertFile(char *certFile);
 static int  sslSetKeyFile(char *keyFile);
@@ -220,11 +222,11 @@ static void infoCallback(const SSL *ssl, int where, int rc);
  */
 PUBLIC int sslOpen()
 {
-    RandBuf     randBuf;
-    X509_STORE  *store;
-    uchar       resume[16];
-    char        *ciphers;
-    int         rc;
+    RandBuf    randBuf;
+    X509_STORE *store;
+    uchar      resume[16];
+    char       *ciphers;
+    int        rc;
 
     trace(7, "Initializing SSL");
 
@@ -243,10 +245,19 @@ PUBLIC int sslOpen()
     SSL_load_error_strings();
     SSLeay_add_ssl_algorithms();
 
-    if ((sslctx = SSL_CTX_new(SSLv23_server_method())) == 0) {
+    if ((sslctx = SSL_CTX_new(TLS_server_method())) == 0) {
         error("Unable to create SSL context");
         return -1;
     }
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    /* Enforce minimum TLS version 1.2 on modern OpenSSL */
+    if (!SSL_CTX_set_min_proto_version(sslctx, TLS1_2_VERSION)) {
+        error("Unable to set minimum TLS version to 1.2");
+        sslClose();
+        return -1;
+    }
+#endif
 
     /*
           Set the server certificate and key files
@@ -312,7 +323,7 @@ PUBLIC int sslOpen()
         Set TLSv1.3 ciphers and <1.2 ciphers via (cipher_list).
         ciphersuites() fails if any cipher fails, cipher_list fails if all ciphers fail.
         This fails if we can't get a 1.3 or 1.2 cipher suite configured
-    */ 
+     */
     rc = 1;
     if (SSL_CTX_set_ciphersuites(sslctx, ciphers) != 1 && SSL_CTX_set_cipher_list(sslctx, ciphers) != 1) {
         rc = 0;
@@ -349,28 +360,28 @@ PUBLIC int sslOpen()
      */
 #if SSL_OP_SINGLE_ECDH_USE
     #ifdef SSL_CTX_set_ecdh_auto
-        SSL_CTX_set_ecdh_auto(sslctx, 1);
+    SSL_CTX_set_ecdh_auto(sslctx, 1);
     #else
-        {
-            EC_KEY  *ecdh;
-            cchar   *name;
-            int      nid;
+    {
+        EC_KEY *ecdh;
+        cchar  *name;
+        int    nid;
 
-            name = ME_GOAHEAD_SSL_CURVE;
-            if ((nid = OBJ_sn2nid(name)) == 0) {
-                error("Unknown curve name \"%s\"", name);
-                sslClose();
-                return -1;
-            }
-            if ((ecdh = EC_KEY_new_by_curve_name(nid)) == 0) {
-                error("Unable to create curve \"%s\"", name);
-                sslClose();
-                return -1;
-            }
-            SSL_CTX_set_options(sslctx, SSL_OP_SINGLE_ECDH_USE);
-            SSL_CTX_set_tmp_ecdh(sslctx, ecdh);
-            EC_KEY_free(ecdh);
+        name = ME_GOAHEAD_SSL_CURVE;
+        if ((nid = OBJ_sn2nid(name)) == 0) {
+            error("Unknown curve name \"%s\"", name);
+            sslClose();
+            return -1;
         }
+        if ((ecdh = EC_KEY_new_by_curve_name(nid)) == 0) {
+            error("Unable to create curve \"%s\"", name);
+            sslClose();
+            return -1;
+        }
+        SSL_CTX_set_options(sslctx, SSL_OP_SINGLE_ECDH_USE);
+        SSL_CTX_set_tmp_ecdh(sslctx, ecdh);
+        EC_KEY_free(ecdh);
+    }
     #endif
 #endif
 
@@ -382,7 +393,7 @@ PUBLIC int sslOpen()
     SSL_CTX_set_mode(sslctx, SSL_MODE_RELEASE_BUFFERS);
 #endif
 #ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-    SSL_CTX_set_mode(sslctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+    SSL_CTX_set_options(sslctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 #endif
 
     /*
@@ -395,7 +406,8 @@ PUBLIC int sslOpen()
     SSL_CTX_set_options(sslctx, SSL_OP_NO_TLSv1);
 #endif
 
-#if defined(SSL_OP_NO_TLSv1_1) && ME_GOAHEAD_SSL_NO_V1_1
+#if defined(SSL_OP_NO_TLSv1_1)
+    /* Disable TLS 1.1 by default on older OpenSSL */
     SSL_CTX_set_options(sslctx, SSL_OP_NO_TLSv1_1);
 #endif
 #if defined(SSL_OP_NO_TLSv1_2) && ME_GOAHEAD_SSL_NO_V1_2
@@ -410,13 +422,13 @@ PUBLIC int sslOpen()
         Ticket based session reuse is enabled by default
      */
     #if defined(ME_GOAHEAD_SSL_TICKET)
-        if (ME_GOAHEAD_SSL_TICKET) {
-            SSL_CTX_clear_options(sslctx, SSL_OP_NO_TICKET);
-        } else {
-            SSL_CTX_set_options(sslctx, SSL_OP_NO_TICKET);
-        }
-    #else
+    if (ME_GOAHEAD_SSL_TICKET) {
         SSL_CTX_clear_options(sslctx, SSL_OP_NO_TICKET);
+    } else {
+        SSL_CTX_set_options(sslctx, SSL_OP_NO_TICKET);
+    }
+    #else
+    SSL_CTX_clear_options(sslctx, SSL_OP_NO_TICKET);
     #endif
 #endif
 
@@ -424,7 +436,12 @@ PUBLIC int sslOpen()
     /*
         CRIME attack targets compression
      */
-    SSL_CTX_clear_options(sslctx, SSL_OP_NO_COMPRESSION);
+    SSL_CTX_set_options(sslctx, SSL_OP_NO_COMPRESSION);
+#endif
+
+#ifdef SSL_OP_NO_RENEGOTIATION
+    /* Disallow renegotiation entirely */
+    SSL_CTX_set_options(sslctx, SSL_OP_NO_RENEGOTIATION);
 #endif
 
 #if defined(ME_GOAHEAD_SSL_HANDSHAKES)
@@ -437,14 +454,14 @@ PUBLIC int sslOpen()
         Defaults to true.
      */
     #if defined(ME_GOAHEAD_SSL_EMPTY_FRAGMENTS)
-        if (ME_GOAHEAD_SSL_EMPTY_FRAGMENTS) {
-            /* SSL_OP_ALL disables empty fragments. Only needed for ancient browsers like IE-6 on SSL-3.0/TLS-1.0 */
-            SSL_CTX_clear_options(sslctx, SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS);
-        } else {
-            SSL_CTX_set_options(sslctx, SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS);
-        }
-    #else
+    if (ME_GOAHEAD_SSL_EMPTY_FRAGMENTS) {
+        /* SSL_OP_ALL disables empty fragments. Only needed for ancient browsers like IE-6 on SSL-3.0/TLS-1.0 */
+        SSL_CTX_clear_options(sslctx, SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS);
+    } else {
         SSL_CTX_set_options(sslctx, SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS);
+    }
+    #else
+    SSL_CTX_set_options(sslctx, SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS);
     #endif
 #endif
 
@@ -481,8 +498,8 @@ PUBLIC void sslClose()
  */
 PUBLIC int sslUpgrade(Webs *wp)
 {
-    WebsSocket      *sptr;
-    BIO             *bio;
+    WebsSocket *sptr;
+    BIO        *bio;
 
     assert(wp);
 
@@ -507,8 +524,8 @@ PUBLIC int sslUpgrade(Webs *wp)
 
 static void infoCallback(const SSL *ssl, int where, int rc)
 {
-    Webs        *wp;
-    WebsSocket  *sp;
+    Webs       *wp;
+    WebsSocket *sp;
 
     if (where & SSL_CB_HANDSHAKE_START) {
         if ((wp = (Webs*) SSL_get_app_data(ssl)) == 0) {
@@ -537,10 +554,10 @@ PUBLIC void sslFree(Webs *wp)
  */
 PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
 {
-    WebsSocket      *sp;
-    char            ebuf[ME_GOAHEAD_LIMIT_STRING];
-    ulong           serror;
-    int             rc, err, retries, i;
+    WebsSocket *sp;
+    char       ebuf[ME_GOAHEAD_LIMIT_STRING];
+    ulong      serror;
+    int        rc, err, retries, i;
 
     if (wp->ssl == 0 || len <= 0) {
         return -1;
@@ -599,9 +616,9 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
 
 PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 {
-    WebsSocket  *sp;
-    ssize       totalWritten;
-    int         err, rc;
+    WebsSocket *sp;
+    ssize      totalWritten;
+    int        err, rc;
 
     if (wp->ssl == 0 || len <= 0) {
         return -1;
@@ -646,10 +663,10 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
  */
 static int sslSetCertFile(char *certFile)
 {
-    X509    *cert;
-    BIO     *bio;
-    char    *buf;
-    int     rc;
+    X509 *cert;
+    BIO  *bio;
+    char *buf;
+    int  rc;
 
     assert(sslctx);
     assert(certFile);
@@ -696,10 +713,10 @@ static int sslSetCertFile(char *certFile)
  */
 static int sslSetKeyFile(char *keyFile)
 {
-    RSA     *key;
-    BIO     *bio;
-    char    *buf;
-    int     rc;
+    RSA  *key;
+    BIO  *bio;
+    char *buf;
+    int  rc;
 
     assert(sslctx);
     assert(keyFile);
@@ -740,9 +757,9 @@ static int sslSetKeyFile(char *keyFile)
 
 static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
 {
-    X509    *cert;
-    char    subject[260], issuer[260], peer[260];
-    int     error, depth;
+    X509 *cert;
+    char subject[260], issuer[260], peer[260];
+    int  error, depth;
 
     subject[0] = issuer[0] = '\0';
 
@@ -822,9 +839,9 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
  */
 static char *mapCipherNames(char *ciphers)
 {
-    WebsBuf     buf;
-    CipherMap   *cp;
-    char        *cipher, *next, *str;
+    WebsBuf   buf;
+    CipherMap *cp;
+    char      *cipher, *next, *str;
 
     if (!ciphers || *ciphers == 0) {
         return 0;
@@ -873,27 +890,27 @@ static DH *getDhKey()
         0x39, 0x95, 0x49, 0x7C, 0xEA, 0x95, 0x6A, 0xE5, 0x15, 0xD2, 0x26, 0x18, 0x98, 0xFA, 0x05, 0x10,
         0x15, 0x72, 0x8E, 0x5A, 0x8A, 0xAC, 0xAA, 0x68, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     };
-	static unsigned char dh2048_g[] = {
-		0x02,
+    static unsigned char dh2048_g[] = {
+        0x02,
     };
-	DH      *dh;
+    DH                   *dh;
 
     if ((dh = DH_new()) == 0) {
         return 0;
     }
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-{
-    BIGNUM  *p, *g;
+    {
+        BIGNUM *p, *g;
 
-    p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
-    g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
-    if (!DH_set0_pqg(dh, p, NULL, g)) {
-        BN_free(p);
-        BN_free(g);
-        DH_free(dh);
-        return 0;
+        p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
+        g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
+        if (!DH_set0_pqg(dh, p, NULL, g)) {
+            BN_free(p);
+            BN_free(g);
+            DH_free(dh);
+            return 0;
+        }
     }
-}
 #else
     dh->p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
     dh->g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
@@ -902,7 +919,7 @@ static DH *getDhKey()
         return 0;
     }
 #endif
-	return dh;
+    return dh;
 }
 
 
@@ -915,7 +932,9 @@ static DH *dhcallback(SSL *handle, int isExport, int keyLength)
 }
 
 #else
-void opensslDummy() {}
+void opensslDummy()
+{
+}
 #endif
 
 /*

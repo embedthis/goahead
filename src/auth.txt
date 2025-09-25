@@ -13,5 +13,5 @@
 #       role name=manager abilities=view,edit,delete
 #
 #   Define a user
-#       user name=joshua password=2fd6e47ff9bb70c0465fd2f5c8e5305e roles=manager,purchaser
+#       user name=joshua password=BF1:00128:6FoznS3wS71j3b2j:y/mXajgC62502b2U3337/G== roles=manager,purchaser
 #

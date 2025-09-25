@@ -7,7 +7,7 @@
         "http",
         "webserver"
     ],
-    "version": "6.0.4",
+    "version": "6.0.5",
     "homepage": "https://embedthis.com/goahead/",
     "author": {
         "name": "Embedthis Software",
