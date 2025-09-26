@@ -168,7 +168,7 @@ PUBLIC HINSTANCE websGetInst();
  */
 
 #define WEBS_MAX_LISTEN   8             /**< Maximum number of listening endpoints that can be configured simultaneously
-                                        */
+                                         */
 #define WEBS_SMALL_HASH   31            /**< Default size for small hash tables (should be prime number for good
                                            distribution) */
 #define WEBS_MAX_PASSWORD 32            /**< Default maximum length for user passwords in authentication systems */

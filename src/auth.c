@@ -622,8 +622,6 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 
 /*
     Constant time password match
-    Fixed to prevent timing attacks by ensuring constant execution time
-    regardless of string length differences
  */
 static bool pmatch(cchar *s1, cchar *s2)
 {

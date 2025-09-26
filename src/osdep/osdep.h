@@ -1,20 +1,21 @@
-/**
-    Operating system dependent abstraction layer.
-    @description This header provides a comprehensive cross-platform abstraction layer for embedded IoT applications.
-    It defines standard types, platform detection constants, compiler abstractions, and operating system compatibility
-    macros to enable portability across diverse embedded and desktop systems. This is the foundational module consumed
-    by all other EmbedThis modules and must be included first in any source file. The module automatically detects
-    the target platform's CPU architecture, operating system, compiler, and endianness to provide consistent behavior
-    across ARM, x86, MIPS, PowerPC, SPARC, RISC-V, Xtensa, and other architectures running on Linux, macOS, Windows,
-    VxWorks, FreeRTOS, ESP32, and other operating systems.
-    @stability Evolving
-    Copyright (c) All Rights Reserved. See details at the end of the file.
+/*
+    osdep.h -- O/S abstraction layer.
+
+    This module provides a portable cross-platform abstraction layer.
+    By including "osdep.h", you will include most common O/S headers and define
+    a set of useful cross-platform constants.
  */
 
 #ifndef _h_OSDEP
 #define _h_OSDEP 1
 
 /********************************** Includes **********************************/
+
+/**
+    Operating system dependent layer that provides a portable cross-platform abstraction layer.
+    @defgroup Osdep Osdep
+    @stability Evolving
+*/
 
 #ifndef OSDEP_USE_ME
 #define OSDEP_USE_ME 1
@@ -26,7 +27,7 @@
 
 /******************************* Default Features *****************************/
 /*
-    Default features
+    MakeMe defaults
  */
 #ifndef ME_COM_SSL
     #define ME_COM_SSL 0                /**< Build without SSL support */
@@ -41,157 +42,37 @@
     #define ME_ROM 0                    /**< Build for execute from ROM */
 #endif
 
-/**
-    @section CPU Architecture Detection
-
-    CPU architecture constants for cross-platform compilation. These constants are used with the ME_CPU_ARCH macro
-    to determine the target processor architecture at compile time. The osdep module automatically detects the
-    architecture based on compiler-defined symbols and sets ME_CPU_ARCH to the appropriate value.
-*/
-
-/**
-    Unknown or unsupported CPU architecture.
-    @stability Stable
-*/
+/********************************* CPU Families *******************************/
+/*
+    CPU Architectures
+ */
 #define ME_CPU_UNKNOWN     0
+#define ME_CPU_ARM         1           /**< Arm */
+#define ME_CPU_ARM64       2           /**< Arm64 */
+#define ME_CPU_ITANIUM     3           /**< Intel Itanium */
+#define ME_CPU_X86         4           /**< X86 */
+#define ME_CPU_X64         5           /**< AMD64 or EMT64 */
+#define ME_CPU_MIPS        6           /**< Mips */
+#define ME_CPU_MIPS64      7           /**< Mips 64 */
+#define ME_CPU_PPC         8           /**< Power PC */
+#define ME_CPU_PPC64       9           /**< Power PC 64 */
+#define ME_CPU_SPARC       10          /**< Sparc */
+#define ME_CPU_TIDSP       11          /**< TI DSP */
+#define ME_CPU_SH          12          /**< SuperH */
+#define ME_CPU_RISCV       13          /**< RiscV */
+#define ME_CPU_RISCV64     14          /**< RiscV64 */
+#define ME_CPU_XTENSA      15          /**< Xtensa / ESP32 */
 
-/**
-    ARM 32-bit architecture (ARMv7 and earlier).
-    @description Covers ARM Cortex-A, Cortex-R, and Cortex-M series processors commonly used in embedded systems.
-    @stability Stable
-*/
-#define ME_CPU_ARM         1
+/*
+    Byte orderings
+ */
+#define ME_LITTLE_ENDIAN   1           /**< Little endian byte ordering */
+#define ME_BIG_ENDIAN      2           /**< Big endian byte ordering */
 
-/**
-    ARM 64-bit architecture (ARMv8 and later).
-    @description Covers ARM Cortex-A64 and newer 64-bit ARM processors including Apple Silicon and server processors.
-    @stability Stable
-*/
-#define ME_CPU_ARM64       2
-
-/**
-    Intel Itanium (IA-64) architecture.
-    @description Legacy 64-bit architecture primarily used in high-end servers and workstations.
-    @stability Stable
-*/
-#define ME_CPU_ITANIUM     3
-
-/**
-    Intel x86 32-bit architecture.
-    @description Standard 32-bit x86 processors including Intel and AMD variants.
-    @stability Stable
-*/
-#define ME_CPU_X86         4
-
-/**
-    Intel/AMD x86-64 architecture.
-    @description 64-bit x86 processors including Intel x64 and AMD64 variants.
-    @stability Stable
-*/
-#define ME_CPU_X64         5
-
-/**
-    MIPS 32-bit architecture.
-    @description MIPS processors commonly used in embedded systems and networking equipment.
-    @stability Stable
-*/
-#define ME_CPU_MIPS        6
-
-/**
-    MIPS 64-bit architecture.
-    @description 64-bit MIPS processors used in high-performance embedded and server applications.
-    @stability Stable
-*/
-#define ME_CPU_MIPS64      7
-
-/**
-    PowerPC 32-bit architecture.
-    @description IBM PowerPC processors used in embedded systems and legacy workstations.
-    @stability Stable
-*/
-#define ME_CPU_PPC         8
-
-/**
-    PowerPC 64-bit architecture.
-    @description 64-bit PowerPC processors used in high-performance computing and servers.
-    @stability Stable
-*/
-#define ME_CPU_PPC64       9
-
-/**
-    SPARC architecture.
-    @description Sun/Oracle SPARC processors used in servers and workstations.
-    @stability Stable
-*/
-#define ME_CPU_SPARC       10
-
-/**
-    Texas Instruments DSP architecture.
-    @description TI digital signal processors used in specialized embedded applications.
-    @stability Stable
-*/
-#define ME_CPU_TIDSP       11
-
-/**
-    SuperH architecture.
-    @description Hitachi/Renesas SuperH processors used in embedded systems.
-    @stability Stable
-*/
-#define ME_CPU_SH          12
-
-/**
-    RISC-V 32-bit architecture.
-    @description Open-source RISC-V processors gaining popularity in embedded and IoT applications.
-    @stability Stable
-*/
-#define ME_CPU_RISCV       13
-
-/**
-    RISC-V 64-bit architecture.
-    @description 64-bit RISC-V processors for high-performance applications.
-    @stability Stable
-*/
-#define ME_CPU_RISCV64     14
-
-/**
-    Xtensa architecture including ESP32.
-    @description Tensilica Xtensa processors, notably used in Espressif ESP32 Wi-Fi/Bluetooth microcontrollers.
-    @stability Stable
-*/
-#define ME_CPU_XTENSA      15
-
-/**
-    @section Byte Order Detection
-
-    Endianness constants for cross-platform byte order handling. These constants are used with the ME_ENDIAN macro
-    to determine the target platform's byte ordering at compile time. Little endian stores the least significant
-    byte first, while big endian stores the most significant byte first.
-*/
-
-/**
-    Little endian byte ordering.
-    @description In little endian format, the least significant byte is stored at the lowest memory address.
-    Most x86, ARM, and RISC-V processors use little endian ordering.
-    @stability Stable
-*/
-#define ME_LITTLE_ENDIAN   1
-
-/**
-    Big endian byte ordering.
-    @description In big endian format, the most significant byte is stored at the lowest memory address.
-    SPARC, some MIPS, and PowerPC processors traditionally use big endian ordering.
-    @stability Stable
-*/
-#define ME_BIG_ENDIAN      2
-
-/**
-    @section Platform Detection Logic
-
-    Automatic detection of CPU architecture and endianness based on compiler-defined preprocessor symbols.
-    The osdep module examines compiler-specific macros to determine the target platform and sets the
-    appropriate ME_CPU, ME_CPU_ARCH, and CPU_ENDIAN macros. The default endianness can be overridden
-    by the build system using configure --endian big|little.
-*/
+/*
+    Use compiler definitions to determine the CPU type.
+    The default endianness can be overridden by configure --endian big|little.
+ */
 #if defined(__alpha__)
     #define ME_CPU "alpha"
     #define ME_CPU_ARCH ME_CPU_ALPHA
@@ -259,18 +140,18 @@
 
 #elif defined(__riscv_32)
     #define ME_CPU "riscv"
-    #define ME_CPU_ARCH ME_CPU_RISCV
-    #define ME_CPU_ENDIAN ME_LITTLE_ENDIAN
+    #define ME_CPU_ARCH CPU_RISCV
+    #define ME_CPU_ENDIAN LITTLE_ENDIAN
 
 #elif defined(__riscv_64)
     #define ME_CPU "riscv64"
-    #define ME_CPU_ARCH ME_CPU_RISCV64
-    #define ME_CPU_ENDIAN ME_LITTLE_ENDIAN
+    #define ME_CPU_ARCH CPU_RISCV64
+    #define ME_CPU_ENDIAN LITTLE_ENDIAN
 
 #elif defined(__XTENSA__)
     #define ME_CPU "xtensa"
-    #define ME_CPU_ARCH ME_CPU_XTENSA
-    #define ME_CPU_ENDIAN ME_LITTLE_ENDIAN
+    #define ME_CPU_ARCH CPU_XTENSA
+    #define ME_CPU_ENDIAN LITTLE_ENDIAN
 #else
     #error "Cannot determine CPU type in osdep.h"
 #endif
@@ -282,14 +163,10 @@
     #define ME_ENDIAN CPU_ENDIAN
 #endif
 
-/**
-    @section Operating System Detection
-
-    Automatic detection of the target operating system based on compiler-defined preprocessor symbols.
-    The osdep module examines compiler-specific OS macros and sets appropriate platform flags including
-    ME_OS, ME_UNIX_LIKE, ME_WIN_LIKE, ME_BSD_LIKE, and threading support flags. Most operating systems
-    provide standard compiler symbols, with VxWorks being a notable exception requiring explicit detection.
-*/
+/*
+    Operating system defines. Use compiler standard defintions to sleuth. Works for all except 
+    VxWorks which does not define any special symbol (ugh). 
+ */
 #if defined(__APPLE__)
     #define ME_OS "macosx"
     #define MACOSX 1
@@ -438,7 +315,7 @@
     #define PTHREADS 1
     #define HAS_INT32 1
 
-#elif defined(INC_FREERTOS_H) || defined(FREERTOS_CONFIG_H)
+#elif defined(INC_FREERTOS_H)
     #define ME_OS "freertos"
     #define FREERTOS 1
     #define POSIX 1
@@ -457,83 +334,30 @@
     #define HAS_INT32 1
 #endif
 
-/**
-    @section Word Size Detection
-
-    Automatic detection of the target platform's word size (32-bit or 64-bit) based on compiler-defined
-    preprocessor symbols. This sets ME_64 and ME_WORDSIZE macros used throughout the codebase for
-    size-dependent operations and pointer arithmetic.
-*/
 #if __WORDSIZE == 64 || __amd64 || __x86_64 || __x86_64__ || _WIN64 || __mips64 || __arch64__ || __arm64__ || __aarch64__
-    /**
-        64-bit platform indicator.
-        @description Set to 1 on 64-bit platforms, 0 on 32-bit platforms.
-        @stability Stable
-    */
     #define ME_64 1
-    /**
-        Platform word size in bits.
-        @description Set to 64 on 64-bit platforms, 32 on 32-bit platforms.
-        @stability Stable
-    */
     #define ME_WORDSIZE 64
 #else
     #define ME_64 0
     #define ME_WORDSIZE 32
 #endif
 
-/**
-    @section Unicode Support
-
-    Unicode character support configuration. The ME_CHAR_LEN macro determines the wide character size
-    and enables appropriate Unicode handling. This affects string literals and character processing
-    throughout the system.
-*/
+/*
+    Unicode
+ */
 #ifndef ME_CHAR_LEN
-    /**
-        Character length for Unicode support.
-        @description Set to 1 for ASCII/UTF-8, 2 for UTF-16, or 4 for UTF-32.
-        @stability Stable
-    */
     #define ME_CHAR_LEN 1
 #endif
 #if ME_CHAR_LEN == 4
-    /**
-        Wide character type for 32-bit Unicode (UTF-32).
-        @stability Stable
-    */
     typedef int wchar;
-    /**
-        Unicode string literal macro for UTF-32.
-        @param s String literal to convert to Unicode
-        @stability Stable
-    */
     #define UT(s) L ## s
     #define UNICODE 1
 #elif ME_CHAR_LEN == 2
-    /**
-        Wide character type for 16-bit Unicode (UTF-16).
-        @stability Stable
-    */
     typedef short wchar;
-    /**
-        Unicode string literal macro for UTF-16.
-        @param s String literal to convert to Unicode
-        @stability Stable
-    */
     #define UT(s) L ## s
     #define UNICODE 1
 #else
-    /**
-        Wide character type for ASCII/UTF-8.
-        @stability Stable
-    */
     typedef char wchar;
-    /**
-        String literal macro for ASCII/UTF-8 (no conversion).
-        @param s String literal
-        @stability Stable
-    */
     #define UT(s) s
 #endif
 
@@ -600,7 +424,6 @@
     #include    <process.h>
     #include    <windows.h>
     #include    <shlobj.h>
-    #include    <malloc.h>
     #if _MSC_VER >= 1800
         #include    <stdbool.h>
     #endif
@@ -764,69 +587,56 @@
 #endif
 
 #if ME_COMPILER_HAS_ATOMIC
-    #ifndef __cplusplus
-        #include   <stdatomic.h>
-    #endif
+    #include   <stdatomic.h>
 #endif
 
 #if FREERTOS
-    #include <stddef.h>
-    #include <string.h>
-    #include "time.h"
-#if ESP32
-    #include "freertos/FreeRTOS.h"
-    #include "freertos/event_groups.h"
-    #include "freertos/task.h"
-#else
-    #include "FreeRTOS.h"
-    #include "event_groups.h"
-    #include "task.h"
-#endif /* ESP32 */
+#include <stddef.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/task.h"
+#include "time.h"
 #endif
 
 #if ESP32
-    #include "esp_system.h"
-    #include "esp_log.h"
-    #include "esp_heap_caps.h"
-    #include "esp_err.h"
-    #include "esp_event.h"
-    #include "esp_log.h"
-    #include "esp_system.h"
-    #include "esp_heap_caps.h"
-    #include "esp_psram.h"
-    #include "esp_pthread.h"
-    #include "esp_littlefs.h"
-    #include "esp_crt_bundle.h"
-    #include "esp_pthread.h"
-    #include "esp_wifi.h"
-    #include "esp_netif.h"
-    #include "nvs_flash.h"
-    #include "lwip/err.h"
-    #include "lwip/sockets.h"
-    #include "lwip/sys.h"
-    #include "lwip/netdb.h"
+#include "esp_system.h"
+#include "esp_log.h"
+#include "esp_heap_caps.h"
+#include "esp_err.h"
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_system.h"
+#include "esp_heap_caps.h"
+#include "esp_psram.h"
+#include "esp_pthread.h"
+#include "esp_littlefs.h"
+#include "esp_crt_bundle.h"
+#include "esp_pthread.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
+#include "nvs_flash.h"
+#include "lwip/err.h"
+#include "lwip/sockets.h"
+#include "lwip/sys.h"
+#include "lwip/netdb.h"
 #endif
 
 #if PTHREADS
-    #include <pthread.h>
+#include <pthread.h>
 #endif
 
-/**
-    @section Type Definitions
-
-    Cross-platform type definitions for consistent behavior across different operating systems and compilers.
-    These types provide fixed-size integers, enhanced character types, and platform-specific abstractions
-    for sockets, file offsets, and time values. All types are designed to be null-tolerant and provide
-    consistent sizing across 32-bit and 64-bit platforms.
-*/
+/************************************** Types *********************************/
+/*
+    Standard types
+ */
 #ifndef HAS_BOOL
     #ifndef __cplusplus
         #if !MACOSX && !FREERTOS
             #define HAS_BOOL 1
             /**
                 Boolean data type.
-                @description Provides consistent boolean type across platforms. Uses char underlying type for
-                compatibility with systems lacking native bool support. Should be used with true/false constants.
+                @ingroup Osdep
                 @stability Stable
              */
             #if !WINDOWS || ((_MSC_VER < 1800) && !defined(bool))
@@ -840,8 +650,8 @@
 #ifndef HAS_UCHAR
     #define HAS_UCHAR 1
     /**
-        Unsigned 8-bit character type.
-        @description Provides explicit unsigned char semantics for byte manipulation and binary data handling.
+        Unsigned char data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned char uchar;
@@ -850,8 +660,8 @@
 #ifndef HAS_SCHAR
     #define HAS_SCHAR 1
     /**
-        Signed 8-bit character type.
-        @description Provides explicit signed char semantics when the sign of char values matters.
+        Signed char data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef signed char schar;
@@ -860,8 +670,8 @@
 #ifndef HAS_CCHAR
     #define HAS_CCHAR 1
     /**
-        Constant character pointer type.
-        @description Commonly used for read-only string parameters and immutable text data.
+        Constant char data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef const char cchar;
@@ -870,8 +680,8 @@
 #ifndef HAS_CUCHAR
     #define HAS_CUCHAR 1
     /**
-        Constant unsigned character type.
-        @description Provides read-only access to unsigned byte data.
+        Unsigned char data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef const unsigned char cuchar;
@@ -881,6 +691,7 @@
     #define HAS_USHORT 1
     /**
         Unsigned short data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned short ushort;
@@ -890,6 +701,7 @@
     #define HAS_CUSHORT 1
     /**
         Constant unsigned short data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef const unsigned short cushort;
@@ -899,6 +711,7 @@
     #define HAS_CVOID 1
     /**
         Constant void data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef const void cvoid;
@@ -907,8 +720,8 @@
 #ifndef HAS_INT8
     #define HAS_INT8 1
     /**
-        Signed 8-bit integer type.
-        @description Guaranteed 8-bit signed integer (-128 to 127) for precise byte-level operations.
+        Integer 8 bits data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef char int8;
@@ -917,8 +730,8 @@
 #ifndef HAS_UINT8
     #define HAS_UINT8 1
     /**
-        Unsigned 8-bit integer type.
-        @description Guaranteed 8-bit unsigned integer (0 to 255) for byte manipulation and flags.
+        Unsigned integer 8 bits data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned char uint8;
@@ -927,8 +740,8 @@
 #ifndef HAS_INT16
     #define HAS_INT16 1
     /**
-        Signed 16-bit integer type.
-        @description Guaranteed 16-bit signed integer (-32,768 to 32,767) for network protocols and compact data.
+        Integer 16 bits data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef short int16;
@@ -937,8 +750,8 @@
 #ifndef HAS_UINT16
     #define HAS_UINT16 1
     /**
-        Unsigned 16-bit integer type.
-        @description Guaranteed 16-bit unsigned integer (0 to 65,535) for ports, packet sizes, and compact counters.
+        Unsigned integer 16 bits data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned short uint16;
@@ -947,8 +760,8 @@
 #ifndef HAS_INT32
     #define HAS_INT32 1
     /**
-        Signed 32-bit integer type.
-        @description Guaranteed 32-bit signed integer for general-purpose arithmetic and system values.
+        Integer 32 bits data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef int int32;
@@ -957,8 +770,8 @@
 #ifndef HAS_UINT32
     #define HAS_UINT32 1
     /**
-        Unsigned 32-bit integer type.
-        @description Guaranteed 32-bit unsigned integer for addresses, large counters, and hash values.
+        Unsigned integer 32 bits data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned int uint32;
@@ -968,6 +781,7 @@
     #define HAS_UINT 1
     /**
         Unsigned integer (machine dependent bit size) data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned int uint;
@@ -977,6 +791,7 @@
     #define HAS_ULONG 1
     /**
         Unsigned long (machine dependent bit size) data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef unsigned long ulong;
@@ -986,6 +801,7 @@
     #define HAS_CINT 1
     /**
         Constant int data type.
+        @ingroup Osdep
         @stability Stable
      */
     typedef const int cint;
@@ -995,9 +811,8 @@
     #define HAS_SSIZE 1
     #if ME_UNIX_LIKE || VXWORKS || DOXYGEN
         /**
-            Signed size type for memory and I/O operations.
-            @description Platform-appropriate signed integer type large enough to hold array indices, memory sizes,
-            and I/O transfer counts. Can represent negative values for error conditions. Equivalent to size_t but signed.
+            Signed integer size field large enough to hold a pointer offset.
+            @ingroup Osdep
             @stability Stable
          */
         typedef ssize_t ssize;
@@ -1010,6 +825,7 @@
 
 /**
     Windows uses uint for write/read counts (Ugh!)
+    @ingroup Osdep
     @stability Stable
  */
 #if ME_WIN_LIKE
@@ -1024,6 +840,7 @@
     #elif VXWORKS || DOXYGEN
         /**
             Integer 64 bit data type.
+            @ingroup Osdep
             @stability Stable
          */
         typedef long long int int64;
@@ -1047,9 +864,8 @@
 #endif
 
 /**
-    Signed 64-bit file offset type.
-    @description Supports large files greater than 4GB in size on all systems. Used for file positioning,
-    seeking, and size calculations. Always 64-bit regardless of platform word size.
+    Signed file offset data type. Supports large files greater than 4GB in size on all systems.
+    @ingroup Osdep
     @stability Stable
  */
 typedef int64 Offset;
@@ -1057,6 +873,7 @@ typedef int64 Offset;
 #if DOXYGEN
     /**
         Size to hold the length of a socket address
+        @ingroup Osdep
         @stability Stable
      */
     typedef int Socklen;
@@ -1069,6 +886,7 @@ typedef int64 Offset;
 #if DOXYGEN || ME_UNIX_LIKE || VXWORKS
     /**
         Argument for sockets
+        @ingroup Osdep
         @stability Stable
     */
     typedef int Socket;
@@ -1095,52 +913,33 @@ typedef int64 Offset;
 #endif
 
 /**
-    Absolute time in milliseconds since Unix epoch.
-    @description Time value representing milliseconds since January 1, 1970 UTC (Unix epoch).
-    Used for timestamps, timeouts, and absolute time calculations across the system.
+    Time in milliseconds since Jan 1, 1970.
+    @ingroup Osdep
     @stability Stable
 */
 typedef int64 Time;
 
 /**
-    Relative time in milliseconds for durations and intervals.
-    @description Elapsed time measurement in milliseconds from an arbitrary starting point.
-    Used for timeouts, delays, performance measurements, and relative time calculations.
+    Elapsed time data type. Stores time in milliseconds from some arbitrary start epoch.
+    @ingroup Osdep
     @stability Stable
  */
 typedef int64 Ticks;
 
 /**
     Time/Ticks units per second (milliseconds)
+    @ingroup Osdep
     @stability Stable
  */
 #define TPS 1000
 
-/**
-    @section Utility Macros and Constants
-
-    Common macros and constants for bit manipulation, limits, and cross-platform compatibility.
-    These provide consistent behavior for mathematical operations, type introspection, and
-    platform-specific value definitions.
-*/
+/*********************************** Defines **********************************/
 
 #ifndef BITSPERBYTE
-    /**
-        Number of bits per byte.
-        @description Standard definition for bits in a byte, typically 8 on all modern platforms.
-        @stability Stable
-    */
     #define BITSPERBYTE     ((int) (8 * sizeof(char)))
 #endif
 
 #ifndef BITS
-    /**
-        Calculate number of bits in a data type.
-        @description Macro to determine the total number of bits in any data type at compile time.
-        @param type Data type to calculate bits for
-        @return Number of bits in the specified type
-        @stability Stable
-    */
     #define BITS(type)      ((int) (BITSPERBYTE * (int) sizeof(type)))
 #endif
 
@@ -1222,11 +1021,6 @@ typedef int64 Ticks;
 #endif
 
 /*
-    Safe time max value to avoid overflows
- */
-#define MAXTIME         (MAXINT64 - MAXINT)
-
-/*
     Word size and conversions between integer and pointer.
  */
 #if ME_64
@@ -1262,45 +1056,14 @@ typedef int64 Ticks;
 #undef max
 #undef min
 
-/**
-    Return the maximum of two values.
-    @description Safe macro to return the larger of two values. Arguments are evaluated twice,
-    so avoid using expressions with side effects.
-    @param a First value to compare
-    @param b Second value to compare
-    @return The larger of the two values
-    @stability Stable
-*/
 #define max(a,b)  (((a) > (b)) ? (a) : (b))
-
-/**
-    Return the minimum of two values.
-    @description Safe macro to return the smaller of two values. Arguments are evaluated twice,
-    so avoid using expressions with side effects.
-    @param a First value to compare
-    @param b Second value to compare
-    @return The smaller of the two values
-    @stability Stable
-*/
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
-
-/**
-    @section Compiler Abstractions
-
-    Compiler-specific macros for function attributes, optimization hints, and cross-platform compatibility.
-    These abstractions allow the code to take advantage of compiler-specific features while maintaining
-    portability across different toolchains.
-*/
 
 #ifndef PRINTF_ATTRIBUTE
     #if ((__GNUC__ >= 3) && !DOXYGEN) || MACOSX
         /**
-            Printf-style function format checking attribute.
-            @description Enables GCC to check printf-style format strings against their arguments at compile time.
-            Helps catch format string bugs and type mismatches early in development.
-            @param a1 1-based index of the format string parameter
-            @param a2 1-based index of the first format argument parameter
-            @stability Stable
+            Use gcc attribute to check printf fns.  a1 is the 1-based index of the parameter containing the format,
+            and a2 the index of the first argument. Note that some gcc 2.x versions don't handle this properly
          */
         #define PRINTF_ATTRIBUTE(a1, a2) __attribute__ ((format (__printf__, a1, a2)))
     #else
@@ -1308,28 +1071,13 @@ typedef int64 Ticks;
     #endif
 #endif
 
+/*
+    Optimize expression evaluation code depending if the value is likely or not
+ */
 #undef likely
 #undef unlikely
 #if (__GNUC__ >= 3)
-    /**
-        Branch prediction hint for likely conditions.
-        @description Tells the compiler that the condition is likely to be true, enabling better
-        branch prediction and code optimization. Use sparingly and only for conditions that are
-        overwhelmingly likely to be true.
-        @param x Condition expression to evaluate
-        @return Same value as x, with optimization hint
-        @stability Stable
-    */
     #define likely(x)   __builtin_expect(!!(x), 1)
-
-    /**
-        Branch prediction hint for unlikely conditions.
-        @description Tells the compiler that the condition is likely to be false, enabling better
-        branch prediction and code optimization. Commonly used for error handling paths.
-        @param x Condition expression to evaluate
-        @return Same value as x, with optimization hint
-        @stability Stable
-    */
     #define unlikely(x) __builtin_expect(!!(x), 0)
 #else
     #define likely(x)   (x)
@@ -1393,127 +1141,58 @@ typedef int64 Ticks;
 
 #define NOT_USED(x) ((void*) x)
 
-/**
-    @section System Configuration Tunables
+/********************************** Tunables *********************************/
+/*
+    These can be defined in main.bit settings (pascal case) to override. E.g.
 
-    Configurable constants that define system limits and buffer sizes. These values are optimized for
-    different target platforms, with smaller values for microcontrollers and embedded systems, and
-    larger values for desktop and server platforms. Values can be overridden in build configuration
-    files using pascal case names (e.g., maxPath: 4096 in settings).
-*/
+    settings: {
+        maxPath: 4096
+    }
+ */
 #if ESP32 || FREERTOS || VXWORKS
-    //  Microcontrollers and embedded systems with constrained memory
+    //  Microcontrollers and smaller systems
     #ifndef ME_MAX_FNAME
-        /**
-            Maximum filename length for embedded systems.
-            @description Conservative filename size limit for microcontrollers and embedded systems
-            where memory is constrained. Sufficient for most embedded application file naming.
-            @stability Stable
-        */
-        #define ME_MAX_FNAME        128
+        #define ME_MAX_FNAME        128         /**< Reasonable filename size */
     #endif
     #ifndef ME_MAX_PATH
-        /**
-            Maximum path length for embedded systems.
-            @description Conservative path size limit for microcontrollers and embedded systems.
-            Balances functionality with memory constraints typical of embedded applications.
-            @stability Stable
-        */
-        #define ME_MAX_PATH         256
+        #define ME_MAX_PATH         256        /**< Reasonable path size */
     #endif
     #ifndef ME_BUFSIZE
-        /**
-            Standard buffer size for embedded systems.
-            @description Conservative buffer size for I/O operations, string manipulation, and temporary
-            storage in memory-constrained embedded environments.
-            @stability Stable
-        */
-        #define ME_BUFSIZE          1024
+        #define ME_BUFSIZE          1024        /**< Reasonable size for buffers */
     #endif
     #ifndef ME_MAX_BUFFER
         #define ME_MAX_BUFFER       ME_BUFSIZE  /* DEPRECATE */
     #endif
     #ifndef ME_MAX_ARGC
-        /**
-            Maximum command line arguments for embedded systems.
-            @description Conservative limit for command line argument parsing in embedded applications
-            where argument lists are typically simple and memory is limited.
-            @stability Stable
-        */
-        #define ME_MAX_ARGC         16
+        #define ME_MAX_ARGC         16          /**< Maximum number of command line args if using MAIN()*/
     #endif
     #ifndef ME_DOUBLE_BUFFER
-        /**
-            Buffer size for double-precision floating point string conversion.
-            @description Calculated buffer size needed for converting double values to strings.
-            @stability Stable
-        */
         #define ME_DOUBLE_BUFFER    (DBL_MANT_DIG - DBL_MIN_EXP + 4)
     #endif
     #ifndef ME_MAX_IP
-        /**
-            Maximum IP address string length for embedded systems.
-            @description Buffer size for IP address string representation in embedded networking.
-            @stability Stable
-        */
         #define ME_MAX_IP           128
     #endif
 #else
-    // Desktop, server, and high-resource embedded systems
     #ifndef ME_MAX_FNAME
-        /**
-            Maximum filename length for desktop/server systems.
-            @description Generous filename size limit for desktop and server environments where
-            memory is less constrained and longer filenames are common.
-            @stability Stable
-        */
-        #define ME_MAX_FNAME        256
+        #define ME_MAX_FNAME        256         /**< Reasonable filename size */
     #endif
     #ifndef ME_MAX_PATH
-        /**
-            Maximum path length for desktop/server systems.
-            @description Standard path size limit for desktop and server systems, accommodating
-            deep directory structures and long component names.
-            @stability Stable
-        */
-        #define ME_MAX_PATH         1024
+        #define ME_MAX_PATH         1024        /**< Reasonable path size */
     #endif
     #ifndef ME_BUFSIZE
-        /**
-            Standard buffer size for desktop/server systems.
-            @description Larger buffer size for I/O operations and string manipulation in environments
-            with abundant memory. Optimized for performance over memory usage.
-            @stability Stable
-        */
-        #define ME_BUFSIZE          4096
+        #define ME_BUFSIZE          8192        /**< Reasonable size for buffers */
     #endif
     #ifndef ME_MAX_BUFFER
         #define ME_MAX_BUFFER       ME_BUFSIZE  /* DEPRECATE */
     #endif
 
     #ifndef ME_MAX_ARGC
-        /**
-            Maximum command line arguments for desktop/server systems.
-            @description Higher limit for command line argument parsing in desktop and server
-            applications where complex argument lists are common.
-            @stability Stable
-        */
-        #define ME_MAX_ARGC         32
+        #define ME_MAX_ARGC         32          /**< Maximum number of command line args if using MAIN()*/
     #endif
     #ifndef ME_DOUBLE_BUFFER
-        /**
-            Buffer size for double-precision floating point string conversion.
-            @description Calculated buffer size needed for converting double values to strings.
-            @stability Stable
-        */
         #define ME_DOUBLE_BUFFER    (DBL_MANT_DIG - DBL_MIN_EXP + 4)
     #endif
     #ifndef ME_MAX_IP
-        /**
-            Maximum IP address string length for desktop/server systems.
-            @description Extended buffer size for IP address strings, URLs, and network identifiers.
-            @stability Stable
-        */
         #define ME_MAX_IP           1024
     #endif
 #endif
@@ -1521,22 +1200,17 @@ typedef int64 Ticks;
 
 #ifndef ME_STACK_SIZE
 #if ME_COMPILER_HAS_MMU && !VXWORKS
-    /**
-        Default thread stack size for systems with virtual memory.
-        @description On systems with MMU and virtual memory support, use system default stack size
-        since only actually used pages consume physical memory. Value of 0 means use system default.
-        @stability Stable
+    /*
+        If the system supports virtual memory, then stack size should use system default. Only used pages will
+        actually consume memory
     */
-    #define ME_STACK_SIZE    0
+    #define ME_STACK_SIZE    0               /**< Default thread stack size (0 means use system default) */
 #else
-    /**
-        Default thread stack size for systems without virtual memory.
-        @description On systems without MMU (microcontrollers, embedded), the entire stack size
-        consumes physical memory, so this is set conservatively. Increase if using script engines
-        or deep recursion. Value in bytes.
-        @stability Stable
+    /*
+        No MMU, so the stack size actually consumes memory. Set this as low as possible.
+        NOTE: php and ejs use stack heavily.
     */
-    #define ME_STACK_SIZE    (32 * 1024)
+    #define ME_STACK_SIZE    (128 * 1024)    /**< Default thread stack size (0 means use system default) */
 #endif
 #endif
 
@@ -1732,7 +1406,6 @@ typedef int64 Ticks;
     #define getpid      _getpid
     #define gettimezone _gettimezone
     #define lseek       _lseek
-    //  SECURITY Acceptable: - the omode parameter is ignored on Windows
     #define mkdir(a,b)  _mkdir(a)
     #define open        _open
     #define putenv      _putenv
@@ -1815,12 +1488,8 @@ typedef int64 Ticks;
 #endif
 
 #if FREERTOS
-#if !ESP32
-    typedef unsigned int socklen_t;
-#endif
-#ifndef SOMAXCONN
-    #define SOMAXCONN 5
-#endif
+typedef u32_t socklen_t;
+#define SOMAXCONN 5
 #endif
 
 /*********************************** Externs **********************************/
