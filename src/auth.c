@@ -384,7 +384,11 @@ static void computeUserAbilities(WebsUser *user)
     for (ability = stok(roles, " \t,", &tok); ability; ability = stok(NULL, " \t,", &tok)) {
         computeAbilities(user->abilities, ability, 0);
     }
-#if ME_DEBUG
+#if ME_DEBUG && DISABLE
+    /*
+        SECURITY Acceptable: - Debug trace of user abilities
+        Do not enable in production
+    */
     {
         WebsKey *key;
         trace(5 | WEBS_RAW_MSG, "User \"%s\" has abilities: ", user->name);
@@ -600,6 +604,7 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
     } else if (!wp->encoded) {
         /*
             SECURITY Acceptable: - Legacy MD5 hash - required for backward compatibility with digest auth
+            which must use MD5. Newer clients may suppport other algorithms, but not widespread.
          */
         fmt(passbuf, sizeof(passbuf), "%s:%s:%s", wp->username, ME_GOAHEAD_REALM, wp->password);
         wfree(wp->password);
@@ -1034,7 +1039,6 @@ static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime
     if ((decoded = websDecode64(nonce)) == 0) {
         return 0;
     }
-    /* Legacy nonce format */
     if (strchr(decoded, ':')) {
         *secret = stok(decoded, ":", &tok);
         *realm = stok(NULL, ":", &tok);
