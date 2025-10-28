@@ -2,12 +2,18 @@
     <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
       <ImportGroup Label="PropertySheets" />
       <PropertyGroup Label="UserMacros">
+        <APP>undefined</APP>
         <CfgDir>..\..\build\windows-x86-$(Cfg)</CfgDir>
         <IncDir>$([System.IO.Path]::GetFullPath($(ProjectDir)\$(CfgDir)\inc))</IncDir>
         <ObjDir>$([System.IO.Path]::GetFullPath($(ProjectDir)\$(CfgDir)\obj))</ObjDir>
         <BinDir>$([System.IO.Path]::GetFullPath($(ProjectDir)\$(CfgDir)\bin))</BinDir>
+        <BuildInParallel>false</BuildInParallel>
       </PropertyGroup>
       <ItemGroup>
+        <BuildMacro Include="APP">
+          <Value>$(APP)</Value>
+          <EnvironmentVariable>true</EnvironmentVariable>
+        </BuildMacro>
         <BuildMacro Include="CfgDir">
           <Value>$(CfgDir)</Value>
           <EnvironmentVariable>true</EnvironmentVariable>

@@ -3,7 +3,7 @@
 
       <ItemDefinitionGroup>
         <ClCompile>
-          <PreprocessorDefinitions>ME_DEBUG=1;_CRT_SECURE_NO_WARNINGS=1;ME_COM_OPENSSL_PATH=/path/to/openssl;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+          <PreprocessorDefinitions>ME_DEBUG=1;_CRT_SECURE_NO_WARNINGS=1;ME_COM_OPENSSL_PATH=$(USERPROFILE)/vcpkg/installed/x64-windows;%(PreprocessorDefinitions)</PreprocessorDefinitions>
           <AdditionalIncludeDirectories>$(IncDir);$(ME_COM_OPENSSL_PATH)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -143,5 +143,6 @@ cd projects\goahead-windows-default</Command>
   <Import Project="$(VCTargetsPath)Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+
 
 </Project>

@@ -5,6 +5,14 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "prep", "goahead-windows-def
 		{D477AF49-F508-4E2B-A479-0DE0F3750BDD} = {D477AF49-F508-4E2B-A479-0DE0F3750BDD}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgitest", "goahead-windows-default\cgitest.vcxproj", "{6770521F-03CB-427F-AE3F-A89E066E16B0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D477AF49-F508-4E2B-A479-0DE0F3750BDD} = {D477AF49-F508-4E2B-A479-0DE0F3750BDD}
+	EndProjectSection
+	ProjectSection(ProjectDependencies) = postProject
+		{6770521F-03CB-427F-AE3F-A89E066E16B0} = {6770521F-03CB-427F-AE3F-A89E066E16B0}
+	EndProjectSection
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libgo", "goahead-windows-default\libgo.vcxproj", "{9ED725E0-59F2-44D3-8FBF-5F7F1215F1DA}"
 	ProjectSection(ProjectDependencies) = postProject
 		{D477AF49-F508-4E2B-A479-0DE0F3750BDD} = {D477AF49-F508-4E2B-A479-0DE0F3750BDD}
@@ -46,14 +54,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gopass", "goahead-windows-d
 		{388A00D5-8758-4E3C-A652-769EA7045179} = {388A00D5-8758-4E3C-A652-769EA7045179}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "install-roots", "goahead-windows-default\install-roots.vcxproj", "{C10CE7CA-63EE-40FA-A861-2BD964BC1958}"
-	ProjectSection(ProjectDependencies) = postProject
-		{D477AF49-F508-4E2B-A479-0DE0F3750BDD} = {D477AF49-F508-4E2B-A479-0DE0F3750BDD}
-	EndProjectSection
-	ProjectSection(ProjectDependencies) = postProject
-		{C10CE7CA-63EE-40FA-A861-2BD964BC1958} = {C10CE7CA-63EE-40FA-A861-2BD964BC1958}
-	EndProjectSection
-EndProject
 
     Global
         GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -71,6 +71,14 @@ EndProject
 {D477AF49-F508-4E2B-A479-0DE0F3750BDD}.Release|Win32.Build.0 = Release|Win32
 {D477AF49-F508-4E2B-A479-0DE0F3750BDD}.Release|x64.ActiveCfg = Release|x64
 {D477AF49-F508-4E2B-A479-0DE0F3750BDD}.Release|x64.Build.0 = Release|x64
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Debug|Win32.ActiveCfg = Debug|Win32
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Debug|Win32.Build.0 = Debug|Win32
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Debug|x64.ActiveCfg = Debug|x64
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Debug|x64.Build.0 = Debug|x64
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Release|Win32.ActiveCfg = Release|Win32
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Release|Win32.Build.0 = Release|Win32
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Release|x64.ActiveCfg = Release|x64
+{6770521F-03CB-427F-AE3F-A89E066E16B0}.Release|x64.Build.0 = Release|x64
 {9ED725E0-59F2-44D3-8FBF-5F7F1215F1DA}.Debug|Win32.ActiveCfg = Debug|Win32
 {9ED725E0-59F2-44D3-8FBF-5F7F1215F1DA}.Debug|Win32.Build.0 = Debug|Win32
 {9ED725E0-59F2-44D3-8FBF-5F7F1215F1DA}.Debug|x64.ActiveCfg = Debug|x64
@@ -103,14 +111,6 @@ EndProject
 {388A00D5-8758-4E3C-A652-769EA7045179}.Release|Win32.Build.0 = Release|Win32
 {388A00D5-8758-4E3C-A652-769EA7045179}.Release|x64.ActiveCfg = Release|x64
 {388A00D5-8758-4E3C-A652-769EA7045179}.Release|x64.Build.0 = Release|x64
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Debug|Win32.ActiveCfg = Debug|Win32
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Debug|Win32.Build.0 = Debug|Win32
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Debug|x64.ActiveCfg = Debug|x64
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Debug|x64.Build.0 = Debug|x64
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Release|Win32.ActiveCfg = Release|Win32
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Release|Win32.Build.0 = Release|Win32
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Release|x64.ActiveCfg = Release|x64
-{C10CE7CA-63EE-40FA-A861-2BD964BC1958}.Release|x64.Build.0 = Release|x64
 EndGlobalSection
 
       GlobalSection(SolutionProperties) = preSolution
