@@ -1,4 +1,0 @@
-
-if (App.getenv("TRAVIS") || true) {
-    tskip("IPV6 skipped")
-}

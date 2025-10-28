@@ -1,0 +1,49 @@
+{
+    compiler: {
+        c: {
+            gcc: {
+                flags: [
+                    '-Wformat', '-Wformat-security', '-Wsign-compare', '-Wsign-conversion',
+                    '-I../build/${PLATFORM}-${PROFILE}/inc', '-L../build/${PLATFORM}-${PROFILE}/bin'
+                ],
+                linux: {
+                    flags: ['-Wl,-rpath,$ORIGIN/${CONFIGDIR}/../build/${PLATFORM}-${PROFILE}/bin'],
+                },
+                macosx: {
+                    flags: ['-Wl,-rpath,@executable_path/${CONFIGDIR}/../build/${PLATFORM}-${PROFILE}/bin'],
+                },
+                libraries: ['m', 'crypto', 'ssl'],
+            },
+            msvc: {
+                flags: [
+                    '-GR-', '-MDd', '-wd4100',
+                    '/I../build/${PLATFORM}-${PROFILE}/inc', 
+                    '/LIBPATH:../build/${PLATFORM}-${PROFILE}/bin',
+                    '/I${ME_COM_OPENSSL_PATH}/include',
+                    '/LIBPATH:${ME_COM_OPENSSL_PATH}/lib/VC/x64/MDd',
+                    '/I${USERPROFILE}/vcpkg/installed/x64-windows/include',
+                    '/LIBPATH:${USERPROFILE}/vcpkg/installed/x64-windows/lib',
+                ],
+                libraries: ['libcrypto', 'libssl', 'ws2_32.lib', 'advapi32.lib', 'user32.lib', 'kernel32.lib', 'oldnames.lib', 'shell32.lib'],
+            },
+        },
+    },
+    environment: {
+        default: {
+            PATH: '../build/${PLATFORM}-${PROFILE}/bin:${PATH}',
+            TM_HTTP: 'http://127.0.0.1:18080',
+            TM_HTTPS: 'https://127.0.0.1:14443',
+            TM_HTTPV6: 'http://[::1]:18090',
+            TM_HTTPSV6: 'https://[::1]:14453',
+        },
+        windows: {
+            PATH: '../build/${PLATFORM}-${PROFILE}/bin;C:/Program Files/OpenSSL;${USERPROFILE}/vcpkg/installed/x64-windows/bin;${PATH}',
+        },
+    },
+    services: {
+        setup: './setup.sh',
+        prep: './prep.sh',
+        cleanup: './cleanup.sh',
+        healthcheck: { url: 'http://localhost:18080/index.html' },
+    },
+}
