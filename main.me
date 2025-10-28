@@ -15,9 +15,7 @@ Me.load({
 
     blend: [
         'src/**.me',
-        'certs/**.me',
-        '?test/test.me',
-        'paks/ssl/*.me',
+        'paks/ssl/dist/*.me',
         '?doc/doc.me',
     ],
 
@@ -27,6 +25,7 @@ Me.load({
     },
 
     settings: {
+        
         /*
             Set to true to emit warnings about deprecated APIs
          */
@@ -45,7 +44,7 @@ Me.load({
         },
 
         compiler: {
-            fortify: true
+            fortify: false
         },
 
         /*
@@ -277,7 +276,7 @@ Me.load({
             type: 'lib',
             sources: [ 'src/*.c' ],
             headers: [ 'src/*.h' ],
-            exclude: /goahead\.c/,
+            exclude: /goahead\.c|test\.c|cgitest\.c/,
             depends: [ 'osdep', 'ssl' ],
             scripts: {
                 prebuild: `
@@ -298,9 +297,28 @@ Me.load({
                     if (me.settings.compiler.hasPam) {
                         me.target.libraries.push('pam')
                     }
-                    cp(['certs/self.key', 'certs/self.crt'], 'test')
                 `,
             },
+        },
+        
+       'goahead-test': {
+            enable: `me.settings.profile != 'release'`,
+            type: 'exe',
+            sources: [ 'src/test.c' ],
+            depends: [ 'libgo' ],
+            scripts: {
+                prebuild: `
+                    if (me.settings.hasPam) {
+                        me.target.libraries.push('pam')
+                    }                                                                                      
+                `,  
+            },
+        },
+
+        cgitest: {
+            enable: 'me.settings.goahead.cgi',
+            type: 'exe',
+            sources: [ 'src/cgitest.c' ],
         },
 
         /*

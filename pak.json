@@ -7,7 +7,7 @@
         "http",
         "webserver"
     ],
-    "version": "6.0.5",
+    "version": "6.1.0",
     "homepage": "https://embedthis.com/goahead/",
     "author": {
         "name": "Embedthis Software",
@@ -32,9 +32,9 @@
     },
     "import": true,
     "dependencies": {
-        "certs": "~1.0",
-        "osdep": "~1.0",
-        "ssl": "~1.0",
+        "certs": "~1",
+        "osdep": "~1",
+        "ssl": "~1",
         "updater": "~1"
     }
 }

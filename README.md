@@ -146,6 +146,35 @@ If you have built from source using Make, you can install the software using:
 
     sudo make uninstall
 
+## Testing
+
+GoAhead includes a comprehensive test suite with 34 unit tests covering HTTP
+operations, authentication, security, and stress testing.
+
+### Running Tests
+
+    make test
+
+Or manually with TestMe:
+
+    cd test
+    tm
+
+### Test Requirements
+
+- **Bun**: v1.2.23 or later
+- **TestMe**: Test runner (installed globally)
+- **EJS**: TypeScript Ejscript library v2.0.0 (linked from ../ejs)
+
+### Test Categories
+
+- **Basic HTTP**: 14 tests for core HTTP functionality
+- **Authentication**: 3 tests for Basic, Digest, and Form authentication
+- **Security**: 4 tests for security features and attack prevention
+- **Stress**: 7 tests for load and edge cases
+
+See [test/README-EJS.md](test/README-EJS.md) for detailed testing documentation.
+
 Resources
 ---
   - [GoAhead web site](https://www.embedthis.com/goahead/)

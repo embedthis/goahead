@@ -3,18 +3,14 @@
 #
 #	This Makefile is for Unix/Linux and Cygwin. On windows, it can be invoked via make.bat.
 #
-#   You can use this Makefile and build via "make" with a pre-selected configuration. Alternatively,
-#   you can build using the MakeMe tool for for a fully configurable build. If you wish to
-#   cross-compile, you should use MakeMe.
+#   You can use this Makefile and build via "make" with a pre-selected configuration. 
 #
-#	See projects/$(OS)-$(ARCH)-$(PROFILE)-me.h for configuration default settings. Can override
-#	via make environment variables. For example: make ME_COM_SQLITE=0. These are converted to
-#	DFLAGS and will then override the me.h default values. Use "make help" for a list of available
-#	make variable options.
+#	See projects/$(OS)-$(ARCH)-default-me.h for configuration default settings. Can override
+#	via make environment variables. Use "make help" for a list of available make variable options.
 #
 NAME    := goahead
 OS      := $(shell uname | sed 's/CYGWIN.*/windows/;s/Darwin/macosx/' | tr '[A-Z]' '[a-z]')
-PROFILE := default
+PROFILE ?= dev
 
 ifeq ($(ARCH),)
 	ifeq ($(OS),windows)
@@ -24,7 +20,7 @@ ifeq ($(ARCH),)
 			ARCH?=x86
 		endif
 	else
-		ARCH:= $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/;s/mips.*/mips/')
+		ARCH:= $(shell uname -m | sed 's/i.86/x86/;s/x86_64/x64/;s/mips.*/mips/;s/aarch/arm/')
 	endif
 endif
 
@@ -36,33 +32,31 @@ else
 	EXT     := mk
 endif
 
-BIN 	:= $(OS)-$(ARCH)-$(PROFILE)/bin
-PATH    := $(PWD)/build/$(BIN):$(PATH)
+BIN 		:= $(OS)-$(ARCH)-$(PROFILE)/bin
+PATH    	:= $(PWD)/build/$(BIN):$(PATH)
+PROJECT 	:= projects/$(NAME)-$(OS)-default.mk
 
 .EXPORT_ALL_VARIABLES:
 .PHONY: all build compile clean clobber installBinary uninstall run deploy install version help test
 
 all build compile:
-	@if [ ! -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) ] ; then \
-		echo "The build configuration projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) is not supported" ; exit 255 ; \
+	@if [ ! -f $(PROJECT) ] ; then \
+		echo "The build configuration $(PROJECT) is not supported" ; exit 255 ; \
 	fi
-	@echo $(MAKE) -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) $@
-	@$(MAKE) -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) $@
+	@echo $(MAKE) -f $(PROJECT) $@
+	@$(MAKE) -f $(PROJECT) $@
 	@echo ; echo 'On Linux/MacOS, you can now install via "sudo make $(MAKEFLAGS) install" or run GoAhead via: "sudo make run"'
 	@echo "To run locally, put $(OS)-$(ARCH)-$(PROFILE)/bin in your path" ; echo
 
 clean clobber installBinary uninstall run:
-	@$(MAKE) -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) $@
-
-doc:
-	@me doc
+	@$(MAKE) -f $(PROJECT) $@
 
 deploy:
-	@echo '       [Deploy] $(MAKE) ME_ROOT_PREFIX=$(OS)-$(ARCH)-$(PROFILE)/deploy -f projects/$(NAME)-$(OS)-$(PROFILE).  $(EXT) installBinary'
-	@$(MAKE) ME_ROOT_PREFIX=$(OS)-$(ARCH)-$(PROFILE)/deploy -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) installBinary
+	@echo '       [Deploy] $(MAKE) ME_ROOT_PREFIX=$(OS)-$(ARCH)-$(PROFILE)/deploy -f $(PROJECT) installBinary'
+	@$(MAKE) ME_ROOT_PREFIX=$(OS)-$(ARCH)-$(PROFILE)/deploy -f $(PROJECT) installBinary
 
 install:
-	$(MAKE) -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) $@
+	$(MAKE) -f $(PROJECT) $@
 ifneq ($(OS),windows)
 	@echo ; echo 'You can now run via "sudo goahead -v --home /etc/goahead /var/www/goahead"'
 else
@@ -70,7 +64,7 @@ else
 endif
 
 version:
-	@$(MAKE) -f projects/$(NAME)-$(OS)-$(PROFILE).$(EXT) $@
+	@$(MAKE) -f $(PROJECT) $@
 
 help:
 	@echo '' >&2
