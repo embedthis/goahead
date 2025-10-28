@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            install-deps: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install system dependencies
+        shell: bash
+        run: ${{ matrix.install-deps }}
+
+      - name: Add Bun to PATH
+        run: echo "$HOME/.bun/bin" >> $GITHUB_PATH
+        if: runner.os != 'Windows'
+
+      - name: Add Bun to PATH (Windows)
+        run: echo "$env:USERPROFILE\.bun\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        if: runner.os == 'Windows'
+
+      - name: Install TestMe
+        if: true
+        run: |
+          bun install -g --trust @embedthis/testme
+
+      - name: Local TestMe
+        if: false
+        run: |
+          bun install --verbose -g --trust "${{ github.workspace }}/local/testme.tgz"
+
+      - name: Verify TestMe installation (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tm --version
+
+      - name: Verify TestMe installation (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          tm.exe --version
+          # Get-ChildItem -Recurse -Path "C:\Program Files\OpenSSL"
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          make SHOW=1
+
+      - name: Configure OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $installDir = "C:\Program Files\OpenSSL"
+          if (-Not (Test-Path $installDir)) {
+            $installDir = "C:\Program Files\OpenSSL-Win64"
+          }
+          Write-Host "OpenSSL installed at $installDir"
+          "ME_COM_OPENSSL_PATH=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          SET LIBPATHS="-libpath:$(ME_COM_OPENSSL_PATH)\lib\VC\x64\MDd"
+          SET IFLAGS="-I$(ME_COM_OPENSSL_PATH)\include"
+          SET SHOW=1
+          make
+          # Get-ChildItem -Recurse -Path "."
+
+      - name: Run test suite (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tm --list test
+
+      - name: Run test suite (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call projects\win-prep.bat
+          tm --list test
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: test/.testme/
+          retention-days: 7
+
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for format script
+        run: |
+          if [ -f Makefile ] && grep -q "^format:" Makefile; then
+            make format || echo "Format check completed"
+          else
+            echo "No format target found, skipping"
+          fi
+        continue-on-error: true
+

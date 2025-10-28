@@ -40,7 +40,7 @@ static void sigHandler(int signo);
 
 /*********************************** Code *************************************/
 
-MAIN(goahead, int argc, char **argv, char **envp){
+MAIN(goahead, int argc, char **argv, char **envp) {
     char *argp, *home, *documents, *endpoints, *endpoint, *route, *auth, *tok, *lspec;
     int  argind;
 
