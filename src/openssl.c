@@ -278,20 +278,27 @@ PUBLIC int sslOpen()
         SSL_CTX_set_verify(sslctx, SSL_VERIFY_NONE, verifyClientCertificate);
     }
     /*
-          Set the client certificate verification locations
+        Set the client certificate verification locations
+        Use either the authority file or the default verify paths
+        OpenSSL currently has issues where loading additional paths may (may not) invalidate the default paths
      */
     if (ME_GOAHEAD_SSL_AUTHORITY && *ME_GOAHEAD_SSL_AUTHORITY) {
-        if ((!SSL_CTX_load_verify_locations(sslctx, ME_GOAHEAD_SSL_AUTHORITY, NULL)) ||
-            (!SSL_CTX_set_default_verify_paths(sslctx))) {
+        if (!SSL_CTX_load_verify_locations(sslctx, ME_GOAHEAD_SSL_AUTHORITY, NULL)) {
             error("Unable to read cert verification locations");
             sslClose();
             return -1;
         }
         /*
-            Define the list of CA certificates to send to the client before they send their client
-            certificate for validation
+            Define the list of CA certificates to send to the client before they send 
+            their client certificate for validation
          */
-        SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
+         SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
+    } else {
+        if (!SSL_CTX_set_default_verify_paths(sslctx)) {
+            error("Unable to read cert verification locations");
+            sslClose();
+            return -1;
+        }
     }
     if (ME_GOAHEAD_SSL_REVOKE && *ME_GOAHEAD_SSL_REVOKE) {
         store = SSL_CTX_get_cert_store(sslctx);

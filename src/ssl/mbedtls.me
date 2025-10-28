@@ -21,7 +21,7 @@ Me.load({
                         result.libraries = ['mbedtls', 'mbedcrypto', 'mbedx509']
 
                     } else if (os == 'windows') {
-                        result.defines = ['ME_COM_MBEDTLS_PATH=/path/to/mbedtls']
+                        result.defines = ['ME_COM_MBEDTLS_PATH=.']
                         result.includes.push('$(ME_COM_MBEDTLS_PATH)/include')
                         result.libpaths = ['$(ME_COM_MBEDTLS_PATH)/lib', '$(ME_COM_MBEDTLS_PATH)/library']
                         result.libraries = ['mbedtls', 'mbedcrypto', 'mbedx509']
