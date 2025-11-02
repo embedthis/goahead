@@ -26,7 +26,7 @@
 #       route uri=/auth/basic/ auth=basic abilities=manage
 #       route uri=/auth/digest/ auth=digest abilities=manage
 #
-#   Eanable the PUT or DELETE methods (only) for the BIT_GOAHEAD_PUT_DIR directory
+#   Eanable the PUT or DELETE methods (only) for the ME_GOAHEAD_PUT_DIR directory
 #       route uri=/put/ methods=PUT|DELETE
 #
 #   Standard routes

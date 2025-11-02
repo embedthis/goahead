@@ -13,11 +13,6 @@ else
     (cd .. ; test/utils/prep-test.sh)
 fi
 
-set -x
-echo "@@@ Copying cgitest to cgi-bin @@@"
-pwd
-ls -l 
-
-mkdir -p cgi-bin
+mkdir -p cgi-bin web/tmp
 cp ../certs/self.key  ../certs/self.crt .
 cp ../build/${TESTME_PLATFORM}-${TESTME_PROFILE}/bin/cgitest* cgi-bin

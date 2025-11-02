@@ -43,7 +43,7 @@ route uri=/action/logout methods=GET|POST handler=action redirect=200@/auth/form
 route uri=/auth/form/ auth=form handler=continue abilities=manage redirect=401@/auth/form/login.html
 
 #
-#   Support PUT and DELETE methods only for the BIT_GOAHEAD_PUT_DIR directory
+#   Support PUT and DELETE methods only for the ME_GOAHEAD_PUT_DIR directory
 #
 route uri=/tmp/ methods=PUT|DELETE
 
