@@ -96,4 +96,4 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          tm --verbose test
+          make test
