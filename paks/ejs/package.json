@@ -1,0 +1,69 @@
+{
+  "name": "ejscript",
+  "owner": "embedthis",
+  "version": "2.0.0",
+  "description": "Ejscript core API implementation for Bun runtime",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./globals": {
+      "import": "./dist/globals.js",
+      "types": "./dist/globals.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md",
+    "QUICK_START.md"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "test": "tm",
+    "typecheck": "tsc --noEmit",
+    "dev": "bun --watch src/index.ts",
+    "prepublishOnly": "bun run typecheck && bun run build && bun test"
+  },
+  "keywords": [
+    "ejscript",
+    "es4",
+    "bun",
+    "typescript",
+    "javascript",
+    "runtime",
+    "path",
+    "file",
+    "http",
+    "socket",
+    "websocket",
+    "worker",
+    "bytearray",
+    "streams"
+  ],
+  "author": "Ejscript Project",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/embedthis/ejs"
+  },
+  "bugs": {
+    "url": "https://github.com/embedthis/ejs/issues"
+  },
+  "homepage": "https://www.embedthis.com/ejs/",
+  "license": "SEE LICENSE.md",
+  "devDependencies": {
+    "@embedthis/testme": "^0.8.19",
+    "@types/bun": "latest",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "bun": ">=1.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

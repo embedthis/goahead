@@ -15,7 +15,8 @@ build/
 cgitest
 dh.pem
 huge.txt
-paks/
+paks/*
+!paks/ejs/
 projecs/*.sdf
 projecs/*.sln
 projecs/*.suo

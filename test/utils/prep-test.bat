@@ -62,3 +62,45 @@ if defined HAS_WARNING (
     echo Some prerequisites are missing. Please install them before running tests.
     exit /b 1
 )
+
+REM Link ejscript package for tests
+echo Linking ejscript package for tests...
+if not exist "paks\ejs" (
+    echo WARNING: paks\ejs directory not found
+    exit /b 1
+)
+
+cd paks\ejs
+bun link
+if %errorlevel% neq 0 (
+    echo WARNING: Failed to link ejscript from paks\ejs
+    cd ..\..
+    exit /b 1
+)
+cd ..\..
+
+if not exist "test" (
+    echo WARNING: test directory not found
+    exit /b 1
+)
+
+cd test
+bun link testme
+if %errorlevel% neq 0 (
+    echo WARNING: Failed to link testme in test directory
+    cd ..
+    exit /b 1
+)
+cd ..
+
+cd test
+bun link ejscript
+if %errorlevel% neq 0 (
+    echo WARNING: Failed to link ejscript in test directory
+    cd ..
+    exit /b 1
+)
+cd ..
+
+echo Successfully linked ejscript for tests
+exit /b 0

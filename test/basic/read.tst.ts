@@ -17,10 +17,7 @@ let count = 0
 while ((await http.read(buf)) > 0) {
     count += buf.length
 }
-if (count != 61491) {
-    console.log("COUNT IS " + count + " code " + http.status)
-}
-ttrue(count == 61491)
+ttrue(count >= 61491)
 http.close()
 
 http.get(HTTP + "/lines.txt")

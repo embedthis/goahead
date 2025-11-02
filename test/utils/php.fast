@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+#   Invoke PHP via FastCGI
+#
+
+#
+#   Number of child PHP processes to spawn (by PHP) in addition to the PHP main.
+#
+export PHP_FCGI_CHILDREN=0
+
+#
+#   Limit of requests before a PHP instance exits (0 is unlimited, default is 500)
+#
+export PHP_FCGI_MAX_REQUESTS=0
+
+#
+#   Directory containing php.init
+#
+# export PHPRC="/usr/local/etc/php/7.4"
+
+#
+#   For dynamic launching by appweb
+#
+exec /opt/homebrew/bin/php-cgi
+
+#
+#   For pre-launching on port 9990
+#
+# exec /opt/homebrew/bin/php-cgi -b 127.0.0.1:9990

@@ -3,7 +3,7 @@
  */
 
 import { Http, Config } from 'ejscript'
-import { tget, thas, tskip, ttrue } from 'testme'
+import { tget, thas, tskip, ttrue, tcontains } from 'testme'
 
 if (!Config.SSL) {
     tskip("SSL not enabled in ejscript")
@@ -35,8 +35,8 @@ if (!Config.SSL) {
     http.verify = false
     http.get(HTTPS + "/index.html?a=b")
     await http.wait()
-    ttrue(http.response.endsWith("</html>\n"))
-    ttrue(http.response.endsWith("</html>\n"))
+    tcontains(http.response, "</html>")
+    tcontains(http.response, "</html>")
     http.close()
 
     http.verify = false

@@ -90,37 +90,10 @@ jobs:
       - name: Run test suite (Unix)
         if: runner.os != 'Windows'
         run: |
-          tm --list test
+          make test
 
       - name: Run test suite (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          call projects\win-prep.bat
-          tm --list test
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.os }}
-          path: test/.testme/
-          retention-days: 7
-
-  lint:
-    name: Code Quality Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check for format script
-        run: |
-          if [ -f Makefile ] && grep -q "^format:" Makefile; then
-            make format || echo "Format check completed"
-          else
-            echo "No format target found, skipping"
-          fi
-        continue-on-error: true
-
+          tm --verbose test

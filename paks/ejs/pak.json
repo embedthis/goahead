@@ -1,0 +1,26 @@
+{
+    "name": "ejs",
+    "owner": "embedthis",
+    "version": "2.0.1",
+    "description": "Ejscript API implementation for Bun runtime",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE.md",
+        "QUICK_START.md"
+    ],
+    "author": "EmbedThis",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/embedthis/ejs"
+    },
+    "bugs": {
+        "url": "https://github.com/embedthis/ejs/issues"
+    },
+    "homepage": "https://www.embedthis.com/ejs/",
+    "license": "SEE LICENSE.md",
+    "export": {
+        "from": []
+    },
+    "origin": "embedthis/ejs"
+}

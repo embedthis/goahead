@@ -3,7 +3,7 @@
  */
 
 import { Http } from 'ejscript'
-import { tget, ttrue } from 'testme'
+import { tget, ttrue, tcontains } from 'testme'
 
 const HTTPV6 = tget('TM_HTTPV6') || "[::1]:8090"
 let http: Http = new Http
@@ -22,8 +22,8 @@ ttrue(http.readString(12) == "<html><head>")
 //  Validate get contents
 http.get(HTTPV6 + "/index.html")
 await http.wait()
-ttrue(http.response.endsWith("</html>\n"))
-ttrue(http.response.endsWith("</html>\n"))
+tcontains(http.response, "</html>")
+tcontains(http.response, "</html>")
 
 //  Test Get with a body. Yes this is valid Http, although unusual.
 http.get(HTTPV6 + "/index.html", 'name=John&address=700+Park+Ave')

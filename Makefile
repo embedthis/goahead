@@ -37,7 +37,8 @@ PATH    	:= $(PWD)/build/$(BIN):$(PATH)
 PROJECT 	:= projects/$(NAME)-$(OS)-default.mk
 
 .EXPORT_ALL_VARIABLES:
-.PHONY: all build compile clean clobber installBinary uninstall run deploy install version help test
+
+.PHONY: all build compile clean clobber test installBinary uninstall run deploy install version help
 
 all build compile:
 	@if [ ! -f $(PROJECT) ] ; then \
@@ -45,11 +46,18 @@ all build compile:
 	fi
 	@echo $(MAKE) -f $(PROJECT) $@
 	@$(MAKE) -f $(PROJECT) $@
-	@echo ; echo 'On Linux/MacOS, you can now install via "sudo make $(MAKEFLAGS) install" or run GoAhead via: "sudo make run"'
+	@echo ; echo 'On Linux/MacOS, you can now install via "sudo make install" or run GoAhead via: "sudo make run"'
 	@echo "To run locally, put $(OS)-$(ARCH)-$(PROFILE)/bin in your path" ; echo
 
 clean clobber installBinary uninstall run:
 	@$(MAKE) -f $(PROJECT) $@
+
+test:
+	@./test/utils/prep-test.sh
+	@tm test
+
+format:
+	@uncrustify -c .uncrustify --replace --no-backup  src/*.{c,h}
 
 deploy:
 	@echo '       [Deploy] $(MAKE) ME_ROOT_PREFIX=$(OS)-$(ARCH)-$(PROFILE)/deploy -f $(PROJECT) installBinary'
