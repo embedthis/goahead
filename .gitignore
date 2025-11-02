@@ -33,3 +33,4 @@ test/self.crt
 test/self.key
 test/web/tmp/a.dat
 test/web/tmp/small.dat
+test/node_modules
