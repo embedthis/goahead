@@ -5,8 +5,6 @@
 
 set -m
 
-set -x
-
 if curl -s http://127.0.0.1:18080 > /dev/null 2>&1; then
     echo "GoAhead is already running on port 18080"
     sleep 999999 &

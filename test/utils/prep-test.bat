@@ -71,7 +71,7 @@ if not exist "paks\ejs" (
 )
 
 cd paks\ejs
-bun link
+bun link --silent
 if %errorlevel% neq 0 (
     echo WARNING: Failed to link ejscript from paks\ejs
     cd ..\..
@@ -85,7 +85,7 @@ if not exist "test" (
 )
 
 cd test
-bun link testme
+bun link testme --silent
 if %errorlevel% neq 0 (
     echo WARNING: Failed to link testme in test directory
     cd ..
@@ -94,7 +94,7 @@ if %errorlevel% neq 0 (
 cd ..
 
 cd test
-bun link ejscript
+bun link ejscript --silent
 if %errorlevel% neq 0 (
     echo WARNING: Failed to link ejscript in test directory
     cd ..

@@ -148,34 +148,36 @@ If you have built from source using Make, you can install the software using:
 
 ## Testing
 
-GoAhead includes a comprehensive test suite with 34 unit tests covering HTTP
-operations, authentication, security, and stress testing.
+The test suite is located in the `test/` directory and uses the
+[TestMe](https://www.embedthis.com/testme/) framework. 
 
-### Running Tests
-
-    make test
-
-Or manually with TestMe:
-
-    cd test
-    tm
-
-### Test Requirements
+The test suite requires the following prerequisites:
 
 - **Bun**: v1.2.23 or later
 - **TestMe**: Test runner (installed globally)
-- **EJS**: TypeScript Ejscript library v2.0.0 (linked from ../ejs)
 
-### Test Categories
+Install Bun by following the instructions at: 
 
-- **Basic HTTP**: 14 tests for core HTTP functionality
-- **Authentication**: 3 tests for Basic, Digest, and Form authentication
-- **Security**: 4 tests for security features and attack prevention
-- **Stress**: 7 tests for load and edge cases
+    https://bun.com/docs/installation
 
-See [test/README-EJS.md](test/README-EJS.md) for detailed testing documentation.
+Install TestMe globally with:
 
-Resources
+    bun install -g --trust @embedthis/testme
+
+Run the tests with:
+
+    make test
+
+or manually via the `tm` command. 
+
+    tm
+
+To run a specific test or group of tests, use the `tm` command with the test
+name.
+
+    tm basic/
+
+## Resources
 ---
   - [GoAhead web site](https://www.embedthis.com/goahead/)
   - [Embedthis web site](https://www.embedthis.com/)
