@@ -897,10 +897,10 @@ static bool parseDigestDetails(Webs *wp)
          */
         if (strchr(value, '\\')) {
             for (dp = sp = value; *sp; sp++) {
-                if (*sp == '\\') {
+                if (*sp == '\\' && sp[1]) {
                     sp++;
                 }
-                *dp++ = *sp++;
+                *dp++ = *sp;
             }
             *dp = '\0';
         }
