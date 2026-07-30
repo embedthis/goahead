@@ -39,7 +39,7 @@ CDPATH      :=
 
 .EXPORT_ALL_VARIABLES:
 
-.PHONY: all build clean doc format help package projects publish test
+.PHONY: all build clean help package test
 
 ifndef SHOW
 .SILENT:
@@ -61,27 +61,8 @@ clean:
 test: build
 	tm test
 
-doc:
-	bun ~/bin/make-doc doc/goahead.dox src/goahead.h GoAhead doc/api
-
-format:
-	uncrustify -q -c .uncrustify --replace --no-backup src/*.{c,h}
-
 package:
 	bash bin/buildLib.sh
-
-cache: build doc package
-	cache
-
-publish: cache
-
-#
-#   Regenerate all premake project files (developer only -- requires premake5)
-#
-projects:
-	@echo "       [Gen] goahead gmake vs2022 xcode4"
-	@cd projects && premake5 gmake >/dev/null && premake5 vs2022 >/dev/null && premake5 xcode4 >/dev/null
-	@fixmake
 
 help:
 	@echo '' >&2
@@ -91,12 +72,7 @@ help:
 	@echo '  build               Build libgoahead and executables (default)' >&2
 	@echo '  clean               Remove build artifacts' >&2
 	@echo '  test                Run unit tests' >&2
-	@echo '  doc                 Generate API documentation' >&2
-	@echo '  format              Format source code' >&2
 	@echo '  package             Build dist/goaheadLib.c amalgamated source' >&2
-	@echo '  cache               Build, package and cache' >&2
-	@echo '  publish             Alias for cache' >&2
-	@echo '  projects            Regenerate premake makefiles (developer only)' >&2
 	@echo '' >&2
 	@echo 'Make variables:' >&2
 	@echo '  OPTIMIZE=debug|release    Optimization level (default: debug)' >&2
