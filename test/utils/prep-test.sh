@@ -85,31 +85,29 @@ if [ $HAS_WARNING -eq 1 ]; then
     exit 1
 fi
 
-# Link ejscript package for tests
-echo "Linking ejscript package for tests..."
-if [ -d "paks/ejs" ]; then
-    (cd paks/ejs && bun link --silent) || {
-        echo "WARNING: Failed to link ejscript from paks/ejs"
-        exit 1
-    }
-else
-    echo "WARNING: paks/ejs directory not found"
-    exit 1
-fi
-
-if [ -d "test" ]; then
-    (cd test && bun link testme --silent) || {
-        echo "WARNING: Failed to add testme in test directory"
-        exit 1
-    }
-    (cd test && bun link ejscript --silent) || {
-        echo "WARNING: Failed to link ejscript in test directory"
-        exit 1
-    }
-else
+#
+#   Install test dependencies. @embedthis/ejscript is a normal versioned npm
+#   dependency declared in the top level package.json. TestMe is linked from the
+#   global install instead: the published @embedthis/testme does not expose the
+#   test API at its package root, so only the globally linked module resolves the
+#   bare 'testme' specifier the tests import. Tests under test/ find both by
+#   walking up to the top level node_modules.
+#
+if [ ! -d "test" ]; then
     echo "WARNING: test directory not found"
     exit 1
 fi
 
-echo "Successfully linked ejscript for tests"
+echo "Installing test dependencies..."
+bun install --silent || {
+    echo "WARNING: Failed to install test dependencies"
+    exit 1
+}
+
+bun link testme --silent || {
+    echo "WARNING: Failed to link testme"
+    exit 1
+}
+
+echo "Test dependencies ready"
 exit 0

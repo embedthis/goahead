@@ -1,25 +1,34 @@
 {
+    /*
+        GoAhead is single threaded and every test shares the one test server. The DoS and stress
+        tests deliberately saturate the server's connection table, so a test running concurrently
+        with them has its connection refused and fails for no fault of its own. Run tests serially.
+        The suite is I/O bound against a single server, so parallelism buys almost nothing anyway.
+     */
+    execution: {
+        parallel: false,
+    },
     compiler: {
         c: {
             gcc: {
                 flags: [
                     '-Wformat', '-Wformat-security', '-Wsign-compare', '-Wsign-conversion',
-                    '-I../src', '-L../build/bin',
+                    '-I../src', '-I../src/osdep', '-L../build/bin',
                     '-Wl,-rpath,${CONFIGDIR}/../build/bin'
                 ],
-                libraries: ['m', 'crypto', 'ssl'],
+                libraries: ['m', 'crypto', 'ssl', 'goahead'],
             },
             msvc: {
                 flags: [
                     '-GR-', '-MDd', '-wd4100',
-                    '/I../src',
+                    '/I../src', '/I../src/osdep',
                     '/LIBPATH:../build/bin',
                     '/I${ME_COM_OPENSSL_PATH}/include',
                     '/LIBPATH:${ME_COM_OPENSSL_PATH}/lib/VC/${ARCH}/MDd',
                     '/I${USERPROFILE}/vcpkg/installed/${ARCH}-windows/include',
                     '/LIBPATH:${USERPROFILE}/vcpkg/installed/${ARCH}-windows/lib',
                 ],
-                libraries: ['libcrypto', 'libssl', 'ws2_32.lib', 'advapi32.lib', 'user32.lib', 'kernel32.lib', 'oldnames.lib', 'shell32.lib'],
+                libraries: ['libcrypto', 'libssl', 'libgoahead.lib', 'ws2_32.lib', 'advapi32.lib', 'user32.lib', 'kernel32.lib', 'oldnames.lib', 'shell32.lib'],
             },
         },
     },

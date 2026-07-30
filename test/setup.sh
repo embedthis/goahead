@@ -12,16 +12,14 @@
 
 set -m
 
-#   Free the test ports if a prior run left a stale server bound.
-if command -v lsof >/dev/null 2>&1; then
-    for port in 18080 14443 18090 14453; do
-        pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null)
-        if [ -n "$pids" ] ; then
-            kill $pids 2>/dev/null
-            sleep 0.2
-            kill -9 $pids 2>/dev/null
-        fi
-    done
+#   Free the test ports if a prior run left a stale server bound. The orphan is
+#   always a previous goahead-test child (the SIGKILL-orphan edge case noted
+#   above), so kill it by process name rather than by port. This avoids lsof,
+#   which can hang uninterruptibly (D-state, unkillable by timeout) when a
+#   mounted filesystem is unresponsive, wedging the whole test run.
+if command -v pkill >/dev/null 2>&1; then
+    pkill -f '[g]oahead-test' 2>/dev/null
+    sleep 0.3
 fi
 
 goahead-test -v --cert self.crt --key self.key &
