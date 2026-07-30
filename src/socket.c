@@ -10,12 +10,12 @@
 
 /************************************ Locals **********************************/
 
-PUBLIC WebsSocket **socketList;             /* List of open sockets */
-PUBLIC int        socketMax;                /* Maximum size of socket */
-PUBLIC Socket     socketHighestFd = (Socket) -1; /* Highest socket fd opened */
-PUBLIC int        socketOpenCount = 0;      /* Number of task using sockets */
+PUBLIC WebsSocket **socketList;                   /* List of open sockets */
+PUBLIC int        socketMax;                      /* Maximum size of socket */
+PUBLIC Socket     socketHighestFd = (Socket) -1;  /* Highest socket fd opened */
+PUBLIC int        socketOpenCount = 0;            /* Number of task using sockets */
 
-static int hasIPv6;                         /* System supports IPv6 */
+static int hasIPv6;                               /* System supports IPv6 */
 
 /***************************** Forward Declarations ***************************/
 

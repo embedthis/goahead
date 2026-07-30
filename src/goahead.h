@@ -14,187 +14,187 @@
     ME_COM defaults -- must be before includes so dependent headers see them.
  */
 #ifndef ME_NAME
-    #define ME_NAME "goahead"
+    #define ME_NAME          "goahead"
 #endif
 #ifndef ME_TITLE
-    #define ME_TITLE "Embedthis GoAhead"
+    #define ME_TITLE         "Embedthis GoAhead"
 #endif
 #ifndef ME_COM_GOAHEAD
-    #define ME_COM_GOAHEAD 1
+    #define ME_COM_GOAHEAD   1
 #endif
 #ifndef ME_COM_OSDEP
-    #define ME_COM_OSDEP 1
+    #define ME_COM_OSDEP     1
 #endif
 #ifndef ME_COM_SSL
-    #define ME_COM_SSL 1
+    #define ME_COM_SSL       1
 #endif
 #ifndef ME_COM_OPENSSL
-    #define ME_COM_OPENSSL 1
+    #define ME_COM_OPENSSL   1
 #endif
 #ifndef ME_COM_MBEDTLS
-    #define ME_COM_MBEDTLS 0
+    #define ME_COM_MBEDTLS   0
 #endif
 #ifndef ME_COM_MATRIXSSL
     #define ME_COM_MATRIXSSL 0
 #endif
 #ifndef ME_COM_NANOSSL
-    #define ME_COM_NANOSSL 0
+    #define ME_COM_NANOSSL   0
 #endif
 
 /*
     Build settings -- ME_DEBUG and ME_VERSION are defined by the build system.
  */
 #ifndef ME_DEBUG
-    #define ME_DEBUG 0
+    #define ME_DEBUG               0
 #endif
 #ifndef ME_PROFILE
-    #define ME_PROFILE "default"
+    #define ME_PROFILE             "default"
 #endif
 #ifndef ME_DEPRECATED_WARNINGS
     #define ME_DEPRECATED_WARNINGS 0
 #endif
 #ifndef ME_ROM
-    #define ME_ROM 0
+    #define ME_ROM                 0
 #endif
 #ifndef ME_MAX_ARGC
-    #define ME_MAX_ARGC 32
+    #define ME_MAX_ARGC            32
 #endif
 #ifndef ME_MBEDTLS_COMPACT
-    #define ME_MBEDTLS_COMPACT 1
+    #define ME_MBEDTLS_COMPACT     1
 #endif
 #ifndef ME_TUNE_SIZE
-    #define ME_TUNE_SIZE 1
+    #define ME_TUNE_SIZE           1
 #endif
 
 /*
     GoAhead feature flags
  */
 #ifndef ME_GOAHEAD_ACCESS_LOG
-    #define ME_GOAHEAD_ACCESS_LOG 0
+    #define ME_GOAHEAD_ACCESS_LOG            0
 #endif
 #ifndef ME_GOAHEAD_AUTH
-    #define ME_GOAHEAD_AUTH 1
+    #define ME_GOAHEAD_AUTH                  1
 #endif
 #ifndef ME_GOAHEAD_AUTH_STORE
-    #define ME_GOAHEAD_AUTH_STORE "file"
+    #define ME_GOAHEAD_AUTH_STORE            "file"
 #endif
 #ifndef ME_GOAHEAD_AUTO_LOGIN
-    #define ME_GOAHEAD_AUTO_LOGIN 0
+    #define ME_GOAHEAD_AUTO_LOGIN            0
 #endif
 #ifndef ME_GOAHEAD_CGI
-    #define ME_GOAHEAD_CGI 1
+    #define ME_GOAHEAD_CGI                   1
 #endif
 #ifndef ME_GOAHEAD_CGI_VAR_PREFIX
-    #define ME_GOAHEAD_CGI_VAR_PREFIX "CGI_"
+    #define ME_GOAHEAD_CGI_VAR_PREFIX        "CGI_"
 #endif
 #ifndef ME_GOAHEAD_CLIENT_CACHE
-    #define ME_GOAHEAD_CLIENT_CACHE "css,gif,ico,jpg,js,png"
+    #define ME_GOAHEAD_CLIENT_CACHE          "css,gif,ico,jpg,js,png"
 #endif
 #ifndef ME_GOAHEAD_CLIENT_CACHE_LIFESPAN
     #define ME_GOAHEAD_CLIENT_CACHE_LIFESPAN 86400
 #endif
 #ifndef ME_GOAHEAD_DIGEST
-    #define ME_GOAHEAD_DIGEST 1
+    #define ME_GOAHEAD_DIGEST                1
 #endif
 #ifndef ME_GOAHEAD_DOCUMENTS
-    #define ME_GOAHEAD_DOCUMENTS "web"
+    #define ME_GOAHEAD_DOCUMENTS             "web"
 #endif
 #ifndef ME_GOAHEAD_JAVASCRIPT
-    #define ME_GOAHEAD_JAVASCRIPT 1
+    #define ME_GOAHEAD_JAVASCRIPT            1
 #endif
 #ifndef ME_GOAHEAD_LEGACY
-    #define ME_GOAHEAD_LEGACY 0
+    #define ME_GOAHEAD_LEGACY                0
 #endif
 #ifndef ME_GOAHEAD_LISTEN
-    #define ME_GOAHEAD_LISTEN "http://*:80,https://*:443"
+    #define ME_GOAHEAD_LISTEN                "http://*:80,https://*:443"
 #endif
 #ifndef ME_GOAHEAD_LOGFILE
-    #define ME_GOAHEAD_LOGFILE "stderr:0"
+    #define ME_GOAHEAD_LOGFILE               "stderr:0"
 #endif
 #ifndef ME_GOAHEAD_NONCE_DURATION
-    #define ME_GOAHEAD_NONCE_DURATION 36000
+    #define ME_GOAHEAD_NONCE_DURATION        36000
 #endif
 #ifndef ME_GOAHEAD_PUT_DIR
-    #define ME_GOAHEAD_PUT_DIR "."
+    #define ME_GOAHEAD_PUT_DIR               "."
 #endif
 #ifndef ME_GOAHEAD_REALM
-    #define ME_GOAHEAD_REALM "example.com"
+    #define ME_GOAHEAD_REALM                 "example.com"
 #endif
 #ifndef ME_GOAHEAD_REPLACE_MALLOC
-    #define ME_GOAHEAD_REPLACE_MALLOC 0
+    #define ME_GOAHEAD_REPLACE_MALLOC        0
 #endif
 #ifndef ME_GOAHEAD_STEALTH
-    #define ME_GOAHEAD_STEALTH 1
+    #define ME_GOAHEAD_STEALTH               1
 #endif
 #ifndef ME_GOAHEAD_UPLOAD
-    #define ME_GOAHEAD_UPLOAD 1
+    #define ME_GOAHEAD_UPLOAD                1
 #endif
 #ifndef ME_GOAHEAD_UPLOAD_DIR
-    #define ME_GOAHEAD_UPLOAD_DIR "tmp"
+    #define ME_GOAHEAD_UPLOAD_DIR            "tmp"
 #endif
 #ifndef ME_GOAHEAD_XFRAME_HEADER
-    #define ME_GOAHEAD_XFRAME_HEADER "SAMEORIGIN"
+    #define ME_GOAHEAD_XFRAME_HEADER         "SAMEORIGIN"
 #endif
 
 /*
     GoAhead numeric limits
  */
 #ifndef ME_GOAHEAD_LIMIT_BUFFER
-    #define ME_GOAHEAD_LIMIT_BUFFER 1024
+    #define ME_GOAHEAD_LIMIT_BUFFER        1024
 #endif
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
-    #define ME_GOAHEAD_LIMIT_CGI_ARGS 4096
+    #define ME_GOAHEAD_LIMIT_CGI_ARGS      4096
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILENAME
-    #define ME_GOAHEAD_LIMIT_FILENAME 256
+    #define ME_GOAHEAD_LIMIT_FILENAME      256
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILES
-    #define ME_GOAHEAD_LIMIT_FILES 0
+    #define ME_GOAHEAD_LIMIT_FILES         0
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADER
-    #define ME_GOAHEAD_LIMIT_HEADER 2048
+    #define ME_GOAHEAD_LIMIT_HEADER        2048
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADERS
-    #define ME_GOAHEAD_LIMIT_HEADERS 4096
+    #define ME_GOAHEAD_LIMIT_HEADERS       4096
 #endif
 #ifndef ME_GOAHEAD_LIMIT_NUM_HEADERS
-    #define ME_GOAHEAD_LIMIT_NUM_HEADERS 64
+    #define ME_GOAHEAD_LIMIT_NUM_HEADERS   64
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PARSE_TIMEOUT
     #define ME_GOAHEAD_LIMIT_PARSE_TIMEOUT 5
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PASSWORD
-    #define ME_GOAHEAD_LIMIT_PASSWORD 32
+    #define ME_GOAHEAD_LIMIT_PASSWORD      32
 #endif
 #ifndef ME_GOAHEAD_LIMIT_POST
-    #define ME_GOAHEAD_LIMIT_POST 16384
+    #define ME_GOAHEAD_LIMIT_POST          16384
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PUT
-    #define ME_GOAHEAD_LIMIT_PUT 204800000
+    #define ME_GOAHEAD_LIMIT_PUT           204800000
 #endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_COUNT
     #define ME_GOAHEAD_LIMIT_SESSION_COUNT 512
 #endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_LIFE
-    #define ME_GOAHEAD_LIMIT_SESSION_LIFE 1800
+    #define ME_GOAHEAD_LIMIT_SESSION_LIFE  1800
 #endif
 #ifndef ME_GOAHEAD_LIMIT_STRING
-    #define ME_GOAHEAD_LIMIT_STRING 256
+    #define ME_GOAHEAD_LIMIT_STRING        256
 #endif
 #ifndef ME_GOAHEAD_LIMIT_TIMEOUT
-    #define ME_GOAHEAD_LIMIT_TIMEOUT 60
+    #define ME_GOAHEAD_LIMIT_TIMEOUT       60
 #endif
 #ifndef ME_GOAHEAD_LIMIT_UPLOAD
-    #define ME_GOAHEAD_LIMIT_UPLOAD 204800000
+    #define ME_GOAHEAD_LIMIT_UPLOAD        204800000
 #endif
 #ifndef ME_GOAHEAD_LIMIT_URI
-    #define ME_GOAHEAD_LIMIT_URI 2048
+    #define ME_GOAHEAD_LIMIT_URI           2048
 #endif
 
 /*
     Override osdep defaults
  */
-#define ME_MAX_IP 64                /**< Maximum IP address size */
+#define ME_MAX_IP                          64 /**< Maximum IP address size */
 
 /************************************ Includes ********************************/
 
@@ -347,12 +347,16 @@ PUBLIC HINSTANCE websGetInst();
     requirements and constraints.
  */
 
-#define WEBS_MAX_LISTEN   8             /**< Maximum number of listening endpoints that can be configured simultaneously
-                                         */
-#define WEBS_SMALL_HASH   31            /**< Default size for small hash tables (should be prime number for good
-                                           distribution) */
-#define WEBS_MAX_PASSWORD ME_GOAHEAD_LIMIT_PASSWORD /**< Maximum plaintext password length accepted from clients */
-#define WEBS_MAX_PASSWORD_BUFFER ((WEBS_MAX_PASSWORD * 3) + 3) /**< Buffer size for "username:realm:password" passed to crypt primitives */
+#define WEBS_MAX_LISTEN          8                             /**< Maximum number of listening endpoints that can be
+                                                                  configured simultaneously
+                                                                */
+#define WEBS_SMALL_HASH          31                            /**< Default size for small hash tables (should be prime
+                                                                  number for good
+                                                                  distribution) */
+#define WEBS_MAX_PASSWORD        ME_GOAHEAD_LIMIT_PASSWORD     /**< Maximum plaintext password length accepted from
+                                                                  clients */
+#define WEBS_MAX_PASSWORD_BUFFER ((WEBS_MAX_PASSWORD * 3) + 3) /**< Buffer size for "username:realm:password" passed to
+                                                                  crypt primitives */
 
 /************************************* Error **********************************/
 #if ME_GOAHEAD_LOGGING
@@ -385,7 +389,7 @@ PUBLIC_DATA int logLevel;
 
 #if ME_GOAHEAD_TRACING && ME_GOAHEAD_LOGGING
     #if ME_COMPILER_HAS_MACRO_VARARGS
-      #define trace(l, ...) if (((l)&WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else {}
+      #define trace(l, ...) if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else {}
     #else
 inline void trace(int level, cchar *fmt, ...)
 {

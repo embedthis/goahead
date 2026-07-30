@@ -93,7 +93,7 @@ static cchar *envBlackList[] = {
 
 static bool inBlackList(cchar *name)
 {
-    cchar   **bp;
+    cchar **bp;
 
     for (bp = envBlackList; *bp; bp++) {
         if (smatch(name, *bp)) {

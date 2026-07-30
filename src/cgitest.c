@@ -23,7 +23,7 @@
 
 #define _CRT_SECURE_NO_WARNINGS 1
 #ifndef _VSB_CONFIG_FILE
-    #define _VSB_CONFIG_FILE "vsbConfig.h"
+    #define _VSB_CONFIG_FILE    "vsbConfig.h"
 #endif
 
 #include <errno.h>
@@ -39,58 +39,58 @@
 #include <io.h>
 #include <windows.h>
 
-	#define access   _access
-	#define close    _close
-	#define fileno   _fileno
-	#define fstat    _fstat
-	#define getpid   _getpid
-	#define open     _open
-	#define putenv   _putenv
-	#define read     _read
-	#define stat     _stat
-	#define umask    _umask
-	#define unlink   _unlink
-	#define write    _write
-	#define strdup   _strdup
-	#define lseek    _lseek
-	#define getcwd   _getcwd
-	#define chdir    _chdir
-	#define strnset  _strnset
-	#define chmod    _chmod
+    #define access  _access
+    #define close   _close
+    #define fileno  _fileno
+    #define fstat   _fstat
+    #define getpid  _getpid
+    #define open    _open
+    #define putenv  _putenv
+    #define read    _read
+    #define stat    _stat
+    #define umask   _umask
+    #define unlink  _unlink
+    #define write   _write
+    #define strdup  _strdup
+    #define lseek   _lseek
+    #define getcwd  _getcwd
+    #define chdir   _chdir
+    #define strnset _strnset
+    #define chmod   _chmod
 
-	#define mkdir(a,b)  _mkdir(a)
-	#define rmdir(a)    _rmdir(a)
-    typedef int ssize_t;
+    #define mkdir(a, b) _mkdir(a)
+    #define rmdir(a)    _rmdir(a)
+typedef int ssize_t;
 #else
 #include <unistd.h>
 #endif
 
 /*********************************** Locals ***********************************/
 
-#define CMD_VXWORKS_EOF         "_ _EOF_ _"
-#define CMD_VXWORKS_EOF_LEN     9
-#define MAX_ARGV                64
+#define CMD_VXWORKS_EOF     "_ _EOF_ _"
+#define CMD_VXWORKS_EOF_LEN 9
+#define MAX_ARGV            64
 
-static char     *argvList[MAX_ARGV];
+static char *argvList[MAX_ARGV];
 static int      getArgv(int *argc, char ***argv, int originalArgc, char **originalArgv);
-static int      hasError;
-static int      nonParsedHeader;
-static int      numPostKeys;
-static int      numQueryKeys;
-static int      originalArgc;
-static char     **originalArgv;
-static int      outputArgs, outputEnv, outputPost, outputQuery;
-static int      outputLines, outputHeaderLines, responseStatus;
-static char     *outputLocation;
-static char     *postBuf;
-static size_t   postBufLen;
-static char     **postKeys;
-static char     *queryBuf;
-static size_t   queryLen;
-static char     **queryKeys;
-static char     *responseMsg;
-static int      switchesFromHttp;
-static int      timeout;
+static int    hasError;
+static int    nonParsedHeader;
+static int    numPostKeys;
+static int    numQueryKeys;
+static int    originalArgc;
+static char   **originalArgv;
+static int    outputArgs, outputEnv, outputPost, outputQuery;
+static int    outputLines, outputHeaderLines, responseStatus;
+static char   *outputLocation;
+static char   *postBuf;
+static size_t postBufLen;
+static char   **postKeys;
+static char   *queryBuf;
+static size_t queryLen;
+static char   **queryKeys;
+static char   *responseMsg;
+static int    switchesFromHttp;
+static int    timeout;
 
 /***************************** Forward Declarations ***************************/
 
@@ -103,7 +103,7 @@ static int      getQueryString(char **buf, size_t *len);
 static void     printEnv(char **env);
 static void     printQuery();
 static void     printPost(char *buf, size_t len);
-static char     *safeGetenv(char *key);
+static char *safeGetenv(char *key);
 
 /******************************************************************************/
 /*
@@ -115,8 +115,8 @@ int cgitest(int argc, char **argv, char **envp)
 int main(int argc, char **argv, char **envp)
 #endif
 {
-    char    *cp, *method;
-    int     i, j, err;
+    char *cp, *method;
+    int  i, j, err;
 
     err = 0;
     outputArgs = outputQuery = outputEnv = outputPost = 0;
@@ -246,7 +246,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     if (hasError) {
-        if (! nonParsedHeader) {
+        if (!nonParsedHeader) {
             printf("HTTP/1.0 %d %s\r\n\r\n", responseStatus, responseMsg);
             printf("<HTML><BODY><p>Error: %d -- %s</p></BODY></HTML>\r\n", responseStatus, responseMsg);
         }
@@ -278,7 +278,8 @@ int main(int argc, char **argv, char **envp)
     }
     printf("\r\n");
 
-    if ((outputLines + outputArgs + outputEnv + outputQuery + outputPost + responseStatus) == 0 && outputLocation == NULL) {
+    if ((outputLines + outputArgs + outputEnv + outputQuery + outputPost + responseStatus) == 0 &&
+        outputLocation == NULL) {
         outputArgs++;
         outputEnv++;
         outputQuery++;
@@ -313,7 +314,8 @@ int main(int argc, char **argv, char **envp)
 #if VXWORKS
     /*
         VxWorks pipes need an explicit eof string
-        Must not call exit(0) in Vxworks as that will exit the task before the CGI handler can cleanup. Must use return 0.
+        Must not call exit(0) in Vxworks as that will exit the task before the CGI handler can cleanup. Must use return
+           0.
      */
     write(1, CMD_VXWORKS_EOF, CMD_VXWORKS_EOF_LEN);
     write(2, CMD_VXWORKS_EOF, CMD_VXWORKS_EOF_LEN);
@@ -342,7 +344,7 @@ static int getArgv(int *pargc, char ***pargv, int originalArgc, char **originalA
     switches = 0;
     for (i = 0; i < numQueryKeys; i += 2) {
         if (strcmp(queryKeys[i], "HTTP_SWITCHES") == 0) {
-            switches = queryKeys[i+1];
+            switches = queryKeys[i + 1];
             break;
         }
     }
@@ -405,8 +407,8 @@ static void printEnv(char **envp)
      */
     printf("\r\n<H2>All Defined Environment Variables</H2>\r\n");
     if (envp) {
-        char    *p;
-        int     i;
+        char *p;
+        int  i;
         for (i = 0, p = envp[0]; envp[i]; i++) {
             p = envp[i];
             printf("<P>%s</P>\r\n", p);
@@ -419,17 +421,17 @@ static void printEnv(char **envp)
 
 static void printQuery()
 {
-    int     i;
+    int i;
 
     if (numQueryKeys == 0) {
         printf("<H2>No Query String Found</H2>\r\n");
     } else {
         printf("<H2>Decoded Query String Variables</H2>\r\n");
         for (i = 0; i < (numQueryKeys * 2); i += 2) {
-            if (queryKeys[i+1] == 0) {
+            if (queryKeys[i + 1] == 0) {
                 printf("<p>QVAR %s=</p>\r\n", queryKeys[i]);
             } else {
-                printf("<p>QVAR %s=%s</p>\r\n", queryKeys[i], queryKeys[i+1]);
+                printf("<p>QVAR %s=%s</p>\r\n", queryKeys[i], queryKeys[i + 1]);
             }
         }
     }
@@ -439,19 +441,20 @@ static void printQuery()
 
 static void printPost(char *buf, size_t len)
 {
-    int     i;
+    int i;
 
     if (numPostKeys) {
         printf("<H2>Decoded Post Variables</H2>\r\n");
         for (i = 0; i < (numPostKeys * 2); i += 2) {
-            printf("<p>PVAR %s=%s</p>\r\n", postKeys[i], postKeys[i+1]);
+            printf("<p>PVAR %s=%s</p>\r\n", postKeys[i], postKeys[i + 1]);
         }
 
     } else if (buf) {
         if (len < (50 * 1000)) {
             printf("<H2>Post Data %d bytes found (data below)</H2>\r\n", (int) len);
             fflush(stdout);
-            if ((size_t) write(1, buf, (int) len) != len) {}
+            if ((size_t) write(1, buf, (int) len) != len) {
+            }
         } else {
             printf("<H2>Post Data %d bytes found</H2>\r\n", (int) len);
         }
@@ -533,8 +536,8 @@ static int getPostData(char **bufp, size_t *lenp)
 
 static int getVars(char ***cgiKeys, char *buf, size_t buflen)
 {
-    char    **keyList, *eq, *cp, *pp, *newbuf;
-    int     i, keyCount;
+    char **keyList, *eq, *cp, *pp, *newbuf;
+    int  i, keyCount;
 
     if (buflen > 0) {
         if ((newbuf = malloc(buflen + 1)) == 0) {
@@ -587,7 +590,7 @@ static int getVars(char ***cgiKeys, char *buf, size_t buflen)
 
 static char hex2Char(char *s)
 {
-    char    c;
+    char c;
 
     if (*s >= 'A') {
         c = toupper(*s & 0xFF) - 'A' + 10;
@@ -607,12 +610,12 @@ static char hex2Char(char *s)
 
 static void descape(char *src)
 {
-    char    *dest;
+    char *dest;
 
     dest = src;
     while (*src) {
         if (*src == '%') {
-            *dest++ = hex2Char(++src) ;
+            *dest++ = hex2Char(++src);
             src += 2;
         } else {
             *dest++ = *src++;
@@ -624,7 +627,7 @@ static void descape(char *src)
 
 static char *safeGetenv(char *key)
 {
-    char    *cp;
+    char *cp;
 
     cp = getenv(key);
     if (cp == 0) {
@@ -654,10 +657,12 @@ void error(char *fmt, ...)
 /*
     VxWorks link resolution
  */
-int _cleanup() {
+int _cleanup()
+{
     return 0;
 }
-int _exit() {
+int _exit()
+{
     return 0;
 }
 #endif /* VXWORKS */
@@ -666,4 +671,4 @@ int _exit() {
     Copyright (c) Embedthis Software. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
-*/
+ */

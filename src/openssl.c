@@ -309,10 +309,10 @@ PUBLIC int sslOpen()
             return -1;
         }
         /*
-            Define the list of CA certificates to send to the client before they send 
+            Define the list of CA certificates to send to the client before they send
             their client certificate for validation
          */
-         SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
+        SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
     } else {
         if (!SSL_CTX_set_default_verify_paths(sslctx)) {
             error("Unable to read cert verification locations");

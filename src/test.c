@@ -75,8 +75,8 @@ static void exitProc(void *data, int id);
 
 MAIN(goahead, int argc, char **argv, char **envp)
 {
-    char    *argp, *auth, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
-    int     argind, duration;
+    char *argp, *auth, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
+    int  argind, duration;
 
     route = "route.txt";
     auth = "auth.txt";
@@ -214,7 +214,7 @@ MAIN(goahead, int argc, char **argv, char **envp)
 #if ME_UNIX_LIKE && !MACOSX
     /*
         Service events till terminated
-    */
+     */
     if (websGetBackground()) {
         if (daemon(0, 0) < 0) {
             error("Cannot run as daemon");
@@ -242,7 +242,7 @@ static void exitProc(void *data, int id)
 
 static void logHeader(void)
 {
-    char    home[ME_GOAHEAD_LIMIT_STRING];
+    char home[ME_GOAHEAD_LIMIT_STRING];
 
     getcwd(home, sizeof(home));
     logmsg(2, "Configuration for %s", ME_TITLE);
@@ -258,27 +258,28 @@ static void logHeader(void)
 }
 
 
-static void usage(void) {
+static void usage(void)
+{
     fprintf(stderr, "\n%s Usage:\n\n"
-        "  %s [options] [documents] [IPaddress][:port]...\n\n"
-        "  Options:\n"
-        "    --auth authFile        # User and role configuration\n"
+            "  %s [options] [documents] [IPaddress][:port]...\n\n"
+            "  Options:\n"
+            "    --auth authFile        # User and role configuration\n"
 #if ME_UNIX_LIKE && !MACOSX
-        "    --background           # Run as a Unix daemon\n"
+            "    --background           # Run as a Unix daemon\n"
 #endif
 #if ME_COM_SSL
-        "    --cert certFile        # Server SSL certificate (PEM)\n"
+            "    --cert certFile        # Server SSL certificate (PEM)\n"
 #endif
-        "    --debugger             # Run in debug mode\n"
-        "    --home directory       # Change to directory to run\n"
+            "    --debugger             # Run in debug mode\n"
+            "    --home directory       # Change to directory to run\n"
 #if ME_COM_SSL
-        "    --key keyFile          # Server SSL private key (PEM)\n"
+            "    --key keyFile          # Server SSL private key (PEM)\n"
 #endif
-        "    --log logFile:level    # Log to file file at verbosity level\n"
-        "    --route routeFile      # Route configuration file\n"
-        "    --verbose              # Same as --log stderr:2\n"
-        "    --version              # Output version information\n\n",
-        ME_TITLE, ME_NAME);
+            "    --log logFile:level    # Log to file file at verbosity level\n"
+            "    --route routeFile      # Route configuration file\n"
+            "    --verbose              # Same as --log stderr:2\n"
+            "    --version              # Output version information\n\n",
+            ME_TITLE, ME_NAME);
     exit(-1);
 }
 
@@ -290,10 +291,10 @@ void initPlatform(void)
     signal(SIGTERM, sigHandler);
     signal(SIGKILL, sigHandler);
     #ifdef SIGPIPE
-        signal(SIGPIPE, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
     #endif
 #elif ME_WIN_LIKE
-    _fmode=_O_BINARY;
+    _fmode = _O_BINARY;
 #endif
 }
 
@@ -346,13 +347,13 @@ static bool blacklistHandler(Webs *wp)
  */
 static int aspTest(int eid, Webs *wp, int argc, char **argv)
 {
-	char	*name, *address;
+    char *name, *address;
 
-	if (jsArgs(argc, argv, "%s %s", &name, &address) < 2) {
-		websError(wp, 400, "Insufficient args\n");
-		return -1;
-	}
-	return (int) websWrite(wp, "Name: %s, Address %s", name, address);
+    if (jsArgs(argc, argv, "%s %s", &name, &address) < 2) {
+        websError(wp, 400, "Insufficient args\n");
+        return -1;
+    }
+    return (int) websWrite(wp, "Name: %s, Address %s", name, address);
 }
 
 
@@ -361,7 +362,7 @@ static int aspTest(int eid, Webs *wp, int argc, char **argv)
  */
 static int bigTest(int eid, Webs *wp, int argc, char **argv)
 {
-    int     i;
+    int i;
 
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
@@ -382,22 +383,22 @@ static int bigTest(int eid, Webs *wp, int argc, char **argv)
  */
 static void actionTest(Webs *wp)
 {
-	cchar	*name, *address;
+    cchar *name, *address;
 
-	name = websGetVar(wp, "name", NULL);
-	address = websGetVar(wp, "address", NULL);
+    name = websGetVar(wp, "name", NULL);
+    address = websGetVar(wp, "address", NULL);
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
     websWriteEndHeaders(wp);
-	websWrite(wp, "<html><body><h2>name: %s, address: %s</h2></body></html>\n", name, address);
+    websWrite(wp, "<html><body><h2>name: %s, address: %s</h2></body></html>\n", name, address);
     websFlush(wp, 0);
-	websDone(wp);
+    websDone(wp);
 }
 
 
 static void sessionTest(Webs *wp)
 {
-	cchar	*number;
+    cchar *number;
 
     if (scaselessmatch(wp->method, "POST")) {
         number = websGetVar(wp, "number", 0);
@@ -415,7 +416,7 @@ static void sessionTest(Webs *wp)
 
 static void showTest(Webs *wp)
 {
-    WebsKey     *s;
+    WebsKey *s;
 
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
@@ -435,9 +436,9 @@ static void showTest(Webs *wp)
  */
 static void uploadTest(Webs *wp)
 {
-    WebsKey         *s;
-    WebsUpload      *up;
-    char            *upfile;
+    WebsKey    *s;
+    WebsUpload *up;
+    char       *upfile;
 
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);

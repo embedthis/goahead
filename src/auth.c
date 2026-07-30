@@ -388,7 +388,7 @@ static void computeUserAbilities(WebsUser *user)
     /*
         SECURITY Acceptable: - Debug trace of user abilities
         Do not enable in production
-    */
+     */
     {
         WebsKey *key;
         trace(5 | WEBS_RAW_MSG, "User \"%s\" has abilities: ", user->name);
@@ -602,7 +602,8 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
     /*
         Verify wp->password against the stored user->password record.
 
-        wp->password is either plaintext or an MD5 digest depending on the client's auth scheme. wp->encoded distinguishes the two:
+        wp->password is either plaintext or an MD5 digest depending on the client's auth scheme. wp->encoded
+           distinguishes the two:
           - Set by parseDigestDetails when the client supplied a Digest response.
             wp->password holds the client-computed MD5(HA1:nonce:HA2) hash.
           - Cleared by parseBasicDetails after base64-decoding a Basic Authorization header.
