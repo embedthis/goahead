@@ -214,14 +214,46 @@ PUBLIC bool cgiHandler(Webs *wp)
     if (strchr(wp->query, '=') == NULL) {
         query = sclone(wp->query);
         websDecodeUrl(query, query, strlen(query));
+        /*
+            SECURITY (CWE-88): The '=' gate above tests the raw query, before URL
+            decoding, so a percent-encoded '=' (%3D) reaches here. A decoded '='
+            means the client sent key=value data, not an ISINDEX search string;
+            key=value option forms such as "-d name=value" must never be built
+            into argv. Reject rather than forward.
+         */
+        if (strchr(query, '=') != NULL) {
+            websError(wp, HTTP_CODE_BAD_REQUEST, "Bad ISINDEX query");
+            wfree(query);
+            wfree(cgiPath);
+            return 1;
+        }
         for (cp = stok(query, " ", &tok); cp != NULL && argp != NULL; ) {
-            *(argp + n) = cp;
-            trace(5, "ARG[%d] %s", n, argp[n - 1]);
-            n++;
+            /*
+                SECURITY (CWE-88): A search term that begins with '-' is an attempt
+                to inject a command-line option into the CGI program. Reject it.
+             */
+            if (*cp == '-') {
+                websError(wp, HTTP_CODE_BAD_REQUEST, "ISINDEX argument may not start with '-'");
+                wfree(query);
+                wfree(cgiPath);
+                return 1;
+            }
+            if (n == 1) {
+                /*
+                    SECURITY (CWE-88): Precede ISINDEX search terms with a POSIX
+                    end-of-options marker so a conformant CGI program treats them
+                    as positional operands, never as options. Defence in depth on
+                    top of the '-' rejection above.
+                 */
+                *(argp + n++) = "--";
+            }
+            *(argp + n++) = cp;
+            trace(5, "ARG[%d] %s", n - 1, argp[n - 1]);
             if (n >= argpsize) {
                 argpsize *= 2;
                 if (argpsize > ME_GOAHEAD_LIMIT_CGI_ARGS) {
                     websError(wp, HTTP_CODE_REQUEST_TOO_LARGE, "Too many arguments");
+                    wfree(query);
                     wfree(cgiPath);
                     return 1;
                 }
