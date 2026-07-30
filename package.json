@@ -23,14 +23,13 @@
         "url": "https://embedthis.com/licensing/"
     },
     "devDependencies": {
-        "makeme": ">=0.9.0",
-        "pak": ">=0.11.0"
+        "@embedthis/ejscript": "^2.1.1",
+        "@embedthis/testme": "^0.8.32"
     },
+    "repository": "git://github.com/embedthis/goahead.git",
     "paks": {
         "certs": "~1",
-        "ejs": "~2.0",
-        "osdep": "~1",
-        "updater": "~1"
+        "osdep": "~1"
     },
     "pak": {
         "import": true,

@@ -40,15 +40,14 @@ jobs:
         run: echo "$env:USERPROFILE\.bun\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         if: runner.os == 'Windows'
 
-      - name: Install TestMe
-        if: true
-        run: |
-          bun install -g --trust @embedthis/testme
-
-      - name: Local TestMe
-        if: false
-        run: |
-          bun install --verbose -g --trust "${{ github.workspace }}/local/testme.tgz"
+      #
+      #   Installs the @embedthis/testme and @embedthis/ejscript devDependencies from the lockfile.
+      #   The TestMe post-install script builds the "tm" command into ~/.bun/bin, which is on the
+      #   PATH from the steps above.
+      #
+      - name: Install test dependencies
+        shell: bash
+        run: npm ci
 
       - name: Verify TestMe installation (Unix)
         if: runner.os != 'Windows'
