@@ -2296,6 +2296,14 @@ uint hextoi(cchar *hexstring)
         } else {
             break;
         }
+        if (v > (UINT_MAX - c) / 16) {
+            /*
+                Saturate on overflow so an over-large hex string can never wrap to a small value
+                (or to zero). A wrapped chunk-size of 0 would otherwise be mistaken for the
+                terminating chunk and enable request smuggling (CWE-190 feeding CWE-444).
+             */
+            return UINT_MAX;
+        }
         v = (v * 0x10) + c;
     }
     return v;

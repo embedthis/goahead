@@ -1150,9 +1150,13 @@ static void parseHeaders(Webs *wp)
                     return;
                 }
             }
-            if (!smatch(wp->method, "HEAD")) {
-                wp->rxRemaining = wp->rxLen;
-            }
+            /*
+                Account for the declared request body for every method, including HEAD, so the body is
+                drained before the keep-alive connection is reused. Skipping this for HEAD left the declared
+                body in the receive buffer to be mis-parsed as the next request (CWE-444). The HEAD response
+                is unaffected: websWriteHeaders() still emits headers only.
+             */
+            wp->rxRemaining = wp->rxLen;
 
         } else if (strcmp(key, "content-type") == 0) {
             wfree(wp->contentType);
@@ -1318,7 +1322,7 @@ static bool filterChunkData(Webs *wp)
     WebsBuf *rxbuf;
     ssize   chunkSize;
     char    *start, *cp;
-    ssize   len, nbytes;
+    ssize   len, nbytes, limit;
     int     bad;
 
     assert(wp);
@@ -1361,8 +1365,21 @@ static bool filterChunkData(Webs *wp)
                 return 1;
             }
             chunkSize = hextoi(&start[2]);
-            if (!isxdigit((uchar) start[2]) || chunkSize < 0) {
+            limit = smatch(wp->method, "PUT") ? ME_GOAHEAD_LIMIT_PUT : postLimit;
+            if (!isxdigit((uchar) start[2]) || chunkSize < 0 || chunkSize > limit) {
                 websError(wp, WEBS_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+                return 1;
+            }
+            /*
+                Enforce the same cumulative body cap that Content-Length framing enforces up front. A chunked
+                body assembled from many in-range chunks must not exceed the request-body limit; reject with 413
+                as soon as the declared total crosses the limit, before draining the chunk. This bounds the
+                streaming targets (CGI, PUT) whose input buffer is continuously drained and so never trips the
+                per-buffer "Too big" guard in WEBS_CHUNK_DATA.
+             */
+            wp->rxBytes += chunkSize;
+            if (wp->rxBytes > limit) {
+                websError(wp, WEBS_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, "Request too big");
                 return 1;
             }
             if (chunkSize == 0) {
