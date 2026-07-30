@@ -2344,6 +2344,49 @@ PUBLIC int websCgiPoll(void);
 /* Internal */
 PUBLIC bool cgiHandler(Webs *wp);
 
+/**
+    Test whether a CGI path is admissible as a Windows CGI target.
+    @description Returns true iff `cgiPath` is non-NULL and ends with `.exe` (case-insensitive).
+        Used by the Windows extension gate to refuse `.bat`/`.cmd` and other non-`.exe` extensions
+        that would otherwise be transparently routed through `cmd.exe` by kernel32's CreateProcess.
+        Exposed for unit testing the gate logic on non-Windows hosts.
+    @param cgiPath Server-resolved path to the CGI program.
+    @return True if the path is `.exe`-suffixed; false on NULL, too-short input, or other suffix.
+    @stability Internal
+ */
+PUBLIC bool isCgiExeOnWindows(cchar *cgiPath);
+
+/**
+    Emit one CRT-correctly-quoted argv element into the destination buffer.
+    @description Implements the Microsoft-documented `CommandLineToArgvW` quoting rules.
+        NULL or empty `arg` emits `""` (two double-quote bytes) so the CRT recovers a zero-length
+        argv element rather than nothing. Strings containing no space, tab, or double-quote pass
+        through verbatim. Otherwise the string is wrapped in double-quotes, embedded quotes are
+        escaped by doubling preceding backslash runs and prepending a backslash to the quote
+        (the `2N+1` rule), and trailing backslash runs that abut the closing quote are doubled
+        (the `2N` rule). Destination buffer must hold at least `2 * slen(arg) + 3` bytes.
+        Exposed for unit testing the quoting algorithm on non-Windows hosts.
+    @param dp Destination buffer; caller-allocated; must be large enough per the worst-case formula.
+    @param arg The argv element to quote. May be NULL or empty.
+    @return Bytes written to `dp`. Does not null-terminate.
+    @stability Internal
+ */
+PUBLIC ssize appendWinArg(char *dp, cchar *arg);
+
+/**
+    Build a Windows `lpCommandLine` string from a NULL-terminated argv array.
+    @description Walks `argp`, calls `appendWinArg` per element, separates elements with a
+        single space, and null-terminates `out`. NULL `argp` or NULL `out` returns 0 with no
+        write. Caller is responsible for pre-allocating `out` to the worst-case size, computed
+        as the sum of `2 * slen(argp[i]) + 3` per element plus one separator per gap plus one
+        null terminator. Exposed for unit testing the cmdLine builder on non-Windows hosts.
+    @param argp NULL-terminated argv array. NULL `argp[i]` is treated as an empty argv element.
+    @param out Caller-allocated buffer of sufficient worst-case size.
+    @return Total bytes written excluding the null terminator.
+    @stability Internal
+ */
+PUBLIC ssize buildWinCmdLine(char **argp, char *out);
+
 #endif /* ME_GOAHEAD_CGI */
 
 /**

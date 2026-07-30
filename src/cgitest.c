@@ -89,6 +89,7 @@ static char     *queryBuf;
 static size_t   queryLen;
 static char     **queryKeys;
 static char     *responseMsg;
+static int      switchesFromHttp;
 static int      timeout;
 
 /***************************** Forward Declarations ***************************/
@@ -214,15 +215,24 @@ int main(int argc, char **argv, char **envp)
                 break;
 
             default:
-                err = __LINE__;
+                /*
+                    Unrecognized switches are fatal only when supplied explicitly via HTTP_SWITCHES.
+                    When they arrive as ISINDEX query args (the process argv), they are request data
+                    under test, not cgitest configuration, so tolerate them and let the default output
+                    echo the args verbatim. This preserves the argv round-trip (e.g. php-cgi "-d" PoC
+                    shapes from GOAHEAD-SA-2026-0007) instead of aborting with a usage error.
+                 */
+                if (switchesFromHttp) {
+                    err = __LINE__;
+                }
                 break;
             }
         }
     }
     if (err) {
         fprintf(stderr, "usage: cgitest -aenp [-b bytes] [-h lines]\n"
-            "\t[-l location] [-s status] [-t timeout]\n"
-            "\tor set the HTTP_SWITCHES environment variable\n");
+                "\t[-l location] [-s status] [-t timeout]\n"
+                "\tor set the HTTP_SWITCHES environment variable\n");
         fprintf(stderr, "Error at cgitest:%d\n", __LINE__);
         exit(255);
     }
@@ -340,6 +350,7 @@ static int getArgv(int *pargc, char ***pargv, int originalArgc, char **originalA
     if (switches == 0) {
         switches = getenv("HTTP_SWITCHES");
     }
+    switchesFromHttp = (switches != 0);
     if (switches) {
         strncpy(sbuf, switches, sizeof(sbuf) - 1);
         descape(sbuf);

@@ -110,7 +110,112 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
 
 /************************************* Code ***********************************/
 /*
-    Process a form request.
+    Windows CGI launch helpers. All three are platform-independent C string logic
+    (no Windows types or APIs) so the production Windows path and the macOS unit
+    tests share a single implementation. See doc/features/cgi-windows-arg-injection/.
+ */
+
+PUBLIC bool isCgiExeOnWindows(cchar *cgiPath)
+{
+    ssize n;
+
+    if (cgiPath == NULL) {
+        return 0;
+    }
+    n = slen(cgiPath);
+    if (n < 4) {
+        return 0;
+    }
+    return scaselessmatch(cgiPath + n - 4, ".exe");
+}
+
+
+PUBLIC ssize appendWinArg(char *dp, cchar *arg)
+{
+    cchar *cp;
+    char  *start;
+    int   bs;
+
+    if (dp == NULL) {
+        return 0;
+    }
+    start = dp;
+    if (arg == NULL || *arg == '\0') {
+        /*
+            Empty arg must be represented as "" so the receiving CRT recovers a
+            zero-length argv element rather than nothing.
+         */
+        *dp++ = '"';
+        *dp++ = '"';
+        return dp - start;
+    }
+    if (!strpbrk(arg, " \t\"")) {
+        while (*arg) {
+            *dp++ = *arg++;
+        }
+        return dp - start;
+    }
+    *dp++ = '"';
+    for (cp = arg; *cp; ) {
+        bs = 0;
+        while (*cp == '\\') {
+            bs++;
+            cp++;
+        }
+        if (*cp == '\0') {
+            /* Trailing backslash run abuts the closing quote: double it. */
+            for (; bs > 0; bs--) {
+                *dp++ = '\\';
+                *dp++ = '\\';
+            }
+            break;
+        } else if (*cp == '"') {
+            /* Backslash run before embedded quote: double-and-add-one. */
+            for (; bs > 0; bs--) {
+                *dp++ = '\\';
+                *dp++ = '\\';
+            }
+            *dp++ = '\\';
+            *dp++ = '"';
+            cp++;
+        } else {
+            for (; bs > 0; bs--) {
+                *dp++ = '\\';
+            }
+            *dp++ = *cp++;
+        }
+    }
+    *dp++ = '"';
+    return dp - start;
+}
+
+
+PUBLIC ssize buildWinCmdLine(char **argp, char *out)
+{
+    char  **pArgs;
+    char  *p;
+    ssize written = 0;
+
+    if (argp == NULL || out == NULL) {
+        return 0;
+    }
+    p = out;
+    for (pArgs = argp; *pArgs; pArgs++) {
+        ssize n = appendWinArg(p, *pArgs);
+        p += n;
+        written += n;
+        if (pArgs[1]) {
+            *p++ = ' ';
+            written++;
+        }
+    }
+    *p = '\0';
+    return written;
+}
+
+
+/*
+    Process a CGI request.
     Return true to indicate the request was handled, even for errors.
  */
 PUBLIC bool cgiHandler(Webs *wp)
@@ -179,9 +284,19 @@ PUBLIC bool cgiHandler(Webs *wp)
             }
         }
 #if ME_WIN_LIKE
-        if (strstr(cgiPath, ".exe") == NULL && strstr(cgiPath, ".bat") == NULL)
+        /*
+            Windows CGI: only .exe is supported. .bat / .cmd are deliberately not
+            supported because kernel32's CreateProcessInternal transparently routes
+            script-extension targets through cmd.exe, exposing the spawned process
+            to OS command injection from any caller that does not exhaustively escape
+            for cmd.exe parsing - which is not mechanically possible in the general
+            case (notably %VAR% expansion). The gate is a true suffix match, not a
+            substring match, so paths like 'payload.exe.bat' cannot smuggle a .bat
+            past it. See doc/features/cgi-windows-arg-injection/.
+         */
+        if (!isCgiExeOnWindows(cgiPath))
 #else
-        if (access(cgiPath, X_OK) != 0)
+        if (cgiPath == NULL || access(cgiPath, X_OK) != 0)
 #endif
         {
             websError(wp, HTTP_CODE_NOT_FOUND, "CGI process file is not executable");
@@ -1001,22 +1116,16 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         }
     }
     /*
-        Calculate length of command line
+        Calculate worst-case length of the quoted command line. Each argv element
+        may grow to 2 * strlen + 3 bytes (opening / closing quote plus a doubled
+        backslash run that fully precedes a quote), plus one separator per gap,
+        plus one byte for the null terminator. See appendWinArg() for the exact
+        quoting rules.
      */
-    nLen = 0;
+    nLen = 1; /* null terminator */
     pArgs = argp;
-    while (pArgs && *pArgs && **pArgs) {
-        nLen += strlen(*pArgs) + 1;
-        pArgs++;
-    }
-
-    /*
-        Construct command line (safe length calculation and single-pass write)
-     */
-    nLen = 1; // for null terminator
-    pArgs = argp;
-    while (pArgs && *pArgs && **pArgs) {
-        nLen += (ssize) strlen(*pArgs);
+    while (pArgs && *pArgs) {
+        nLen += (ssize) (2 * slen(*pArgs) + 3);
         if (pArgs[1]) {
             nLen += 1; /* space between args */
         }
@@ -1026,20 +1135,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     cmdLine = walloc(sizeof(char) * nLen);
     assert(cmdLine);
 
-    {
-        char *p = cmdLine;
-        pArgs = argp;
-        while (pArgs && *pArgs && **pArgs) {
-            size_t alen = strlen(*pArgs);
-            memcpy(p, *pArgs, alen);
-            p += alen;
-            if (pArgs[1]) {
-                *p++ = ' ';
-            }
-            pArgs++;
-        }
-        *p = '\0';
-    }
+    (void) buildWinCmdLine(argp, cmdLine);
 
     /*
         Create the process start-up information
@@ -1088,17 +1184,22 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         Detect an error by checking the value of procinfo.hProcess after the call.
      */
     procinfo.hProcess = NULL;
+    /*
+        lpApplicationName is set explicitly to the resolved cgiPath so program identity
+        does not depend on how lpCommandLine tokenises. Combined with the extension gate
+        (only .exe admitted on Windows), this guarantees no implicit cmd.exe routing.
+     */
     bReturn = CreateProcess(
-        NULL,               /*  Name of executable module        */
-        cmdLine,            /*  Command line string              */
-        NULL,               /*  Process security attributes      */
-        NULL,               /*  Thread security attributes       */
-        TRUE,               /*  Handle inheritance flag          */
-        dwCreateFlags,      /*  Creation flags                   */
-        pEnvData,           /*  New environment block            */
-        NULL,               /*  Current directory name           */
-        &newinfo,           /*  STARTUPINFO                      */
-        &procinfo);         /*  PROCESS_INFORMATION              */
+        cgiPath,            /*  lpApplicationName - explicit, .exe only */
+        cmdLine,            /*  lpCommandLine - CRT-correctly quoted    */
+        NULL,               /*  Process security attributes             */
+        NULL,               /*  Thread security attributes              */
+        TRUE,               /*  Handle inheritance flag                 */
+        dwCreateFlags,      /*  Creation flags                          */
+        pEnvData,           /*  New environment block                   */
+        NULL,               /*  Current directory name                  */
+        &newinfo,           /*  STARTUPINFO                             */
+        &procinfo);         /*  PROCESS_INFORMATION                     */
 
     if (procinfo.hThread != NULL) {
         CloseHandle(procinfo.hThread);
