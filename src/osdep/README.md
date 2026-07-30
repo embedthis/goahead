@@ -56,8 +56,6 @@ Compile-time feature flags with sensible defaults:
 
 | Define | Default | Purpose |
 |--------|---------|---------|
-| `ME_COM_SSL` | 0 | SSL/TLS support |
-| `ME_DEBUG` | 0 | Debug build |
 | `ME_FLOAT` | 1 | Floating point support |
 | `ME_ROM` | 0 | Execute from ROM |
 
@@ -101,9 +99,9 @@ make doc
 open doc/api/osdep.html
 ```
 
-## AI Documentation
+## Project Documentation
 
-Machine-readable documentation for LLMs is available in `AI/designs/` and `CLAUDE.md`.
+Design, architecture and reference documentation is in [`doc/`](doc/). Start at [`doc/MAP.md`](doc/MAP.md).
 
 ## Licensing
 
