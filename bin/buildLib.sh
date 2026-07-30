@@ -122,16 +122,16 @@ if [ -d "$TOP/doc/api" ]; then
 fi
 
 #
-#   installs/
-#
-[ -d "$TOP/installs" ] && cp -r "$TOP/installs" "$STAGE/installs"
-
-#
 #   test/ - only files tracked in git (excludes runtime artifacts,
-#   local config, untracked logs, etc.)
+#   local config, untracked logs, etc.).
+#
+#   test/sec/ is deliberately excluded: it is an internal security self-test
+#   harness whose fixtures include unpublished security material and pre-fix
+#   vulnerable code, and which depends on a private internal build component, so
+#   it is not applicable to a public recipient.
 #
 mkdir -p "$STAGE/test"
-(cd "$TOP" && git ls-files -z test/ | tar --null -T - -cf -) | (cd "$STAGE" && tar xf -)
+(cd "$TOP" && git ls-files -z test/ ':(exclude)test/sec/**' | tar --null -T - -cf -) | (cd "$STAGE" && tar xf -)
 
 #
 #   dist/ - amalgamated source for pak consumers
@@ -146,10 +146,14 @@ cp "$TOP/bin/buildLib.sh" "$STAGE/bin/buildLib.sh"
 chmod +x "$STAGE/bin/buildLib.sh"
 
 #
-#   Clean up: belt-and-braces removal of common runtime/system droppings
-#   in case future copy steps reintroduce them.
+#   Clean up: belt-and-braces removal of internal-only and runtime/system
+#   droppings in case a copy step (e.g. the cp -r of certs/) pulls them in.
+#   CLAUDE.md, .claude/, and AI/ are internal AI-guidance artifacts and must
+#   never ship in the public distribution.
 #
 find "$STAGE" -name ".DS_Store" -delete 2>/dev/null || true
+find "$STAGE" -name "CLAUDE.md" -delete 2>/dev/null || true
+find "$STAGE" -depth \( -name ".claude" -o -name "AI" \) -type d -exec rm -rf {} + 2>/dev/null || true
 for d in test/web/tmp test/tmp test/cgi-bin; do
     if [ -d "$STAGE/$d" ]; then
         find "$STAGE/$d" -mindepth 1 ! -name .keep -delete 2>/dev/null || true
