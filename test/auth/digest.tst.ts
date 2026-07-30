@@ -4,8 +4,8 @@
     incorrect comparand silently fails every Digest round-trip (Bug 001 aftermath).
  */
 
-import { Http } from 'ejscript'
-import { tget, thas, ttrue } from 'testme'
+import { Http } from '@embedthis/ejscript'
+import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 
@@ -124,6 +124,31 @@ if (thas('ME_GOAHEAD_AUTH')) {
     //  Garbage after the Digest scheme -> no recognised fields, reject.
     http.reset()
     http.setHeader("Authorization", 'Digest nothing=valid here at all')
+    http.get(HTTP + "/auth/digest/digest.html")
+    await http.wait()
+    ttrue(http.status == 401)
+
+    /*
+        Backslash unescape robustness (Bug 018, CWE-125). parseDigestDetails
+        unescapes backslash sequences in field values. A field value ending in a
+        lone backslash previously double-advanced the source pointer past the NUL
+        terminator, reading past the heap allocation. The server must unescape
+        safely, reject (401), and stay alive (verified by the liveness check below).
+     */
+    //  Field value that is a single lone backslash (offset 0 -> the OOB trigger).
+    http.reset()
+    http.setHeader("Authorization",
+        'Digest username="joshua", realm="example.com", nonce="abc", ' +
+        'response="x", uri="/", qop="auth", nc="00000001", cnonce="\\"')
+    http.get(HTTP + "/auth/digest/digest.html")
+    await http.wait()
+    ttrue(http.status == 401)
+
+    //  Trailing backslash at an even offset ("ab\") -> also exercises the OOB path.
+    http.reset()
+    http.setHeader("Authorization",
+        'Digest username="joshua", realm="example.com", nonce="abc", ' +
+        'response="x", uri="/", qop="auth", nc="00000001", cnonce="ab\\"')
     http.get(HTTP + "/auth/digest/digest.html")
     await http.wait()
     ttrue(http.status == 401)
