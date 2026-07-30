@@ -2,8 +2,8 @@
     callback.tst - Http tests using callbacks
  */
 
-import { Http } from 'ejscript'
-import { tget } from 'testme'
+import { Http } from '@embedthis/ejscript'
+import { tget } from '@embedthis/testme'
 
 if (false) {
     const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"

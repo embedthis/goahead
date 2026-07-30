@@ -2,8 +2,8 @@
     read.tst - Various Http read tests
  */
 
-import { Http, ByteArray } from 'ejscript'
-import { tget, ttrue } from 'testme'
+import { Http, ByteArray } from '@embedthis/ejscript'
+import { tget, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 

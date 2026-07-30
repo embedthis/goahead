@@ -2,8 +2,8 @@
     getv6.tst - IPv6 GET tests
  */
 
-import { Http } from 'ejscript'
-import { tget, ttrue, tcontains } from 'testme'
+import { Http } from '@embedthis/ejscript'
+import { tget, ttrue, tcontains } from '@embedthis/testme'
 
 const HTTPV6 = tget('TM_HTTPV6') || "[::1]:8090"
 let http: Http = new Http

@@ -2,8 +2,8 @@
     valgrind.tst - Valgrind tests on Unix-like systems
  */
 
-import { Http, Cmd, App, Config } from 'ejscript'
-import { tdepth, thas, tskip, ttrue } from 'testme'
+import { Http, Cmd, App, Config } from '@embedthis/ejscript'
+import { tdepth, thas, tskip, ttrue } from '@embedthis/testme'
 
 let PORT = 4150
 let valgrind = Cmd.locate('valgrind')

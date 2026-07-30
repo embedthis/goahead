@@ -4,7 +4,7 @@
     at the hash-creation entry point, matching the runtime check in auth.c.
  */
 
-import { ttrue } from 'testme'
+import { ttrue } from '@embedthis/testme'
 
 function run(args: string[]): { code: number | null, stdout: string, stderr: string } {
     const proc = Bun.spawnSync(['gopass', ...args])

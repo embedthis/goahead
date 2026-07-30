@@ -3,8 +3,8 @@
     the server stored the exact bytes that were transmitted.
  */
 
-import { Http, Path } from 'ejscript'
-import { tdepth, tget, thas, tskip, ttrue } from 'testme'
+import { Http, Path } from '@embedthis/ejscript'
+import { tdepth, tget, thas, tskip, ttrue } from '@embedthis/testme'
 
 function hashcode(value: any): number {
     const str = String(value)

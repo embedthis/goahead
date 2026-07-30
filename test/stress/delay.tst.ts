@@ -2,8 +2,8 @@
     Test various protocol delays
  */
 
-import { Socket, ByteArray, Uri, App } from 'ejscript'
-import { tget, ttrue } from 'testme'
+import { Socket, ByteArray, Uri, App } from '@embedthis/ejscript'
+import { tget, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 const httpUri = new Uri(HTTP)

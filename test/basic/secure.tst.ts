@@ -2,8 +2,8 @@
     secure.tst - SSL http tests
  */
 
-import { Http, Config } from 'ejscript'
-import { tget, thas, tskip, ttrue, tcontains } from 'testme'
+import { Http, Config } from '@embedthis/ejscript'
+import { tget, thas, tskip, ttrue, tcontains } from '@embedthis/testme'
 
 if (!Config.SSL) {
     tskip("SSL not enabled in ejscript")

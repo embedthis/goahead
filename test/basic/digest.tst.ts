@@ -2,8 +2,8 @@
     digest.tst - Digest authentication tests
  */
 
-import { Http, Config } from 'ejscript'
-import { tget, thas, ttrue } from 'testme'
+import { Http, Config } from '@embedthis/ejscript'
+import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 let http: Http = new Http

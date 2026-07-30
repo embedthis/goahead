@@ -2,8 +2,8 @@
     stream.tst - Http tests using streams
  */
 
-import { Http, TextStream } from 'ejscript'
-import { tget, ttrue } from 'testme'
+import { Http, TextStream } from '@embedthis/ejscript'
+import { tget, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 let http: Http = new Http

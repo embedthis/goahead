@@ -2,8 +2,8 @@
     secure.tst - Test SECURE ability
  */
 
-import { Http } from 'ejscript'
-import { tget, thas, tskip, ttrue } from 'testme'
+import { Http } from '@embedthis/ejscript'
+import { tget, thas, tskip, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 const HTTPS = tget('TM_HTTPS') || "127.0.0.1:4443"

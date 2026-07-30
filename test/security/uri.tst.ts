@@ -2,8 +2,8 @@
     Uri validation
  */
 
-import { Socket, ByteArray, Uri } from 'ejscript'
-import { tfail, tget, ttrue } from 'testme'
+import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
+import { tfail, tget, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 const httpUri = new Uri(HTTP)
