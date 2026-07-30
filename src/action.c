@@ -49,6 +49,12 @@ static bool actionHandler(Webs *wp)
     } else {
         fn = (WebsAction) sp->content.value.symbol;
         assert(fn);
+        /*
+            SECURITY Acceptable: this generic URI-to-C-function dispatcher intentionally performs no HTTP
+            method or CSRF check. Method enforcement is delegated to the route layer (route->methods);
+            state-changing actions are gated by route configuration such as "methods=POST" (see route.txt).
+            Validation of developer-registered handlers is the developer's responsibility.
+         */
         if (fn) {
 #if ME_GOAHEAD_LEGACY
             (*((WebsProc) fn))((void*) wp, actionName, wp->query);
@@ -95,7 +101,7 @@ PUBLIC void websActionOpen(void)
 
 #if ME_GOAHEAD_LEGACY
 /*
-    Don't use these routes. Use websWriteHeaders, websEndHeaders instead.
+    Don't use these routines. Use websWriteHeaders, websWriteEndHeaders instead.
 
     Write a webs header. This is a convenience routine to write a common header for an action back to the browser.
  */

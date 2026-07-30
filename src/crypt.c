@@ -1,5 +1,5 @@
 /*
-    crypt.c - Base-64 encoding and decoding and MD5 support.
+    crypt.c - Base-64 encoding/decoding, MD5 digests, Blowfish password hashing and random bytes.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */

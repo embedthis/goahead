@@ -114,7 +114,12 @@ static bool jstHandler(Webs *wp)
             }
             if (*nextp) {
                 result = NULL;
-
+                /*
+                    SECURITY Acceptable: executing embedded <% %> JavaScript from .jst templates is the
+                    purpose of the JST engine. Templates are trusted operator-supplied content served from
+                    the document root; there is no default remote write primitive (routes enforce methods and
+                    PUT/DELETE are not enabled by default), and filesystem integrity is out of scope.
+                 */
                 if (jsEval(jid, nextp, &result) == 0) {
                     /*
                          On an error, discard all output accumulated so far and store the error in the result buffer.

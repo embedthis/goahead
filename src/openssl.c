@@ -36,9 +36,6 @@
     #define ME_GOAHEAD_SSL_RENEGOTIATE 1
 #endif
 
-/*
-   Indent includes to bypass MakeMe dependencies
- */
  #include    <openssl/ssl.h>
  #include    <openssl/evp.h>
  #include    <openssl/rand.h>
@@ -52,14 +49,14 @@
 
     Rationale:
  * TLSv1.3 ciphers are preferred and listed first.
- * TLSv1 and v2 ciphers are legacy and only for backward compatibility with legacy systems.
- * For TLSv2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
+ * TLSv1.2 and earlier ciphers are legacy and only for backward compatibility with legacy systems.
+ * For TLSv1.2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
       devices support AESNI instructions and thus benefit from fast and constant time AES.
- * For TLSv2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
+ * For TLSv1.2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
       on ECDSA certificates are permitted because very few CAs sign with ECDSA at the moment.
- * For TLSv2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
+ * For TLSv1.2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
       elliptic curve key exchanges.
- * For TLSv2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
+ * For TLSv1.2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
  * Recommended RSA and DH parameter size: 2048 bits.
  */
 #define OPENSSL_TLSV3_DEFAULT_CIPHERS "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
@@ -605,7 +602,7 @@ PUBLIC void sslFree(Webs *wp)
 
 
 /*
-    Return the number of bytes read. Return -1 on errors and EOF. Distinguish EOF via mprIsSocketEof.
+    Return the number of bytes read. Return -1 on errors and EOF. Distinguish EOF via socketEof().
     If non-blocking, may return zero if no data or still handshaking.
  */
 PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
@@ -846,6 +843,13 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
         trace(4, "OpenSSL: Peer: %s", peer);
         return 0;
     }
+    /*
+        SECURITY Acceptable: issuer-trust enforcement is gated by ME_GOAHEAD_SSL_VERIFY_ISSUER. When it is
+        disabled (the default), self-signed / unknown-issuer client certs are intentionally accepted so an
+        operator can run mTLS against an unmanaged client CA; set ME_GOAHEAD_SSL_VERIFY_ISSUER=1 to reject
+        them. Forged-signature and all other genuine verification failures still fail closed (default: ok=0).
+        mTLS itself is inactive unless ME_GOAHEAD_SSL_VERIFY_PEER is enabled.
+     */
     switch (error) {
     case X509_V_OK:
         break;

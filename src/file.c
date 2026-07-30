@@ -2,6 +2,8 @@
     file.c -- File handler
 
     This module serves static file documents
+
+    Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
 /********************************* Includes ***********************************/

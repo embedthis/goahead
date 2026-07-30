@@ -1078,7 +1078,7 @@ WebsLogHandler logSetHandler(WebsLogHandler handler)
 PUBLIC int logOpen(void)
 {
     if (!logPath) {
-        /* This definition comes from main.me goahead.logfile */
+        /* Default from the ME_GOAHEAD_LOGFILE define in goahead.h */
         logSetPath(ME_GOAHEAD_LOGFILE);
     }
     if (smatch(logPath, "stdout")) {

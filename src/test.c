@@ -4,12 +4,15 @@
     Usage: goahead-test [options] [documents] [endpoints...]
         Options:
         --auth authFile        # User and role configuration
+        --background           # Run as a Unix daemon (not MacOS)
         --cert certFile        # Server SSL certificate (PEM)
+        --debugger             # Disable timeouts to enable debugging
+        --duration secs        # Exit after the given number of seconds
         --home directory       # Change to directory to run
         --key keyFile          # Server SSL private key (PEM)
         --log logFile:level    # Log to file file at verbosity level
         --route routeFile      # Route configuration file
-        --verbose              # Same as --log stderr:2
+        --verbose              # Same as --log stdout:2
         --version              # Output version information
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
@@ -26,7 +29,7 @@ static int finished = 0;
 
 #undef ME_GOAHEAD_LISTEN
 /*
-    These must match TOP.es.set
+    These must match TM_HTTP, TM_HTTPS, TM_HTTPV6 and TM_HTTPSV6 in test/testme.json5
  */
 #if TEST_IPV6
 #if ME_COM_SSL

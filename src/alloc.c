@@ -5,8 +5,8 @@
     fragmentation.  This allocator maintains block class queues for rapid allocation and minimal fragmentation. This
     allocator does not coalesce blocks. The storage space may be populated statically or via the traditional malloc
     mechanisms. Large blocks greater than the maximum class size may be allocated from the O/S or run-time system via
-    malloc. To permit the use of malloc, call wopen with flags set to WEBS_USE_MALLOC (this is the default).  It is
-    recommended that wopen be called first thing in the application.  If it is not, it will be called with default
+    malloc. To permit the use of malloc, call wopenAlloc with flags set to WEBS_USE_MALLOC (this is the default).  It is
+    recommended that wopenAlloc be called first thing in the application.  If it is not, it will be called with default
     values on the first call to walloc(). Note that this code is not designed for multi-threading purposes and it
     depends on newly declared variables being initialized to zero.
 
@@ -76,7 +76,7 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
     controlFlags = flags;
 
     /*
-        If wopen already called by a shared process, just increment the count and return
+        If wopenAlloc already called by a shared process, just increment the count and return
      */
     if (++wopenCount > 1) {
         return 0;
@@ -129,7 +129,7 @@ PUBLIC void *walloc(ssize size)
     int       q, memSize;
 
     /*
-        Call wopen with default values if the application has not yet done so
+        Call wopenAlloc with default values if the application has not yet done so
      */
     if (freeBuf == NULL) {
         if (wopenAlloc(NULL, WEBS_DEFAULT_MEM, 0) < 0) {

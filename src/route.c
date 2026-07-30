@@ -4,10 +4,12 @@
     This module implements the loading of a route configuration file
     and the routing of requests.
 
-    The route configuration is loaded form a text file that uses the schema (see route.txt)
-        uri: type: uri: method: ability [ability...]: redirect
-        user: name: password: role [role...]
-        role: name: ability [ability...]
+    The route configuration is loaded from a text file of space-separated key=value directives
+    (see route.txt). The supported directives are:
+        route uri=URI [protocol=PROTO] [methods=METHOD,...] [handler=NAME] [extensions=EXT,...]
+              [abilities=ABILITY,...] [redirect=STATUS@URI] [dir=DIR] [auth=TYPE]
+        user name=NAME password=PASSWORD roles=ROLE,...
+        role name=NAME abilities=ABILITY,...
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */

@@ -369,7 +369,7 @@ PUBLIC_DATA int logLevel;
 
 /**
     Standard logging trace levels are 0 to 9 with 0 being the most verbose. These are ored with the error source
-    and type flags. The WEBS_LOG_MASK is used to extract the trace level from a flags word. We expect most apps
+    and type flags. The WEBS_LEVEL_MASK is used to extract the trace level from a flags word. We expect most apps
     to run with level 2 trace enabled.
  */
 #define WEBS_ERROR      1               /**< Hard error trace level */
@@ -514,9 +514,9 @@ PUBLIC void logSetPath(cchar *path);
     Emit a message to the log
     @description This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity
     level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the
-    Logging support is enabled by the MakeMe setting: "logging: true" which creates the ME_GOAHEAD_LOGGING define in
-       me.h
     most verbose. Level 2-4 are the most useful for debugging.
+    Logging support is enabled by the ME_GOAHEAD_LOGGING define, which defaults to 1 in this header and may be
+    overridden by the build.
     @param level Integer verbosity level (0-9).
     @param fmt Printf style format string
     @param ... Arguments for the format string
@@ -529,8 +529,8 @@ PUBLIC void logmsgProc(int level, cchar *fmt, ...);
     @description This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity
     level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the
     most verbose. Level 2-4 are the most useful for debugging.
-    Debug trace support is enabled by the MakeMe setting: "tracing: true" which creates the ME_GOAHEAD_TRACING define in
-    me.h.
+    Debug trace support is enabled by the ME_GOAHEAD_TRACING define, which defaults to 1 in this header and may be
+    overridden by the build.
     @param level Integer verbosity level (0-9).
     @param fmt Printf style format string
     @param ... Arguments for the format string
@@ -750,7 +750,7 @@ PUBLIC void valueFree(WebsValue *value);
 
     @warning This structure exposes internal pointers for performance. Handle with care and prefer
         using the provided APIs over direct field access.
-    @see bufCreate bufFree bufPut bufGet bufLen bufStart
+    @see bufCreate bufFree bufPut bufGetc bufGetBlk bufLen bufStart
     @stability Stable
  */
 typedef struct WebsBuf {
@@ -982,13 +982,11 @@ PUBLIC void wcloseAlloc(void);
 
 /**
     Initialize the walloc module.
-    @description The wopenAlloc function should be called the very first thing after the application starts and wclose
-    should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the first
-       allocation
-    with default values. "buf" points to memory to use of size "bufsize". If buf is NULL, memory is allocated using
-       malloc.
-    flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate *  an initial buffer of size
-    bufsize for use by the application.
+    @description The wopenAlloc function should be called the very first thing after the application starts and
+    wcloseAlloc should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the
+    first allocation with default values. "buf" points to memory to use of size "bufsize". If buf is NULL, memory is
+    allocated using malloc. flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate an
+    initial buffer of size bufsize for use by the application.
     @param buf Optional user supplied block of memory to use for allocations
     @param bufsize Size of buf
     @param flags Allocation flags. Set to WEBS_USE_MALLOC to permit the use of malloc() to grow memory.
@@ -1256,7 +1254,7 @@ typedef struct WebsSocket {
     int interestEvents;                 /**< Mask of events to watch for */
     int currentEvents;                  /**< Mask of ready events (FD_xx) */
     int selectEvents;                   /**< Events being selected */
-    int saveMask;                       /**< saved Mask for socketFlush */
+    int saveMask;                       /**< Reserved. Not currently used */
     int error;                          /**< Last error */
     int secure;                         /**< Socket is using SSL */
     int handshakes;                     /**< Number of renegotiations */
@@ -1408,7 +1406,7 @@ PUBLIC bool socketHasIPv6(void);
     @description This is used by SSL and other network stacks that buffer pending data
     @param sp Socket object returned from #socketPtr
     @param len Length of buffered data in bytes
-    @param dir Buffer direction. Set to MPR_READABLE for buffered read data and MPR_WRITABLE for buffered write data.
+    @param dir Buffer direction. Set to SOCKET_READABLE for buffered read data and SOCKET_WRITABLE for buffered write data.
         @stability Stable
  */
 PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir);
@@ -2477,7 +2475,7 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len);
     @param flags Handler control flags. Set to WEBS_LEGACY_HANDLER to support the legacy handler API
         calling sequence, or 0 for standard handlers.
     @return Zero if successful, otherwise -1 on error.
-    @see websDefineAction websHandlerProc websOpen
+    @see websDefineAction WebsHandlerProc websOpen
         @stability Stable
  */
 PUBLIC int websDefineHandler(cchar *name, WebsHandlerProc match, WebsHandlerProc service, WebsHandlerClose close,
@@ -2769,7 +2767,7 @@ PUBLIC cchar *websGetServerAddressUrl(void);
 
 /**
     Get the request URI
-    @description This returns the request URI. This may be modified if the request is rewritten via websRewrite
+    @description This returns the request URI. This may be modified if the request is rewritten via websRewriteRequest
     @param wp Webs request object
     @return URI string. Caller should not free.
         @stability Stable
@@ -3329,7 +3327,7 @@ PUBLIC void websSetHost(cchar *host);
         include specific interface addresses or "0.0.0.0" to bind to all available interfaces.
     @param ipaddr String containing the IP address in dotted decimal notation (IPv4) or
         colon-separated notation (IPv6). Examples: "192.168.1.100", "0.0.0.0", "::1", "::"
-    @see websSetHost websGetIpAddr
+    @see websSetHost websGetHost
         @stability Stable
  */
 PUBLIC void websSetIpAddr(cchar *ipaddr);
@@ -3391,7 +3389,7 @@ PUBLIC void websSetQueryVars(Webs *wp);
         based on the request processing results (typically 200 for successful requests).
     @param wp Webs request object representing the current HTTP request
     @param status HTTP status code (e.g., 200, 404, 500). Should be a valid HTTP status code.
-    @see websGetStatus websError websResponse
+    @see websError websResponse
         @stability Stable
  */
 PUBLIC void websSetStatus(Webs *wp, int status);
@@ -3777,7 +3775,7 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv);
 
 #if ME_COM_SSL
 /*
-    Default MakeMe settings
+    Default SSL settings
  */
 #ifndef ME_GOAHEAD_SSL_AUTHORITY
     #define ME_GOAHEAD_SSL_AUTHORITY     ""

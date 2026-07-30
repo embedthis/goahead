@@ -232,7 +232,7 @@ PUBLIC bool cgiHandler(Webs *wp)
     websSetEnv(wp);
 
     /*
-        Extract the form name and then build the full path name. The form name will follow the first '/' in path.
+        Extract the CGI program name and then build the full path name. The name follows the first '/' in path.
      */
     scopy(cgiPrefix, sizeof(cgiPrefix), wp->path);
     if ((cgiName = strchr(&cgiPrefix[1], '/')) == NULL) {

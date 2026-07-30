@@ -4,8 +4,9 @@
     Usage: goahead [options] [documents] [IP][:port] ...
         Options:
         --auth authFile        # User and role configuration
-        --background           # Run as a Linux daemon
+        --background           # Run as a Unix daemon (not MacOS)
         --cert certFile        # Server SSL certificate (PEM)
+        --debugger             # Run in debug mode
         --home directory       # Change to directory to run
         --key keyFile          # Server SSL private key (PEM)
         --log logFile:level    # Log to file file at verbosity level
@@ -156,8 +157,7 @@ MAIN(goahead, int argc, char **argv, char **envp) {
 #endif
 #ifdef GOAHEAD_INIT
     /*
-        Define your init function in main.me goahead.init, or
-        configure with DFLAGS=GOAHEAD_INIT=myInitFunction
+        Define your init function by configuring the build with DFLAGS=GOAHEAD_INIT=myInitFunction
      */
     {
         extern int GOAHEAD_INIT();

@@ -3349,6 +3349,12 @@ WebsSession *websGetSession(Webs *wp, int create)
         }
         wfree(id);
     }
+    /*
+        SECURITY Acceptable: lifespan is an inactivity (sliding) timeout, not an absolute lifetime, so each
+        access intentionally refreshes the expiry. Expired sessions are reaped by pruneSessions() on its
+        interval; the bounded window is only reachable by presenting the random session id (the owner, or a
+        cookie thief who already has access), so refreshing here grants no additional capability.
+     */
     if (wp->session) {
         wp->session->expires = time(0) + wp->session->lifespan;
     }

@@ -13,9 +13,6 @@
 #include    "goahead.h"
 
 #if ME_COM_MBEDTLS
-/*
-   Indent to bypass MakeMe dependencies
- */
     #include "mbedtls/mbedtls_config.h"
     #include "mbedtls/ssl.h"
     #include "mbedtls/ssl_cache.h"
