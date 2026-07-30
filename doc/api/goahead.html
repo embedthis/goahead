@@ -5,6 +5,7 @@
 
 <h2>Function Index</h2>
   <table class="apiIndex" title="Function Index">
+<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1adcdc8ab0bddbdfa731355c86e43b91d8" class="nameRef">appendWinArg</a>(char *dp, cchar *arg)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit one CRT-correctly-quoted argv element into the destination buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a80adc8087f3a20a2669565b281d57a38" class="nameRef">assert</a>(bool cond)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Assure that an assert condition is true.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a1838678c03f471aed89edfa5db822272" class="nameRef">bufAddNull</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Add a trailing null to the buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a7fb267b66c30173cf035560028e83eba" class="nameRef">bufAdjustEnd</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, ssize size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Adjust the endp pointer by the specified size.</td></tr>
@@ -26,6 +27,7 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1aa1f359ca367a6f72ebaa4b4028732333" class="nameRef">bufReset</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Reset the buffer pointers to the start of the buffer if empty.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a2ffac4a06b33a774a59e0441bbf0a555" class="nameRef">bufRoom</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Determine the room available in the buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a11bc74b37775ab735849a2dfa60eda8e" class="nameRef">bufStart</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a reference to the start of buffer data.</td></tr>
+<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a42bf90b6014430498b3a9328b421bbab" class="nameRef">buildWinCmdLine</a>(char **argp, char *out)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Build a Windows <computeroutput>lpCommandLine</computeroutput> string from a NULL-terminated argv array.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a03544bf56dde3a257391d07e1d6f6a3a" class="nameRef">error</a>(cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit an error message.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1adcb481a002871c7f627ac99bf6a4725d" class="nameRef">fmt</a>(char *buf, ssize maxSize, cchar *format, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>GoAhead Web Server Runtime.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a></td><td><a href="#goahead_8h_1a38965650a2f6f2666e0120498594a135" class="nameRef">hashCreate</a>(int size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a hash table.</td></tr>
@@ -37,6 +39,7 @@
 <tr class="apiDef"><td class="apiType">void *</td><td><a href="#goahead_8h_1a183c60bd52fc037aed6bd3a0f70d816f" class="nameRef">hashLookupSymbol</a>(<a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> sd, cchar *name)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Lookup a name in the hash table and return a symbol reference.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> *</td><td><a href="#goahead_8h_1a7b29e4508c1f7428058c15c721fe48f6" class="nameRef">hashNext</a>(<a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> id, <a href="#struct_webs_key" class="ref">WebsKey</a> *last)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Continue walking the hash keys by returning the next key entry in the hash.</td></tr>
 <tr class="apiDef"><td class="apiType">uint</td><td><a href="#goahead_8h_1a0870ca42c7fd1330d5316792d9a9a04c" class="nameRef">hextoi</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Convert a hex string to an integer.</td></tr>
+<tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a58a63c1fa72fc2f8566dd0ebbfef093b" class="nameRef">isCgiExeOnWindows</a>(cchar *cgiPath)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test whether a CGI path is admissible as a Windows CGI target.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a09d77f66f305e34c9d8f38d0f108a9b0" class="nameRef">itosbuf</a>(char *buf, ssize size, int64 value, int radix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Convert an integer to a string buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a95bd348305d4a3044216ec4d694cd1d4" class="nameRef">logClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the log logging module.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1af07cb7c6e3a418059b33eb2243e0e945" class="nameRef">logGetHandler</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the log callback.</td></tr>
@@ -257,10 +260,13 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a46d153b401bb7fc47ae5b17203541644" class="nameRef">websSetLogLevel</a>(int level)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the current trace log level.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ae8c0353bf1c238af495fa5e4122b4af6" class="nameRef">websSetMemNotifier</a>(<a href="#goahead_8h_1afba3dd63a743f10ca6c166335f2ba7a9" class="ref">WebsMemNotifier</a> cback)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Define a global memory allocation notifier.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ac050abeadb21db4a90197eab284b115b" class="nameRef">websSetPasswordStoreVerify</a>(<a href="#goahead_8h_1a196a6343b64e6944f3b77b8af709a7e8" class="ref">WebsVerify</a> verify)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the password store verify callback.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a33deacae630367486fbd7cd97c58789e" class="nameRef">websSetPostLimit</a>(ssize limit)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the runtime POST body size cap.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a9b7ae14718f40340d9621529f4587548" class="nameRef">websSetQueryVars</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create request variables for query string data.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a0326b013f41e0911bfd8c28f7041f209" class="nameRef">websSetRouteAuth</a>(<a href="#struct_webs_route" class="ref">WebsRoute</a> *route, cchar *authType)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set route authentication scheme.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a02ded6cfc279652c2dca6d86f2adc8d8" class="nameRef">websSetRouteMatch</a>(<a href="#struct_webs_route" class="ref">WebsRoute</a> *route, cchar *dir, cchar *protocol, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> methods, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> extensions, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> abilities, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> redirects)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Configure a route by adding matching criteria.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a7392f09b1b9c7d9d230701d6d2636a5e" class="nameRef">websSetSessionVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a session variable name value.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a8d161920a3cf2a48c0906b85c3964ce5" class="nameRef">websSetSslCertFile</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the server SSL certificate path at runtime.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a5751aacfea20a73101c4ec68fe2c6022" class="nameRef">websSetSslKeyFile</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the server SSL private key path at runtime.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1aef03eccfb6f0d42b34f1a7a90bac62b6" class="nameRef">websSetStatus</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, int status)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the response HTTP status code.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a999bb54215bbc7d71c7d6e828fcf49c8" class="nameRef">websSetTxLength</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, ssize length)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the response body content length.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1abf304efa46ec70b19997a6587344c6d1" class="nameRef">websSetUserPassword</a>(cchar *username, cchar *password)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a password for the user.</td></tr>
@@ -689,9 +695,13 @@
 </tr>
 <tr class="apiBrief"><td>&nbsp;</td><td>Compile-time configuration constants that control various limits and behaviors in GoAhead.</td></tr>
 <tr class="apiDef">
-<td>#define</td><td><a href="#goahead_8h_1ac2cd905dd716db4a61d7695c8b13d5ee" class="nameRef">WEBS_MAX_PASSWORD</a>&nbsp;&nbsp;&nbsp;32</td>
+<td>#define</td><td><a href="#goahead_8h_1ac2cd905dd716db4a61d7695c8b13d5ee" class="nameRef">WEBS_MAX_PASSWORD</a>&nbsp;&nbsp;&nbsp;ME_GOAHEAD_LIMIT_PASSWORD</td>
 </tr>
-<tr class="apiBrief"><td>&nbsp;</td><td>Default maximum length for user passwords in authentication systems.</td></tr>
+<tr class="apiBrief"><td>&nbsp;</td><td>Maximum plaintext password length accepted from clients.</td></tr>
+<tr class="apiDef">
+<td>#define</td><td><a href="#goahead_8h_1addbe6561d2b16832246f72f08ed0895a" class="nameRef">WEBS_MAX_PASSWORD_BUFFER</a>&nbsp;&nbsp;&nbsp;((WEBS_MAX_PASSWORD * 3) + 3)</td>
+</tr>
+<tr class="apiBrief"><td>&nbsp;</td><td>Buffer size for &quot;username:realm:password&quot; passed to crypt primitives.</td></tr>
 <tr class="apiDef">
 <td>#define</td><td><a href="#goahead_8h_1a2ed48fe00496a8d97e732315cc299fd7" class="nameRef">WEBS_MAX_PORT_LEN</a>&nbsp;&nbsp;&nbsp;16</td>
 </tr>
@@ -1101,7 +1111,8 @@ Line ring queue.
 Port to listen on.
 </td></tr>
 <tr><td class="param">int</td><td>saveMask</td><td>
-saved Mask for socketFlush.
+Reserved. 
+Not currently used.
 </td></tr>
 <tr><td class="param">int</td><td>secure</td><td>
 Socket is using SSL.
@@ -1400,6 +1411,9 @@ Route count limiter.
 <tr><td class="param"><a class="ref" href="#struct_webs_buf">WebsBuf</a></td><td>rxbuf</td><td>
 Raw receive buffer.
 </td></tr>
+<tr><td class="param">ssize</td><td>rxBytes</td><td>
+Cumulative decoded request body bytes received (chunked framing).
+</td></tr>
 <tr><td class="param">ssize</td><td>rxChunkSize</td><td>
 Rx chunk size.
 </td></tr>
@@ -1564,6 +1578,25 @@ Mime type.
   </div>
 </div>
 <h2>Functions</h2>
+<a name="goahead_8h_1adcdc8ab0bddbdfa731355c86e43b91d8"></a>
+<div class="api">
+  <div class="prototype">
+    ssize
+    appendWinArg
+(char *dp, cchar *arg)
+  </div>
+  <div class="apiDetail">
+<p>Emit one CRT-correctly-quoted argv element into the destination buffer.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Implements the Microsoft-documented <computeroutput>CommandLineToArgvW</computeroutput> quoting rules. NULL or empty <computeroutput>arg</computeroutput> emits <computeroutput>&quot;&quot;</computeroutput> (two double-quote bytes) so the CRT recovers a zero-length argv element rather than nothing. Strings containing no space, tab, or double-quote pass through verbatim. Otherwise the string is wrapped in double-quotes, embedded quotes are escaped by doubling preceding backslash runs and prepending a backslash to the quote (the <computeroutput>2N+1</computeroutput> rule), and trailing backslash runs that abut the closing quote are doubled (the <computeroutput>2N</computeroutput> rule). Destination buffer must hold at least <computeroutput>2 * slen(arg) + 3</computeroutput> bytes. Exposed for unit testing the quoting algorithm on non-Windows hosts.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">dp</td><td>Destination buffer; caller-allocated; must be large enough per the worst-case formula.</td></tr>
+    <tr><td class="param">arg</td><td>The argv element to quote. May be NULL or empty.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>Bytes written to <computeroutput>dp</computeroutput>. Does not null-terminate.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Internal.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a80adc8087f3a20a2669565b281d57a38"></a>
 <div class="api">
   <div class="prototype">
@@ -1927,6 +1960,25 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a42bf90b6014430498b3a9328b421bbab"></a>
+<div class="api">
+  <div class="prototype">
+    ssize
+    buildWinCmdLine
+(char **argp, char *out)
+  </div>
+  <div class="apiDetail">
+<p>Build a Windows <computeroutput>lpCommandLine</computeroutput> string from a NULL-terminated argv array.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Walks <computeroutput>argp</computeroutput>, calls <computeroutput>appendWinArg</computeroutput> per element, separates elements with a single space, and null-terminates <computeroutput>out</computeroutput>. NULL <computeroutput>argp</computeroutput> or NULL <computeroutput>out</computeroutput> returns 0 with no write. Caller is responsible for pre-allocating <computeroutput>out</computeroutput> to the worst-case size, computed as the sum of <computeroutput>2 * slen(argp[i]) + 3</computeroutput> per element plus one separator per gap plus one null terminator. Exposed for unit testing the cmdLine builder on non-Windows hosts.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">argp</td><td>NULL-terminated argv array. NULL <computeroutput>argp[i]</computeroutput> is treated as an empty argv element.</td></tr>
+    <tr><td class="param">out</td><td>Caller-allocated buffer of sufficient worst-case size.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>Total bytes written excluding the null terminator.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Internal.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a03544bf56dde3a257391d07e1d6f6a3a"></a>
 <div class="api">
   <div class="prototype">
@@ -2123,6 +2175,24 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a58a63c1fa72fc2f8566dd0ebbfef093b"></a>
+<div class="api">
+  <div class="prototype">
+    bool
+    isCgiExeOnWindows
+(cchar *cgiPath)
+  </div>
+  <div class="apiDetail">
+<p>Test whether a CGI path is admissible as a Windows CGI target.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Returns true iff <computeroutput>cgiPath</computeroutput> is non-NULL and ends with <computeroutput>.exe</computeroutput> (case-insensitive). Used by the Windows extension gate to refuse <computeroutput>.bat</computeroutput>/<computeroutput>.cmd</computeroutput> and other non-<computeroutput>.exe</computeroutput> extensions that would otherwise be transparently routed through <computeroutput>cmd.exe</computeroutput> by kernel32&apos;s CreateProcess. Exposed for unit testing the gate logic on non-Windows hosts.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">cgiPath</td><td>Server-resolved path to the CGI program.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>True if the path is <computeroutput>.exe</computeroutput>-suffixed; false on NULL, too-short input, or other suffix.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Internal.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a09d77f66f305e34c9d8f38d0f108a9b0"></a>
 <div class="api">
   <div class="prototype">
@@ -2177,7 +2247,7 @@ provides efficient ring buffer functionality ideal for:
   </div>
   <div class="apiDetail">
 <p>Emit a message to the log.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the Logging support is enabled by the MakeMe setting: &quot;logging: true&quot; which creates the ME_GOAHEAD_LOGGING define in me.h most verbose. Level 2-4 are the most useful for debugging.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the most verbose. Level 2-4 are the most useful for debugging. Logging support is enabled by the ME_GOAHEAD_LOGGING define, which defaults to 1 in this header and may be overridden by the build.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">level</td><td>Integer verbosity level (0-9).</td></tr>
@@ -2797,7 +2867,7 @@ This is a secure version of printf that can handle null args
     <table class="parameters" title="Parameters">
     <tr><td class="param">sp</td><td>Socket object returned from socketPtr.</td></tr>
     <tr><td class="param">len</td><td>Length of buffered data in bytes.</td></tr>
-    <tr><td class="param">dir</td><td>Buffer direction. Set to MPR_READABLE for buffered read data and MPR_WRITABLE for buffered write data.</td></tr>
+    <tr><td class="param">dir</td><td>Buffer direction. Set to SOCKET_READABLE for buffered read data and SOCKET_WRITABLE for buffered write data.</td></tr>
     </table></dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
@@ -3291,7 +3361,7 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Emit a debug trace message to the log.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the most verbose. Level 2-4 are the most useful for debugging. Debug trace support is enabled by the MakeMe setting: &quot;tracing: true&quot; which creates the ME_GOAHEAD_TRACING define in me.h.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the most verbose. Level 2-4 are the most useful for debugging. Debug trace support is enabled by the ME_GOAHEAD_TRACING define, which defaults to 1 in this header and may be overridden by the build.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">level</td><td>Integer verbosity level (0-9).</td></tr>
@@ -4680,7 +4750,7 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
   </div>
   <div class="apiDetail">
 <p>Get the request URI.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This returns the request URI. This may be modified if the request is rewritten via websRewrite.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This returns the request URI. This may be modified if the request is rewritten via websRewriteRequest.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -5888,6 +5958,23 @@ The IP address should match one of the network interfaces on the server. Common 
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a33deacae630367486fbd7cd97c58789e"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetPostLimit
+(ssize limit)
+  </div>
+  <div class="apiDetail">
+<p>Override the runtime POST body size cap.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Replaces the compile-time ME_GOAHEAD_LIMIT_POST default with a runtime-chosen value. Pass 0 (or a negative value) to restore the compile-time default. Intended for test harnesses that need to accept larger bodies than the production limit allows.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">limit</td><td>Maximum permitted POST body size in bytes.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a9b7ae14718f40340d9621529f4587548"></a>
 <div class="api">
   <div class="prototype">
@@ -5967,6 +6054,40 @@ Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a spac
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1 on error (e.g., if sessions are not initialized).</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a8d161920a3cf2a48c0906b85c3964ce5"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetSslCertFile
+(cchar *path)
+  </div>
+  <div class="apiDetail">
+<p>Override the server SSL certificate path at runtime.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Must be called before sslOpen. When set, this path takes precedence over the compile-time ME_GOAHEAD_SSL_CERTIFICATE default.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">path</td><td>Filesystem path to a PEM-encoded certificate, or NULL to clear an override.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a5751aacfea20a73101c4ec68fe2c6022"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetSslKeyFile
+(cchar *path)
+  </div>
+  <div class="apiDetail">
+<p>Override the server SSL private key path at runtime.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Must be called before sslOpen. When set, this path takes precedence over the compile-time ME_GOAHEAD_SSL_KEY default.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">path</td><td>Filesystem path to a PEM-encoded private key, or NULL to clear an override.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1aef03eccfb6f0d42b34f1a7a90bac62b6"></a>
@@ -6500,7 +6621,7 @@ Some components of the URI have restricted character sets that this routine does
   </div>
   <div class="apiDetail">
 <p>Initialize the walloc module.</p>
-    <dl><dt><b>Description</b>:</dt><dd>The wopenAlloc function should be called the very first thing after the application starts and wclose should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the first allocation with default values. &quot;buf&quot; points to memory to use of size &quot;bufsize&quot;. If buf is NULL, memory is allocated using malloc. flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate * an initial buffer of size bufsize for use by the application.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>The wopenAlloc function should be called the very first thing after the application starts and wcloseAlloc should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the first allocation with default values. &quot;buf&quot; points to memory to use of size &quot;bufsize&quot;. If buf is NULL, memory is allocated using malloc. flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate an initial buffer of size bufsize for use by the application.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">buf</td><td>Optional user supplied block of memory to use for allocations.</td></tr>

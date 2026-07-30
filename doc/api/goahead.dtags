@@ -334,6 +334,13 @@
     </member>
     <member kind="variable">
       <type>ssize</type>
+      <name>rxBytes</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a73ec08541962f3cb77b201efb57a15ac</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
       <name>rxChunkSize</name>
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>a450615ebbcfedb2372adf5418d71b6c9</anchor>
