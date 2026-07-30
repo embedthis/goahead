@@ -1046,9 +1046,11 @@ static void parseHeaders(Webs *wp)
 {
     cchar *prior;
     char  *combined, *upperKey, *cp, *key, *value, *tok;
-    int   count;
+    int   count, seenContentLength, seenTransferEncoding;
 
     assert(websValid(wp));
+
+    seenContentLength = seenTransferEncoding = 0;
 
     /*
         Parse the header and create the Http header keyword variables
@@ -1115,6 +1117,19 @@ static void parseHeaders(Webs *wp)
             }
 
         } else if (strcmp(key, "content-length") == 0) {
+            if (seenContentLength) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Duplicate Content-Length");
+                return;
+            }
+            seenContentLength = 1;
+            /*
+                Strict per RFC 9112 6.3.5: the field value must be a single run of digits. atoi() would accept a
+                leading sign/space and a non-digit tail, which a strict downstream hop may frame differently.
+             */
+            if (*value == '\0' || (int) strspn(value, "0123456789") != (int) slen(value)) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Invalid content length");
+                return;
+            }
             /*
                 SECURITY Acceptable: atoi() integer overflow with very large values will
                 wrap to negative, which is safely rejected below. Embedded systems can
@@ -1184,11 +1199,37 @@ static void parseHeaders(Webs *wp)
             wp->referrer = sclone(value);
 
         } else if (strcmp(key, "transfer-encoding") == 0) {
-            if (scaselesscmp(value, "chunked") == 0) {
+            if (!(wp->flags & WEBS_HTTP11)) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Transfer-Encoding requires HTTP/1.1");
+                return;
+            }
+            if (seenTransferEncoding) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Duplicate Transfer-Encoding");
+                return;
+            }
+            seenTransferEncoding = 1;
+            /*
+                GoAhead implements only the "chunked" transfer coding. Per RFC 9112 6.1, chunked must be the final
+                coding; any other coding (or a list such as "gzip, chunked") is one we cannot decode -> 501. Never
+                fall back to Content-Length framing on an unrecognised value: that is the TE.CL smuggling vector.
+             */
+            if (scaselessmatch(strim(value, " \t", WEBS_TRIM_BOTH), "chunked")) {
                 wp->rxChunkState = WEBS_CHUNK_START;
                 wp->rxRemaining = MAXINT;
+            } else {
+                websError(wp, HTTP_CODE_NOT_IMPLEMENTED | WEBS_CLOSE, "Unsupported transfer coding");
+                return;
             }
         }
+    }
+    /*
+        RFC 9112 6.1: a message with both Content-Length and Transfer-Encoding is invalid and must be rejected -- the
+        two framings are how an attacker desyncs GoAhead from a front-end. Order-independent: both flags are set by
+        the time the header loop ends regardless of which header came first.
+     */
+    if (seenContentLength && seenTransferEncoding) {
+        websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Conflicting Content-Length and Transfer-Encoding");
+        return;
     }
     if (!wp->rxChunkState) {
         /*
