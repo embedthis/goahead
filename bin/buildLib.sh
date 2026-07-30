@@ -102,7 +102,9 @@ mkdir -p "$STAGE/src"
 #   projects/ - premake5 and generated build files
 #
 mkdir -p "$STAGE/projects"
-[ -f "$TOP/projects/premake5.lua" ] && cp "$TOP/projects/premake5.lua" "$STAGE/projects/"
+for f in premake5.lua windows.bat openssl-prep.bat; do
+    [ -f "$TOP/projects/$f" ] && cp "$TOP/projects/$f" "$STAGE/projects/"
+done
 for dir in gmake2 vs2022 xcode; do
     [ -d "$TOP/projects/$dir" ] && cp -r "$TOP/projects/$dir" "$STAGE/projects/"
 done
