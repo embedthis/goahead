@@ -162,7 +162,7 @@ PUBLIC int sslOpen()
     /*
         Configure larger DH parameters
      */
-    if ((rc = mbedtls_ssl_conf_dh_param_bin(conf, dhm_p, sizeof(dhm_g), dhm_g, sizeof(dhm_g))) < 0) {
+    if ((rc = mbedtls_ssl_conf_dh_param_bin(conf, dhm_p, sizeof(dhm_p), dhm_g, sizeof(dhm_g))) < 0) {
         merror(rc, "Cannot set DH params");
         return -1;
     }
