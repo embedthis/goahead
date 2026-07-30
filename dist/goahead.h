@@ -14,187 +14,187 @@
     ME_COM defaults -- must be before includes so dependent headers see them.
  */
 #ifndef ME_NAME
-    #define ME_NAME "goahead"
+    #define ME_NAME          "goahead"
 #endif
 #ifndef ME_TITLE
-    #define ME_TITLE "Embedthis GoAhead"
+    #define ME_TITLE         "Embedthis GoAhead"
 #endif
 #ifndef ME_COM_GOAHEAD
-    #define ME_COM_GOAHEAD 1
+    #define ME_COM_GOAHEAD   1
 #endif
 #ifndef ME_COM_OSDEP
-    #define ME_COM_OSDEP 1
+    #define ME_COM_OSDEP     1
 #endif
 #ifndef ME_COM_SSL
-    #define ME_COM_SSL 1
+    #define ME_COM_SSL       1
 #endif
 #ifndef ME_COM_OPENSSL
-    #define ME_COM_OPENSSL 1
+    #define ME_COM_OPENSSL   1
 #endif
 #ifndef ME_COM_MBEDTLS
-    #define ME_COM_MBEDTLS 0
+    #define ME_COM_MBEDTLS   0
 #endif
 #ifndef ME_COM_MATRIXSSL
     #define ME_COM_MATRIXSSL 0
 #endif
 #ifndef ME_COM_NANOSSL
-    #define ME_COM_NANOSSL 0
+    #define ME_COM_NANOSSL   0
 #endif
 
 /*
     Build settings -- ME_DEBUG and ME_VERSION are defined by the build system.
  */
 #ifndef ME_DEBUG
-    #define ME_DEBUG 0
+    #define ME_DEBUG               0
 #endif
 #ifndef ME_PROFILE
-    #define ME_PROFILE "default"
+    #define ME_PROFILE             "default"
 #endif
 #ifndef ME_DEPRECATED_WARNINGS
     #define ME_DEPRECATED_WARNINGS 0
 #endif
 #ifndef ME_ROM
-    #define ME_ROM 0
+    #define ME_ROM                 0
 #endif
 #ifndef ME_MAX_ARGC
-    #define ME_MAX_ARGC 32
+    #define ME_MAX_ARGC            32
 #endif
 #ifndef ME_MBEDTLS_COMPACT
-    #define ME_MBEDTLS_COMPACT 1
+    #define ME_MBEDTLS_COMPACT     1
 #endif
 #ifndef ME_TUNE_SIZE
-    #define ME_TUNE_SIZE 1
+    #define ME_TUNE_SIZE           1
 #endif
 
 /*
     GoAhead feature flags
  */
 #ifndef ME_GOAHEAD_ACCESS_LOG
-    #define ME_GOAHEAD_ACCESS_LOG 0
+    #define ME_GOAHEAD_ACCESS_LOG            0
 #endif
 #ifndef ME_GOAHEAD_AUTH
-    #define ME_GOAHEAD_AUTH 1
+    #define ME_GOAHEAD_AUTH                  1
 #endif
 #ifndef ME_GOAHEAD_AUTH_STORE
-    #define ME_GOAHEAD_AUTH_STORE "file"
+    #define ME_GOAHEAD_AUTH_STORE            "file"
 #endif
 #ifndef ME_GOAHEAD_AUTO_LOGIN
-    #define ME_GOAHEAD_AUTO_LOGIN 0
+    #define ME_GOAHEAD_AUTO_LOGIN            0
 #endif
 #ifndef ME_GOAHEAD_CGI
-    #define ME_GOAHEAD_CGI 1
+    #define ME_GOAHEAD_CGI                   1
 #endif
 #ifndef ME_GOAHEAD_CGI_VAR_PREFIX
-    #define ME_GOAHEAD_CGI_VAR_PREFIX "CGI_"
+    #define ME_GOAHEAD_CGI_VAR_PREFIX        "CGI_"
 #endif
 #ifndef ME_GOAHEAD_CLIENT_CACHE
-    #define ME_GOAHEAD_CLIENT_CACHE "css,gif,ico,jpg,js,png"
+    #define ME_GOAHEAD_CLIENT_CACHE          "css,gif,ico,jpg,js,png"
 #endif
 #ifndef ME_GOAHEAD_CLIENT_CACHE_LIFESPAN
     #define ME_GOAHEAD_CLIENT_CACHE_LIFESPAN 86400
 #endif
 #ifndef ME_GOAHEAD_DIGEST
-    #define ME_GOAHEAD_DIGEST 1
+    #define ME_GOAHEAD_DIGEST                1
 #endif
 #ifndef ME_GOAHEAD_DOCUMENTS
-    #define ME_GOAHEAD_DOCUMENTS "web"
+    #define ME_GOAHEAD_DOCUMENTS             "web"
 #endif
 #ifndef ME_GOAHEAD_JAVASCRIPT
-    #define ME_GOAHEAD_JAVASCRIPT 1
+    #define ME_GOAHEAD_JAVASCRIPT            1
 #endif
 #ifndef ME_GOAHEAD_LEGACY
-    #define ME_GOAHEAD_LEGACY 0
+    #define ME_GOAHEAD_LEGACY                0
 #endif
 #ifndef ME_GOAHEAD_LISTEN
-    #define ME_GOAHEAD_LISTEN "http://*:80,https://*:443"
+    #define ME_GOAHEAD_LISTEN                "http://*:80,https://*:443"
 #endif
 #ifndef ME_GOAHEAD_LOGFILE
-    #define ME_GOAHEAD_LOGFILE "stderr:0"
+    #define ME_GOAHEAD_LOGFILE               "stderr:0"
 #endif
 #ifndef ME_GOAHEAD_NONCE_DURATION
-    #define ME_GOAHEAD_NONCE_DURATION 36000
+    #define ME_GOAHEAD_NONCE_DURATION        36000
 #endif
 #ifndef ME_GOAHEAD_PUT_DIR
-    #define ME_GOAHEAD_PUT_DIR "."
+    #define ME_GOAHEAD_PUT_DIR               "."
 #endif
 #ifndef ME_GOAHEAD_REALM
-    #define ME_GOAHEAD_REALM "example.com"
+    #define ME_GOAHEAD_REALM                 "example.com"
 #endif
 #ifndef ME_GOAHEAD_REPLACE_MALLOC
-    #define ME_GOAHEAD_REPLACE_MALLOC 0
+    #define ME_GOAHEAD_REPLACE_MALLOC        0
 #endif
 #ifndef ME_GOAHEAD_STEALTH
-    #define ME_GOAHEAD_STEALTH 1
+    #define ME_GOAHEAD_STEALTH               1
 #endif
 #ifndef ME_GOAHEAD_UPLOAD
-    #define ME_GOAHEAD_UPLOAD 1
+    #define ME_GOAHEAD_UPLOAD                1
 #endif
 #ifndef ME_GOAHEAD_UPLOAD_DIR
-    #define ME_GOAHEAD_UPLOAD_DIR "tmp"
+    #define ME_GOAHEAD_UPLOAD_DIR            "tmp"
 #endif
 #ifndef ME_GOAHEAD_XFRAME_HEADER
-    #define ME_GOAHEAD_XFRAME_HEADER "SAMEORIGIN"
+    #define ME_GOAHEAD_XFRAME_HEADER         "SAMEORIGIN"
 #endif
 
 /*
     GoAhead numeric limits
  */
 #ifndef ME_GOAHEAD_LIMIT_BUFFER
-    #define ME_GOAHEAD_LIMIT_BUFFER 1024
+    #define ME_GOAHEAD_LIMIT_BUFFER        1024
 #endif
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
-    #define ME_GOAHEAD_LIMIT_CGI_ARGS 4096
+    #define ME_GOAHEAD_LIMIT_CGI_ARGS      4096
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILENAME
-    #define ME_GOAHEAD_LIMIT_FILENAME 256
+    #define ME_GOAHEAD_LIMIT_FILENAME      256
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILES
-    #define ME_GOAHEAD_LIMIT_FILES 0
+    #define ME_GOAHEAD_LIMIT_FILES         0
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADER
-    #define ME_GOAHEAD_LIMIT_HEADER 2048
+    #define ME_GOAHEAD_LIMIT_HEADER        2048
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADERS
-    #define ME_GOAHEAD_LIMIT_HEADERS 4096
+    #define ME_GOAHEAD_LIMIT_HEADERS       4096
 #endif
 #ifndef ME_GOAHEAD_LIMIT_NUM_HEADERS
-    #define ME_GOAHEAD_LIMIT_NUM_HEADERS 64
+    #define ME_GOAHEAD_LIMIT_NUM_HEADERS   64
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PARSE_TIMEOUT
     #define ME_GOAHEAD_LIMIT_PARSE_TIMEOUT 5
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PASSWORD
-    #define ME_GOAHEAD_LIMIT_PASSWORD 32
+    #define ME_GOAHEAD_LIMIT_PASSWORD      32
 #endif
 #ifndef ME_GOAHEAD_LIMIT_POST
-    #define ME_GOAHEAD_LIMIT_POST 16384
+    #define ME_GOAHEAD_LIMIT_POST          16384
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PUT
-    #define ME_GOAHEAD_LIMIT_PUT 204800000
+    #define ME_GOAHEAD_LIMIT_PUT           204800000
 #endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_COUNT
     #define ME_GOAHEAD_LIMIT_SESSION_COUNT 512
 #endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_LIFE
-    #define ME_GOAHEAD_LIMIT_SESSION_LIFE 1800
+    #define ME_GOAHEAD_LIMIT_SESSION_LIFE  1800
 #endif
 #ifndef ME_GOAHEAD_LIMIT_STRING
-    #define ME_GOAHEAD_LIMIT_STRING 256
+    #define ME_GOAHEAD_LIMIT_STRING        256
 #endif
 #ifndef ME_GOAHEAD_LIMIT_TIMEOUT
-    #define ME_GOAHEAD_LIMIT_TIMEOUT 60
+    #define ME_GOAHEAD_LIMIT_TIMEOUT       60
 #endif
 #ifndef ME_GOAHEAD_LIMIT_UPLOAD
-    #define ME_GOAHEAD_LIMIT_UPLOAD 204800000
+    #define ME_GOAHEAD_LIMIT_UPLOAD        204800000
 #endif
 #ifndef ME_GOAHEAD_LIMIT_URI
-    #define ME_GOAHEAD_LIMIT_URI 2048
+    #define ME_GOAHEAD_LIMIT_URI           2048
 #endif
 
 /*
     Override osdep defaults
  */
-#define ME_MAX_IP 64                /**< Maximum IP address size */
+#define ME_MAX_IP                          64 /**< Maximum IP address size */
 
 /************************************ Includes ********************************/
 
@@ -347,12 +347,16 @@ PUBLIC HINSTANCE websGetInst();
     requirements and constraints.
  */
 
-#define WEBS_MAX_LISTEN   8             /**< Maximum number of listening endpoints that can be configured simultaneously
-                                         */
-#define WEBS_SMALL_HASH   31            /**< Default size for small hash tables (should be prime number for good
-                                           distribution) */
-#define WEBS_MAX_PASSWORD ME_GOAHEAD_LIMIT_PASSWORD /**< Maximum plaintext password length accepted from clients */
-#define WEBS_MAX_PASSWORD_BUFFER ((WEBS_MAX_PASSWORD * 3) + 3) /**< Buffer size for "username:realm:password" passed to crypt primitives */
+#define WEBS_MAX_LISTEN          8                             /**< Maximum number of listening endpoints that can be
+                                                                  configured simultaneously
+                                                                */
+#define WEBS_SMALL_HASH          31                            /**< Default size for small hash tables (should be prime
+                                                                  number for good
+                                                                  distribution) */
+#define WEBS_MAX_PASSWORD        ME_GOAHEAD_LIMIT_PASSWORD     /**< Maximum plaintext password length accepted from
+                                                                  clients */
+#define WEBS_MAX_PASSWORD_BUFFER ((WEBS_MAX_PASSWORD * 3) + 3) /**< Buffer size for "username:realm:password" passed to
+                                                                  crypt primitives */
 
 /************************************* Error **********************************/
 #if ME_GOAHEAD_LOGGING
@@ -365,7 +369,7 @@ PUBLIC_DATA int logLevel;
 
 /**
     Standard logging trace levels are 0 to 9 with 0 being the most verbose. These are ored with the error source
-    and type flags. The WEBS_LOG_MASK is used to extract the trace level from a flags word. We expect most apps
+    and type flags. The WEBS_LEVEL_MASK is used to extract the trace level from a flags word. We expect most apps
     to run with level 2 trace enabled.
  */
 #define WEBS_ERROR      1               /**< Hard error trace level */
@@ -385,7 +389,7 @@ PUBLIC_DATA int logLevel;
 
 #if ME_GOAHEAD_TRACING && ME_GOAHEAD_LOGGING
     #if ME_COMPILER_HAS_MACRO_VARARGS
-      #define trace(l, ...) if (((l)&WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else {}
+      #define trace(l, ...) if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else {}
     #else
 inline void trace(int level, cchar *fmt, ...)
 {
@@ -510,9 +514,9 @@ PUBLIC void logSetPath(cchar *path);
     Emit a message to the log
     @description This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity
     level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the
-    Logging support is enabled by the MakeMe setting: "logging: true" which creates the ME_GOAHEAD_LOGGING define in
-       me.h
     most verbose. Level 2-4 are the most useful for debugging.
+    Logging support is enabled by the ME_GOAHEAD_LOGGING define, which defaults to 1 in this header and may be
+    overridden by the build.
     @param level Integer verbosity level (0-9).
     @param fmt Printf style format string
     @param ... Arguments for the format string
@@ -525,8 +529,8 @@ PUBLIC void logmsgProc(int level, cchar *fmt, ...);
     @description This emits a message at the specified level. GoAhead filters logging messages by defining a verbosity
     level at startup. Level 0 is the least verbose where only the most important messages will be output. Level 9 is the
     most verbose. Level 2-4 are the most useful for debugging.
-    Debug trace support is enabled by the MakeMe setting: "tracing: true" which creates the ME_GOAHEAD_TRACING define in
-    me.h.
+    Debug trace support is enabled by the ME_GOAHEAD_TRACING define, which defaults to 1 in this header and may be
+    overridden by the build.
     @param level Integer verbosity level (0-9).
     @param fmt Printf style format string
     @param ... Arguments for the format string
@@ -746,7 +750,7 @@ PUBLIC void valueFree(WebsValue *value);
 
     @warning This structure exposes internal pointers for performance. Handle with care and prefer
         using the provided APIs over direct field access.
-    @see bufCreate bufFree bufPut bufGet bufLen bufStart
+    @see bufCreate bufFree bufPut bufGetc bufGetBlk bufLen bufStart
     @stability Stable
  */
 typedef struct WebsBuf {
@@ -956,7 +960,6 @@ typedef struct WebsAlloc {
 #define WEBS_DEFAULT_MEM    (1024 * 1024)      /**< Default memory allocation */
 #define WEBS_MAX_CLASS      13                 /**< Maximum class number + 1 */
 #define WEBS_SHIFT          4                  /**< Convert size to class */
-#define WEBS_ROUND          ((1 << (B_SHIFT)) - 1)
 #define WEBS_MALLOCED       0x80000000         /* Block was malloced */
 #define WEBS_FILL_CHAR      (0x77)             /* Fill byte for buffers */
 #define WEBS_FILL_WORD      (0x77777777)       /* Fill word for buffers */
@@ -978,13 +981,11 @@ PUBLIC void wcloseAlloc(void);
 
 /**
     Initialize the walloc module.
-    @description The wopenAlloc function should be called the very first thing after the application starts and wclose
-    should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the first
-       allocation
-    with default values. "buf" points to memory to use of size "bufsize". If buf is NULL, memory is allocated using
-       malloc.
-    flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate *  an initial buffer of size
-    bufsize for use by the application.
+    @description The wopenAlloc function should be called the very first thing after the application starts and
+    wcloseAlloc should be called the last thing before exiting. If wopenAlloc is not called, it will be called on the
+    first allocation with default values. "buf" points to memory to use of size "bufsize". If buf is NULL, memory is
+    allocated using malloc. flags may be set to WEBS_USE_MALLOC if using malloc is okay. This routine will allocate an
+    initial buffer of size bufsize for use by the application.
     @param buf Optional user supplied block of memory to use for allocations
     @param bufsize Size of buf
     @param flags Allocation flags. Set to WEBS_USE_MALLOC to permit the use of malloc() to grow memory.
@@ -1252,7 +1253,7 @@ typedef struct WebsSocket {
     int interestEvents;                 /**< Mask of events to watch for */
     int currentEvents;                  /**< Mask of ready events (FD_xx) */
     int selectEvents;                   /**< Events being selected */
-    int saveMask;                       /**< saved Mask for socketFlush */
+    int saveMask;                       /**< Reserved. Not currently used */
     int error;                          /**< Last error */
     int secure;                         /**< Socket is using SSL */
     int handshakes;                     /**< Number of renegotiations */
@@ -1404,7 +1405,7 @@ PUBLIC bool socketHasIPv6(void);
     @description This is used by SSL and other network stacks that buffer pending data
     @param sp Socket object returned from #socketPtr
     @param len Length of buffered data in bytes
-    @param dir Buffer direction. Set to MPR_READABLE for buffered read data and MPR_WRITABLE for buffered write data.
+    @param dir Buffer direction. Set to SOCKET_READABLE for buffered read data and SOCKET_WRITABLE for buffered write data.
         @stability Stable
  */
 PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir);
@@ -2136,6 +2137,7 @@ typedef struct Webs {
     int routeCount;                     /**< Route count limiter */
     ssize rxLen;                        /**< Rx content length */
     ssize rxRemaining;                  /**< Remaining content to read from client */
+    ssize rxBytes;                      /**< Cumulative decoded request body bytes received (chunked framing) */
     ssize txRemaining;                  /**< Remaining content to write */
     ssize txLen;                        /**< Tx content length header value */
     int wid;                            /**< Index into webs */
@@ -2344,6 +2346,49 @@ PUBLIC int websCgiPoll(void);
 /* Internal */
 PUBLIC bool cgiHandler(Webs *wp);
 
+/**
+    Test whether a CGI path is admissible as a Windows CGI target.
+    @description Returns true iff `cgiPath` is non-NULL and ends with `.exe` (case-insensitive).
+        Used by the Windows extension gate to refuse `.bat`/`.cmd` and other non-`.exe` extensions
+        that would otherwise be transparently routed through `cmd.exe` by kernel32's CreateProcess.
+        Exposed for unit testing the gate logic on non-Windows hosts.
+    @param cgiPath Server-resolved path to the CGI program.
+    @return True if the path is `.exe`-suffixed; false on NULL, too-short input, or other suffix.
+    @stability Internal
+ */
+PUBLIC bool isCgiExeOnWindows(cchar *cgiPath);
+
+/**
+    Emit one CRT-correctly-quoted argv element into the destination buffer.
+    @description Implements the Microsoft-documented `CommandLineToArgvW` quoting rules.
+        NULL or empty `arg` emits `""` (two double-quote bytes) so the CRT recovers a zero-length
+        argv element rather than nothing. Strings containing no space, tab, or double-quote pass
+        through verbatim. Otherwise the string is wrapped in double-quotes, embedded quotes are
+        escaped by doubling preceding backslash runs and prepending a backslash to the quote
+        (the `2N+1` rule), and trailing backslash runs that abut the closing quote are doubled
+        (the `2N` rule). Destination buffer must hold at least `2 * slen(arg) + 3` bytes.
+        Exposed for unit testing the quoting algorithm on non-Windows hosts.
+    @param dp Destination buffer; caller-allocated; must be large enough per the worst-case formula.
+    @param arg The argv element to quote. May be NULL or empty.
+    @return Bytes written to `dp`. Does not null-terminate.
+    @stability Internal
+ */
+PUBLIC ssize appendWinArg(char *dp, cchar *arg);
+
+/**
+    Build a Windows `lpCommandLine` string from a NULL-terminated argv array.
+    @description Walks `argp`, calls `appendWinArg` per element, separates elements with a
+        single space, and null-terminates `out`. NULL `argp` or NULL `out` returns 0 with no
+        write. Caller is responsible for pre-allocating `out` to the worst-case size, computed
+        as the sum of `2 * slen(argp[i]) + 3` per element plus one separator per gap plus one
+        null terminator. Exposed for unit testing the cmdLine builder on non-Windows hosts.
+    @param argp NULL-terminated argv array. NULL `argp[i]` is treated as an empty argv element.
+    @param out Caller-allocated buffer of sufficient worst-case size.
+    @return Total bytes written excluding the null terminator.
+    @stability Internal
+ */
+PUBLIC ssize buildWinCmdLine(char **argp, char *out);
+
 #endif /* ME_GOAHEAD_CGI */
 
 /**
@@ -2429,7 +2474,7 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len);
     @param flags Handler control flags. Set to WEBS_LEGACY_HANDLER to support the legacy handler API
         calling sequence, or 0 for standard handlers.
     @return Zero if successful, otherwise -1 on error.
-    @see websDefineAction websHandlerProc websOpen
+    @see websDefineAction WebsHandlerProc websOpen
         @stability Stable
  */
 PUBLIC int websDefineHandler(cchar *name, WebsHandlerProc match, WebsHandlerProc service, WebsHandlerClose close,
@@ -2721,7 +2766,7 @@ PUBLIC cchar *websGetServerAddressUrl(void);
 
 /**
     Get the request URI
-    @description This returns the request URI. This may be modified if the request is rewritten via websRewrite
+    @description This returns the request URI. This may be modified if the request is rewritten via websRewriteRequest
     @param wp Webs request object
     @return URI string. Caller should not free.
         @stability Stable
@@ -3281,7 +3326,7 @@ PUBLIC void websSetHost(cchar *host);
         include specific interface addresses or "0.0.0.0" to bind to all available interfaces.
     @param ipaddr String containing the IP address in dotted decimal notation (IPv4) or
         colon-separated notation (IPv6). Examples: "192.168.1.100", "0.0.0.0", "::1", "::"
-    @see websSetHost websGetIpAddr
+    @see websSetHost websGetHost
         @stability Stable
  */
 PUBLIC void websSetIpAddr(cchar *ipaddr);
@@ -3343,7 +3388,7 @@ PUBLIC void websSetQueryVars(Webs *wp);
         based on the request processing results (typically 200 for successful requests).
     @param wp Webs request object representing the current HTTP request
     @param status HTTP status code (e.g., 200, 404, 500). Should be a valid HTTP status code.
-    @see websGetStatus websError websResponse
+    @see websError websResponse
         @stability Stable
  */
 PUBLIC void websSetStatus(Webs *wp, int status);
@@ -3729,7 +3774,7 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv);
 
 #if ME_COM_SSL
 /*
-    Default MakeMe settings
+    Default SSL settings
  */
 #ifndef ME_GOAHEAD_SSL_AUTHORITY
     #define ME_GOAHEAD_SSL_AUTHORITY     ""

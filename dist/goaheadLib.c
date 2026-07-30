@@ -66,6 +66,12 @@ static bool actionHandler(Webs *wp)
     } else {
         fn = (WebsAction) sp->content.value.symbol;
         assert(fn);
+        /*
+            SECURITY Acceptable: this generic URI-to-C-function dispatcher intentionally performs no HTTP
+            method or CSRF check. Method enforcement is delegated to the route layer (route->methods);
+            state-changing actions are gated by route configuration such as "methods=POST" (see route.txt).
+            Validation of developer-registered handlers is the developer's responsibility.
+         */
         if (fn) {
 #if ME_GOAHEAD_LEGACY
             (*((WebsProc) fn))((void*) wp, actionName, wp->query);
@@ -112,7 +118,7 @@ PUBLIC void websActionOpen(void)
 
 #if ME_GOAHEAD_LEGACY
 /*
-    Don't use these routes. Use websWriteHeaders, websEndHeaders instead.
+    Don't use these routines. Use websWriteHeaders, websWriteEndHeaders instead.
 
     Write a webs header. This is a convenience routine to write a common header for an action back to the browser.
  */
@@ -149,8 +155,8 @@ PUBLIC void websFooter(Webs *wp)
     fragmentation.  This allocator maintains block class queues for rapid allocation and minimal fragmentation. This
     allocator does not coalesce blocks. The storage space may be populated statically or via the traditional malloc
     mechanisms. Large blocks greater than the maximum class size may be allocated from the O/S or run-time system via
-    malloc. To permit the use of malloc, call wopen with flags set to WEBS_USE_MALLOC (this is the default).  It is
-    recommended that wopen be called first thing in the application.  If it is not, it will be called with default
+    malloc. To permit the use of malloc, call wopenAlloc with flags set to WEBS_USE_MALLOC (this is the default).  It is
+    recommended that wopenAlloc be called first thing in the application.  If it is not, it will be called with default
     values on the first call to walloc(). Note that this code is not designed for multi-threading purposes and it
     depends on newly declared variables being initialized to zero.
 
@@ -220,7 +226,7 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
     controlFlags = flags;
 
     /*
-        If wopen already called by a shared process, just increment the count and return
+        If wopenAlloc already called by a shared process, just increment the count and return
      */
     if (++wopenCount > 1) {
         return 0;
@@ -273,7 +279,7 @@ PUBLIC void *walloc(ssize size)
     int       q, memSize;
 
     /*
-        Call wopen with default values if the application has not yet done so
+        Call wopenAlloc with default values if the application has not yet done so
      */
     if (freeBuf == NULL) {
         if (wopenAlloc(NULL, WEBS_DEFAULT_MEM, 0) < 0) {
@@ -888,7 +894,7 @@ static void computeUserAbilities(WebsUser *user)
     /*
         SECURITY Acceptable: - Debug trace of user abilities
         Do not enable in production
-    */
+     */
     {
         WebsKey *key;
         trace(5 | WEBS_RAW_MSG, "User \"%s\" has abilities: ", user->name);
@@ -1102,7 +1108,8 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
     /*
         Verify wp->password against the stored user->password record.
 
-        wp->password is either plaintext or an MD5 digest depending on the client's auth scheme. wp->encoded distinguishes the two:
+        wp->password is either plaintext or an MD5 digest depending on the client's auth scheme. wp->encoded
+           distinguishes the two:
           - Set by parseDigestDetails when the client supplied a Digest response.
             wp->password holds the client-computed MD5(HA1:nonce:HA2) hash.
           - Cleared by parseBasicDetails after base64-decoding a Basic Authorization header.
@@ -1396,10 +1403,10 @@ static bool parseDigestDetails(Webs *wp)
          */
         if (strchr(value, '\\')) {
             for (dp = sp = value; *sp; sp++) {
-                if (*sp == '\\') {
+                if (*sp == '\\' && sp[1]) {
                     sp++;
                 }
-                *dp++ = *sp++;
+                *dp++ = *sp;
             }
             *dp = '\0';
         }
@@ -1812,7 +1819,7 @@ static cchar *envBlackList[] = {
 
 static bool inBlackList(cchar *name)
 {
-    cchar   **bp;
+    cchar **bp;
 
     for (bp = envBlackList; *bp; bp++) {
         if (smatch(name, *bp)) {
@@ -1829,7 +1836,112 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
 
 /************************************* Code ***********************************/
 /*
-    Process a form request.
+    Windows CGI launch helpers. All three are platform-independent C string logic
+    (no Windows types or APIs) so the production Windows path and the macOS unit
+    tests share a single implementation. See doc/features/cgi-windows-arg-injection/.
+ */
+
+PUBLIC bool isCgiExeOnWindows(cchar *cgiPath)
+{
+    ssize n;
+
+    if (cgiPath == NULL) {
+        return 0;
+    }
+    n = slen(cgiPath);
+    if (n < 4) {
+        return 0;
+    }
+    return scaselessmatch(cgiPath + n - 4, ".exe");
+}
+
+
+PUBLIC ssize appendWinArg(char *dp, cchar *arg)
+{
+    cchar *cp;
+    char  *start;
+    int   bs;
+
+    if (dp == NULL) {
+        return 0;
+    }
+    start = dp;
+    if (arg == NULL || *arg == '\0') {
+        /*
+            Empty arg must be represented as "" so the receiving CRT recovers a
+            zero-length argv element rather than nothing.
+         */
+        *dp++ = '"';
+        *dp++ = '"';
+        return dp - start;
+    }
+    if (!strpbrk(arg, " \t\"")) {
+        while (*arg) {
+            *dp++ = *arg++;
+        }
+        return dp - start;
+    }
+    *dp++ = '"';
+    for (cp = arg; *cp; ) {
+        bs = 0;
+        while (*cp == '\\') {
+            bs++;
+            cp++;
+        }
+        if (*cp == '\0') {
+            /* Trailing backslash run abuts the closing quote: double it. */
+            for (; bs > 0; bs--) {
+                *dp++ = '\\';
+                *dp++ = '\\';
+            }
+            break;
+        } else if (*cp == '"') {
+            /* Backslash run before embedded quote: double-and-add-one. */
+            for (; bs > 0; bs--) {
+                *dp++ = '\\';
+                *dp++ = '\\';
+            }
+            *dp++ = '\\';
+            *dp++ = '"';
+            cp++;
+        } else {
+            for (; bs > 0; bs--) {
+                *dp++ = '\\';
+            }
+            *dp++ = *cp++;
+        }
+    }
+    *dp++ = '"';
+    return dp - start;
+}
+
+
+PUBLIC ssize buildWinCmdLine(char **argp, char *out)
+{
+    char  **pArgs;
+    char  *p;
+    ssize written = 0;
+
+    if (argp == NULL || out == NULL) {
+        return 0;
+    }
+    p = out;
+    for (pArgs = argp; *pArgs; pArgs++) {
+        ssize n = appendWinArg(p, *pArgs);
+        p += n;
+        written += n;
+        if (pArgs[1]) {
+            *p++ = ' ';
+            written++;
+        }
+    }
+    *p = '\0';
+    return written;
+}
+
+
+/*
+    Process a CGI request.
     Return true to indicate the request was handled, even for errors.
  */
 PUBLIC bool cgiHandler(Webs *wp)
@@ -1846,7 +1958,7 @@ PUBLIC bool cgiHandler(Webs *wp)
     websSetEnv(wp);
 
     /*
-        Extract the form name and then build the full path name. The form name will follow the first '/' in path.
+        Extract the CGI program name and then build the full path name. The name follows the first '/' in path.
      */
     scopy(cgiPrefix, sizeof(cgiPrefix), wp->path);
     if ((cgiName = strchr(&cgiPrefix[1], '/')) == NULL) {
@@ -1898,9 +2010,19 @@ PUBLIC bool cgiHandler(Webs *wp)
             }
         }
 #if ME_WIN_LIKE
-        if (strstr(cgiPath, ".exe") == NULL && strstr(cgiPath, ".bat") == NULL)
+        /*
+            Windows CGI: only .exe is supported. .bat / .cmd are deliberately not
+            supported because kernel32's CreateProcessInternal transparently routes
+            script-extension targets through cmd.exe, exposing the spawned process
+            to OS command injection from any caller that does not exhaustively escape
+            for cmd.exe parsing - which is not mechanically possible in the general
+            case (notably %VAR% expansion). The gate is a true suffix match, not a
+            substring match, so paths like 'payload.exe.bat' cannot smuggle a .bat
+            past it. See doc/features/cgi-windows-arg-injection/.
+         */
+        if (!isCgiExeOnWindows(cgiPath))
 #else
-        if (access(cgiPath, X_OK) != 0)
+        if (cgiPath == NULL || access(cgiPath, X_OK) != 0)
 #endif
         {
             websError(wp, HTTP_CODE_NOT_FOUND, "CGI process file is not executable");
@@ -1933,14 +2055,46 @@ PUBLIC bool cgiHandler(Webs *wp)
     if (strchr(wp->query, '=') == NULL) {
         query = sclone(wp->query);
         websDecodeUrl(query, query, strlen(query));
+        /*
+            SECURITY (CWE-88): The '=' gate above tests the raw query, before URL
+            decoding, so a percent-encoded '=' (%3D) reaches here. A decoded '='
+            means the client sent key=value data, not an ISINDEX search string;
+            key=value option forms such as "-d name=value" must never be built
+            into argv. Reject rather than forward.
+         */
+        if (strchr(query, '=') != NULL) {
+            websError(wp, HTTP_CODE_BAD_REQUEST, "Bad ISINDEX query");
+            wfree(query);
+            wfree(cgiPath);
+            return 1;
+        }
         for (cp = stok(query, " ", &tok); cp != NULL && argp != NULL; ) {
-            *(argp + n) = cp;
-            trace(5, "ARG[%d] %s", n, argp[n - 1]);
-            n++;
+            /*
+                SECURITY (CWE-88): A search term that begins with '-' is an attempt
+                to inject a command-line option into the CGI program. Reject it.
+             */
+            if (*cp == '-') {
+                websError(wp, HTTP_CODE_BAD_REQUEST, "ISINDEX argument may not start with '-'");
+                wfree(query);
+                wfree(cgiPath);
+                return 1;
+            }
+            if (n == 1) {
+                /*
+                    SECURITY (CWE-88): Precede ISINDEX search terms with a POSIX
+                    end-of-options marker so a conformant CGI program treats them
+                    as positional operands, never as options. Defence in depth on
+                    top of the '-' rejection above.
+                 */
+                *(argp + n++) = "--";
+            }
+            *(argp + n++) = cp;
+            trace(5, "ARG[%d] %s", n - 1, argp[n - 1]);
             if (n >= argpsize) {
                 argpsize *= 2;
                 if (argpsize > ME_GOAHEAD_LIMIT_CGI_ARGS) {
                     websError(wp, HTTP_CODE_REQUEST_TOO_LARGE, "Too many arguments");
+                    wfree(query);
                     wfree(cgiPath);
                     return 1;
                 }
@@ -2688,22 +2842,16 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         }
     }
     /*
-        Calculate length of command line
+        Calculate worst-case length of the quoted command line. Each argv element
+        may grow to 2 * strlen + 3 bytes (opening / closing quote plus a doubled
+        backslash run that fully precedes a quote), plus one separator per gap,
+        plus one byte for the null terminator. See appendWinArg() for the exact
+        quoting rules.
      */
-    nLen = 0;
+    nLen = 1; /* null terminator */
     pArgs = argp;
-    while (pArgs && *pArgs && **pArgs) {
-        nLen += strlen(*pArgs) + 1;
-        pArgs++;
-    }
-
-    /*
-        Construct command line (safe length calculation and single-pass write)
-     */
-    nLen = 1; // for null terminator
-    pArgs = argp;
-    while (pArgs && *pArgs && **pArgs) {
-        nLen += (ssize) strlen(*pArgs);
+    while (pArgs && *pArgs) {
+        nLen += (ssize) (2 * slen(*pArgs) + 3);
         if (pArgs[1]) {
             nLen += 1; /* space between args */
         }
@@ -2713,20 +2861,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     cmdLine = walloc(sizeof(char) * nLen);
     assert(cmdLine);
 
-    {
-        char *p = cmdLine;
-        pArgs = argp;
-        while (pArgs && *pArgs && **pArgs) {
-            size_t alen = strlen(*pArgs);
-            memcpy(p, *pArgs, alen);
-            p += alen;
-            if (pArgs[1]) {
-                *p++ = ' ';
-            }
-            pArgs++;
-        }
-        *p = '\0';
-    }
+    (void) buildWinCmdLine(argp, cmdLine);
 
     /*
         Create the process start-up information
@@ -2775,17 +2910,22 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         Detect an error by checking the value of procinfo.hProcess after the call.
      */
     procinfo.hProcess = NULL;
+    /*
+        lpApplicationName is set explicitly to the resolved cgiPath so program identity
+        does not depend on how lpCommandLine tokenises. Combined with the extension gate
+        (only .exe admitted on Windows), this guarantees no implicit cmd.exe routing.
+     */
     bReturn = CreateProcess(
-        NULL,               /*  Name of executable module        */
-        cmdLine,            /*  Command line string              */
-        NULL,               /*  Process security attributes      */
-        NULL,               /*  Thread security attributes       */
-        TRUE,               /*  Handle inheritance flag          */
-        dwCreateFlags,      /*  Creation flags                   */
-        pEnvData,           /*  New environment block            */
-        NULL,               /*  Current directory name           */
-        &newinfo,           /*  STARTUPINFO                      */
-        &procinfo);         /*  PROCESS_INFORMATION              */
+        cgiPath,            /*  lpApplicationName - explicit, .exe only */
+        cmdLine,            /*  lpCommandLine - CRT-correctly quoted    */
+        NULL,               /*  Process security attributes             */
+        NULL,               /*  Thread security attributes              */
+        TRUE,               /*  Handle inheritance flag                 */
+        dwCreateFlags,      /*  Creation flags                          */
+        pEnvData,           /*  New environment block                   */
+        NULL,               /*  Current directory name                  */
+        &newinfo,           /*  STARTUPINFO                             */
+        &procinfo);         /*  PROCESS_INFORMATION                     */
 
     if (procinfo.hThread != NULL) {
         CloseHandle(procinfo.hThread);
@@ -2839,7 +2979,7 @@ static int checkCgi(CgiPid handle)
 /********* Start of file src/crypt.c ************/
 
 /*
-    crypt.c - Base-64 encoding and decoding and MD5 support.
+    crypt.c - Base-64 encoding/decoding, MD5 digests, Blowfish password hashing and random bytes.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -3959,6 +4099,8 @@ PUBLIC char *websReadPassword(cchar *prompt)
     file.c -- File handler
 
     This module serves static file documents
+
+    Copyright (c) All Rights Reserved. See details at the end of the file.
  */
 
 /********************************* Includes ***********************************/
@@ -4478,34 +4620,34 @@ static WebsRomIndex *lookup(WebsHash fs, char *path)
 
 #define WEBS_TIMEOUT       (ME_GOAHEAD_LIMIT_TIMEOUT * 1000)
 #define PARSE_TIMEOUT      (ME_GOAHEAD_LIMIT_PARSE_TIMEOUT * 1000)
-#define CHUNK_LOW          128          /* Low water mark for chunking */
+#define CHUNK_LOW          128                     /* Low water mark for chunking */
 
-#define TOKEN_HEADER_KEY   0x1          /* Validate token as a header key */
-#define TOKEN_HEADER_VALUE 0x2          /* Validate token as a header value */
-#define TOKEN_URI_VALUE    0x4          /* Validate token as a URI value */
-#define TOKEN_NUMBER       0x8          /* Validate token as a number */
-#define TOKEN_WORD         0x10         /* Validate token as single word with no spaces */
-#define TOKEN_LINE         0x20         /* Validate token as line with no newlines */
+#define TOKEN_HEADER_KEY   0x1                     /* Validate token as a header key */
+#define TOKEN_HEADER_VALUE 0x2                     /* Validate token as a header value */
+#define TOKEN_URI_VALUE    0x4                     /* Validate token as a URI value */
+#define TOKEN_NUMBER       0x8                     /* Validate token as a number */
+#define TOKEN_WORD         0x10                    /* Validate token as single word with no spaces */
+#define TOKEN_LINE         0x20                    /* Validate token as line with no newlines */
 
 /************************************ Locals **********************************/
 
-static int      websBackground;         /* Run as a daemon */
-static int      websDebug;              /* Run in debug mode and defeat timeouts */
-static int      defaultHttpPort;        /* Default port number for http */
-static int      defaultSslPort;         /* Default port number for https */
+static int      websBackground;                    /* Run as a daemon */
+static int      websDebug;                         /* Run in debug mode and defeat timeouts */
+static int      defaultHttpPort;                   /* Default port number for http */
+static int      defaultSslPort;                    /* Default port number for https */
 static int      listens[WEBS_MAX_LISTEN]; /* Listen endpoints */;
-static int      listenMax;              /* Max entry in listens */
-static Webs     **webs;                 /* Open connection list head */
-static WebsHash websMime;               /* Set of mime types */
-static int      websMax;                /* List size */
-static char     websHost[ME_MAX_IP];    /* Host name for the server */
-static char     websIpAddr[ME_MAX_IP];  /* IP address for the server */
-static char     *websHostUrl = NULL;    /* URL to access server */
-static char     *websIpAddrUrl = NULL;  /* URL to access server */
+static int      listenMax;                         /* Max entry in listens */
+static Webs     **webs;                            /* Open connection list head */
+static WebsHash websMime;                          /* Set of mime types */
+static int      websMax;                           /* List size */
+static char     websHost[ME_MAX_IP];               /* Host name for the server */
+static char     websIpAddr[ME_MAX_IP];             /* IP address for the server */
+static char     *websHostUrl = NULL;               /* URL to access server */
+static char     *websIpAddrUrl = NULL;             /* URL to access server */
 static ssize    postLimit = ME_GOAHEAD_LIMIT_POST; /* Runtime-settable POST body cap */
 
-#define WEBS_ENCODE_HTML 0x1            /* Bit setting in charMatch[] */
-#define WEBS_ENCODE_URI  0x4            /* Encode URI characters */
+#define WEBS_ENCODE_HTML 0x1                       /* Bit setting in charMatch[] */
+#define WEBS_ENCODE_URI  0x4                       /* Encode URI characters */
 
 /*
     Character escape/descape matching codes. Generated by mprEncodeGenerate in appweb.
@@ -5509,9 +5651,11 @@ static void parseHeaders(Webs *wp)
 {
     cchar *prior;
     char  *combined, *upperKey, *cp, *key, *value, *tok;
-    int   count;
+    int   count, seenContentLength, seenTransferEncoding;
 
     assert(websValid(wp));
+
+    seenContentLength = seenTransferEncoding = 0;
 
     /*
         Parse the header and create the Http header keyword variables
@@ -5578,6 +5722,19 @@ static void parseHeaders(Webs *wp)
             }
 
         } else if (strcmp(key, "content-length") == 0) {
+            if (seenContentLength) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Duplicate Content-Length");
+                return;
+            }
+            seenContentLength = 1;
+            /*
+                Strict per RFC 9112 6.3.5: the field value must be a single run of digits. atoi() would accept a
+                leading sign/space and a non-digit tail, which a strict downstream hop may frame differently.
+             */
+            if (*value == '\0' || (int) strspn(value, "0123456789") != (int) slen(value)) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Invalid content length");
+                return;
+            }
             /*
                 SECURITY Acceptable: atoi() integer overflow with very large values will
                 wrap to negative, which is safely rejected below. Embedded systems can
@@ -5598,9 +5755,13 @@ static void parseHeaders(Webs *wp)
                     return;
                 }
             }
-            if (!smatch(wp->method, "HEAD")) {
-                wp->rxRemaining = wp->rxLen;
-            }
+            /*
+                Account for the declared request body for every method, including HEAD, so the body is
+                drained before the keep-alive connection is reused. Skipping this for HEAD left the declared
+                body in the receive buffer to be mis-parsed as the next request (CWE-444). The HEAD response
+                is unaffected: websWriteHeaders() still emits headers only.
+             */
+            wp->rxRemaining = wp->rxLen;
 
         } else if (strcmp(key, "content-type") == 0) {
             wfree(wp->contentType);
@@ -5647,11 +5808,37 @@ static void parseHeaders(Webs *wp)
             wp->referrer = sclone(value);
 
         } else if (strcmp(key, "transfer-encoding") == 0) {
-            if (scaselesscmp(value, "chunked") == 0) {
+            if (!(wp->flags & WEBS_HTTP11)) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Transfer-Encoding requires HTTP/1.1");
+                return;
+            }
+            if (seenTransferEncoding) {
+                websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Duplicate Transfer-Encoding");
+                return;
+            }
+            seenTransferEncoding = 1;
+            /*
+                GoAhead implements only the "chunked" transfer coding. Per RFC 9112 6.1, chunked must be the final
+                coding; any other coding (or a list such as "gzip, chunked") is one we cannot decode -> 501. Never
+                fall back to Content-Length framing on an unrecognised value: that is the TE.CL smuggling vector.
+             */
+            if (scaselessmatch(strim(value, " \t", WEBS_TRIM_BOTH), "chunked")) {
                 wp->rxChunkState = WEBS_CHUNK_START;
                 wp->rxRemaining = MAXINT;
+            } else {
+                websError(wp, HTTP_CODE_NOT_IMPLEMENTED | WEBS_CLOSE, "Unsupported transfer coding");
+                return;
             }
         }
+    }
+    /*
+        RFC 9112 6.1: a message with both Content-Length and Transfer-Encoding is invalid and must be rejected -- the
+        two framings are how an attacker desyncs GoAhead from a front-end. Order-independent: both flags are set by
+        the time the header loop ends regardless of which header came first.
+     */
+    if (seenContentLength && seenTransferEncoding) {
+        websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Conflicting Content-Length and Transfer-Encoding");
+        return;
     }
     if (!wp->rxChunkState) {
         /*
@@ -5740,7 +5927,7 @@ static bool filterChunkData(Webs *wp)
     WebsBuf *rxbuf;
     ssize   chunkSize;
     char    *start, *cp;
-    ssize   len, nbytes;
+    ssize   len, nbytes, limit;
     int     bad;
 
     assert(wp);
@@ -5783,8 +5970,21 @@ static bool filterChunkData(Webs *wp)
                 return 1;
             }
             chunkSize = hextoi(&start[2]);
-            if (!isxdigit((uchar) start[2]) || chunkSize < 0) {
+            limit = smatch(wp->method, "PUT") ? ME_GOAHEAD_LIMIT_PUT : postLimit;
+            if (!isxdigit((uchar) start[2]) || chunkSize < 0 || chunkSize > limit) {
                 websError(wp, WEBS_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad chunk specification");
+                return 1;
+            }
+            /*
+                Enforce the same cumulative body cap that Content-Length framing enforces up front. A chunked
+                body assembled from many in-range chunks must not exceed the request-body limit; reject with 413
+                as soon as the declared total crosses the limit, before draining the chunk. This bounds the
+                streaming targets (CGI, PUT) whose input buffer is continuously drained and so never trips the
+                per-buffer "Too big" guard in WEBS_CHUNK_DATA.
+             */
+            wp->rxBytes += chunkSize;
+            if (wp->rxBytes > limit) {
+                websError(wp, WEBS_CLOSE | HTTP_CODE_REQUEST_TOO_LARGE, "Request too big");
                 return 1;
             }
             if (chunkSize == 0) {
@@ -6163,11 +6363,13 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
         uri = location = makeUri(scheme, host, port, uri);
     }
     encoded = websEscapeUri(uri);
-    message = sfmt("<html><head></head><body>\r\n\
+    message =
+        sfmt(
+            "<html><head></head><body>\r\n\
         This document has moved to a new <a href=\"%s\">location</a>.\r\n\
         Please update your documents to reflect the new location.\r\n\
         </body></html>\r\n",
-                   encoded);
+            encoded);
     len = slen(message);
     websSetStatus(wp, HTTP_CODE_MOVED_TEMPORARILY);
     websWriteHeaders(wp, len + 2, uri);
@@ -7729,7 +7931,16 @@ WebsSession *websGetSession(Webs *wp, int create)
                 return 0;
             }
             sessionCount++;
-            if ((wp->session = websAllocSession(wp, id, ME_GOAHEAD_LIMIT_SESSION_LIFE)) == 0) {
+            /*
+                SECURITY: Always mint a fresh, server-generated session id when creating a session.
+                The client-supplied cookie value is honored above only when it matches a live
+                server-issued session (the hashLookup hit). Never adopt an unknown client value as a
+                new session id: that enables session fixation, where an id planted in the victim's
+                browser before login survives into the authenticated session. Passing NULL makes
+                websAllocSession() generate a new random id via makeSessionID(); this also rotates the
+                id on login, since websCreateSession() destroys the old session and re-enters here.
+             */
+            if ((wp->session = websAllocSession(wp, NULL, ME_GOAHEAD_LIMIT_SESSION_LIFE)) == 0) {
                 wfree(id);
                 return 0;
             }
@@ -7743,6 +7954,12 @@ WebsSession *websGetSession(Webs *wp, int create)
         }
         wfree(id);
     }
+    /*
+        SECURITY Acceptable: lifespan is an inactivity (sliding) timeout, not an absolute lifetime, so each
+        access intentionally refreshes the expiry. Expired sessions are reaped by pruneSessions() on its
+        interval; the bounded window is only reachable by presenting the random session id (the owner, or a
+        cookie thief who already has access), so refreshing here grants no additional capability.
+     */
     if (wp->session) {
         wp->session->expires = time(0) + wp->session->lifespan;
     }
@@ -7964,14 +8181,17 @@ PUBLIC void websError(Webs *wp, int code, cchar *fmt, ...)
             trace(2, "%s", msg);
             wfree(msg);
         }
-        buf = sfmt("\
+        buf =
+            sfmt(
+                "\
 <html>\r\n\
     <head><title>Document Error: %s</title></head>\r\n\
     <body>\r\n\
         <h2>Access Error: %s</h2>\r\n\
     </body>\r\n\
-</html>\r\n", websErrorMsg(
-                       code), websErrorMsg(code));
+</html>\r\n",
+                websErrorMsg(
+                    code), websErrorMsg(code));
     } else {
         buf = 0;
     }
@@ -10482,7 +10702,12 @@ static bool jstHandler(Webs *wp)
             }
             if (*nextp) {
                 result = NULL;
-
+                /*
+                    SECURITY Acceptable: executing embedded <% %> JavaScript from .jst templates is the
+                    purpose of the JST engine. Templates are trusted operator-supplied content served from
+                    the document root; there is no default remote write primitive (routes enforce methods and
+                    PUT/DELETE are not enabled by default), and filesystem integrity is out of scope.
+                 */
                 if (jsEval(jid, nextp, &result) == 0) {
                     /*
                          On an error, discard all output accumulated so far and store the error in the result buffer.
@@ -10645,9 +10870,6 @@ static char *skipWhite(char *s)
 #include    "goahead.h"
 
 #if ME_COM_MBEDTLS
-/*
-   Indent to bypass MakeMe dependencies
- */
     #include "mbedtls/mbedtls_config.h"
     #include "mbedtls/ssl.h"
     #include "mbedtls/ssl_cache.h"
@@ -10794,7 +11016,7 @@ PUBLIC int sslOpen()
     /*
         Configure larger DH parameters
      */
-    if ((rc = mbedtls_ssl_conf_dh_param_bin(conf, dhm_p, sizeof(dhm_g), dhm_g, sizeof(dhm_g))) < 0) {
+    if ((rc = mbedtls_ssl_conf_dh_param_bin(conf, dhm_p, sizeof(dhm_p), dhm_g, sizeof(dhm_g))) < 0) {
         merror(rc, "Cannot set DH params");
         return -1;
     }
@@ -11337,9 +11559,6 @@ void mbedDummy()
     #define ME_GOAHEAD_SSL_RENEGOTIATE 1
 #endif
 
-/*
-   Indent includes to bypass MakeMe dependencies
- */
  #include    <openssl/ssl.h>
  #include    <openssl/evp.h>
  #include    <openssl/rand.h>
@@ -11353,14 +11572,14 @@ void mbedDummy()
 
     Rationale:
  * TLSv1.3 ciphers are preferred and listed first.
- * TLSv1 and v2 ciphers are legacy and only for backward compatibility with legacy systems.
- * For TLSv2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
+ * TLSv1.2 and earlier ciphers are legacy and only for backward compatibility with legacy systems.
+ * For TLSv1.2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
       devices support AESNI instructions and thus benefit from fast and constant time AES.
- * For TLSv2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
+ * For TLSv1.2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
       on ECDSA certificates are permitted because very few CAs sign with ECDSA at the moment.
- * For TLSv2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
+ * For TLSv1.2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
       elliptic curve key exchanges.
- * For TLSv2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
+ * For TLSv1.2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
  * Recommended RSA and DH parameter size: 2048 bits.
  */
 #define OPENSSL_TLSV3_DEFAULT_CIPHERS "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
@@ -11610,10 +11829,10 @@ PUBLIC int sslOpen()
             return -1;
         }
         /*
-            Define the list of CA certificates to send to the client before they send 
+            Define the list of CA certificates to send to the client before they send
             their client certificate for validation
          */
-         SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
+        SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
     } else {
         if (!SSL_CTX_set_default_verify_paths(sslctx)) {
             error("Unable to read cert verification locations");
@@ -11628,6 +11847,11 @@ PUBLIC int sslOpen()
             sslClose();
             return -1;
         }
+        /*
+            Enable CRL checking on the leaf certificate. Without this flag OpenSSL loads the CRL but
+            never consults it, silently accepting revoked client certificates.
+         */
+        X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK);
     }
 
     /*
@@ -11901,7 +12125,7 @@ PUBLIC void sslFree(Webs *wp)
 
 
 /*
-    Return the number of bytes read. Return -1 on errors and EOF. Distinguish EOF via mprIsSocketEof.
+    Return the number of bytes read. Return -1 on errors and EOF. Distinguish EOF via socketEof().
     If non-blocking, may return zero if no data or still handshaking.
  */
 PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
@@ -12142,6 +12366,13 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
         trace(4, "OpenSSL: Peer: %s", peer);
         return 0;
     }
+    /*
+        SECURITY Acceptable: issuer-trust enforcement is gated by ME_GOAHEAD_SSL_VERIFY_ISSUER. When it is
+        disabled (the default), self-signed / unknown-issuer client certs are intentionally accepted so an
+        operator can run mTLS against an unmanaged client CA; set ME_GOAHEAD_SSL_VERIFY_ISSUER=1 to reject
+        them. Forged-signature and all other genuine verification failures still fail closed (default: ok=0).
+        mTLS itself is inactive unless ME_GOAHEAD_SSL_VERIFY_PEER is enabled.
+     */
     switch (error) {
     case X509_V_OK:
         break;
@@ -12685,10 +12916,12 @@ WebsRomIndex websRomIndex[] = {
     This module implements the loading of a route configuration file
     and the routing of requests.
 
-    The route configuration is loaded form a text file that uses the schema (see route.txt)
-        uri: type: uri: method: ability [ability...]: redirect
-        user: name: password: role [role...]
-        role: name: ability [ability...]
+    The route configuration is loaded from a text file of space-separated key=value directives
+    (see route.txt). The supported directives are:
+        route uri=URI [protocol=PROTO] [methods=METHOD,...] [handler=NAME] [extensions=EXT,...]
+              [abilities=ABILITY,...] [redirect=STATUS@URI] [dir=DIR] [auth=TYPE]
+        user name=NAME password=PASSWORD roles=ROLE,...
+        role name=NAME abilities=ABILITY,...
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -14441,7 +14674,7 @@ WebsLogHandler logSetHandler(WebsLogHandler handler)
 PUBLIC int logOpen(void)
 {
     if (!logPath) {
-        /* This definition comes from main.me goahead.logfile */
+        /* Default from the ME_GOAHEAD_LOGFILE define in goahead.h */
         logSetPath(ME_GOAHEAD_LOGFILE);
     }
     if (smatch(logPath, "stdout")) {
@@ -15659,6 +15892,14 @@ uint hextoi(cchar *hexstring)
         } else {
             break;
         }
+        if (v > (UINT_MAX - c) / 16) {
+            /*
+                Saturate on overflow so an over-large hex string can never wrap to a small value
+                (or to zero). A wrapped chunk-size of 0 would otherwise be mistaken for the
+                terminating chunk and enable request smuggling (CWE-190 feeding CWE-444).
+             */
+            return UINT_MAX;
+        }
         v = (v * 0x10) + c;
     }
     return v;
@@ -16103,12 +16344,12 @@ PUBLIC int fmtAlloc(char **sp, int n, cchar *format, ...)
 
 /************************************ Locals **********************************/
 
-PUBLIC WebsSocket **socketList;             /* List of open sockets */
-PUBLIC int        socketMax;                /* Maximum size of socket */
-PUBLIC Socket     socketHighestFd = (Socket) -1; /* Highest socket fd opened */
-PUBLIC int        socketOpenCount = 0;      /* Number of task using sockets */
+PUBLIC WebsSocket **socketList;                   /* List of open sockets */
+PUBLIC int        socketMax;                      /* Maximum size of socket */
+PUBLIC Socket     socketHighestFd = (Socket) -1;  /* Highest socket fd opened */
+PUBLIC int        socketOpenCount = 0;            /* Number of task using sockets */
 
-static int hasIPv6;                         /* System supports IPv6 */
+static int hasIPv6;                               /* System supports IPv6 */
 
 /***************************** Forward Declarations ***************************/
 

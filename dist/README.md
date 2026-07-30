@@ -15,7 +15,7 @@ If you are creating a new device or planning your upgrade path for the future, w
 
 The European Union has introduced the Cyber Resilience Act (CRA), a regulation aimed at enhancing cybersecurity for IoT products. This legislation mandates that manufacturers ensure their products are secure throughout their entire lifecycle, from design to decommissioning. This requires that software updates are provided for the lifetime of the device.
 
-To meet this need, GoAhead now includes the [Embedthis Updater](src/updater/) library and command line utility that can be used to automatically download and apply software updates to all your GoAhead-enabled devices. The [EmbedThis Builder](https://www.embedthis.com/builder/) can be used to publish, distribute, manage and track software updates for your GoAhead devices.
+To meet this need, the standalone [Embedthis Updater](https://github.com/embedthis/updater) library and command line utility can be used to automatically download and apply software updates to all your GoAhead-enabled devices. The [EmbedThis Builder](https://www.embedthis.com/builder/) can be used to publish, distribute, manage and track software updates for your GoAhead devices.
 
 ## Licensing
 
@@ -69,7 +69,7 @@ To build with Visual Studio, you will need to install the [vcpkg](https://vcpkg.
 
 Then open the Visual Studio solution file at:
 
-    projects/goahead-windows-default.sln
+    projects/vs2022/goahead.sln
 
 Then select Build -> Solution.
 
@@ -91,7 +91,7 @@ You may need to install the Windows Power Shell if not already installed on your
 
 Open the solution file:
 
-    projects/goahead-macosx-default.sln
+    projects/xcode/goahead.xcworkspace
 
 Choose Product -> Scheme -> Edit Scheme, and select "Build" on the left of the dialog. Click the "+" symbol at the bottom in the center and then select all targets to be built. Before leaving this dialog, set the debugger options by selecting "Run/Debug" on the left hand side. Under "Info" set the Executable to be "goahead", set the launch arguments to be "-v" and set the working directory to be an absolute path to the "./test" directory in the goahead source. The click "Close" to save.
 
@@ -103,15 +103,8 @@ Click Project -> Run to run.
 
     make run
 
-## To install
-
-If you have built from source using Make, you can install the software using:
-
-    sudo make install
-
-## To uninstall
-
-    sudo make uninstall
+The build products are left under `build/bin`. GoAhead does not install itself into the system;
+embed the library and copy the binaries into your product image as required.
 
 ## Testing
 
@@ -120,15 +113,23 @@ The test suite is located in the `test/` directory and uses the [TestMe](https:/
 The test suite requires the following prerequisites:
 
 - **Bun**: v1.2.23 or later
-- **TestMe**: Test runner (installed globally)
+- **TestMe**: Test runner, provided by the `@embedthis/testme` package
+- **Ejscript**: HTTP client library used by the tests, provided by the `@embedthis/ejscript` package
 
 Install Bun by following the instructions at: 
 
     https://bun.com/docs/installation
 
-Install TestMe globally with:
+Then install the test dependencies from the top level of the source tree:
 
-    bun install -g --trust @embedthis/testme
+    npm install
+
+This installs [TestMe](https://www.npmjs.com/package/@embedthis/testme) and
+[Ejscript](https://www.npmjs.com/package/@embedthis/ejscript). The TestMe post-install script builds
+the `tm` command into `~/.bun/bin`, so ensure that directory is on your PATH.
+
+If you prefer Bun, use `bun install --trust` instead. The `--trust` option is required so that Bun
+runs the TestMe post-install script.
 
 Run the tests with:
 
@@ -141,10 +142,6 @@ or manually via the `tm` command.
 To run a specific test or group of tests, use the `tm` command with the test name.
 
     tm basic/
-
-## AI Documentation
-
-Machine-readable documentation for LLMs is available in `AI/designs/` and `CLAUDE.md`.
 
 ## Resources
 ---
