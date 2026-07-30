@@ -3307,7 +3307,16 @@ WebsSession *websGetSession(Webs *wp, int create)
                 return 0;
             }
             sessionCount++;
-            if ((wp->session = websAllocSession(wp, id, ME_GOAHEAD_LIMIT_SESSION_LIFE)) == 0) {
+            /*
+                SECURITY: Always mint a fresh, server-generated session id when creating a session.
+                The client-supplied cookie value is honored above only when it matches a live
+                server-issued session (the hashLookup hit). Never adopt an unknown client value as a
+                new session id: that enables session fixation, where an id planted in the victim's
+                browser before login survives into the authenticated session. Passing NULL makes
+                websAllocSession() generate a new random id via makeSessionID(); this also rotates the
+                id on login, since websCreateSession() destroys the old session and re-enters here.
+             */
+            if ((wp->session = websAllocSession(wp, NULL, ME_GOAHEAD_LIMIT_SESSION_LIFE)) == 0) {
                 wfree(id);
                 return 0;
             }
