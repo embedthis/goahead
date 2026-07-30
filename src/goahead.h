@@ -960,7 +960,6 @@ typedef struct WebsAlloc {
 #define WEBS_DEFAULT_MEM    (1024 * 1024)      /**< Default memory allocation */
 #define WEBS_MAX_CLASS      13                 /**< Maximum class number + 1 */
 #define WEBS_SHIFT          4                  /**< Convert size to class */
-#define WEBS_ROUND          ((1 << (B_SHIFT)) - 1)
 #define WEBS_MALLOCED       0x80000000         /* Block was malloced */
 #define WEBS_FILL_CHAR      (0x77)             /* Fill byte for buffers */
 #define WEBS_FILL_WORD      (0x77777777)       /* Fill word for buffers */

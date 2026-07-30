@@ -176,12 +176,6 @@ MAIN(goahead, int argc, char **argv, char **envp)
     } else {
         endpoints = sclone(ME_GOAHEAD_LISTEN);
         for (endpoint = stok(endpoints, ", \t", &tok); endpoint; endpoint = stok(NULL, ", \t,", &tok)) {
-            if (getenv("TRAVIS")) {
-                if (strstr(endpoint, "::1") != 0) {
-                    /* Travis CI does not support IPv6 */
-                    continue;
-                }
-            }
             if (websListen(endpoint) < 0) {
                 return -1;
             }
