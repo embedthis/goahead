@@ -29,7 +29,7 @@ See [LICENSE.md](LICENSE.md) and https://www.embedthis.com/goahead/licensing.htm
 
 You can build GoAhead with make, Visual Studio or Xcode.
 
-The IDE projects and Makefiles will build with SSL using the [MbedTLS](https://github.com/ARMmbed/mbedtls) TLS stack. To build with CGI, OpenSSL or other modules, read the [projects/README.md](projects/README.md) for details.
+The IDE projects and Makefiles will build with SSL using the [MbedTLS](https://github.com/ARMmbed/mbedtls) TLS stack. 
 
 ## To Build with Make
 

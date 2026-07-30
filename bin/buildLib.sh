@@ -127,11 +127,6 @@ fi
 #   test/ - only files tracked in git (excludes runtime artifacts,
 #   local config, untracked logs, etc.).
 #
-#   test/sec/ is deliberately excluded: it is an internal security self-test
-#   harness whose fixtures include unpublished security material and pre-fix
-#   vulnerable code, and which depends on a private internal build component, so
-#   it is not applicable to a public recipient.
-#
 mkdir -p "$STAGE/test"
 (cd "$TOP" && git ls-files -z test/ ':(exclude)test/sec/**' | tar --null -T - -cf -) | (cd "$STAGE" && tar xf -)
 

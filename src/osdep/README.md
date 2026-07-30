@@ -101,7 +101,7 @@ open doc/api/osdep.html
 
 ## Project Documentation
 
-Design, architecture and reference documentation is in [`doc/`](doc/). Start at [`doc/MAP.md`](doc/MAP.md).
+Design, architecture and reference documentation is in the [osdep repository](https://github.com/embedthis/osdep/tree/master/doc) under `doc/`. Start at [MAP.md](https://github.com/embedthis/osdep/blob/master/doc/MAP.md).
 
 ## Licensing
 

@@ -112,7 +112,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
 /*
     Windows CGI launch helpers. All three are platform-independent C string logic
     (no Windows types or APIs) so the production Windows path and the macOS unit
-    tests share a single implementation. See doc/features/cgi-windows-arg-injection/.
+    tests share a single implementation.
  */
 
 PUBLIC bool isCgiExeOnWindows(cchar *cgiPath)
@@ -292,7 +292,7 @@ PUBLIC bool cgiHandler(Webs *wp)
             for cmd.exe parsing - which is not mechanically possible in the general
             case (notably %VAR% expansion). The gate is a true suffix match, not a
             substring match, so paths like 'payload.exe.bat' cannot smuggle a .bat
-            past it. See doc/features/cgi-windows-arg-injection/.
+            past it.
          */
         if (!isCgiExeOnWindows(cgiPath))
 #else

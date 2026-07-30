@@ -2,7 +2,6 @@
     quotewin.tst.c - Unit tests for the Windows CGI argv-quoting helpers.
 
     Phase 1 of the cgi-windows-arg-injection fix (GOAHEAD-SA-2026-0007).
-    See doc/features/cgi-windows-arg-injection/.
 
     Exercises the three platform-independent static helpers added to src/cgi.c:
       - isCgiExeOnWindows()  - extension-gate predicate (true iff cgiPath ends ".exe")
@@ -463,7 +462,6 @@ static void suiteE_nullHardening(void)
 int main(int argc, char **argv)
 {
     tinfo("quotewin: Phase 1 unit tests for the Windows CGI quoting helpers\n");
-    tinfo("(See doc/features/cgi-windows-arg-injection/)\n");
 
     suiteA_byteExact();
     suiteB_roundtrip();
