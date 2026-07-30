@@ -327,6 +327,11 @@ PUBLIC int sslOpen()
             sslClose();
             return -1;
         }
+        /*
+            Enable CRL checking on the leaf certificate. Without this flag OpenSSL loads the CRL but
+            never consults it, silently accepting revoked client certificates.
+         */
+        X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK);
     }
 
     /*
