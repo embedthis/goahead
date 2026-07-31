@@ -2177,7 +2177,8 @@ typedef struct Webs {
     int flags;                          /**< Current flags -- see above */
     int code;                           /**< Response status code */
     int routeCount;                     /**< Route count limiter */
-    ssize rxLen;                        /**< Rx content length */
+    ssize rxLen;                        /**< Rx body length. -1 until known: set from Content-Length, or from the
+                                             decoded total once a chunked body completes */
     ssize rxRemaining;                  /**< Remaining content to read from client */
     ssize rxBytes;                      /**< Cumulative decoded request body bytes received (chunked framing) */
     ssize txRemaining;                  /**< Remaining content to write */

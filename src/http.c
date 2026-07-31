@@ -1438,6 +1438,12 @@ static bool filterChunkData(Webs *wp)
                 wfreeset(wp->query);
                 wp->query = sclone(bufStart(&wp->input));
 #endif
+                /*
+                    The decoded body is complete, so publish the authoritative total. Chunked framing has no
+                    Content-Length header, so rxLen would otherwise keep its -1 placeholder and be published to
+                    the CGI gateway as CONTENT_LENGTH=-1 after the body had already been written to its stdin.
+                 */
+                wp->rxLen = wp->rxBytes;
                 wp->eof = 1;
                 return 1;
             }
@@ -1541,7 +1547,12 @@ PUBLIC void websSetEnv(Webs *wp)
     assert(websValid(wp));
 
     websSetVar(wp, "AUTH_TYPE", wp->authType);
-    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", (int) wp->rxLen);
+    /*
+        Never publish the -1 placeholder. A request with no body carries no Content-Length, and the canonical
+        CGI idioms malloc(atoi(CONTENT_LENGTH) + 1) and read(0, buf, len) turn a negative length into a zero
+        sized allocation and a read of SIZE_MAX bytes. Zero is the correct CGI/1.1 value for an absent body.
+     */
+    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", (int) (wp->rxLen > 0 ? wp->rxLen : 0));
     websSetVar(wp, "CONTENT_TYPE", wp->contentType);
     if (wp->route && wp->route->dir) {
         websSetVar(wp, "DOCUMENT_ROOT", wp->route->dir);
@@ -1570,7 +1581,11 @@ PUBLIC void websSetFormVars(Webs *wp)
 {
     char *data;
 
-    if (wp->rxLen > 0 && bufLen(&wp->input) > 0) {
+    /*
+        Test the decoded buffer rather than the declared length. A chunked form post has no Content-Length,
+        so gating on rxLen silently skipped form variable parsing for the whole request.
+     */
+    if (bufLen(&wp->input) > 0) {
         if (wp->flags & WEBS_FORM) {
             data = sclone(wp->input.servp);
             addFormVars(wp, data);
