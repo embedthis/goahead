@@ -18,6 +18,8 @@
             -p                  Ouput the post data
             -q                  Ouput the query data
             -s status           Output "status" header
+            -t timeout          Sleep "timeout" seconds before writing anything. Used to hold a
+                                request open past the server's request timeout
             default             Output args, env and query
 
         Alternatively, pass the arguments as an environment variable HTTP_SWITCHES="-a -e -q"
@@ -89,6 +91,12 @@ typedef int ssize_t;
     #else
         #define PRINTF_FORMAT
     #endif
+#endif
+
+#if _WIN32 || WINCE
+    #define sleepSeconds(secs) Sleep((secs) * 1000)
+#else
+    #define sleepSeconds(secs) sleep(secs)
 #endif
 
 /*********************************** Locals ***********************************/
@@ -305,6 +313,13 @@ int main(int argc, char **argv, char **envp)
                 "\tor set the HTTP_SWITCHES environment variable\n");
         fprintf(stderr, "Error at cgitest:%d\n", __LINE__);
         exit(255);
+    }
+    /*
+        Stay silent for the requested period before emitting anything. This models a wedged CGI and
+        lets a test outlive the server's request timeout while its child is still registered.
+     */
+    if (timeout > 0) {
+        sleepSeconds(timeout);
     }
     if (outputRaw) {
         fputs(outputRaw, stdout);

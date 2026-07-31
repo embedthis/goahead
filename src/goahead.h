@@ -2373,6 +2373,18 @@ PUBLIC int websCgiHandler(Webs *wp);
  */
 PUBLIC int websCgiPoll(void);
 
+/**
+    Detach a request from the CGI registry
+    @description Called from the Webs teardown before the object is released. The CGI registry holds
+        a borrowed Webs pointer and borrowed temp file names for the life of the child process. A
+        request may die by timeout, client close or error while its child is still running, so the
+        owner must unregister here or websCgiPoll will use the freed object. Any orphaned child is
+        killed and reaped and its temp files removed.
+    @param wp Webs object
+        @stability Evolving
+ */
+PUBLIC void websCgiDetach(Webs *wp);
+
 /* Internal */
 PUBLIC bool cgiHandler(Webs *wp);
 

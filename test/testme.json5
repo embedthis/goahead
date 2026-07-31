@@ -7,6 +7,14 @@
      */
     execution: {
         parallel: false,
+        /*
+            regress/cgi-timeout-detach.tst holds a CGI silent past the server's 60 second request
+            timeout, so it cannot finish inside the 30 second default. A nested testme.json5 is not
+            an option: the nearest config wins outright rather than merging, so a per-directory file
+            would drop the environment block below. Every other test is fast, and this is a ceiling
+            rather than a wait, so a hung test still fails -- just later.
+         */
+        timeout: 240,
     },
     compiler: {
         c: {

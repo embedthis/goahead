@@ -105,7 +105,9 @@ static bool inBlackList(cchar *name)
 
 /************************************ Forwards ********************************/
 
+static void cgiCleanup(Cgi *cgip, int cid);
 static int checkCgi(CgiPid handle);
+static void killCgi(CgiPid handle);
 static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, char *stdOut);
 
 /************************************* Code ***********************************/
@@ -477,6 +479,57 @@ PUBLIC int websCgiOpen(void)
 }
 
 
+/*
+    Release a CGI registry slot and everything it owns. The child must already have been reaped.
+    cgip->stdIn is borrowed from wp->cgiStdin and is freed by the Webs teardown, so unlink it here
+    but do not free it.
+ */
+static void cgiCleanup(Cgi *cgip, int cid)
+{
+    char **ep;
+
+    if (cgip->stdIn) {
+        unlink(cgip->stdIn);
+    }
+    if (cgip->stdOut) {
+        unlink(cgip->stdOut);
+    }
+    cgiMax = wfreeHandle(&cgiList, cid);
+    for (ep = cgip->envp; ep != NULL && *ep != NULL; ep++) {
+        wfree(*ep);
+    }
+    wfreeset(cgip->cgiPath);
+    wfreeset(cgip->stdOut);
+    wfreeset(cgip->argp);
+    wfreeset(cgip->envp);
+    wfree(cgip);
+}
+
+
+/*
+    Detach a request from the CGI registry. cgiList publishes a Webs pointer and the request's temp
+    file names, but the registry does not own them. The request can die by timeout, client close or
+    error while its child is still running, so the owner must unregister before it releases itself,
+    otherwise websCgiPoll reads and writes through freed memory on its next pass. There is nobody
+    left to deliver output to, so kill and reap the orphaned child rather than leaking it.
+ */
+PUBLIC void websCgiDetach(Webs *wp)
+{
+    Cgi *cgip;
+    int cid;
+
+    for (cid = 0; cid < cgiMax; cid++) {
+        if ((cgip = cgiList[cid]) != NULL && cgip->wp == wp) {
+            killCgi(cgip->handle);
+            cgip->handle = 0;
+            cgip->wp = 0;
+            cgiCleanup(cgip, cid);
+            break;
+        }
+    }
+}
+
+
 PUBLIC bool websProcessCgiData(Webs *wp)
 {
     ssize nbytes;
@@ -715,7 +768,6 @@ int websCgiPoll(void)
 {
     Webs *wp;
     Cgi  *cgip;
-    char **ep;
     int  cid;
 
     for (cid = 0; cid < cgiMax; cid++) {
@@ -750,23 +802,10 @@ int websCgiPoll(void)
                     websDone(wp);
                 }
                 /*
-                    Remove the temporary re-direction files
+                    Remove the temporary re-direction files and free the registry slot. This must
+                    happen before the Webs object is released below, as the slot borrows wp->cgiStdin.
                  */
-                unlink(cgip->stdIn);
-                unlink(cgip->stdOut);
-                /*
-                    Free all the memory buffers pointed to by cgip. The stdin file name (wp->cgiStdin) gets freed as
-                    part of websFree().
-                 */
-                cgiMax = wfreeHandle(&cgiList, cid);
-                for (ep = cgip->envp; ep != NULL && *ep != NULL; ep++) {
-                    wfree(*ep);
-                }
-                wfree(cgip->cgiPath);
-                wfree(cgip->stdOut);
-                wfree(cgip->argp);
-                wfree(cgip->envp);
-                wfree(cgip);
+                cgiCleanup(cgip, cid);
                 websPump(wp);
                 if ((wp->flags & WEBS_KEEP_ALIVE) == 0) {
                     websFree(wp);
@@ -858,6 +897,18 @@ static int checkCgi(CgiPid handle)
     }
     return 1;
 }
+
+
+/*
+    Terminate an orphaned CGI process and release its handle.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle) {
+        TerminateProcess((HANDLE) handle, 0);
+        CloseHandle((HANDLE) handle);
+    }
+}
 #endif /* WINCE */
 
 
@@ -926,6 +977,21 @@ static int checkCgi(CgiPid handle)
         return 0;
     } else {
         return 1;
+    }
+}
+
+
+/*
+    Terminate an orphaned CGI process. SIGKILL rather than SIGTERM because the blocking waitpid
+    below must not stall the single-threaded event loop on a child that ignores or blocks the
+    signal. The wait is required so the child does not linger as a zombie.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle > 0) {
+        trace(5, "cgi: kill orphaned pid %d", (int) handle);
+        kill(handle, SIGKILL);
+        waitpid(handle, NULL, 0);
     }
 }
 #endif /* LINUX || LYNX || MACOSX || QNX4 */
@@ -1133,6 +1199,17 @@ static int checkCgi(CgiPid handle)
         return 0;
     }
 }
+
+
+/*
+    Terminate an orphaned CGI task.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle && taskIdVerify(handle) == OK) {
+        taskDelete(handle);
+    }
+}
 #endif /* VXWORKS */
 
 #if WINDOWS
@@ -1337,6 +1414,18 @@ static int checkCgi(CgiPid handle)
         return 0;
     }
     return 1;
+}
+
+
+/*
+    Terminate an orphaned CGI process and release its handle.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
+        TerminateProcess((HANDLE) handle, 0);
+        closeWinHandle((HANDLE) handle);
+    }
 }
 #endif /* WIN */
 #endif /* ME_GOAHEAD_CGI */

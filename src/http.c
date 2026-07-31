@@ -474,6 +474,11 @@ static void termWebs(Webs *wp, int reuse)
     }
 #endif
 #if ME_GOAHEAD_CGI
+    /*
+        Unregister before releasing anything the CGI registry borrows from this request. This covers
+        reuse too: a keep-alive reuse frees wp->cgiStdin, which the registry slot points at.
+     */
+    websCgiDetach(wp);
     if (wp->cgifd >= 0) {
         close(wp->cgifd);
         wp->cgifd = -1;
