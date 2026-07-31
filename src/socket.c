@@ -953,7 +953,7 @@ PUBLIC void socketFree(int sid)
         }
         closesocket(sp->sock);
     }
-    wfree(sp->ip);
+    wfreeset(sp->ip);
     wfree(sp);
     socketMax = wfreeHandle(&socketList, sid);
     /*

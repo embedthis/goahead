@@ -104,11 +104,9 @@ PUBLIC void jsCloseEngine(int jid)
         return;
     }
 
-    wfree(ep->error);
-    ep->error = NULL;
+    wfreeset(ep->error);
 
-    wfree(ep->result);
-    ep->result = NULL;
+    wfreeset(ep->result);
 
     jsLexClose(ep);
 
@@ -121,8 +119,7 @@ PUBLIC void jsCloseEngine(int jid)
             hashFree(ep->variables[i] - JS_OFFSET);
         }
     }
-    wfree(ep->variables);
-    ep->variables = NULL;
+    wfreeset(ep->variables);
     ep->variableMax = 0;
     if (ep->flags & FLAGS_FUNCTIONS) {
         hashFree(ep->functions);
@@ -1279,7 +1276,7 @@ PUBLIC void jsError(Js *ep, cchar *fmt, ...)
 
     if (ep && ip) {
         errbuf = sfmt("%s\n At line %d, line => \n\n%s\n", msgbuf, ip->lineNumber, ip->line);
-        wfree(ep->error);
+        wfreeset(ep->error);
         ep->error = errbuf;
     }
     wfree(msgbuf);
@@ -1619,12 +1616,11 @@ static void freeFunc(JsFun *func)
     int i;
 
     for (i = func->nArgs - 1; i >= 0; i--) {
-        wfree(func->args[i]);
+        wfreeset(func->args[i]);
         func->nArgs = wfreeHandle(&func->args, i);
     }
     if (func->fname) {
-        wfree(func->fname);
-        func->fname = NULL;
+        wfreeset(func->fname);
     }
 }
 
@@ -1721,14 +1717,12 @@ PUBLIC void jsLexCloseScript(Js *ep)
     assert(ip);
 
     if (ip->putBackToken) {
-        wfree(ip->putBackToken);
-        ip->putBackToken = NULL;
+        wfreeset(ip->putBackToken);
     }
     ip->putBackTokenId = 0;
 
     if (ip->line) {
-        wfree(ip->line);
-        ip->line = NULL;
+        wfreeset(ip->line);
     }
     bufFree(&ip->tokbuf);
     bufFree(&ip->script);
@@ -1764,8 +1758,7 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
     ip->script = state->script;
     ip->putBackTokenId = state->putBackTokenId;
     if (ip->putBackToken) {
-        wfree(ip->putBackToken);
-        ip->putBackToken = NULL;
+        wfreeset(ip->putBackToken);
     }
     if (state->putBackToken) {
         ip->putBackToken = sclone(state->putBackToken);
@@ -1776,8 +1769,7 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
 PUBLIC void jsLexFreeInputState(Js *ep, JsInput *state)
 {
     if (state->putBackToken) {
-        wfree(state->putBackToken);
-        state->putBackToken = NULL;
+        wfreeset(state->putBackToken);
     }
 }
 
@@ -2164,8 +2156,7 @@ PUBLIC void jsLexPutbackToken(Js *ep, int tid, cchar *string)
     assert(ip);
 
     if (ip->putBackToken) {
-        wfree(ip->putBackToken);
-        ip->putBackToken = NULL;
+        wfreeset(ip->putBackToken);
     }
     ip->putBackTokenId = tid;
     ip->putBackToken = sclone(string);

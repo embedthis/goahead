@@ -180,7 +180,7 @@ PUBLIC bool websRunRequest(Webs *wp)
         return 1;
     }
     if (!wp->filename || route->dir) {
-        wfree(wp->filename);
+        wfreeset(wp->filename);
         wp->filename = sfmt("%s%s", route->dir ? route->dir : websGetDocuments(), wp->path);
     }
     if (!(wp->flags & WEBS_VARS_ADDED)) {
@@ -326,7 +326,7 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
     }
     if ((key = hashLookup(handlers, handler)) == 0) {
         error("Cannot find route handler %s", handler);
-        wfree(route->prefix);
+        wfreeset(route->prefix);
         wfree(route);
         return 0;
     }
@@ -409,10 +409,10 @@ static void freeRoute(WebsRoute *route)
     if (route->redirects >= 0) {
         hashFree(route->redirects);
     }
-    wfree(route->prefix);
-    wfree(route->dir);
-    wfree(route->protocol);
-    wfree(route->authType);
+    wfreeset(route->prefix);
+    wfreeset(route->dir);
+    wfreeset(route->protocol);
+    wfreeset(route->authType);
     wfree(route);
 }
 
@@ -603,7 +603,7 @@ PUBLIC void websCloseRoute(void)
             if (handler->close) {
                 (*handler->close)();
             }
-            wfree(handler->name);
+            wfreeset(handler->name);
             wfree(handler);
         }
         hashFree(handlers);

@@ -473,49 +473,49 @@ static void termWebs(Webs *wp, int reuse)
     }
     if (wp->cgiStdin) {
         unlink(wp->cgiStdin);
-        wfree(wp->cgiStdin);
+        wfreeset(wp->cgiStdin);
     }
 #endif
 #if ME_GOAHEAD_UPLOAD
-    wfree(wp->clientFilename);
+    wfreeset(wp->clientFilename);
 #endif
     websPageClose(wp);
     if (wp->timeout >= 0 && !reuse) {
         websCancelTimeout(wp);
     }
-    wfree(wp->authDetails);
-    wfree(wp->authResponse);
-    wfree(wp->authType);
-    wfree(wp->contentType);
-    wfree(wp->cookie);
-    wfree(wp->decodedQuery);
-    wfree(wp->digest);
-    wfree(wp->ext);
-    wfree(wp->filename);
-    wfree(wp->host);
-    wfree(wp->method);
-    wfree(wp->password);
-    wfree(wp->path);
-    wfree(wp->protoVersion);
-    wfree(wp->putname);
-    wfree(wp->query);
-    wfree(wp->realm);
-    wfree(wp->referrer);
-    wfree(wp->url);
-    wfree(wp->userAgent);
-    wfree(wp->username);
+    wfreeset(wp->authDetails);
+    wfreeset(wp->authResponse);
+    wfreeset(wp->authType);
+    wfreeset(wp->contentType);
+    wfreeset(wp->cookie);
+    wfreeset(wp->decodedQuery);
+    wfreeset(wp->digest);
+    wfreeset(wp->ext);
+    wfreeset(wp->filename);
+    wfreeset(wp->host);
+    wfreeset(wp->method);
+    wfreeset(wp->password);
+    wfreeset(wp->path);
+    wfreeset(wp->protoVersion);
+    wfreeset(wp->putname);
+    wfreeset(wp->query);
+    wfreeset(wp->realm);
+    wfreeset(wp->referrer);
+    wfreeset(wp->url);
+    wfreeset(wp->userAgent);
+    wfreeset(wp->username);
 #if ME_GOAHEAD_UPLOAD
-    wfree(wp->boundary);
-    wfree(wp->uploadTmp);
-    wfree(wp->uploadVar);
+    wfreeset(wp->boundary);
+    wfreeset(wp->uploadTmp);
+    wfreeset(wp->uploadVar);
 #endif
 #if ME_GOAHEAD_DIGEST
-    wfree(wp->cnonce);
-    wfree(wp->digestUri);
-    wfree(wp->opaque);
-    wfree(wp->nc);
-    wfree(wp->nonce);
-    wfree(wp->qop);
+    wfreeset(wp->cnonce);
+    wfreeset(wp->digestUri);
+    wfreeset(wp->opaque);
+    wfreeset(wp->nc);
+    wfreeset(wp->nonce);
+    wfreeset(wp->qop);
 #endif
     hashFree(wp->vars);
     hashFree(wp->responseCookies);
@@ -942,13 +942,13 @@ static bool parseIncoming(Webs *wp)
     if (smatch(wp->method, "PUT")) {
         WebsStat sbuf;
         wp->code =
-            (stat(wp->filename, &sbuf) == 0 && sbuf.st_mode & S_IFDIR) ? HTTP_CODE_NO_CONTENT : HTTP_CODE_CREATED;
-        wfree(wp->putname);
+            (stat(wp->filename, &sbuf) == 0 && S_ISDIR(sbuf.st_mode)) ? HTTP_CODE_NO_CONTENT : HTTP_CODE_CREATED;
+        wfreeset(wp->putname);
         wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put");
         if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_CREAT | O_BINARY, 0644)) < 0) {
             error("Cannot create PUT filename %s", wp->putname);
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
-            wfree(wp->putname);
+            wfreeset(wp->putname);
             return 1;
         }
     }
@@ -1098,14 +1098,14 @@ static void parseHeaders(Webs *wp)
             Track the requesting agent (browser) type
          */
         if (strcmp(key, "user-agent") == 0) {
-            wfree(wp->userAgent);
+            wfreeset(wp->userAgent);
             wp->userAgent = sclone(value);
 
         } else if (scaselesscmp(key, "authorization") == 0) {
-            wfree(wp->authType);
+            wfreeset(wp->authType);
             wp->authType = sclone(value);
             ssplit(wp->authType, " \t", &tok);
-            wfree(wp->authDetails);
+            wfreeset(wp->authDetails);
             wp->authDetails = sclone(tok);
             slower(wp->authType);
 
@@ -1160,7 +1160,7 @@ static void parseHeaders(Webs *wp)
             wp->rxRemaining = wp->rxLen;
 
         } else if (strcmp(key, "content-type") == 0) {
-            wfree(wp->contentType);
+            wfreeset(wp->contentType);
             wp->contentType = sclone(value);
             if (strstr(value, "application/x-www-form-urlencoded")) {
                 wp->flags |= WEBS_FORM;
@@ -1187,7 +1187,7 @@ static void parseHeaders(Webs *wp)
                 websError(wp, WEBS_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad host header");
                 return;
             }
-            wfree(wp->host);
+            wfreeset(wp->host);
             wp->host = sclone(value);
 
         } else if (strcmp(key, "if-modified-since") == 0) {
@@ -1200,7 +1200,7 @@ static void parseHeaders(Webs *wp)
                 Yes Veronica, the HTTP spec does misspell Referrer
              */
         } else if (strcmp(key, "referer") == 0) {
-            wfree(wp->referrer);
+            wfreeset(wp->referrer);
             wp->referrer = sclone(value);
 
         } else if (strcmp(key, "transfer-encoding") == 0) {
@@ -1401,7 +1401,7 @@ static bool filterChunkData(Webs *wp)
             wp->rxRemaining = chunkSize;
             if (chunkSize == 0) {
 #if ME_GOAHEAD_LEGACY
-                wfree(wp->query);
+                wfreeset(wp->query);
                 wp->query = sclone(bufStart(&wp->input));
 #endif
                 wp->eof = 1;
@@ -1553,7 +1553,7 @@ PUBLIC void websSetQueryVars(Webs *wp)
         split pairs at the '='.  Note: we rely on wp->decodedQuery preserving the decoded values in the symbol table.
      */
     if (wp->query && *wp->query) {
-        wfree(wp->decodedQuery);
+        wfreeset(wp->decodedQuery);
         wp->decodedQuery = sclone(wp->query);
         addFormVars(wp, wp->decodedQuery);
     }
@@ -2576,7 +2576,7 @@ PUBLIC void websSetRequestFilename(Webs *wp, cchar *filename)
     assert(websValid(wp));
     assert(filename && *filename);
 
-    wfree(wp->filename);
+    wfreeset(wp->filename);
     wp->filename = sclone(filename);
     websSetVar(wp, "PATH_TRANSLATED", wp->filename);
 }
@@ -2587,17 +2587,15 @@ PUBLIC int websRewriteRequest(Webs *wp, cchar *url)
 {
     char *buf, *path;
 
-    wfree(wp->url);
+    wfreeset(wp->url);
     wp->url = sclone(url);
-    wfree(wp->path);
-    wp->path = 0;
+    wfreeset(wp->path);
 
     if (websUrlParse(url, &buf, NULL, NULL, NULL, &path, NULL, NULL, NULL) < 0) {
         return -1;
     }
     wp->path = sclone(path);
-    wfree(wp->filename);
-    wp->filename = 0;
+    wfreeset(wp->filename);
     wp->flags |= WEBS_REROUTE;
     wfree(buf);
     return 0;
@@ -3416,7 +3414,7 @@ WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan)
         sp->id = sclone(id);
     }
     if ((sp->cache = hashCreate(WEBS_SESSION_HASH)) == 0) {
-        wfree(sp->id);
+        wfreeset(sp->id);
         wfree(sp);
         return 0;
     }
@@ -3437,7 +3435,7 @@ static void freeSession(WebsSession *sp)
         hashFree(sp->cache);
         sp->cache = -1;
     }
-    wfree(sp->id);
+    wfreeset(sp->id);
     wfree(sp);
 }
 
@@ -3714,7 +3712,7 @@ PUBLIC void websError(Webs *wp, int code, cchar *fmt, ...)
         wp->flags &= ~WEBS_KEEP_ALIVE;
     }
     encoded = websEscapeHtml(wp->url);
-    wfree(wp->url);
+    wfreeset(wp->url);
     wp->url = encoded;
     if (fmt) {
         if (!(code & WEBS_NOLOG)) {

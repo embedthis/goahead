@@ -1025,6 +1025,21 @@ PUBLIC void *walloc(ssize size);
 PUBLIC void wfree(void *blk);
 
 /**
+    Free an allocated block of memory and clear the pointer
+    @description Structure fields are freed unconditionally by their owning destructor, so a field freed anywhere
+        else must be cleared or the destructor will free it a second time. Use this in preference to wfree() for
+        every pointer stored in a structure. wfree() tolerates a NULL pointer, so the cleared field is safe to free
+        again. The pointer expression is evaluated twice and so must be free of side effects.
+    @param ptr Lvalue holding a reference to the memory block to free. May be NULL.
+        @stability Stable
+ */
+#define wfreeset(ptr) \
+    do {              \
+        wfree(ptr);   \
+        (ptr) = 0;    \
+    } while (0)
+
+/**
     Reallocate a block of memory and grow its size
     @description If the new size is larger than the existing block, a new block will be allocated and the old data
         will be copied to the new block.

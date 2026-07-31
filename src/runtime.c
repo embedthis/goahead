@@ -944,8 +944,7 @@ WebsValue valueString(cchar *value, int flags)
 PUBLIC void valueFree(WebsValue *v)
 {
     if (v->valid && v->allocated && v->type == string && v->value.string != NULL) {
-        wfree(v->value.string);
-        v->value.string = NULL;
+        wfreeset(v->value.string);
     }
     v->type = undefined;
     v->valid = 0;

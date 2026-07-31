@@ -100,7 +100,7 @@ PUBLIC bool websAuthenticate(Webs *wp)
          */
         if ((username = (char*) websGetSessionVar(wp, WEBS_SESSION_USERNAME, 0)) != 0) {
             cached = 1;
-            wfree(wp->username);
+            wfreeset(wp->username);
             wp->username = sclone(username);
         }
     }
@@ -115,8 +115,7 @@ PUBLIC bool websAuthenticate(Webs *wp)
                     parseAuth may have taken ownership of a cloned username before failing.
                     Free it here so a failed authentication does not orphan the block.
                  */
-                wfree(wp->username);
-                wp->username = 0;
+                wfreeset(wp->username);
             }
         }
         if (!wp->username || !*wp->username) {
@@ -303,9 +302,9 @@ static void freeUser(WebsUser *up)
 {
     assert(up);
     hashFree(up->abilities);
-    wfree(up->name);
-    wfree(up->password);
-    wfree(up->roles);
+    wfreeset(up->name);
+    wfreeset(up->password);
+    wfreeset(up->roles);
     wfree(up);
 }
 
@@ -318,7 +317,7 @@ PUBLIC int websSetUserPassword(cchar *username, cchar *password)
     if ((user = websLookupUser(username)) == 0) {
         return -1;
     }
-    wfree(user->password);
+    wfreeset(user->password);
     user->password = sclone(password);
     return 0;
 }
@@ -332,7 +331,7 @@ PUBLIC int websSetUserRoles(cchar *username, cchar *roles)
     if ((user = websLookupUser(username)) == 0) {
         return -1;
     }
-    wfree(user->roles);
+    wfreeset(user->roles);
     user->roles = sclone(roles);
     computeUserAbilities(user);
     return 0;
@@ -498,9 +497,9 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
     if (!wp->route || !wp->route->verify) {
         return 0;
     }
-    wfree(wp->username);
+    wfreeset(wp->username);
     wp->username = sclone(username);
-    wfree(wp->password);
+    wfreeset(wp->password);
     wp->password = sclone(password);
 
     if (!(wp->route->verify)(wp)) {
@@ -585,7 +584,7 @@ static void basicLogin(Webs *wp)
 {
     assert(wp);
     assert(wp->route);
-    wfree(wp->authResponse);
+    wfreeset(wp->authResponse);
     wp->authResponse = sfmt("Basic realm=\"%s\"", ME_GOAHEAD_REALM);
 }
 
@@ -673,7 +672,7 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
                 which must use MD5. Newer clients may support other algorithms, but not widespread.
              */
             fmt(passbuf, sizeof(passbuf), "%s:%s:%s", wp->username, ME_GOAHEAD_REALM, wp->password);
-            wfree(wp->password);
+            wfreeset(wp->password);
             wp->password = websMD5(passbuf);
             wp->encoded = 1;
         }
@@ -839,8 +838,8 @@ static bool parseBasicDetails(Webs *wp)
             *cp++ = '\0';
         }
     }
-    wfree(wp->username);
-    wfree(wp->password);
+    wfreeset(wp->username);
+    wfreeset(wp->password);
     if (cp) {
         wp->username = sclone(userAuth);
         wp->password = sclone(cp);
@@ -865,7 +864,7 @@ static void digestLogin(Webs *wp)
     nonce = createDigestNonce(wp);
     /* Opaque is unused. Set to anything */
     opaque = "5ccc069c403ebaf9f0171e9517f40e41";
-    wfree(wp->authResponse);
+    wfreeset(wp->authResponse);
     wp->authResponse = sfmt(
         "Digest realm=\"%s\", domain=\"%s\", qop=\"%s\", nonce=\"%s\", opaque=\"%s\", algorithm=\"%s\", stale=\"%s\"",
         ME_GOAHEAD_REALM, websGetServerUrl(), "auth", nonce, opaque, "MD5", "FALSE");
@@ -941,7 +940,7 @@ static bool parseDigestDetails(Webs *wp)
 
         case 'c':
             if (scaselesscmp(key, "cnonce") == 0) {
-                wfree(wp->cnonce);
+                wfreeset(wp->cnonce);
                 wp->cnonce = sclone(value);
             }
             break;
@@ -954,31 +953,31 @@ static bool parseDigestDetails(Webs *wp)
 
         case 'n':
             if (scaselesscmp(key, "nc") == 0) {
-                wfree(wp->nc);
+                wfreeset(wp->nc);
                 wp->nc = sclone(value);
             } else if (scaselesscmp(key, "nonce") == 0) {
-                wfree(wp->nonce);
+                wfreeset(wp->nonce);
                 wp->nonce = sclone(value);
             }
             break;
 
         case 'o':
             if (scaselesscmp(key, "opaque") == 0) {
-                wfree(wp->opaque);
+                wfreeset(wp->opaque);
                 wp->opaque = sclone(value);
             }
             break;
 
         case 'q':
             if (scaselesscmp(key, "qop") == 0) {
-                wfree(wp->qop);
+                wfreeset(wp->qop);
                 wp->qop = sclone(value);
             }
             break;
 
         case 'r':
             if (scaselesscmp(key, "realm") == 0) {
-                wfree(wp->realm);
+                wfreeset(wp->realm);
                 wp->realm = sclone(value);
             } else if (scaselesscmp(key, "response") == 0) {
                 /*
@@ -986,7 +985,7 @@ static bool parseDigestDetails(Webs *wp)
                     Store the response digest in the password field. This is MD5(HA1:nonce:HA2) where
                     HA1 is MD5(user:realm:password) and HA2 is MD5(method:digestUri)
                  */
-                wfree(wp->password);
+                wfreeset(wp->password);
                 wp->password = sclone(value);
                 wp->encoded = 1;
             }
@@ -998,10 +997,10 @@ static bool parseDigestDetails(Webs *wp)
 
         case 'u':
             if (scaselesscmp(key, "uri") == 0) {
-                wfree(wp->digestUri);
+                wfreeset(wp->digestUri);
                 wp->digestUri = sclone(value);
             } else if (scaselesscmp(key, "username") == 0 || scaselesscmp(key, "user") == 0) {
-                wfree(wp->username);
+                wfreeset(wp->username);
                 wp->username = sclone(value);
             }
             break;
@@ -1082,7 +1081,7 @@ static bool parseDigestDetails(Webs *wp)
         }
     }
     wfree(decoded);
-    wfree(wp->digest);
+    wfreeset(wp->digest);
     wp->digest = calcDigest(wp, 0, wp->user->password);
     return 1;
 }
