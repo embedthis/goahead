@@ -32,6 +32,12 @@ route uri=/auth/basic/  auth=basic abilities=view
 route uri=/auth/digest/ auth=digest abilities=view
 
 #
+#   Protected route whose prefix contains a non-ASCII character (NFC "café"). Used by
+#   regress/uri-unicode-fold.tst.ts to prove an NFD spelling cannot reach it unauthenticated.
+#
+route uri=/café/ auth=basic abilities=manage
+
+#
 #   Form-based authentication for content under /auth/form
 #   The login form is /auth/form/login.html. The page to display when logged-in is /auth/form/index.html
 #   Everything else under /auth/form is secured and requires the "manage" ability 

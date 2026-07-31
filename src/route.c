@@ -37,6 +37,29 @@ static bool redirectHandler(Webs *wp);
 
 /************************************ Code ************************************/
 /*
+    Compare a request path against a route prefix.
+
+    On a case-insensitive file system the kernel resolves a case-variant path to the same file, so
+    the route gate must fold case too. Otherwise /AUTH/ selects the unauthenticated catch-all route
+    while the subsequent open() serves the protected /auth/ document, and the authorization decision
+    and the file open are made on two different strings naming one file. Folding here rather than in
+    wp->path keeps the client's spelling for open(), PATH_INFO and REQUEST_URI.
+
+    This folds ASCII case only. The other folding axes that the file system applies - NFD/NFC and
+    Win32 trailing dot, space, ADS and 8.3 aliases - are rejected as non-canonical when the request
+    path is created. See validCanonicalPath in http.c.
+ */
+static int matchRoutePrefix(cchar *path, cchar *prefix, ssize len)
+{
+#if ME_GOAHEAD_CASE_INSENSITIVE_FS
+    return sncaselesscmp(path, prefix, len);
+#else
+    return sncmp(path, prefix, len);
+#endif
+}
+
+
+/*
     Route the request. If wp->route is already set, test routes after that route
  */
 
@@ -85,7 +108,7 @@ PUBLIC void websRouteRequest(Webs *wp)
         /*
             Match route
          */
-        if (strncmp(wp->path, route->prefix, len) != 0) {
+        if (matchRoutePrefix(wp->path, route->prefix, len) != 0) {
             continue;
         }
         if (route->protocol && !smatch(route->protocol, wp->protocol)) {

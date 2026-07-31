@@ -223,6 +223,21 @@ extern "C" {
         #define ME_GOAHEAD_DEBUG 0
     #endif
 #endif
+
+/*
+    Set to 1 when the target file system is case-insensitive (Windows/NTFS, macOS/APFS, vfat).
+    When set, security-gating path comparisons fold ASCII case so that a case-variant URI cannot
+    select a different route than the file the kernel will subsequently open. Override in me.h for
+    a case-insensitive mount on an otherwise case-sensitive host (a FAT or SMB document root under
+    Linux), or clear it for a case-sensitive mount on macOS.
+ */
+#ifndef ME_GOAHEAD_CASE_INSENSITIVE_FS
+    #if ME_WIN_LIKE || MACOSX
+        #define ME_GOAHEAD_CASE_INSENSITIVE_FS 1
+    #else
+        #define ME_GOAHEAD_CASE_INSENSITIVE_FS 0
+    #endif
+#endif
 #if ECOS
     #if ME_GOAHEAD_CGI
         #error "Ecos does not support CGI. Disable ME_GOAHEAD_CGI"

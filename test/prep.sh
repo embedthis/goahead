@@ -14,6 +14,14 @@ else
 fi
 
 mkdir -p cgi-bin web/tmp
+
+#
+#   Fixture for regress/uri-unicode-fold.tst.ts. Build the name from explicit NFC bytes so the
+#   fixture does not depend on how git or the file system stores a literal non-ASCII name.
+#
+CAFE=$(printf 'caf\303\251')
+mkdir -p "web/${CAFE}"
+echo "cafe-secret" > "web/${CAFE}/x.txt"
 cp ../certs/self.key  ../certs/self.crt .
 cp ../build/bin/cgitest* cgi-bin
 # cgitest links against libgoahead; its rpath is @loader_path so the lib must sit beside it

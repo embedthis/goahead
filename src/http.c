@@ -2929,6 +2929,142 @@ PUBLIC char *websNormalizeUriPath(cchar *pathArg)
 
 
 /*
+    Unicode ranges that NFC composition removes: combining marks and the Hangul conjoining jamo.
+    A path containing any of these is in decomposed (NFD) form. Normalization-insensitive file
+    systems (APFS, HFS+) resolve NFD and the precomposed (NFC) spelling of a name to the same file,
+    so an NFD request would be authorized against one string and opened as another. Composing NFD
+    to NFC needs a large table; rejecting costs nothing and the NFC spelling always remains
+    reachable. Not exhaustive - it covers the scripts that compose: Latin, Greek, Cyrillic, Hebrew,
+    Arabic, Syriac, Hangul and Japanese kana.
+ */
+static const struct {
+    uint low;
+    uint high;
+} combiningRanges[] = {
+    { 0x0300, 0x036F },                 /* Combining diacritical marks (Latin, Greek, Cyrillic) */
+    { 0x0483, 0x0489 },                 /* Cyrillic combining marks */
+    { 0x0591, 0x05C7 },                 /* Hebrew points and accents */
+    { 0x0610, 0x061A },                 /* Arabic marks */
+    { 0x064B, 0x0670 },                 /* Arabic marks and superscript alef */
+    { 0x06D6, 0x06ED },                 /* Arabic marks */
+    { 0x0711, 0x0711 },                 /* Syriac letter superscript alaph */
+    { 0x0730, 0x074A },                 /* Syriac points */
+    { 0x1100, 0x11FF },                 /* Hangul conjoining jamo */
+    { 0x1AB0, 0x1AFF },                 /* Combining diacritical marks extended */
+    { 0x1DC0, 0x1DFF },                 /* Combining diacritical marks supplement */
+    { 0x20D0, 0x20F0 },                 /* Combining marks for symbols */
+    { 0x3099, 0x309A },                 /* Kana voiced/semi-voiced sound marks */
+    { 0xFE20, 0xFE2F },                 /* Combining half marks */
+};
+
+
+/*
+    Decode the UTF-8 sequence at *sp and advance *sp past it. Returns the code point, or 0 for an
+    invalid or truncated sequence (the caller rejects those paths outright).
+ */
+static uint decodeUtf8(cchar **sp)
+{
+    cchar *cp;
+    uint  c, cp0;
+    int   i, need;
+
+    cp = *sp;
+    cp0 = (uchar) *cp++;
+    if (cp0 < 0x80) {
+        *sp = cp;
+        return cp0;
+    } else if ((cp0 & 0xE0) == 0xC0) {
+        need = 1;
+        c = cp0 & 0x1F;
+    } else if ((cp0 & 0xF0) == 0xE0) {
+        need = 2;
+        c = cp0 & 0x0F;
+    } else if ((cp0 & 0xF8) == 0xF0) {
+        need = 3;
+        c = cp0 & 0x07;
+    } else {
+        return 0;
+    }
+    for (i = 0; i < need; i++) {
+        if (((uchar) *cp & 0xC0) != 0x80) {
+            return 0;
+        }
+        c = (c << 6) | ((uchar) *cp++ & 0x3F);
+    }
+    *sp = cp;
+    return c;
+}
+
+
+/*
+    Test if a decoded, normalized URI path is in canonical form: the one spelling that names the
+    file on every supported platform.
+
+    Route selection, authentication, ability checks and protocol enforcement all compare wp->path
+    byte-for-byte against a route prefix, while the kernel later opens a path that its file system
+    may fold. Any spelling the file system folds away is therefore an authorization bypass: the
+    decision and the open are made on two different strings naming one file. The lexically
+    detectable folds are rejected here, at the single point where a request path is created, rather
+    than reproduced in each comparison.
+
+    Rejected on all platforms so that one canonical form holds everywhere:
+    - a segment ending in "." or " " - Win32 strips both from the final component
+    - ":" anywhere in a segment - an NTFS alternate data stream ("x.jst::$DATA") or a drive letter
+    - "~" followed by digits at the end of a segment or before its extension - an NTFS 8.3 alias
+    - a combining mark or conjoining jamo - an NFD spelling that APFS and HFS+ fold to NFC
+    - malformed UTF-8 - it has no single interpretation, so it has no canonical form
+
+    Case is not lexically detectable (both spellings look canonical) and is handled where routes are
+    compared. See matchRoutePrefix in route.c.
+ */
+static bool validCanonicalPath(cchar *path)
+{
+    cchar *sp, *segment;
+    uint  c;
+    int   i;
+
+    segment = path;
+    for (sp = path; *sp; ) {
+        if (*sp == '/') {
+            if (sp > segment && (sp[-1] == '.' || sp[-1] == ' ')) {
+                return 0;
+            }
+            segment = ++sp;
+            continue;
+        }
+        if (*sp == ':') {
+            return 0;
+        }
+        if (*sp == '~') {
+            for (c = 0, sp++; isdigit((uchar) *sp); sp++) {
+                c++;
+            }
+            if (c > 0 && (*sp == '\0' || *sp == '/' || *sp == '.')) {
+                return 0;
+            }
+            continue;
+        }
+        if ((uchar) *sp < 0x80) {
+            sp++;
+            continue;
+        }
+        if ((c = decodeUtf8(&sp)) == 0) {
+            return 0;
+        }
+        for (i = 0; i < (int) (sizeof(combiningRanges) / sizeof(combiningRanges[0])); i++) {
+            if (combiningRanges[i].low <= c && c <= combiningRanges[i].high) {
+                return 0;
+            }
+        }
+    }
+    if (sp > segment && (sp[-1] == '.' || sp[-1] == ' ')) {
+        return 0;
+    }
+    return 1;
+}
+
+
+/*
     Validate a URI path for use in a HTTP request line
     The URI must contain only valid characters and must being with "/" both before and after decoding.
     A decoded, normalized URI path is returned.
@@ -2952,7 +3088,7 @@ PUBLIC char *websValidateUriPath(cchar *uri)
     if (normalized == 0) {
         return 0;
     }
-    if (*normalized != '/' || strchr(normalized, '\\')) {
+    if (*normalized != '/' || strchr(normalized, '\\') || !validCanonicalPath(normalized)) {
         wfree(normalized);
         return 0;
     }
