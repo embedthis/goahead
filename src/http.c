@@ -15,6 +15,7 @@
 
 #define WEBS_TIMEOUT       (ME_GOAHEAD_LIMIT_TIMEOUT * 1000)
 #define PARSE_TIMEOUT      (ME_GOAHEAD_LIMIT_PARSE_TIMEOUT * 1000)
+#define FLUSH_SLICE        1000                    /* Max msec to block in one send before retesting the deadline */
 #define CHUNK_LOW          128                     /* Low water mark for chunking */
 
 #define TOKEN_HEADER_KEY   0x1                     /* Validate token as a header key */
@@ -2255,9 +2256,11 @@ PUBLIC int websFlush(Webs *wp, bool block)
         /*
             Bound the blocking send so a peer that stops reading cannot freeze the event loop.
             The socket timeout limits any one send and the deadline limits the whole flush, so a
-            peer that trickles a few bytes per timeout cannot extend the stall indefinitely.
+            peer that trickles a few bytes per timeout cannot extend the stall indefinitely. The
+            send timeout is a short slice of the deadline so the deadline is honored to within one
+            slice however the peer behaves.
          */
-        bounded = socketSetSendTimeout(wp->sid, WEBS_TIMEOUT) == 0;
+        bounded = socketSetSendTimeout(wp->sid, FLUSH_SLICE) == 0;
         deadline = time(0) + ME_GOAHEAD_LIMIT_TIMEOUT;
     }
     op = &wp->output;
@@ -2273,27 +2276,33 @@ PUBLIC int websFlush(Webs *wp, bool block)
     trace(6, "websFlush: buflen %d", (int) bufLen(op));
     written = 0;
     while ((nbytes = bufLen(op)) > 0) {
-        if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
+        /*
+            Test the deadline on every pass, not just after a send timeout. A peer that accepts a
+            few bytes per slice makes progress without ever timing out a send and would otherwise
+            hold the event loop for as long as it cared to trickle.
+         */
+        if (bounded && time(0) >= deadline) {
+            trace(2, "websFlush: peer not reading, close connection");
+            written = -1;
+        } else if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
             errCode = socketGetError(wp->sid);
             if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
-                if (!block || !bounded) {
+                if (!bounded) {
                     /* Not an error. Without a send timeout the wait cannot be bounded here */
                     written = 0;
                     break;
                 }
-                if (time(0) < deadline) {
-                    /* The send timed out but the flush deadline has not expired. Retry */
-                    continue;
-                }
-                trace(2, "websFlush: peer not reading, close connection");
+                /* The send slice expired but the flush deadline has not. Retry */
+                continue;
             }
+        }
+        if (written < 0) {
             /*
                 Connection Error
              */
             wp->flags &= ~WEBS_KEEP_ALIVE;
             bufFlush(op);
             wp->state = WEBS_COMPLETE;
-            written = -1;
             break;
         } else if (written == 0) {
             break;
@@ -2301,7 +2310,6 @@ PUBLIC int websFlush(Webs *wp, bool block)
         trace(6, "websFlush: wrote %d to socket", (int) written);
         bufAdjustStart(op, written);
         bufCompact(op);
-        nbytes = bufLen(op);
     }
     assert(websValid(wp));
 

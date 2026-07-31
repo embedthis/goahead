@@ -34,6 +34,7 @@
  */
 #define STALL_LIMIT     (ME_GOAHEAD_LIMIT_TIMEOUT + 20)
 #define TINY_RCVBUF     512
+#define SLOW_PAUSE      2
 #define BIG_URL         "/huge.jst"
 
 /*
@@ -209,9 +210,11 @@ static void testSlowReaderIntegrity(void)
     ttrue(sendRequest(sock, BIG_URL, "HTTP/1.0") == 0, "Cannot send request");
     /*
         Read in small bites with a pause between them so the server's send buffer stays full and the
-        response is written across many blocking flushes.
+        response is written across many blocking flushes. The tiny receive buffer keeps the peer window
+        closed, so the pause need only be long enough to yield - a longer one buys nothing but runtime,
+        and the body is several megabytes read a few hundred bytes at a time.
      */
-    slow = readResponse(sock, 16 * 1024, 20, &slowHash);
+    slow = readResponse(sock, 16 * 1024, SLOW_PAUSE, &slowHash);
     closeConn(sock);
 
     teqz(slow, fast, "Slow reader received a different length");
