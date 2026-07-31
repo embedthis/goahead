@@ -1178,6 +1178,20 @@ static uchar *tableToBlock(char **table)
 
 
 /*
+    Close a Windows handle if, and only if, it is a real handle. The two "not a handle" sentinels differ
+    by origin: CreateFile returns INVALID_HANDLE_VALUE ((HANDLE) -1) on failure, while a zeroed
+    STARTUPINFO or PROCESS_INFORMATION field is NULL. Passing either to CloseHandle raises
+    STATUS_INVALID_HANDLE under the strict-handle-check mitigation policy, which terminates the process.
+ */
+static void closeWinHandle(HANDLE h)
+{
+    if (h != NULL && h != INVALID_HANDLE_VALUE) {
+        CloseHandle(h);
+    }
+}
+
+
+/*
     Windows launchCgi
     Create a temporary stdout file and launch the CGI process. Returns a handle to the spawned CGI process.
  */
@@ -1245,7 +1259,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
      */
     newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
                                    NULL);
-    if (newinfo.hStdOutput == (HANDLE) -1) {
+    if (newinfo.hStdInput == INVALID_HANDLE_VALUE) {
         error("Cannot open CGI stdin file");
         return (CgiPid) - 1;
     }
@@ -1255,9 +1269,9 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
      */
     newinfo.hStdOutput = CreateFile(stdOut, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                     &security, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (newinfo.hStdOutput == (HANDLE) -1) {
+    if (newinfo.hStdOutput == INVALID_HANDLE_VALUE) {
         error("Cannot create CGI stdout file");
-        CloseHandle(newinfo.hStdInput);
+        closeWinHandle(newinfo.hStdInput);
         return (CgiPid) - 1;
     }
     SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_END);
@@ -1269,8 +1283,11 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     /*
         CreateProcess returns errors sometimes, even when the process was started correctly.  The cause is not evident.
         Detect an error by checking the value of procinfo.hProcess after the call.
+
+        Zero the whole structure: CreateProcess does not guarantee it populates PROCESS_INFORMATION on
+        failure, and hThread is read unconditionally in the cleanup below.
      */
-    procinfo.hProcess = NULL;
+    memset(&procinfo, 0, sizeof(procinfo));
     /*
         lpApplicationName is set explicitly to the resolved cgiPath so program identity
         does not depend on how lpCommandLine tokenises. Combined with the extension gate
@@ -1288,15 +1305,9 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         &newinfo,           /*  STARTUPINFO                             */
         &procinfo);         /*  PROCESS_INFORMATION                     */
 
-    if (procinfo.hThread != NULL) {
-        CloseHandle(procinfo.hThread);
-    }
-    if (newinfo.hStdInput) {
-        CloseHandle(newinfo.hStdInput);
-    }
-    if (newinfo.hStdOutput) {
-        CloseHandle(newinfo.hStdOutput);
-    }
+    closeWinHandle(procinfo.hThread);
+    closeWinHandle(newinfo.hStdInput);
+    closeWinHandle(newinfo.hStdOutput);
     wfree(pEnvData);
     wfree(cmdLine);
 
