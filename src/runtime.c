@@ -31,7 +31,7 @@ typedef struct Callback {
 #define CLASS_DIGIT     5               /* [1-9]            Field widths */
 #define CLASS_DOT       6               /* [.]              Introduce precision */
 #define CLASS_BITS      7               /* [hlL]            Length bits */
-#define CLASS_TYPE      8               /* [cdefginopsSuxX] Type specifiers */
+#define CLASS_TYPE      8               /* [cdefgiopsSuxX]  Type specifiers ('n' excluded) */
 
 #define STATE_NORMAL    0               /* Normal chars in format string */
 #define STATE_PERCENT   1               /* "%" */
@@ -82,7 +82,7 @@ PUBLIC char classMap[] = {
     /*  40   '     a     b     c     d     e     f     g */
     0,    0,    0,    8,    8,    8,    8,    8,
     /*  47   h     i     j     k     l     m     n     o */
-    7,    8,    0,    0,    7,    0,    8,    8,
+    7,    8,    0,    0,    7,    0,    0,    8,
     /*  50   p     q     r     s     t     u     v     w */
     8,    0,    0,    8,    0,    8,    0,    8,
     /*  57   x     y     z  */
@@ -614,18 +614,16 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                 }
                 break;
 
-            case 'n':       /* Count of chars seen thus far */
-                if (fmt.flags & SPRINTF_SHORT) {
-                    short *count = va_arg(args, short*);
-                    *count = (int) (fmt.end - fmt.start);
-                } else if (fmt.flags & SPRINTF_LONG) {
-                    long *count = va_arg(args, long*);
-                    *count = (int) (fmt.end - fmt.start);
-                } else {
-                    int *count = va_arg(args, int*);
-                    *count = (int) (fmt.end - fmt.start);
-                }
-                break;
+            /*
+                The %n conversion is deliberately not implemented. It is the only printf
+                conversion that writes through a caller-supplied pointer, so any format string
+                that an attacker can influence becomes a write-what-where primitive. GoAhead has
+                its own formatter, so neither platform defence applies: not the glibc
+                _FORTIFY_SOURCE %n check, nor the MSVC CRT, which has refused %n by default
+                since VS2005 unless _set_printf_count_output() re-enables it.
+                'n' is mapped to CLASS_NORMAL in classMap, so "%n" emits a literal "n" - the same
+                treatment any other unknown conversion gets - and consumes no vararg.
+             */
 
             case 'p':       /* Pointer */
 #if ME_64
