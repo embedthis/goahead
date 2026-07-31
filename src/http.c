@@ -2227,13 +2227,23 @@ static bool flushChunkData(Webs *wp)
  */
 PUBLIC int websFlush(Webs *wp, bool block)
 {
-    WebsBuf *op;
-    ssize   nbytes, written;
-    int     errCode, wasBlocking;
+    WebsBuf  *op;
+    WebsTime deadline;
+    ssize    nbytes, written;
+    int      errCode, wasBlocking, bounded;
 
     wasBlocking = 0;
+    bounded = 0;
+    deadline = 0;
     if (block) {
         wasBlocking = socketSetBlock(wp->sid, 1);
+        /*
+            Bound the blocking send so a peer that stops reading cannot freeze the event loop.
+            The socket timeout limits any one send and the deadline limits the whole flush, so a
+            peer that trickles a few bytes per timeout cannot extend the stall indefinitely.
+         */
+        bounded = socketSetSendTimeout(wp->sid, WEBS_TIMEOUT) == 0;
+        deadline = time(0) + ME_GOAHEAD_LIMIT_TIMEOUT;
     }
     op = &wp->output;
     if (wp->flags & WEBS_CHUNKING) {
@@ -2250,10 +2260,17 @@ PUBLIC int websFlush(Webs *wp, bool block)
     while ((nbytes = bufLen(op)) > 0) {
         if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
             errCode = socketGetError(wp->sid);
-            if (errCode == EWOULDBLOCK || errCode == EAGAIN) {
-                /* Not an error */
-                written = 0;
-                break;
+            if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
+                if (!block || !bounded) {
+                    /* Not an error. Without a send timeout the wait cannot be bounded here */
+                    written = 0;
+                    break;
+                }
+                if (time(0) < deadline) {
+                    /* The send timed out but the flush deadline has not expired. Retry */
+                    continue;
+                }
+                trace(2, "websFlush: peer not reading, close connection");
             }
             /*
                 Connection Error
@@ -2261,6 +2278,7 @@ PUBLIC int websFlush(Webs *wp, bool block)
             wp->flags &= ~WEBS_KEEP_ALIVE;
             bufFlush(op);
             wp->state = WEBS_COMPLETE;
+            written = -1;
             break;
         } else if (written == 0) {
             break;
@@ -2276,6 +2294,9 @@ PUBLIC int websFlush(Webs *wp, bool block)
         wp->state = WEBS_COMPLETE;
     }
     if (block) {
+        if (bounded) {
+            socketSetSendTimeout(wp->sid, 0);
+        }
         socketSetBlock(wp->sid, wasBlocking);
     }
     if (written < 0) {

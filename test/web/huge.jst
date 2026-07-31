@@ -1,0 +1,9 @@
+<%
+    /*
+        Generate a response larger than the kernel socket buffers so a peer that stops reading
+        forces the server's blocking flush to stall. Used by test/regress/slow-reader.tst.c.
+     */
+    for (i = 0; i < 32768; i++) {
+        write("Line: " + i + " aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccdddddddddddd\r\n");
+    }
+%>

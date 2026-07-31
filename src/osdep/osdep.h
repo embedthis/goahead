@@ -2199,6 +2199,9 @@ typedef int64 Ticks;
     #ifndef ENOTCONN
         #define ENOTCONN    126
     #endif
+    #ifndef ETIMEDOUT
+        #define ETIMEDOUT   138
+    #endif
     #ifndef EPROTO
         #define EPROTO      134
     #endif

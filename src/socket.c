@@ -727,6 +727,40 @@ PUBLIC int socketSetBlock(int sid, int on)
 
 
 /*
+    Set the socket send timeout in milliseconds. Zero means wait indefinitely.
+    Returns zero if the platform supports a send timeout, otherwise -1.
+ */
+PUBLIC int socketSetSendTimeout(int sid, int timeout)
+{
+    WebsSocket *sp;
+#if ME_WIN_LIKE
+    DWORD      tv;
+#else
+    struct timeval tv;
+#endif
+
+    if ((sp = socketPtr(sid)) == NULL) {
+        assert(0);
+        return -1;
+    }
+#if ME_WIN_LIKE
+    tv = (DWORD) timeout;
+#else
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
+#endif
+    /*
+        Detect support at runtime. Stacks without SO_SNDTIMEO fail with ENOPROTOOPT, so no platform
+        conditionals are required and callers can fall back to an unbounded wait.
+     */
+    if (setsockopt(sp->sock, SOL_SOCKET, SO_SNDTIMEO, (char*) &tv, sizeof(tv)) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+
+/*
     Set the TCP delay behavior (nagle algorithm)
  */
 PUBLIC int socketSetNoDelay(int sid, bool on)
@@ -999,6 +1033,8 @@ PUBLIC int socketGetError(int sid)
         return ENETDOWN;
     case WSAEPROCLIM:
         return EAGAIN;
+    case WSAETIMEDOUT:
+        return ETIMEDOUT;
     case WSAEINTR:
         return EINTR;
     default:

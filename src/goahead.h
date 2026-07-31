@@ -1563,6 +1563,18 @@ PUBLIC int socketSetBlock(int sid, int on);
 PUBLIC void socketSetError(int error);
 
 /**
+    Set the socket send timeout
+    @description Bound how long a blocking send may wait for the peer to accept data. Without a send timeout, a
+        peer that stops reading will block the single-threaded event loop indefinitely. Support is detected at
+        runtime: stacks without SO_SNDTIMEO (older VxWorks, ECOS, TIDSP) return -1 and retain an unbounded wait.
+    @param sid Socket ID handle returned from socketConnect or socketAccept.
+    @param timeout Timeout in milliseconds. Set to zero to wait indefinitely.
+    @return Zero if the platform supports a send timeout, otherwise -1.
+        @stability Evolving
+ */
+PUBLIC int socketSetSendTimeout(int sid, int timeout);
+
+/**
     Set the socket delay mode
     @description This is used to enable or disable the TCP Nagle algorithm
     @param sid Socket ID handle returned from socketConnect or socketAccept.
