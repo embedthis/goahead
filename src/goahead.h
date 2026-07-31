@@ -4297,6 +4297,7 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp);
 typedef struct WebsSession {
     char *id;                               /**< Session ID key */
     int lifespan;                           /**< Session inactivity timeout (secs) */
+    int retired;                            /**< Session removed from the session store, awaiting its last holder */
     WebsTime expires;                       /**< When the session expires */
     WebsHash cache;                         /**< Cache of session variables */
 } WebsSession;

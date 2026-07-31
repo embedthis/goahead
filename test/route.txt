@@ -49,6 +49,13 @@ route uri=/action/logout methods=GET|POST handler=action redirect=200@/auth/form
 route uri=/auth/form/ auth=form handler=continue abilities=manage redirect=401@/auth/form/login.html
 
 #
+#   Authenticated action. Authentication resolves the session during routing, before the body is read,
+#   and the action writes a session variable after the body completes - so a request to this route holds
+#   the session across the body read. Used by session/retire-inflight.tst.ts.
+#
+route uri=/auth/sessionTest methods=GET|POST auth=form abilities=manage handler=action redirect=401@/auth/form/login.html
+
+#
 #   Support PUT and DELETE methods only for the ME_GOAHEAD_PUT_DIR directory
 #
 route uri=/tmp/ methods=PUT|DELETE

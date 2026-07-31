@@ -214,6 +214,9 @@ static bool     parseIncoming(Webs *wp);
 static void     pruneSessions(void);
 static void     freeSession(WebsSession *sp);
 static void     freeSessions(void);
+static void     releaseSession(Webs *wp);
+static void     retireSession(WebsSession *sp);
+static int      sessionHolders(WebsSession *sp);
 static void     readEvent(Webs *wp);
 static void     reuseConn(Webs *wp);
 static void     setFileLimits(void);
@@ -317,9 +320,6 @@ PUBLIC void websClose(void)
         websStopEvent(pruneId);
         pruneId = -1;
     }
-    if (sessions >= 0) {
-        freeSessions();
-    }
     for (i = 0; i < listenMax; i++) {
         if (listens[i] >= 0) {
             socketCloseConnection(listens[i]);
@@ -336,6 +336,13 @@ PUBLIC void websClose(void)
             wp->sid = -1;
         }
         websFree(wp);
+    }
+    /*
+        Free the sessions after the open connections. Requests hold session references that they release
+        in termWebs, so freeing the session store first would leave those releases touching freed memory.
+     */
+    if (sessions >= 0) {
+        freeSessions();
     }
     wfree(websHostUrl);
     wfree(websIpAddrUrl);
@@ -519,6 +526,13 @@ static void termWebs(Webs *wp, int reuse)
 #endif
     hashFree(wp->vars);
     hashFree(wp->responseCookies);
+
+    /*
+        Release the session reference on both close and keep-alive reuse. initWebs() memsets the request
+        on reuse, so a release deferred to websFree would drop the last reference to a retired session
+        without freeing it.
+     */
+    releaseSession(wp);
 
 #if ME_GOAHEAD_UPLOAD
     if (wp->files >= 0) {
@@ -3378,14 +3392,76 @@ static char *makeSessionID(Webs *wp)
 }
 
 
+/*
+    Count the requests currently holding this session. wp->session is set only by websGetSession() and
+    initWebs() memsets the request on both allocation and keep-alive reuse, so the open connection list
+    is the complete set of holders.
+ */
+static int sessionHolders(WebsSession *sp)
+{
+    int count, wid;
+
+    count = 0;
+    for (wid = 0; webs && wid < websMax; wid++) {
+        if (webs[wid] && webs[wid]->session == sp) {
+            count++;
+        }
+    }
+    return count;
+}
+
+
+/*
+    Retire a session. Sessions are shared: a request resolves wp->session during routing and holds it
+    across the body read, so a logout or a prune on another connection can retire a session that other
+    requests are still using. Remove it from the session store immediately - it is logically dead and no
+    new request can resolve it - but defer the free until the last holder releases it in termWebs.
+ */
+static void retireSession(WebsSession *sp)
+{
+    assert(sp);
+
+    hashDelete(sessions, sp->id);
+    sessionCount--;
+    if (sessionHolders(sp) > 0) {
+        sp->retired = 1;
+    } else {
+        freeSession(sp);
+    }
+}
+
+
+/*
+    Release this request's session reference. Called from termWebs for both connection close and
+    keep-alive reuse.
+ */
+static void releaseSession(Webs *wp)
+{
+    WebsSession *sp;
+
+    assert(wp);
+
+    if ((sp = wp->session) != 0) {
+        wp->session = 0;
+        if (sp->retired && sessionHolders(sp) == 0) {
+            freeSession(sp);
+        }
+    }
+}
+
+
 PUBLIC void websDestroySession(Webs *wp)
 {
+    WebsSession *sp;
+
     websGetSession(wp, 0);
-    if (wp->session) {
-        hashDelete(sessions, wp->session->id);
-        sessionCount--;
-        freeSession(wp->session);
+    if ((sp = wp->session) != 0) {
+        /*
+            Drop this request's reference first so it is not counted as a holder of the session it is
+            retiring. Other in-flight requests keep a consistent view of the session until they complete.
+         */
         wp->session = 0;
+        retireSession(sp);
     }
 }
 
@@ -3407,6 +3483,7 @@ WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan)
         return 0;
     }
     sp->lifespan = lifespan;
+    sp->retired = 0;
     sp->expires = time(0) + lifespan;
     if (id == 0) {
         sp->id = makeSessionID(wp);
@@ -3419,7 +3496,8 @@ WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan)
         return 0;
     }
     if (hashEnter(sessions, sp->id, valueSymbol(sp), 0) == 0) {
-        wfree(sp->id);
+        hashFree(sp->cache);
+        wfreeset(sp->id);
         wfree(sp);
         return 0;
     }
@@ -3490,7 +3568,7 @@ WebsSession *websGetSession(Webs *wp, int create)
         interval; the bounded window is only reachable by presenting the random session id (the owner, or a
         cookie thief who already has access), so refreshing here grants no additional capability.
      */
-    if (wp->session) {
+    if (wp->session && !wp->session->retired) {
         wp->session->expires = time(0) + wp->session->lifespan;
     }
     return wp->session;
@@ -3610,9 +3688,7 @@ static void pruneSessions(void)
             next = hashNext(sessions, sym);
             sp = (WebsSession*) sym->content.value.symbol;
             if (sp->expires <= when) {
-                hashDelete(sessions, sp->id);
-                sessionCount--;
-                freeSession(sp);
+                retireSession(sp);
             }
         }
         if (oldCount != sessionCount || sessionCount) {
