@@ -38,6 +38,16 @@
 #define BIG_URL         "/huge.jst"
 
 /*
+    Length argument for send and recv. Winsock declares it int and POSIX declares it size_t, so an
+    explicit cast is needed either way: without it MSVC warns C4267 and gcc warns -Wsign-conversion.
+ */
+#if ME_WIN_LIKE
+    #define IOLEN(len)  ((int) (len))
+#else
+    #define IOLEN(len)  ((size_t) (len))
+#endif
+
+/*
     Keep scratch off the stack. The Windows CI runner gives a test exe a 1 MB stack.
  */
 static char readBuf[64 * 1024];
@@ -74,15 +84,15 @@ static int serverPort(void)
 
 /*
     Connect to the test server. If rcvbuf is non-zero, shrink the receive buffer before connecting so
-    the server cannot park the response in the client's kernel buffers. Returns -1 on failure.
+    the server cannot park the response in the client's kernel buffers. Returns SOCKET_ERROR on failure.
  */
-static int openConn(int rcvbuf, int timeout)
+static Socket openConn(int rcvbuf, int timeout)
 {
     struct sockaddr_in addr;
     Socket             sock;
 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        return -1;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == SOCKET_ERROR) {
+        return SOCKET_ERROR;
     }
     if (rcvbuf) {
         setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) &rcvbuf, sizeof(rcvbuf));
@@ -102,18 +112,18 @@ static int openConn(int rcvbuf, int timeout)
     addr.sin_port = htons((ushort) serverPort());
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
+    if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) == SOCKET_ERROR) {
         closesocket(sock);
-        return -1;
+        return SOCKET_ERROR;
     }
-    return (int) sock;
+    return sock;
 }
 
 
-static void closeConn(int sock)
+static void closeConn(Socket sock)
 {
-    if (sock >= 0) {
-        closesocket((Socket) sock);
+    if (sock != SOCKET_ERROR) {
+        closesocket(sock);
     }
 }
 
@@ -122,14 +132,14 @@ static void closeConn(int sock)
     Send a request. HTTP/1.0 suppresses chunked encoding, so the body arrives without chunk framing
     whose boundaries would otherwise vary with flush timing and defeat a byte comparison.
  */
-static int sendRequest(int sock, cchar *url, cchar *protocol)
+static int sendRequest(Socket sock, cchar *url, cchar *protocol)
 {
     char  request[512];
     ssize len;
 
     fmt(request, sizeof(request), "GET %s %s\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n", url, protocol);
     len = (ssize) slen(request);
-    return send((Socket) sock, request, (size_t) len, 0) == len ? 0 : -1;
+    return send(sock, request, IOLEN(len), 0) == len ? 0 : -1;
 }
 
 
@@ -139,7 +149,7 @@ static int sendRequest(int sock, cchar *url, cchar *protocol)
     between reads to model a slow reader. Headers are excluded from the hash and count: the Date
     header varies between requests. Returns the body byte count, or -1 on error.
  */
-static ssize readResponse(int sock, int chunk, int pause, uint *hash)
+static ssize readResponse(Socket sock, int chunk, int pause, uint *hash)
 {
     cchar *sep;
     ssize nbytes, body;
@@ -153,7 +163,7 @@ static ssize readResponse(int sock, int chunk, int pause, uint *hash)
         chunk = (int) sizeof(readBuf);
     }
     while (1) {
-        nbytes = recv((Socket) sock, readBuf, (size_t) chunk, 0);
+        nbytes = recv(sock, readBuf, IOLEN(chunk), 0);
         if (nbytes == 0) {
             break;
         }
@@ -188,11 +198,11 @@ static ssize readResponse(int sock, int chunk, int pause, uint *hash)
  */
 static void testSlowReaderIntegrity(void)
 {
-    ssize fast, slow;
-    uint  fastHash, slowHash;
-    int   sock;
+    ssize  fast, slow;
+    uint   fastHash, slowHash;
+    Socket sock;
 
-    if ((sock = openConn(0, STALL_LIMIT)) < 0) {
+    if ((sock = openConn(0, STALL_LIMIT)) == SOCKET_ERROR) {
         tfail("Cannot connect to test server");
         return;
     }
@@ -203,7 +213,7 @@ static void testSlowReaderIntegrity(void)
     if (fast <= 0) {
         return;
     }
-    if ((sock = openConn(TINY_RCVBUF, STALL_LIMIT)) < 0) {
+    if ((sock = openConn(TINY_RCVBUF, STALL_LIMIT)) == SOCKET_ERROR) {
         tfail("Cannot connect to test server");
         return;
     }
@@ -234,9 +244,9 @@ static void testStalledPeerIsBounded(void)
     WebsTime start, elapsed;
     ssize    nbytes;
     uint     hash;
-    int      stalled, victim;
+    Socket   stalled, victim;
 
-    if ((stalled = openConn(TINY_RCVBUF, STALL_LIMIT)) < 0) {
+    if ((stalled = openConn(TINY_RCVBUF, STALL_LIMIT)) == SOCKET_ERROR) {
         tfail("Cannot connect to test server");
         return;
     }
@@ -248,7 +258,7 @@ static void testStalledPeerIsBounded(void)
     napMsec(500);
     start = time(0);
 
-    if ((victim = openConn(0, STALL_LIMIT)) < 0) {
+    if ((victim = openConn(0, STALL_LIMIT)) == SOCKET_ERROR) {
         tfail("Cannot connect to test server");
         closeConn(stalled);
         return;
@@ -273,8 +283,17 @@ static void testStalledPeerIsBounded(void)
 
 int main(int argc, char **argv)
 {
+    /*
+        Initialize the socket layer. Windows needs WSAStartup before any socket call, and this test
+        drives raw sockets rather than the server's socket API.
+     */
+    if (socketOpen() < 0) {
+        tfail("Cannot initialize sockets");
+        return 0;
+    }
     testSlowReaderIntegrity();
     testStalledPeerIsBounded();
+    socketClose();
     return 0;
 }
 
