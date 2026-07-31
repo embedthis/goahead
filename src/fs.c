@@ -18,7 +18,61 @@ static WebsHash romFs;
 static WebsRomIndex *lookup(WebsHash fs, char *path);
 #endif
 
+#if !ME_ROM && ME_WIN_LIKE
+/*
+    Windows resolves these reserved device names in every directory, with or without an extension, so
+    a request for /CON or /docs/com1.txt opens a device instead of a file. Reading a console or serial
+    device blocks, and GoAhead runs a single event loop, so the whole server stalls. The names must be
+    refused before the open because the open itself is what blocks -- there is no descriptor to test.
+ */
+static cchar *reservedDevices[] = {
+    "con", "prn", "aux", "nul", "conin$", "conout$",
+    "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    0
+};
+
+static bool isReservedDevice(cchar *path);
+#endif
+
 /*********************************** Code *************************************/
+
+#if !ME_ROM && ME_WIN_LIKE
+/*
+    Return true if any segment of the path names a reserved DOS device. Windows resolves a device from
+    the segment stem -- the text before the first '.' -- and ignores trailing spaces and dots, so
+    "com1", "com1.txt" and "com1 ." all reach the same device.
+ */
+static bool isReservedDevice(cchar *path)
+{
+    cchar *start, *cp;
+    char  stem[ME_GOAHEAD_LIMIT_FILENAME];
+    ssize len;
+    int   i;
+
+    for (start = path; start && *start; start = cp) {
+        for (cp = start; *cp && *cp != '/' && *cp != '\\'; cp++) { }
+        for (len = 0; &start[len] < cp && start[len] != '.'; len++) { }
+        while (len > 0 && (start[len - 1] == ' ' || start[len - 1] == '.')) {
+            len--;
+        }
+        if (0 < len && len < (ssize) sizeof(stem)) {
+            memcpy(stem, start, len);
+            stem[len] = '\0';
+            for (i = 0; reservedDevices[i]; i++) {
+                if (scaselessmatch(stem, reservedDevices[i])) {
+                    return 1;
+                }
+            }
+        }
+        if (*cp) {
+            cp++;
+        }
+    }
+    return 0;
+}
+#endif
+
 
 PUBLIC int websFsOpen(void)
 {
@@ -61,7 +115,43 @@ PUBLIC int websOpenFile(cchar *path, int flags, int mode)
     wip->pos = 0;
     return (int) (wip - websRomIndex);
 #else
-    return open(path, flags, mode);
+    WebsStat sbuf;
+    int      fd;
+
+#if ME_WIN_LIKE
+    if (isReservedDevice(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+#else
+    /*
+        O_NONBLOCK makes open() on a FIFO or device return immediately instead of blocking in the
+        kernel. GoAhead has one event loop, so a blocking open stalls every connection and the timeout
+        machinery with it. The flag must be on the open itself -- a prior stat() tests a different
+        object than the one open() resolves.
+     */
+    flags |= O_NONBLOCK;
+#endif
+    if ((fd = open(path, flags, mode)) < 0) {
+        return -1;
+    }
+    /*
+        Only regular files are servable. Test the descriptor rather than the path so the type cannot
+        change between the check and the use.
+     */
+    if (fstat(fd, &sbuf) < 0 || !S_ISREG(sbuf.st_mode)) {
+        close(fd);
+        errno = ENOENT;
+        return -1;
+    }
+#if !ME_WIN_LIKE
+    /*
+        Restore blocking semantics now that the type is known. Reads and writes on a regular file
+        cannot block indefinitely and the transfer paths expect blocking behavior.
+     */
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & ~O_NONBLOCK);
+#endif
+    return fd;
 #endif
 }
 
@@ -101,6 +191,10 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
     WebsStat s;
     int      rc;
 #if ME_WIN_LIKE
+    if (isReservedDevice(path)) {
+        errno = ENOENT;
+        return -1;
+    }
     {
         ssize len = slen(path) - 1;
         char  *p = sclone(path);
@@ -120,7 +214,7 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
     }
     sbuf->size = (ssize) s.st_size;
     sbuf->mtime = s.st_mtime;
-    sbuf->isDir = s.st_mode & S_IFDIR;
+    sbuf->isDir = S_ISDIR(s.st_mode);
     return 0;
 #endif
 }

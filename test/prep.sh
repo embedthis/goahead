@@ -22,6 +22,15 @@ mkdir -p cgi-bin web/tmp
 CAFE=$(printf 'caf\303\251')
 mkdir -p "web/${CAFE}"
 echo "cafe-secret" > "web/${CAFE}/x.txt"
+
+#
+#   Fixture for regress/file-type-gate.tst.ts. A FIFO with no writer blocks open() in the kernel,
+#   which would stall the single event loop. Not available on Windows; that test axis is skipped there.
+#
+if [ "$TESTME_OS" != "windows" ] ; then
+    rm -f web/fifo.txt
+    mkfifo web/fifo.txt
+fi
 cp ../certs/self.key  ../certs/self.crt .
 cp ../build/bin/cgitest* cgi-bin
 # cgitest links against libgoahead; its rpath is @loader_path so the lib must sit beside it
