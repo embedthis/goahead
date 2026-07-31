@@ -1079,9 +1079,11 @@ static void parseFirstLine(Webs *wp)
  */
 static void parseHeaders(Webs *wp)
 {
-    cchar *prior;
-    char  *combined, *upperKey, *cp, *key, *value, *tok;
-    int   count, seenContentLength, seenTransferEncoding;
+    cchar  *prior;
+    char   *combined, *upperKey, *cp, *key, *value, *tok;
+    uint64 length;
+    ssize  rxLimit;
+    int    count, seenContentLength, seenTransferEncoding;
 
     assert(websValid(wp));
 
@@ -1166,25 +1168,23 @@ static void parseHeaders(Webs *wp)
                 return;
             }
             /*
-                SECURITY Acceptable: atoi() integer overflow with very large values will
-                wrap to negative, which is safely rejected below. Embedded systems can
-                reject unreasonably large content lengths.
+                Accumulate into a 64-bit value and stop at the body limit. atoi() returns int, so a
+                large all-digit value truncates to a small non-negative number that passes the limit
+                tests below and frames the body short. The undrained remainder is then serviced as a
+                second, attacker-framed request on a keep-alive connection (CWE-190 into CWE-444).
+                Testing against the limit inside the loop keeps the accumulator well below its own
+                range, so no digit count can wrap it.
              */
-            if ((wp->rxLen = atoi(value)) < 0) {
-                websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Invalid content length");
-                return;
-            }
-            if (smatch(wp->method, "PUT")) {
-                if (wp->rxLen > ME_GOAHEAD_LIMIT_PUT) {
-                    websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Too big");
-                    return;
-                }
-            } else {
-                if (wp->rxLen > postLimit) {
+            rxLimit = smatch(wp->method, "PUT") ? ME_GOAHEAD_LIMIT_PUT : postLimit;
+            length = 0;
+            for (cp = value; *cp; cp++) {
+                length = (length * 10) + (uint64) (*cp - '0');
+                if (length > (uint64) rxLimit) {
                     websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Too big");
                     return;
                 }
             }
+            wp->rxLen = (ssize) length;
             /*
                 Account for the declared request body for every method, including HEAD, so the body is
                 drained before the keep-alive connection is reused. Skipping this for HEAD left the declared
