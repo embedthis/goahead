@@ -3466,10 +3466,25 @@ PUBLIC void websDestroySession(Webs *wp)
 }
 
 
-PUBLIC WebsSession *websCreateSession(Webs *wp)
+/*
+    SECURITY: Rotate the session id at a privilege transition. Destroys the session bound to this
+    request server-side and issues a new session with a freshly minted, server-generated id and a
+    Set-Cookie. Session data is deliberately not carried across: everything held in the old session
+    was written while the request was unauthenticated, possibly by whoever planted the id. Callers
+    must use this, not websGetSession(wp, 1), when authenticating a user: websGetSession adopts a
+    live client-presented id, which writes the authenticated identity into a session of the client's
+    choosing.
+ */
+PUBLIC WebsSession *websRotateSession(Webs *wp)
 {
     websDestroySession(wp);
     return websGetSession(wp, 1);
+}
+
+
+PUBLIC WebsSession *websCreateSession(Webs *wp)
+{
+    return websRotateSession(wp);
 }
 
 

@@ -133,9 +133,13 @@ PUBLIC bool websAuthenticate(Webs *wp)
             return 0;
         }
         /*
-            Store authentication state and user in session storage
+            Store authentication state and user in session storage. Rotate the session id first:
+            this is a privilege transition, and any session the client arrived carrying was
+            established while it was unauthenticated. If rotation fails (the session table is full)
+            the request is still authenticated - the credentials were verified - it simply is not
+            cached, and the next request re-verifies.
          */
-        if (websGetSession(wp, 1) != 0) {
+        if (websRotateSession(wp) != 0) {
             websSetSessionVar(wp, WEBS_SESSION_USERNAME, wp->username);
         }
     }
@@ -507,7 +511,7 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
         return 0;
     }
     trace(2, "Login successful for %s", username);
-    if (websCreateSession(wp) == 0) {
+    if (websRotateSession(wp) == 0) {
         /*
             Session storage is full or unavailable. Fail the login rather than reporting success: the
             client would otherwise be redirected to the protected page carrying no session cookie and

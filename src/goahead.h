@@ -4313,9 +4313,13 @@ typedef struct WebsSession {
 PUBLIC WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan);
 
 /**
-    Test if a user possesses the required ability
+    Create a new session for the request
+    @description Destroys any session bound to the request and creates a new session with a fresh,
+        server-generated id. Equivalent to websRotateSession, which names the security invariant and
+        is preferred in new code.
     @param wp Webs request object
     @return Allocated session object
+    @see websRotateSession websDestroySession websGetSession
         @stability Stable
  */
 PUBLIC WebsSession *websCreateSession(Webs *wp);
@@ -4365,6 +4369,23 @@ PUBLIC cchar *websGetSessionVar(Webs *wp, cchar *name, cchar *defaultValue);
         @stability Stable
  */
 PUBLIC void websRemoveSessionVar(Webs *wp, cchar *name);
+
+/**
+    Rotate the session id at a privilege transition
+    @description Destroys the session bound to the request and creates a new session with a fresh,
+        server-generated id, issuing a new session cookie. Session variables held by the old session
+        are discarded: they were established while the request was unauthenticated.
+        Call this whenever a request transitions from unauthenticated to authenticated. Do not use
+        websGetSession(wp, 1) for that purpose: it returns the session named by the client's cookie
+        if that session is live, which stores the authenticated identity in a session the client
+        chose and enables session fixation.
+    @param wp Webs request object
+    @return The new session object, or zero if a session cannot be created because the session limit
+        ME_GOAHEAD_LIMIT_SESSION_COUNT is reached
+    @see websCreateSession websDestroySession websGetSession websAuthenticate websLoginUser
+        @stability Evolving
+ */
+PUBLIC WebsSession *websRotateSession(Webs *wp);
 
 /**
     Set a session variable name value
