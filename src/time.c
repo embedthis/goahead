@@ -252,6 +252,12 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
 
     assert(token && *token);
 
+    /*
+        Define the out-parameter on every path. The caller branches on it, and an early return here
+        would otherwise leave it indeterminate for a date string that runs out of tokens.
+     */
+    *isAlpah = 0;
+
     if (token == NULL || *token == NULL || **token == '\0') {
         return 0;
     }
@@ -270,7 +276,6 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
     if (*token) {
         *token += 1;
     }
-    *isAlpah = 0;
     return num;
 }
 
