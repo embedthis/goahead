@@ -76,6 +76,15 @@ jobs:
           call projects\openssl-prep.bat
           msbuild projects\vs2022\goahead.sln /p:Configuration=debug /p:Platform=windows /v:normal
 
+      #
+      #   dist/ is generated from src/ but committed for pak consumers. Fail loudly if a
+      #   source change (in particular a security fix) has not been amalgamated.
+      #
+      - name: Verify dist/ is in sync with src/
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          make check-dist
+
       - name: Run test suite (Unix)
         if: runner.os != 'Windows'
         run: |

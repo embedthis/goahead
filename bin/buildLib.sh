@@ -8,14 +8,33 @@
 #     dist/js.h              JavaScript header
 #     build/goahead-VERSION-src.tgz   Source distribution tarball
 #
-#   Usage: buildLib.sh
+#   Usage: buildLib.sh [--dist-only]
+#
+#     --dist-only   Generate the dist/ files and stop; no source tarball.
+#
+#   The DIST environment variable overrides the output directory for the
+#   amalgamation (default $TOP/dist). "make check-dist" uses DIST plus
+#   --dist-only to regenerate into a scratch directory and diff it against
+#   the committed dist/.
 #
 
 set -e
 
+#
+#   A set CDPATH makes cd echo the directory it lands in, which would be
+#   captured by every $(cd ...) below and injected into the tar pipes.
+#
+unset CDPATH
+
 TOP=$(cd "$(dirname "$0")/.." && pwd)
 BUILD="$TOP/build"
 SRC="$TOP/src"
+DIST="${DIST:-$TOP/dist}"
+DIST_ONLY=0
+
+if [ "$1" = "--dist-only" ] ; then
+    DIST_ONLY=1
+fi
 
 # ---------------------------------------------------------------
 #  Read version from package.json
@@ -30,9 +49,9 @@ OUTPUT="$BUILD/${NAME}-src.tgz"
 # ---------------------------------------------------------------
 #  dist/ -- amalgamated library source and headers
 # ---------------------------------------------------------------
-mkdir -p "$TOP/dist"
+mkdir -p "$DIST"
 
-DST="$TOP/dist/goaheadLib.c"
+DST="$DIST/goaheadLib.c"
 FILES="action.c alloc.c auth.c cgi.c crypt.c file.c fs.c http.c js.c jst.c \
        mbedtls.c openssl.c options.c osdep.c rom.c route.c runtime.c socket.c \
        time.c upload.c"
@@ -62,14 +81,18 @@ printf '\n#else\nvoid dummyGoahead(){}\n#endif /* ME_COM_GOAHEAD */\n' >> "${DST
 
 echo "      [Info] Created dist/goaheadLib.c: $(wc -l < "${DST}") lines"
 
-cp "$SRC/goahead.h" "$TOP/dist/goahead.h"
-cp "$SRC/js.h" "$TOP/dist/js.h"
+cp "$SRC/goahead.h" "$DIST/goahead.h"
+cp "$SRC/js.h" "$DIST/js.h"
 echo "      [Info] Copied dist/goahead.h, dist/js.h"
 
 # ---------------------------------------------------------------
 #  dist/ -- README only (no CLAUDE.md, AI/, or .claude/)
 # ---------------------------------------------------------------
-cp "$TOP/README.md" "$TOP/dist/README.md"
+cp "$TOP/README.md" "$DIST/README.md"
+
+if [ "$DIST_ONLY" = 1 ] ; then
+    exit 0
+fi
 
 # ---------------------------------------------------------------
 #  Source distribution tarball
