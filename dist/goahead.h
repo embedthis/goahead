@@ -1025,6 +1025,21 @@ PUBLIC void *walloc(ssize size);
 PUBLIC void wfree(void *blk);
 
 /**
+    Free an allocated block of memory and clear the pointer
+    @description Structure fields are freed unconditionally by their owning destructor, so a field freed anywhere
+        else must be cleared or the destructor will free it a second time. Use this in preference to wfree() for
+        every pointer stored in a structure. wfree() tolerates a NULL pointer, so the cleared field is safe to free
+        again. The pointer expression is evaluated twice and so must be free of side effects.
+    @param ptr Lvalue holding a reference to the memory block to free. May be NULL.
+        @stability Stable
+ */
+#define wfreeset(ptr) \
+    do {              \
+        wfree(ptr);   \
+        (ptr) = 0;    \
+    } while (0)
+
+/**
     Reallocate a block of memory and grow its size
     @description If the new size is larger than the existing block, a new block will be allocated and the old data
         will be copied to the new block.
@@ -1546,6 +1561,18 @@ PUBLIC int socketSetBlock(int sid, int on);
         @stability Stable
  */
 PUBLIC void socketSetError(int error);
+
+/**
+    Set the socket send timeout
+    @description Bound how long a blocking send may wait for the peer to accept data. Without a send timeout, a
+        peer that stops reading will block the single-threaded event loop indefinitely. Support is detected at
+        runtime: stacks without SO_SNDTIMEO (older VxWorks, ECOS, TIDSP) return -1 and retain an unbounded wait.
+    @param sid Socket ID handle returned from socketConnect or socketAccept.
+    @param timeout Timeout in milliseconds. Set to zero to wait indefinitely.
+    @return Zero if the platform supports a send timeout, otherwise -1.
+        @stability Evolving
+ */
+PUBLIC int socketSetSendTimeout(int sid, int timeout);
 
 /**
     Set the socket delay mode
@@ -2150,7 +2177,8 @@ typedef struct Webs {
     int flags;                          /**< Current flags -- see above */
     int code;                           /**< Response status code */
     int routeCount;                     /**< Route count limiter */
-    ssize rxLen;                        /**< Rx content length */
+    ssize rxLen;                        /**< Rx body length. -1 until known: set from Content-Length, or from the
+                                             decoded total once a chunked body completes */
     ssize rxRemaining;                  /**< Remaining content to read from client */
     ssize rxBytes;                      /**< Cumulative decoded request body bytes received (chunked framing) */
     ssize txRemaining;                  /**< Remaining content to write */
@@ -2357,6 +2385,18 @@ PUBLIC int websCgiHandler(Webs *wp);
         @stability Stable
  */
 PUBLIC int websCgiPoll(void);
+
+/**
+    Detach a request from the CGI registry
+    @description Called from the Webs teardown before the object is released. The CGI registry holds
+        a borrowed Webs pointer and borrowed temp file names for the life of the child process. A
+        request may die by timeout, client close or error while its child is still running, so the
+        owner must unregister here or websCgiPoll will use the freed object. Any orphaned child is
+        killed and reaped and its temp files removed.
+    @param wp Webs object
+        @stability Evolving
+ */
+PUBLIC void websCgiDetach(Webs *wp);
 
 /* Internal */
 PUBLIC bool cgiHandler(Webs *wp);
@@ -4282,6 +4322,7 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp);
 typedef struct WebsSession {
     char *id;                               /**< Session ID key */
     int lifespan;                           /**< Session inactivity timeout (secs) */
+    int retired;                            /**< Session removed from the session store, awaiting its last holder */
     WebsTime expires;                       /**< When the session expires */
     WebsHash cache;                         /**< Cache of session variables */
 } WebsSession;
@@ -4297,9 +4338,13 @@ typedef struct WebsSession {
 PUBLIC WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan);
 
 /**
-    Test if a user possesses the required ability
+    Create a new session for the request
+    @description Destroys any session bound to the request and creates a new session with a fresh,
+        server-generated id. Equivalent to websRotateSession, which names the security invariant and
+        is preferred in new code.
     @param wp Webs request object
     @return Allocated session object
+    @see websRotateSession websDestroySession websGetSession
         @stability Stable
  */
 PUBLIC WebsSession *websCreateSession(Webs *wp);
@@ -4349,6 +4394,23 @@ PUBLIC cchar *websGetSessionVar(Webs *wp, cchar *name, cchar *defaultValue);
         @stability Stable
  */
 PUBLIC void websRemoveSessionVar(Webs *wp, cchar *name);
+
+/**
+    Rotate the session id at a privilege transition
+    @description Destroys the session bound to the request and creates a new session with a fresh,
+        server-generated id, issuing a new session cookie. Session variables held by the old session
+        are discarded: they were established while the request was unauthenticated.
+        Call this whenever a request transitions from unauthenticated to authenticated. Do not use
+        websGetSession(wp, 1) for that purpose: it returns the session named by the client's cookie
+        if that session is live, which stores the authenticated identity in a session the client
+        chose and enables session fixation.
+    @param wp Webs request object
+    @return The new session object, or zero if a session cannot be created because the session limit
+        ME_GOAHEAD_LIMIT_SESSION_COUNT is reached
+    @see websCreateSession websDestroySession websGetSession websAuthenticate websLoginUser
+        @stability Evolving
+ */
+PUBLIC WebsSession *websRotateSession(Webs *wp);
 
 /**
     Set a session variable name value

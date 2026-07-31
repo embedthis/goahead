@@ -606,7 +606,7 @@ PUBLIC bool websAuthenticate(Webs *wp)
          */
         if ((username = (char*) websGetSessionVar(wp, WEBS_SESSION_USERNAME, 0)) != 0) {
             cached = 1;
-            wfree(wp->username);
+            wfreeset(wp->username);
             wp->username = sclone(username);
         }
     }
@@ -621,8 +621,7 @@ PUBLIC bool websAuthenticate(Webs *wp)
                     parseAuth may have taken ownership of a cloned username before failing.
                     Free it here so a failed authentication does not orphan the block.
                  */
-                wfree(wp->username);
-                wp->username = 0;
+                wfreeset(wp->username);
             }
         }
         if (!wp->username || !*wp->username) {
@@ -640,9 +639,13 @@ PUBLIC bool websAuthenticate(Webs *wp)
             return 0;
         }
         /*
-            Store authentication state and user in session storage
+            Store authentication state and user in session storage. Rotate the session id first:
+            this is a privilege transition, and any session the client arrived carrying was
+            established while it was unauthenticated. If rotation fails (the session table is full)
+            the request is still authenticated - the credentials were verified - it simply is not
+            cached, and the next request re-verifies.
          */
-        if (websGetSession(wp, 1) != 0) {
+        if (websRotateSession(wp) != 0) {
             websSetSessionVar(wp, WEBS_SESSION_USERNAME, wp->username);
         }
     }
@@ -809,9 +812,9 @@ static void freeUser(WebsUser *up)
 {
     assert(up);
     hashFree(up->abilities);
-    wfree(up->name);
-    wfree(up->password);
-    wfree(up->roles);
+    wfreeset(up->name);
+    wfreeset(up->password);
+    wfreeset(up->roles);
     wfree(up);
 }
 
@@ -824,7 +827,7 @@ PUBLIC int websSetUserPassword(cchar *username, cchar *password)
     if ((user = websLookupUser(username)) == 0) {
         return -1;
     }
-    wfree(user->password);
+    wfreeset(user->password);
     user->password = sclone(password);
     return 0;
 }
@@ -838,7 +841,7 @@ PUBLIC int websSetUserRoles(cchar *username, cchar *roles)
     if ((user = websLookupUser(username)) == 0) {
         return -1;
     }
-    wfree(user->roles);
+    wfreeset(user->roles);
     user->roles = sclone(roles);
     computeUserAbilities(user);
     return 0;
@@ -1004,9 +1007,9 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
     if (!wp->route || !wp->route->verify) {
         return 0;
     }
-    wfree(wp->username);
+    wfreeset(wp->username);
     wp->username = sclone(username);
-    wfree(wp->password);
+    wfreeset(wp->password);
     wp->password = sclone(password);
 
     if (!(wp->route->verify)(wp)) {
@@ -1014,7 +1017,7 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
         return 0;
     }
     trace(2, "Login successful for %s", username);
-    if (websCreateSession(wp) == 0) {
+    if (websRotateSession(wp) == 0) {
         /*
             Session storage is full or unavailable. Fail the login rather than reporting success: the
             client would otherwise be redirected to the protected page carrying no session cookie and
@@ -1091,7 +1094,7 @@ static void basicLogin(Webs *wp)
 {
     assert(wp);
     assert(wp->route);
-    wfree(wp->authResponse);
+    wfreeset(wp->authResponse);
     wp->authResponse = sfmt("Basic realm=\"%s\"", ME_GOAHEAD_REALM);
 }
 
@@ -1179,7 +1182,7 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
                 which must use MD5. Newer clients may support other algorithms, but not widespread.
              */
             fmt(passbuf, sizeof(passbuf), "%s:%s:%s", wp->username, ME_GOAHEAD_REALM, wp->password);
-            wfree(wp->password);
+            wfreeset(wp->password);
             wp->password = websMD5(passbuf);
             wp->encoded = 1;
         }
@@ -1345,8 +1348,8 @@ static bool parseBasicDetails(Webs *wp)
             *cp++ = '\0';
         }
     }
-    wfree(wp->username);
-    wfree(wp->password);
+    wfreeset(wp->username);
+    wfreeset(wp->password);
     if (cp) {
         wp->username = sclone(userAuth);
         wp->password = sclone(cp);
@@ -1371,7 +1374,7 @@ static void digestLogin(Webs *wp)
     nonce = createDigestNonce(wp);
     /* Opaque is unused. Set to anything */
     opaque = "5ccc069c403ebaf9f0171e9517f40e41";
-    wfree(wp->authResponse);
+    wfreeset(wp->authResponse);
     wp->authResponse = sfmt(
         "Digest realm=\"%s\", domain=\"%s\", qop=\"%s\", nonce=\"%s\", opaque=\"%s\", algorithm=\"%s\", stale=\"%s\"",
         ME_GOAHEAD_REALM, websGetServerUrl(), "auth", nonce, opaque, "MD5", "FALSE");
@@ -1447,7 +1450,7 @@ static bool parseDigestDetails(Webs *wp)
 
         case 'c':
             if (scaselesscmp(key, "cnonce") == 0) {
-                wfree(wp->cnonce);
+                wfreeset(wp->cnonce);
                 wp->cnonce = sclone(value);
             }
             break;
@@ -1460,31 +1463,31 @@ static bool parseDigestDetails(Webs *wp)
 
         case 'n':
             if (scaselesscmp(key, "nc") == 0) {
-                wfree(wp->nc);
+                wfreeset(wp->nc);
                 wp->nc = sclone(value);
             } else if (scaselesscmp(key, "nonce") == 0) {
-                wfree(wp->nonce);
+                wfreeset(wp->nonce);
                 wp->nonce = sclone(value);
             }
             break;
 
         case 'o':
             if (scaselesscmp(key, "opaque") == 0) {
-                wfree(wp->opaque);
+                wfreeset(wp->opaque);
                 wp->opaque = sclone(value);
             }
             break;
 
         case 'q':
             if (scaselesscmp(key, "qop") == 0) {
-                wfree(wp->qop);
+                wfreeset(wp->qop);
                 wp->qop = sclone(value);
             }
             break;
 
         case 'r':
             if (scaselesscmp(key, "realm") == 0) {
-                wfree(wp->realm);
+                wfreeset(wp->realm);
                 wp->realm = sclone(value);
             } else if (scaselesscmp(key, "response") == 0) {
                 /*
@@ -1492,7 +1495,7 @@ static bool parseDigestDetails(Webs *wp)
                     Store the response digest in the password field. This is MD5(HA1:nonce:HA2) where
                     HA1 is MD5(user:realm:password) and HA2 is MD5(method:digestUri)
                  */
-                wfree(wp->password);
+                wfreeset(wp->password);
                 wp->password = sclone(value);
                 wp->encoded = 1;
             }
@@ -1504,10 +1507,10 @@ static bool parseDigestDetails(Webs *wp)
 
         case 'u':
             if (scaselesscmp(key, "uri") == 0) {
-                wfree(wp->digestUri);
+                wfreeset(wp->digestUri);
                 wp->digestUri = sclone(value);
             } else if (scaselesscmp(key, "username") == 0 || scaselesscmp(key, "user") == 0) {
-                wfree(wp->username);
+                wfreeset(wp->username);
                 wp->username = sclone(value);
             }
             break;
@@ -1588,7 +1591,7 @@ static bool parseDigestDetails(Webs *wp)
         }
     }
     wfree(decoded);
-    wfree(wp->digest);
+    wfreeset(wp->digest);
     wp->digest = calcDigest(wp, 0, wp->user->password);
     return 1;
 }
@@ -1853,7 +1856,9 @@ static bool inBlackList(cchar *name)
 
 /************************************ Forwards ********************************/
 
+static void cgiCleanup(Cgi *cgip, int cid);
 static int checkCgi(CgiPid handle);
+static void killCgi(CgiPid handle);
 static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, char *stdOut);
 
 /************************************* Code ***********************************/
@@ -2225,6 +2230,57 @@ PUBLIC int websCgiOpen(void)
 }
 
 
+/*
+    Release a CGI registry slot and everything it owns. The child must already have been reaped.
+    cgip->stdIn is borrowed from wp->cgiStdin and is freed by the Webs teardown, so unlink it here
+    but do not free it.
+ */
+static void cgiCleanup(Cgi *cgip, int cid)
+{
+    char **ep;
+
+    if (cgip->stdIn) {
+        unlink(cgip->stdIn);
+    }
+    if (cgip->stdOut) {
+        unlink(cgip->stdOut);
+    }
+    cgiMax = wfreeHandle(&cgiList, cid);
+    for (ep = cgip->envp; ep != NULL && *ep != NULL; ep++) {
+        wfree(*ep);
+    }
+    wfreeset(cgip->cgiPath);
+    wfreeset(cgip->stdOut);
+    wfreeset(cgip->argp);
+    wfreeset(cgip->envp);
+    wfree(cgip);
+}
+
+
+/*
+    Detach a request from the CGI registry. cgiList publishes a Webs pointer and the request's temp
+    file names, but the registry does not own them. The request can die by timeout, client close or
+    error while its child is still running, so the owner must unregister before it releases itself,
+    otherwise websCgiPoll reads and writes through freed memory on its next pass. There is nobody
+    left to deliver output to, so kill and reap the orphaned child rather than leaking it.
+ */
+PUBLIC void websCgiDetach(Webs *wp)
+{
+    Cgi *cgip;
+    int cid;
+
+    for (cid = 0; cid < cgiMax; cid++) {
+        if ((cgip = cgiList[cid]) != NULL && cgip->wp == wp) {
+            killCgi(cgip->handle);
+            cgip->handle = 0;
+            cgip->wp = 0;
+            cgiCleanup(cgip, cid);
+            break;
+        }
+    }
+}
+
+
 PUBLIC bool websProcessCgiData(Webs *wp)
 {
     ssize nbytes;
@@ -2463,7 +2519,6 @@ int websCgiPoll(void)
 {
     Webs *wp;
     Cgi  *cgip;
-    char **ep;
     int  cid;
 
     for (cid = 0; cid < cgiMax; cid++) {
@@ -2498,23 +2553,10 @@ int websCgiPoll(void)
                     websDone(wp);
                 }
                 /*
-                    Remove the temporary re-direction files
+                    Remove the temporary re-direction files and free the registry slot. This must
+                    happen before the Webs object is released below, as the slot borrows wp->cgiStdin.
                  */
-                unlink(cgip->stdIn);
-                unlink(cgip->stdOut);
-                /*
-                    Free all the memory buffers pointed to by cgip. The stdin file name (wp->cgiStdin) gets freed as
-                    part of websFree().
-                 */
-                cgiMax = wfreeHandle(&cgiList, cid);
-                for (ep = cgip->envp; ep != NULL && *ep != NULL; ep++) {
-                    wfree(*ep);
-                }
-                wfree(cgip->cgiPath);
-                wfree(cgip->stdOut);
-                wfree(cgip->argp);
-                wfree(cgip->envp);
-                wfree(cgip);
+                cgiCleanup(cgip, cid);
                 websPump(wp);
                 if ((wp->flags & WEBS_KEEP_ALIVE) == 0) {
                     websFree(wp);
@@ -2606,6 +2648,18 @@ static int checkCgi(CgiPid handle)
     }
     return 1;
 }
+
+
+/*
+    Terminate an orphaned CGI process and release its handle.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle) {
+        TerminateProcess((HANDLE) handle, 0);
+        CloseHandle((HANDLE) handle);
+    }
+}
 #endif /* WINCE */
 
 
@@ -2674,6 +2728,21 @@ static int checkCgi(CgiPid handle)
         return 0;
     } else {
         return 1;
+    }
+}
+
+
+/*
+    Terminate an orphaned CGI process. SIGKILL rather than SIGTERM because the blocking waitpid
+    below must not stall the single-threaded event loop on a child that ignores or blocks the
+    signal. The wait is required so the child does not linger as a zombie.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle > 0) {
+        trace(5, "cgi: kill orphaned pid %d", (int) handle);
+        kill(handle, SIGKILL);
+        waitpid(handle, NULL, 0);
     }
 }
 #endif /* LINUX || LYNX || MACOSX || QNX4 */
@@ -2881,6 +2950,17 @@ static int checkCgi(CgiPid handle)
         return 0;
     }
 }
+
+
+/*
+    Terminate an orphaned CGI task.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle && taskIdVerify(handle) == OK) {
+        taskDelete(handle);
+    }
+}
 #endif /* VXWORKS */
 
 #if WINDOWS
@@ -3085,6 +3165,18 @@ static int checkCgi(CgiPid handle)
         return 0;
     }
     return 1;
+}
+
+
+/*
+    Terminate an orphaned CGI process and release its handle.
+ */
+static void killCgi(CgiPid handle)
+{
+    if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
+        TerminateProcess((HANDLE) handle, 0);
+        closeWinHandle((HANDLE) handle);
+    }
 }
 #endif /* WIN */
 #endif /* ME_GOAHEAD_CGI */
@@ -4480,7 +4572,61 @@ static WebsHash romFs;
 static WebsRomIndex *lookup(WebsHash fs, char *path);
 #endif
 
+#if !ME_ROM && ME_WIN_LIKE
+/*
+    Windows resolves these reserved device names in every directory, with or without an extension, so
+    a request for /CON or /docs/com1.txt opens a device instead of a file. Reading a console or serial
+    device blocks, and GoAhead runs a single event loop, so the whole server stalls. The names must be
+    refused before the open because the open itself is what blocks -- there is no descriptor to test.
+ */
+static cchar *reservedDevices[] = {
+    "con", "prn", "aux", "nul", "conin$", "conout$",
+    "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    0
+};
+
+static bool isReservedDevice(cchar *path);
+#endif
+
 /*********************************** Code *************************************/
+
+#if !ME_ROM && ME_WIN_LIKE
+/*
+    Return true if any segment of the path names a reserved DOS device. Windows resolves a device from
+    the segment stem -- the text before the first '.' -- and ignores trailing spaces and dots, so
+    "com1", "com1.txt" and "com1 ." all reach the same device.
+ */
+static bool isReservedDevice(cchar *path)
+{
+    cchar *start, *cp;
+    char  stem[ME_GOAHEAD_LIMIT_FILENAME];
+    ssize len;
+    int   i;
+
+    for (start = path; start && *start; start = cp) {
+        for (cp = start; *cp && *cp != '/' && *cp != '\\'; cp++) { }
+        for (len = 0; &start[len] < cp && start[len] != '.'; len++) { }
+        while (len > 0 && (start[len - 1] == ' ' || start[len - 1] == '.')) {
+            len--;
+        }
+        if (0 < len && len < (ssize) sizeof(stem)) {
+            memcpy(stem, start, len);
+            stem[len] = '\0';
+            for (i = 0; reservedDevices[i]; i++) {
+                if (scaselessmatch(stem, reservedDevices[i])) {
+                    return 1;
+                }
+            }
+        }
+        if (*cp) {
+            cp++;
+        }
+    }
+    return 0;
+}
+#endif
+
 
 PUBLIC int websFsOpen(void)
 {
@@ -4523,7 +4669,43 @@ PUBLIC int websOpenFile(cchar *path, int flags, int mode)
     wip->pos = 0;
     return (int) (wip - websRomIndex);
 #else
-    return open(path, flags, mode);
+    WebsStat sbuf;
+    int      fd;
+
+#if ME_WIN_LIKE
+    if (isReservedDevice(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+#else
+    /*
+        O_NONBLOCK makes open() on a FIFO or device return immediately instead of blocking in the
+        kernel. GoAhead has one event loop, so a blocking open stalls every connection and the timeout
+        machinery with it. The flag must be on the open itself -- a prior stat() tests a different
+        object than the one open() resolves.
+     */
+    flags |= O_NONBLOCK;
+#endif
+    if ((fd = open(path, flags, mode)) < 0) {
+        return -1;
+    }
+    /*
+        Only regular files are servable. Test the descriptor rather than the path so the type cannot
+        change between the check and the use.
+     */
+    if (fstat(fd, &sbuf) < 0 || !S_ISREG(sbuf.st_mode)) {
+        close(fd);
+        errno = ENOENT;
+        return -1;
+    }
+#if !ME_WIN_LIKE
+    /*
+        Restore blocking semantics now that the type is known. Reads and writes on a regular file
+        cannot block indefinitely and the transfer paths expect blocking behavior.
+     */
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & ~O_NONBLOCK);
+#endif
+    return fd;
 #endif
 }
 
@@ -4563,6 +4745,10 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
     WebsStat s;
     int      rc;
 #if ME_WIN_LIKE
+    if (isReservedDevice(path)) {
+        errno = ENOENT;
+        return -1;
+    }
     {
         ssize len = slen(path) - 1;
         char  *p = sclone(path);
@@ -4582,7 +4768,7 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf)
     }
     sbuf->size = (ssize) s.st_size;
     sbuf->mtime = s.st_mtime;
-    sbuf->isDir = s.st_mode & S_IFDIR;
+    sbuf->isDir = S_ISDIR(s.st_mode);
     return 0;
 #endif
 }
@@ -4939,6 +5125,9 @@ static bool     parseIncoming(Webs *wp);
 static void     pruneSessions(void);
 static void     freeSession(WebsSession *sp);
 static void     freeSessions(void);
+static void     releaseSession(Webs *wp);
+static void     retireSession(WebsSession *sp);
+static int      sessionHolders(WebsSession *sp);
 static void     readEvent(Webs *wp);
 static void     reuseConn(Webs *wp);
 static void     setFileLimits(void);
@@ -5042,9 +5231,6 @@ PUBLIC void websClose(void)
         websStopEvent(pruneId);
         pruneId = -1;
     }
-    if (sessions >= 0) {
-        freeSessions();
-    }
     for (i = 0; i < listenMax; i++) {
         if (listens[i] >= 0) {
             socketCloseConnection(listens[i]);
@@ -5061,6 +5247,13 @@ PUBLIC void websClose(void)
             wp->sid = -1;
         }
         websFree(wp);
+    }
+    /*
+        Free the sessions after the open connections. Requests hold session references that they release
+        in termWebs, so freeing the session store first would leave those releases touching freed memory.
+     */
+    if (sessions >= 0) {
+        freeSessions();
     }
     wfree(websHostUrl);
     wfree(websIpAddrUrl);
@@ -5192,58 +5385,70 @@ static void termWebs(Webs *wp, int reuse)
     }
 #endif
 #if ME_GOAHEAD_CGI
+    /*
+        Unregister before releasing anything the CGI registry borrows from this request. This covers
+        reuse too: a keep-alive reuse frees wp->cgiStdin, which the registry slot points at.
+     */
+    websCgiDetach(wp);
     if (wp->cgifd >= 0) {
         close(wp->cgifd);
         wp->cgifd = -1;
     }
     if (wp->cgiStdin) {
         unlink(wp->cgiStdin);
-        wfree(wp->cgiStdin);
+        wfreeset(wp->cgiStdin);
     }
 #endif
 #if ME_GOAHEAD_UPLOAD
-    wfree(wp->clientFilename);
+    wfreeset(wp->clientFilename);
 #endif
     websPageClose(wp);
     if (wp->timeout >= 0 && !reuse) {
         websCancelTimeout(wp);
     }
-    wfree(wp->authDetails);
-    wfree(wp->authResponse);
-    wfree(wp->authType);
-    wfree(wp->contentType);
-    wfree(wp->cookie);
-    wfree(wp->decodedQuery);
-    wfree(wp->digest);
-    wfree(wp->ext);
-    wfree(wp->filename);
-    wfree(wp->host);
-    wfree(wp->method);
-    wfree(wp->password);
-    wfree(wp->path);
-    wfree(wp->protoVersion);
-    wfree(wp->putname);
-    wfree(wp->query);
-    wfree(wp->realm);
-    wfree(wp->referrer);
-    wfree(wp->url);
-    wfree(wp->userAgent);
-    wfree(wp->username);
+    wfreeset(wp->authDetails);
+    wfreeset(wp->authResponse);
+    wfreeset(wp->authType);
+    wfreeset(wp->contentType);
+    wfreeset(wp->cookie);
+    wfreeset(wp->decodedQuery);
+    wfreeset(wp->digest);
+    wfreeset(wp->ext);
+    wfreeset(wp->filename);
+    wfreeset(wp->host);
+    wfreeset(wp->method);
+    wfreeset(wp->password);
+    wfreeset(wp->path);
+    wfreeset(wp->protoVersion);
+    wfreeset(wp->putname);
+    wfreeset(wp->query);
+    wfreeset(wp->realm);
+    wfreeset(wp->referrer);
+    wfreeset(wp->url);
+    wfreeset(wp->userAgent);
+    wfreeset(wp->username);
 #if ME_GOAHEAD_UPLOAD
-    wfree(wp->boundary);
-    wfree(wp->uploadTmp);
-    wfree(wp->uploadVar);
+    wfreeset(wp->boundary);
+    wfreeset(wp->uploadTmp);
+    wfreeset(wp->uploadVar);
 #endif
 #if ME_GOAHEAD_DIGEST
-    wfree(wp->cnonce);
-    wfree(wp->digestUri);
-    wfree(wp->opaque);
-    wfree(wp->nc);
-    wfree(wp->nonce);
-    wfree(wp->qop);
+    wfreeset(wp->cnonce);
+    wfreeset(wp->digestUri);
+    wfreeset(wp->opaque);
+    wfreeset(wp->nc);
+    wfreeset(wp->nonce);
+    wfreeset(wp->qop);
 #endif
     hashFree(wp->vars);
     hashFree(wp->responseCookies);
+
+    /*
+        Release the session reference on both close and keep-alive reuse. initWebs() memsets the request
+        on reuse, so a release deferred to websFree would drop the last reference to a retired session
+        without freeing it.
+     */
+    releaseSession(wp);
 
 #if ME_GOAHEAD_UPLOAD
     if (wp->files >= 0) {
@@ -5590,10 +5795,25 @@ PUBLIC void websPump(Webs *wp)
             canProceed = processContent(wp);
             break;
         case WEBS_READY:
+            /*
+                A finalized request is terminal. websDone sets wp->finalized but leaves wp->state
+                alone, so without this test a request whose response has already been written is
+                dispatched to its handler regardless.
+             */
+            if (wp->finalized) {
+                wp->state = WEBS_COMPLETE;
+                canProceed = 1;
+                break;
+            }
             if (!websRunRequest(wp)) {
                 /* Reroute if the handler re-wrote the request */
                 websRouteRequest(wp);
-                wp->state = WEBS_READY;
+                /*
+                    The reroute may have selected a route whose authentication or ability check
+                    denied the request and wrote its response. Forcing WEBS_READY here would run
+                    that route's handler anyway, serving the body the gate just refused.
+                 */
+                wp->state = wp->finalized ? WEBS_COMPLETE : WEBS_READY;
                 canProceed = 1;
                 continue;
             }
@@ -5667,13 +5887,13 @@ static bool parseIncoming(Webs *wp)
     if (smatch(wp->method, "PUT")) {
         WebsStat sbuf;
         wp->code =
-            (stat(wp->filename, &sbuf) == 0 && sbuf.st_mode & S_IFDIR) ? HTTP_CODE_NO_CONTENT : HTTP_CODE_CREATED;
-        wfree(wp->putname);
+            (stat(wp->filename, &sbuf) == 0 && S_ISDIR(sbuf.st_mode)) ? HTTP_CODE_NO_CONTENT : HTTP_CODE_CREATED;
+        wfreeset(wp->putname);
         wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put");
         if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_CREAT | O_BINARY, 0644)) < 0) {
             error("Cannot create PUT filename %s", wp->putname);
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
-            wfree(wp->putname);
+            wfreeset(wp->putname);
             return 1;
         }
     }
@@ -5823,14 +6043,14 @@ static void parseHeaders(Webs *wp)
             Track the requesting agent (browser) type
          */
         if (strcmp(key, "user-agent") == 0) {
-            wfree(wp->userAgent);
+            wfreeset(wp->userAgent);
             wp->userAgent = sclone(value);
 
         } else if (scaselesscmp(key, "authorization") == 0) {
-            wfree(wp->authType);
+            wfreeset(wp->authType);
             wp->authType = sclone(value);
             ssplit(wp->authType, " \t", &tok);
-            wfree(wp->authDetails);
+            wfreeset(wp->authDetails);
             wp->authDetails = sclone(tok);
             slower(wp->authType);
 
@@ -5885,7 +6105,7 @@ static void parseHeaders(Webs *wp)
             wp->rxRemaining = wp->rxLen;
 
         } else if (strcmp(key, "content-type") == 0) {
-            wfree(wp->contentType);
+            wfreeset(wp->contentType);
             wp->contentType = sclone(value);
             if (strstr(value, "application/x-www-form-urlencoded")) {
                 wp->flags |= WEBS_FORM;
@@ -5912,7 +6132,7 @@ static void parseHeaders(Webs *wp)
                 websError(wp, WEBS_CLOSE | HTTP_CODE_BAD_REQUEST, "Bad host header");
                 return;
             }
-            wfree(wp->host);
+            wfreeset(wp->host);
             wp->host = sclone(value);
 
         } else if (strcmp(key, "if-modified-since") == 0) {
@@ -5925,7 +6145,7 @@ static void parseHeaders(Webs *wp)
                 Yes Veronica, the HTTP spec does misspell Referrer
              */
         } else if (strcmp(key, "referer") == 0) {
-            wfree(wp->referrer);
+            wfreeset(wp->referrer);
             wp->referrer = sclone(value);
 
         } else if (strcmp(key, "transfer-encoding") == 0) {
@@ -6126,9 +6346,15 @@ static bool filterChunkData(Webs *wp)
             wp->rxRemaining = chunkSize;
             if (chunkSize == 0) {
 #if ME_GOAHEAD_LEGACY
-                wfree(wp->query);
+                wfreeset(wp->query);
                 wp->query = sclone(bufStart(&wp->input));
 #endif
+                /*
+                    The decoded body is complete, so publish the authoritative total. Chunked framing has no
+                    Content-Length header, so rxLen would otherwise keep its -1 placeholder and be published to
+                    the CGI gateway as CONTENT_LENGTH=-1 after the body had already been written to its stdin.
+                 */
+                wp->rxLen = wp->rxBytes;
                 wp->eof = 1;
                 return 1;
             }
@@ -6232,7 +6458,12 @@ PUBLIC void websSetEnv(Webs *wp)
     assert(websValid(wp));
 
     websSetVar(wp, "AUTH_TYPE", wp->authType);
-    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", (int) wp->rxLen);
+    /*
+        Never publish the -1 placeholder. A request with no body carries no Content-Length, and the canonical
+        CGI idioms malloc(atoi(CONTENT_LENGTH) + 1) and read(0, buf, len) turn a negative length into a zero
+        sized allocation and a read of SIZE_MAX bytes. Zero is the correct CGI/1.1 value for an absent body.
+     */
+    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", (int) (wp->rxLen > 0 ? wp->rxLen : 0));
     websSetVar(wp, "CONTENT_TYPE", wp->contentType);
     if (wp->route && wp->route->dir) {
         websSetVar(wp, "DOCUMENT_ROOT", wp->route->dir);
@@ -6261,7 +6492,11 @@ PUBLIC void websSetFormVars(Webs *wp)
 {
     char *data;
 
-    if (wp->rxLen > 0 && bufLen(&wp->input) > 0) {
+    /*
+        Test the decoded buffer rather than the declared length. A chunked form post has no Content-Length,
+        so gating on rxLen silently skipped form variable parsing for the whole request.
+     */
+    if (bufLen(&wp->input) > 0) {
         if (wp->flags & WEBS_FORM) {
             data = sclone(wp->input.servp);
             addFormVars(wp, data);
@@ -6278,7 +6513,7 @@ PUBLIC void websSetQueryVars(Webs *wp)
         split pairs at the '='.  Note: we rely on wp->decodedQuery preserving the decoded values in the symbol table.
      */
     if (wp->query && *wp->query) {
-        wfree(wp->decodedQuery);
+        wfreeset(wp->decodedQuery);
         wp->decodedQuery = sclone(wp->query);
         addFormVars(wp, wp->decodedQuery);
     }
@@ -6918,13 +7153,23 @@ static bool flushChunkData(Webs *wp)
  */
 PUBLIC int websFlush(Webs *wp, bool block)
 {
-    WebsBuf *op;
-    ssize   nbytes, written;
-    int     errCode, wasBlocking;
+    WebsBuf  *op;
+    WebsTime deadline;
+    ssize    nbytes, written;
+    int      errCode, wasBlocking, bounded;
 
     wasBlocking = 0;
+    bounded = 0;
+    deadline = 0;
     if (block) {
         wasBlocking = socketSetBlock(wp->sid, 1);
+        /*
+            Bound the blocking send so a peer that stops reading cannot freeze the event loop.
+            The socket timeout limits any one send and the deadline limits the whole flush, so a
+            peer that trickles a few bytes per timeout cannot extend the stall indefinitely.
+         */
+        bounded = socketSetSendTimeout(wp->sid, WEBS_TIMEOUT) == 0;
+        deadline = time(0) + ME_GOAHEAD_LIMIT_TIMEOUT;
     }
     op = &wp->output;
     if (wp->flags & WEBS_CHUNKING) {
@@ -6941,10 +7186,17 @@ PUBLIC int websFlush(Webs *wp, bool block)
     while ((nbytes = bufLen(op)) > 0) {
         if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
             errCode = socketGetError(wp->sid);
-            if (errCode == EWOULDBLOCK || errCode == EAGAIN) {
-                /* Not an error */
-                written = 0;
-                break;
+            if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
+                if (!block || !bounded) {
+                    /* Not an error. Without a send timeout the wait cannot be bounded here */
+                    written = 0;
+                    break;
+                }
+                if (time(0) < deadline) {
+                    /* The send timed out but the flush deadline has not expired. Retry */
+                    continue;
+                }
+                trace(2, "websFlush: peer not reading, close connection");
             }
             /*
                 Connection Error
@@ -6952,6 +7204,7 @@ PUBLIC int websFlush(Webs *wp, bool block)
             wp->flags &= ~WEBS_KEEP_ALIVE;
             bufFlush(op);
             wp->state = WEBS_COMPLETE;
+            written = -1;
             break;
         } else if (written == 0) {
             break;
@@ -6967,6 +7220,9 @@ PUBLIC int websFlush(Webs *wp, bool block)
         wp->state = WEBS_COMPLETE;
     }
     if (block) {
+        if (bounded) {
+            socketSetSendTimeout(wp->sid, 0);
+        }
         socketSetBlock(wp->sid, wasBlocking);
     }
     if (written < 0) {
@@ -7301,7 +7557,7 @@ PUBLIC void websSetRequestFilename(Webs *wp, cchar *filename)
     assert(websValid(wp));
     assert(filename && *filename);
 
-    wfree(wp->filename);
+    wfreeset(wp->filename);
     wp->filename = sclone(filename);
     websSetVar(wp, "PATH_TRANSLATED", wp->filename);
 }
@@ -7312,17 +7568,15 @@ PUBLIC int websRewriteRequest(Webs *wp, cchar *url)
 {
     char *buf, *path;
 
-    wfree(wp->url);
+    wfreeset(wp->url);
     wp->url = sclone(url);
-    wfree(wp->path);
-    wp->path = 0;
+    wfreeset(wp->path);
 
     if (websUrlParse(url, &buf, NULL, NULL, NULL, &path, NULL, NULL, NULL) < 0) {
         return -1;
     }
     wp->path = sclone(path);
-    wfree(wp->filename);
-    wp->filename = 0;
+    wfreeset(wp->filename);
     wp->flags |= WEBS_REROUTE;
     wfree(buf);
     return 0;
@@ -8105,22 +8359,99 @@ static char *makeSessionID(Webs *wp)
 }
 
 
+/*
+    Count the requests currently holding this session. wp->session is set only by websGetSession() and
+    initWebs() memsets the request on both allocation and keep-alive reuse, so the open connection list
+    is the complete set of holders.
+ */
+static int sessionHolders(WebsSession *sp)
+{
+    int count, wid;
+
+    count = 0;
+    for (wid = 0; webs && wid < websMax; wid++) {
+        if (webs[wid] && webs[wid]->session == sp) {
+            count++;
+        }
+    }
+    return count;
+}
+
+
+/*
+    Retire a session. Sessions are shared: a request resolves wp->session during routing and holds it
+    across the body read, so a logout or a prune on another connection can retire a session that other
+    requests are still using. Remove it from the session store immediately - it is logically dead and no
+    new request can resolve it - but defer the free until the last holder releases it in termWebs.
+ */
+static void retireSession(WebsSession *sp)
+{
+    assert(sp);
+
+    hashDelete(sessions, sp->id);
+    sessionCount--;
+    if (sessionHolders(sp) > 0) {
+        sp->retired = 1;
+    } else {
+        freeSession(sp);
+    }
+}
+
+
+/*
+    Release this request's session reference. Called from termWebs for both connection close and
+    keep-alive reuse.
+ */
+static void releaseSession(Webs *wp)
+{
+    WebsSession *sp;
+
+    assert(wp);
+
+    if ((sp = wp->session) != 0) {
+        wp->session = 0;
+        if (sp->retired && sessionHolders(sp) == 0) {
+            freeSession(sp);
+        }
+    }
+}
+
+
 PUBLIC void websDestroySession(Webs *wp)
 {
+    WebsSession *sp;
+
     websGetSession(wp, 0);
-    if (wp->session) {
-        hashDelete(sessions, wp->session->id);
-        sessionCount--;
-        freeSession(wp->session);
+    if ((sp = wp->session) != 0) {
+        /*
+            Drop this request's reference first so it is not counted as a holder of the session it is
+            retiring. Other in-flight requests keep a consistent view of the session until they complete.
+         */
         wp->session = 0;
+        retireSession(sp);
     }
+}
+
+
+/*
+    SECURITY: Rotate the session id at a privilege transition. Destroys the session bound to this
+    request server-side and issues a new session with a freshly minted, server-generated id and a
+    Set-Cookie. Session data is deliberately not carried across: everything held in the old session
+    was written while the request was unauthenticated, possibly by whoever planted the id. Callers
+    must use this, not websGetSession(wp, 1), when authenticating a user: websGetSession adopts a
+    live client-presented id, which writes the authenticated identity into a session of the client's
+    choosing.
+ */
+PUBLIC WebsSession *websRotateSession(Webs *wp)
+{
+    websDestroySession(wp);
+    return websGetSession(wp, 1);
 }
 
 
 PUBLIC WebsSession *websCreateSession(Webs *wp)
 {
-    websDestroySession(wp);
-    return websGetSession(wp, 1);
+    return websRotateSession(wp);
 }
 
 
@@ -8134,6 +8465,7 @@ WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan)
         return 0;
     }
     sp->lifespan = lifespan;
+    sp->retired = 0;
     sp->expires = time(0) + lifespan;
     if (id == 0) {
         sp->id = makeSessionID(wp);
@@ -8141,12 +8473,13 @@ WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan)
         sp->id = sclone(id);
     }
     if ((sp->cache = hashCreate(WEBS_SESSION_HASH)) == 0) {
-        wfree(sp->id);
+        wfreeset(sp->id);
         wfree(sp);
         return 0;
     }
     if (hashEnter(sessions, sp->id, valueSymbol(sp), 0) == 0) {
-        wfree(sp->id);
+        hashFree(sp->cache);
+        wfreeset(sp->id);
         wfree(sp);
         return 0;
     }
@@ -8162,7 +8495,7 @@ static void freeSession(WebsSession *sp)
         hashFree(sp->cache);
         sp->cache = -1;
     }
-    wfree(sp->id);
+    wfreeset(sp->id);
     wfree(sp);
 }
 
@@ -8217,7 +8550,7 @@ WebsSession *websGetSession(Webs *wp, int create)
         interval; the bounded window is only reachable by presenting the random session id (the owner, or a
         cookie thief who already has access), so refreshing here grants no additional capability.
      */
-    if (wp->session) {
+    if (wp->session && !wp->session->retired) {
         wp->session->expires = time(0) + wp->session->lifespan;
     }
     return wp->session;
@@ -8337,9 +8670,7 @@ static void pruneSessions(void)
             next = hashNext(sessions, sym);
             sp = (WebsSession*) sym->content.value.symbol;
             if (sp->expires <= when) {
-                hashDelete(sessions, sp->id);
-                sessionCount--;
-                freeSession(sp);
+                retireSession(sp);
             }
         }
         if (oldCount != sessionCount || sessionCount) {
@@ -8439,7 +8770,7 @@ PUBLIC void websError(Webs *wp, int code, cchar *fmt, ...)
         wp->flags &= ~WEBS_KEEP_ALIVE;
     }
     encoded = websEscapeHtml(wp->url);
-    wfree(wp->url);
+    wfreeset(wp->url);
     wp->url = encoded;
     if (fmt) {
         if (!(code & WEBS_NOLOG)) {
@@ -8689,11 +9020,9 @@ PUBLIC void jsCloseEngine(int jid)
         return;
     }
 
-    wfree(ep->error);
-    ep->error = NULL;
+    wfreeset(ep->error);
 
-    wfree(ep->result);
-    ep->result = NULL;
+    wfreeset(ep->result);
 
     jsLexClose(ep);
 
@@ -8706,8 +9035,7 @@ PUBLIC void jsCloseEngine(int jid)
             hashFree(ep->variables[i] - JS_OFFSET);
         }
     }
-    wfree(ep->variables);
-    ep->variables = NULL;
+    wfreeset(ep->variables);
     ep->variableMax = 0;
     if (ep->flags & FLAGS_FUNCTIONS) {
         hashFree(ep->functions);
@@ -9864,7 +10192,7 @@ PUBLIC void jsError(Js *ep, cchar *fmt, ...)
 
     if (ep && ip) {
         errbuf = sfmt("%s\n At line %d, line => \n\n%s\n", msgbuf, ip->lineNumber, ip->line);
-        wfree(ep->error);
+        wfreeset(ep->error);
         ep->error = errbuf;
     }
     wfree(msgbuf);
@@ -10204,12 +10532,11 @@ static void freeFunc(JsFun *func)
     int i;
 
     for (i = func->nArgs - 1; i >= 0; i--) {
-        wfree(func->args[i]);
+        wfreeset(func->args[i]);
         func->nArgs = wfreeHandle(&func->args, i);
     }
     if (func->fname) {
-        wfree(func->fname);
-        func->fname = NULL;
+        wfreeset(func->fname);
     }
 }
 
@@ -10306,14 +10633,12 @@ PUBLIC void jsLexCloseScript(Js *ep)
     assert(ip);
 
     if (ip->putBackToken) {
-        wfree(ip->putBackToken);
-        ip->putBackToken = NULL;
+        wfreeset(ip->putBackToken);
     }
     ip->putBackTokenId = 0;
 
     if (ip->line) {
-        wfree(ip->line);
-        ip->line = NULL;
+        wfreeset(ip->line);
     }
     bufFree(&ip->tokbuf);
     bufFree(&ip->script);
@@ -10349,8 +10674,7 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
     ip->script = state->script;
     ip->putBackTokenId = state->putBackTokenId;
     if (ip->putBackToken) {
-        wfree(ip->putBackToken);
-        ip->putBackToken = NULL;
+        wfreeset(ip->putBackToken);
     }
     if (state->putBackToken) {
         ip->putBackToken = sclone(state->putBackToken);
@@ -10361,8 +10685,7 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
 PUBLIC void jsLexFreeInputState(Js *ep, JsInput *state)
 {
     if (state->putBackToken) {
-        wfree(state->putBackToken);
-        state->putBackToken = NULL;
+        wfreeset(state->putBackToken);
     }
 }
 
@@ -10749,8 +11072,7 @@ PUBLIC void jsLexPutbackToken(Js *ep, int tid, cchar *string)
     assert(ip);
 
     if (ip->putBackToken) {
-        wfree(ip->putBackToken);
-        ip->putBackToken = NULL;
+        wfreeset(ip->putBackToken);
     }
     ip->putBackTokenId = tid;
     ip->putBackToken = sclone(string);
@@ -13287,12 +13609,26 @@ PUBLIC void websRouteRequest(Webs *wp)
     assert(wp->method);
     assert(wp->protocol);
 
+    /*
+        Entering with a route set means this is a re-route: a handler declined and websPump routed again.
+        Every re-entry counts against the loop limit, however it was reached. Without this, a handler that
+        declines forever spins the event loop and the single threaded server never services another
+        connection.
+     */
+    if (wp->route && ++wp->routeCount >= WEBS_MAX_ROUTE) {
+        wp->route = 0;
+        error("Route loop for %s", wp->url);
+        websError(wp, HTTP_CODE_NOT_FOUND, "Cannot find suitable route for request.");
+        return;
+    }
     safeMethod = smatch(wp->method, "POST") || smatch(wp->method, "GET") || smatch(wp->method, "HEAD");
     plen = slen(wp->path);
 
     /*
-        Resume routine from last matched route. This permits the legacy service() callbacks to return false
-        and continue routing.
+        Resume routing from after the last matched route. This permits the legacy service() callbacks to
+        return false and continue routing. A resumed scan that runs off the end means no further route
+        matched, so the scan below does not run and the request fails with a 404. It must never wrap back
+        to the start: that re-offers routes the request has already been given.
      */
     if (wp->route && !(wp->flags & WEBS_REROUTE)) {
         for (i = 0; i < routeCount; i++) {
@@ -13300,9 +13636,6 @@ PUBLIC void websRouteRequest(Webs *wp)
                 i++;
                 break;
             }
-        }
-        if (i >= routeCount) {
-            i = 0;
         }
     } else {
         i = 0;
@@ -13341,10 +13674,17 @@ PUBLIC void websRouteRequest(Webs *wp)
 
         wp->route = route;
 #if ME_GOAHEAD_AUTH
+        /*
+            Clear wp->route on a deny so that "a route was selected" can never be read as "the
+            request was authorized". Any caller that resumes from wp->route after this point must
+            find nothing to dispatch.
+         */
         if (route->authType && !websAuthenticate(wp)) {
+            wp->route = 0;
             return;
         }
         if (route->abilities >= 0 && !websCan(wp, route->abilities)) {
+            wp->route = 0;
             return;
         }
 #endif
@@ -13382,6 +13722,13 @@ PUBLIC bool websRunRequest(Webs *wp)
     assert(wp->protocol);
     assert(wp->route);
 
+    /*
+        Never dispatch a handler for a request whose response has already been written. The state
+        machine is the primary guard; this is defence in depth for any future caller.
+     */
+    if (wp->finalized) {
+        return 1;
+    }
     if ((route = wp->route) == 0) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Configuration error - no route for request");
         return 1;
@@ -13391,7 +13738,7 @@ PUBLIC bool websRunRequest(Webs *wp)
         return 1;
     }
     if (!wp->filename || route->dir) {
-        wfree(wp->filename);
+        wfreeset(wp->filename);
         wp->filename = sfmt("%s%s", route->dir ? route->dir : websGetDocuments(), wp->path);
     }
     if (!(wp->flags & WEBS_VARS_ADDED)) {
@@ -13537,7 +13884,7 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
     }
     if ((key = hashLookup(handlers, handler)) == 0) {
         error("Cannot find route handler %s", handler);
-        wfree(route->prefix);
+        wfreeset(route->prefix);
         wfree(route);
         return 0;
     }
@@ -13620,10 +13967,10 @@ static void freeRoute(WebsRoute *route)
     if (route->redirects >= 0) {
         hashFree(route->redirects);
     }
-    wfree(route->prefix);
-    wfree(route->dir);
-    wfree(route->protocol);
-    wfree(route->authType);
+    wfreeset(route->prefix);
+    wfreeset(route->dir);
+    wfreeset(route->protocol);
+    wfreeset(route->authType);
     wfree(route);
 }
 
@@ -13814,7 +14161,7 @@ PUBLIC void websCloseRoute(void)
             if (handler->close) {
                 (*handler->close)();
             }
-            wfree(handler->name);
+            wfreeset(handler->name);
             wfree(handler);
         }
         hashFree(handlers);
@@ -14927,7 +15274,7 @@ static void outFloat(Format *fmt, char specChar, double value)
 static int growBuf(Format *fmt)
 {
     uchar *newbuf;
-    ssize buflen;
+    ssize buflen, endOffset, startOffset;
 
     buflen = (int) (fmt->endbuf - fmt->buf);
     if (fmt->maxsize >= 0 && buflen >= fmt->maxsize) {
@@ -14942,13 +15289,18 @@ static int growBuf(Format *fmt)
     if ((newbuf = walloc(buflen + fmt->growBy)) == 0) {
         return -1;
     }
+    /*
+        Capture the offsets before releasing the old buffer so they are not derived from a freed pointer.
+     */
+    endOffset = fmt->end - fmt->buf;
+    startOffset = fmt->start - fmt->buf;
     if (fmt->buf) {
         memcpy(newbuf, fmt->buf, buflen);
-        wfree(fmt->buf);
+        wfreeset(fmt->buf);
     }
     buflen += fmt->growBy;
-    fmt->end = newbuf + (fmt->end - fmt->buf);
-    fmt->start = newbuf + (fmt->start - fmt->buf);
+    fmt->end = newbuf + endOffset;
+    fmt->start = newbuf + startOffset;
     fmt->buf = newbuf;
     fmt->endbuf = &fmt->buf[buflen];
 
@@ -15007,8 +15359,7 @@ WebsValue valueString(cchar *value, int flags)
 PUBLIC void valueFree(WebsValue *v)
 {
     if (v->valid && v->allocated && v->type == string && v->value.string != NULL) {
-        wfree(v->value.string);
-        v->value.string = NULL;
+        wfreeset(v->value.string);
     }
     v->type = undefined;
     v->valid = 0;
@@ -17526,6 +17877,40 @@ PUBLIC int socketSetBlock(int sid, int on)
 
 
 /*
+    Set the socket send timeout in milliseconds. Zero means wait indefinitely.
+    Returns zero if the platform supports a send timeout, otherwise -1.
+ */
+PUBLIC int socketSetSendTimeout(int sid, int timeout)
+{
+    WebsSocket *sp;
+#if ME_WIN_LIKE
+    DWORD      tv;
+#else
+    struct timeval tv;
+#endif
+
+    if ((sp = socketPtr(sid)) == NULL) {
+        assert(0);
+        return -1;
+    }
+#if ME_WIN_LIKE
+    tv = (DWORD) timeout;
+#else
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
+#endif
+    /*
+        Detect support at runtime. Stacks without SO_SNDTIMEO fail with ENOPROTOOPT, so no platform
+        conditionals are required and callers can fall back to an unbounded wait.
+     */
+    if (setsockopt(sp->sock, SOL_SOCKET, SO_SNDTIMEO, (char*) &tv, sizeof(tv)) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+
+/*
     Set the TCP delay behavior (nagle algorithm)
  */
 PUBLIC int socketSetNoDelay(int sid, bool on)
@@ -17752,7 +18137,7 @@ PUBLIC void socketFree(int sid)
         }
         closesocket(sp->sock);
     }
-    wfree(sp->ip);
+    wfreeset(sp->ip);
     wfree(sp);
     socketMax = wfreeHandle(&socketList, sid);
     /*
@@ -17798,6 +18183,8 @@ PUBLIC int socketGetError(int sid)
         return ENETDOWN;
     case WSAEPROCLIM:
         return EAGAIN;
+    case WSAETIMEDOUT:
+        return ETIMEDOUT;
     case WSAEINTR:
         return EINTR;
     default:
@@ -18886,7 +19273,7 @@ static void initUpload(Webs *wp)
         wp->uploadState = UPLOAD_BOUNDARY;
         if ((boundary = strstr(wp->contentType, "boundary=")) != 0) {
             boundary += 9;
-            wfree(wp->boundary);
+            wfreeset(wp->boundary);
             wp->boundary = sfmt("--%s", boundary);
             wp->boundaryLen = strlen(wp->boundary);
         }
@@ -18905,10 +19292,10 @@ static void freeUploadFile(WebsUpload *up)
     if (up) {
         if (up->filename) {
             unlink(up->filename);
-            wfree(up->filename);
+            wfreeset(up->filename);
         }
-        wfree(up->clientFilename);
-        wfree(up->contentType);
+        wfreeset(up->clientFilename);
+        wfreeset(up->contentType);
         wfree(up);
     }
 }
@@ -19043,9 +19430,8 @@ static void processUploadHeader(Webs *wp, char *line)
             ---boundary
          */
         key = rest;
-        wfree(wp->uploadVar);
-        wfree(wp->clientFilename);
-        wp->uploadVar = wp->clientFilename = 0;
+        wfreeset(wp->uploadVar);
+        wfreeset(wp->clientFilename);
 
         while (key && stok(key, ";\r\n", &nextPair)) {
 
@@ -19057,12 +19443,21 @@ static void processUploadHeader(Webs *wp, char *line)
                 /* Nothing to do */
 
             } else if (scaselesscmp(key, "name") == 0) {
-                wfree(wp->uploadVar);
+                wfreeset(wp->uploadVar);
                 wp->uploadVar = sclone(value);
 
             } else if (scaselesscmp(key, "filename") == 0) {
                 if (wp->uploadVar == 0) {
                     websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing name field");
+                    return;
+                }
+                /*
+                    A part may open only one file. wp->upfd is the per-part descriptor and is reset
+                    when the part ends, so a descriptor open here means a repeated filename= pair or
+                    a repeated Content-Disposition header. Reject rather than leak the descriptor.
+                 */
+                if (wp->upfd >= 0) {
+                    websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Duplicate filename field");
                     return;
                 }
                 value = websNormalizeUriPath(value);
@@ -19071,13 +19466,13 @@ static void processUploadHeader(Webs *wp, char *line)
                     wfree(value);
                     return;
                 }
-                wfree(wp->clientFilename);
+                wfreeset(wp->clientFilename);
                 wp->clientFilename = value;
 
                 /*
                     Create the file to hold the uploaded data
                  */
-                wfree(wp->uploadTmp);
+                wfreeset(wp->uploadTmp);
                 if ((wp->uploadTmp = websTempFile(uploadDir, "tmp")) == 0) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR,
                               "Cannot create upload temp file %s. Check upload temp dir %s", wp->uploadTmp, uploadDir);
@@ -19239,10 +19634,8 @@ static bool processContentData(Webs *wp)
          */
         close(wp->upfd);
         wp->upfd = -1;
-        wfree(wp->clientFilename);
-        wp->clientFilename = 0;
-        wfree(wp->uploadTmp);
-        wp->uploadTmp = 0;
+        wfreeset(wp->clientFilename);
+        wfreeset(wp->uploadTmp);
     }
     wp->uploadState = UPLOAD_BOUNDARY;
     return 1;
