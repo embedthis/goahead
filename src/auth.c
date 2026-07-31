@@ -111,6 +111,11 @@ PUBLIC bool websAuthenticate(Webs *wp)
         }
         if (wp->authDetails && route->parseAuth) {
             if (!(route->parseAuth)(wp)) {
+                /*
+                    parseAuth may have taken ownership of a cloned username before failing.
+                    Free it here so a failed authentication does not orphan the block.
+                 */
+                wfree(wp->username);
                 wp->username = 0;
             }
         }
