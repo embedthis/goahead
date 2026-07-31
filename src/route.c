@@ -130,10 +130,17 @@ PUBLIC void websRouteRequest(Webs *wp)
 
         wp->route = route;
 #if ME_GOAHEAD_AUTH
+        /*
+            Clear wp->route on a deny so that "a route was selected" can never be read as "the
+            request was authorized". Any caller that resumes from wp->route after this point must
+            find nothing to dispatch.
+         */
         if (route->authType && !websAuthenticate(wp)) {
+            wp->route = 0;
             return;
         }
         if (route->abilities >= 0 && !websCan(wp, route->abilities)) {
+            wp->route = 0;
             return;
         }
 #endif
@@ -171,6 +178,13 @@ PUBLIC bool websRunRequest(Webs *wp)
     assert(wp->protocol);
     assert(wp->route);
 
+    /*
+        Never dispatch a handler for a request whose response has already been written. The state
+        machine is the primary guard; this is defence in depth for any future caller.
+     */
+    if (wp->finalized) {
+        return 1;
+    }
     if ((route = wp->route) == 0) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Configuration error - no route for request");
         return 1;

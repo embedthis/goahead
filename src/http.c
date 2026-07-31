@@ -884,10 +884,25 @@ PUBLIC void websPump(Webs *wp)
             canProceed = processContent(wp);
             break;
         case WEBS_READY:
+            /*
+                A finalized request is terminal. websDone sets wp->finalized but leaves wp->state
+                alone, so without this test a request whose response has already been written is
+                dispatched to its handler regardless.
+             */
+            if (wp->finalized) {
+                wp->state = WEBS_COMPLETE;
+                canProceed = 1;
+                break;
+            }
             if (!websRunRequest(wp)) {
                 /* Reroute if the handler re-wrote the request */
                 websRouteRequest(wp);
-                wp->state = WEBS_READY;
+                /*
+                    The reroute may have selected a route whose authentication or ability check
+                    denied the request and wrote its response. Forcing WEBS_READY here would run
+                    that route's handler anyway, serving the body the gate just refused.
+                 */
+                wp->state = wp->finalized ? WEBS_COMPLETE : WEBS_READY;
                 canProceed = 1;
                 continue;
             }

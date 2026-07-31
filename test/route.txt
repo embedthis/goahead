@@ -66,6 +66,14 @@ route uri=/tmp/ methods=PUT|DELETE
 route uri=/secure/ protocol=http redirect=https handler=redirect
 
 #
+#   Reroute authorization regression. The upload handler is a filter: it declines every request,
+#   which drives the websPump reroute path. The authenticated route behind it must not have its
+#   handler dispatched once its auth gate has denied and written a response.
+#
+route uri=/reroute/ methods=GET|DELETE handler=upload
+route uri=/reroute/ methods=GET|DELETE auth=basic abilities=manage
+
+#
 #   Standard routes
 #
 route uri=/cgi-bin handler=cgi
