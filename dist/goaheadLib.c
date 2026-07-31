@@ -4926,6 +4926,7 @@ static WebsRomIndex *lookup(WebsHash fs, char *path)
 
 #define WEBS_TIMEOUT       (ME_GOAHEAD_LIMIT_TIMEOUT * 1000)
 #define PARSE_TIMEOUT      (ME_GOAHEAD_LIMIT_PARSE_TIMEOUT * 1000)
+#define FLUSH_SLICE        1000                    /* Max msec to block in one send before retesting the deadline */
 #define CHUNK_LOW          128                     /* Low water mark for chunking */
 
 #define TOKEN_HEADER_KEY   0x1                     /* Validate token as a header key */
@@ -5990,9 +5991,11 @@ static void parseFirstLine(Webs *wp)
  */
 static void parseHeaders(Webs *wp)
 {
-    cchar *prior;
-    char  *combined, *upperKey, *cp, *key, *value, *tok;
-    int   count, seenContentLength, seenTransferEncoding;
+    cchar  *prior;
+    char   *combined, *upperKey, *cp, *key, *value, *tok;
+    uint64 length;
+    ssize  rxLimit;
+    int    count, seenContentLength, seenTransferEncoding;
 
     assert(websValid(wp));
 
@@ -6077,25 +6080,23 @@ static void parseHeaders(Webs *wp)
                 return;
             }
             /*
-                SECURITY Acceptable: atoi() integer overflow with very large values will
-                wrap to negative, which is safely rejected below. Embedded systems can
-                reject unreasonably large content lengths.
+                Accumulate into a 64-bit value and stop at the body limit. atoi() returns int, so a
+                large all-digit value truncates to a small non-negative number that passes the limit
+                tests below and frames the body short. The undrained remainder is then serviced as a
+                second, attacker-framed request on a keep-alive connection (CWE-190 into CWE-444).
+                Testing against the limit inside the loop keeps the accumulator well below its own
+                range, so no digit count can wrap it.
              */
-            if ((wp->rxLen = atoi(value)) < 0) {
-                websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Invalid content length");
-                return;
-            }
-            if (smatch(wp->method, "PUT")) {
-                if (wp->rxLen > ME_GOAHEAD_LIMIT_PUT) {
-                    websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Too big");
-                    return;
-                }
-            } else {
-                if (wp->rxLen > postLimit) {
+            rxLimit = smatch(wp->method, "PUT") ? ME_GOAHEAD_LIMIT_PUT : postLimit;
+            length = 0;
+            for (cp = value; *cp; cp++) {
+                length = (length * 10) + (uint64) (*cp - '0');
+                if (length > (uint64) rxLimit) {
                     websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Too big");
                     return;
                 }
             }
+            wp->rxLen = (ssize) length;
             /*
                 Account for the declared request body for every method, including HEAD, so the body is
                 drained before the keep-alive connection is reused. Skipping this for HEAD left the declared
@@ -7166,9 +7167,11 @@ PUBLIC int websFlush(Webs *wp, bool block)
         /*
             Bound the blocking send so a peer that stops reading cannot freeze the event loop.
             The socket timeout limits any one send and the deadline limits the whole flush, so a
-            peer that trickles a few bytes per timeout cannot extend the stall indefinitely.
+            peer that trickles a few bytes per timeout cannot extend the stall indefinitely. The
+            send timeout is a short slice of the deadline so the deadline is honored to within one
+            slice however the peer behaves.
          */
-        bounded = socketSetSendTimeout(wp->sid, WEBS_TIMEOUT) == 0;
+        bounded = socketSetSendTimeout(wp->sid, FLUSH_SLICE) == 0;
         deadline = time(0) + ME_GOAHEAD_LIMIT_TIMEOUT;
     }
     op = &wp->output;
@@ -7184,27 +7187,33 @@ PUBLIC int websFlush(Webs *wp, bool block)
     trace(6, "websFlush: buflen %d", (int) bufLen(op));
     written = 0;
     while ((nbytes = bufLen(op)) > 0) {
-        if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
+        /*
+            Test the deadline on every pass, not just after a send timeout. A peer that accepts a
+            few bytes per slice makes progress without ever timing out a send and would otherwise
+            hold the event loop for as long as it cared to trickle.
+         */
+        if (bounded && time(0) >= deadline) {
+            trace(2, "websFlush: peer not reading, close connection");
+            written = -1;
+        } else if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
             errCode = socketGetError(wp->sid);
             if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
-                if (!block || !bounded) {
+                if (!bounded) {
                     /* Not an error. Without a send timeout the wait cannot be bounded here */
                     written = 0;
                     break;
                 }
-                if (time(0) < deadline) {
-                    /* The send timed out but the flush deadline has not expired. Retry */
-                    continue;
-                }
-                trace(2, "websFlush: peer not reading, close connection");
+                /* The send slice expired but the flush deadline has not. Retry */
+                continue;
             }
+        }
+        if (written < 0) {
             /*
                 Connection Error
              */
             wp->flags &= ~WEBS_KEEP_ALIVE;
             bufFlush(op);
             wp->state = WEBS_COMPLETE;
-            written = -1;
             break;
         } else if (written == 0) {
             break;
@@ -7212,7 +7221,6 @@ PUBLIC int websFlush(Webs *wp, bool block)
         trace(6, "websFlush: wrote %d to socket", (int) written);
         bufAdjustStart(op, written);
         bufCompact(op);
-        nbytes = bufLen(op);
     }
     assert(websValid(wp));
 
@@ -18841,6 +18849,12 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
 
     assert(token && *token);
 
+    /*
+        Define the out-parameter on every path. The caller branches on it, and an early return here
+        would otherwise leave it indeterminate for a date string that runs out of tokens.
+     */
+    *isAlpah = 0;
+
     if (token == NULL || *token == NULL || **token == '\0') {
         return 0;
     }
@@ -18859,7 +18873,6 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
     if (*token) {
         *token += 1;
     }
-    *isAlpah = 0;
     return num;
 }
 
