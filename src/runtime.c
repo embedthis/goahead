@@ -864,7 +864,7 @@ static void outFloat(Format *fmt, char specChar, double value)
 static int growBuf(Format *fmt)
 {
     uchar *newbuf;
-    ssize buflen;
+    ssize buflen, endOffset, startOffset;
 
     buflen = (int) (fmt->endbuf - fmt->buf);
     if (fmt->maxsize >= 0 && buflen >= fmt->maxsize) {
@@ -879,13 +879,18 @@ static int growBuf(Format *fmt)
     if ((newbuf = walloc(buflen + fmt->growBy)) == 0) {
         return -1;
     }
+    /*
+        Capture the offsets before releasing the old buffer so they are not derived from a freed pointer.
+     */
+    endOffset = fmt->end - fmt->buf;
+    startOffset = fmt->start - fmt->buf;
     if (fmt->buf) {
         memcpy(newbuf, fmt->buf, buflen);
-        wfree(fmt->buf);
+        wfreeset(fmt->buf);
     }
     buflen += fmt->growBy;
-    fmt->end = newbuf + (fmt->end - fmt->buf);
-    fmt->start = newbuf + (fmt->start - fmt->buf);
+    fmt->end = newbuf + endOffset;
+    fmt->start = newbuf + startOffset;
     fmt->buf = newbuf;
     fmt->endbuf = &fmt->buf[buflen];
 
