@@ -39,3 +39,17 @@ if [ -f ../build/bin/libgoahead.dylib ] ; then
 elif [ -f ../build/bin/libgoahead.so ] ; then
     cp ../build/bin/libgoahead.so cgi-bin/
 fi
+
+#
+#   Fixtures for regress/cgi-bat-gate.tst.ts. probe.bat carries the reporter's payload so a shell
+#   launch would be visible in the response body; cgitest.batch.exe is the near-miss name that must
+#   still launch. Made executable so the POSIX gate admits them and the 404 can only come from the
+#   extension gate under test.
+#
+cat > cgi-bin/probe.bat <<'ENDOFBAT'
+@echo off
+echo bat-marker-launched
+whoami
+ENDOFBAT
+chmod +x cgi-bin/probe.bat
+cp "../build/bin/cgitest${EXE}" "cgi-bin/cgitest.batch.exe"
