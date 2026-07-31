@@ -435,6 +435,151 @@ PUBLIC int websRemoveRoute(cchar *uri)
 }
 
 
+#if ME_GOAHEAD_AUTH
+/*
+    Does this route gate access behind authentication or an ability check?
+ */
+static int routeRequiresAuth(WebsRoute *route)
+{
+    return route->authType || route->abilities >= 0;
+}
+
+
+/*
+    Does this route narrow itself with a selector? A qualified route claims only a subset of the requests
+    its prefix covers, so it shadows less than a bare prefix route does.
+ */
+static int routeIsQualified(WebsRoute *route)
+{
+    return route->extensions >= 0 || route->methods >= 0 || route->protocol != 0;
+}
+
+
+/*
+    Can two routes serve the same files? Routes without an explicit dir= share the document root, so the
+    common configuration overlaps by default. Compares the configured directories rather than their
+    realpath, so two paths that reach one directory through a symlink are not detected - that yields a
+    missed warning, never a false one.
+ */
+static int regionsOverlap(WebsRoute *r1, WebsRoute *r2)
+{
+    cchar *d1, *d2, *shorter, *longer;
+    ssize len;
+
+    d1 = r1->dir ? r1->dir : websGetDocuments();
+    d2 = r2->dir ? r2->dir : websGetDocuments();
+    if (d1 == 0 || d2 == 0) {
+        return 1;
+    }
+    if (slen(d1) <= slen(d2)) {
+        shorter = d1;
+        longer = d2;
+    } else {
+        shorter = d2;
+        longer = d1;
+    }
+    len = slen(shorter);
+    if (sncmp(shorter, longer, len) != 0) {
+        return 0;
+    }
+    return longer[len] == '\0' || longer[len] == '/';
+}
+#endif /* ME_GOAHEAD_AUTH */
+
+
+/*
+    Audit the loaded route table and warn about configurations that defeat the authentication gate.
+    Returns the number of problems found.
+
+    Two checks. First, no route requires authentication at all. Second, an unauthenticated route later in
+    the table shadows an authenticated route earlier in it. The second is the structural cause of the
+    route-prefix authorization bypass family: routes are matched in order and a request that misses its
+    protected route falls through to the next match rather than being denied, so any spelling the file
+    system folds to a protected name - case, Unicode normalization, Unicode case, Win32 trailing dot or
+    space - misses the strict route and is served by the permissive one. Rejecting the shadowing
+    configuration closes every such axis at once, including axes not yet enumerated, because the check
+    never reasons about folding.
+
+    Uses error() rather than logmsg() so warnings are visible at the default log level.
+ */
+PUBLIC int websCheckRoutes(void)
+{
+#if ME_GOAHEAD_AUTH
+    WebsRoute *strict, *loose, *candidate;
+    int       i, j, authRoutes, problems;
+
+    if (routeCount == 0) {
+        return 0;
+    }
+    problems = 0;
+    authRoutes = 0;
+    for (i = 0; i < routeCount; i++) {
+        if (routeRequiresAuth(routes[i])) {
+            authRoutes++;
+        }
+    }
+    if (authRoutes == 0) {
+        error("Security warning: no authenticated routes configured. All content is served to "
+              "unauthenticated clients. See route.txt for how to protect content.");
+        return 1;
+    }
+    for (i = 0; i < routeCount; i++) {
+        strict = routes[i];
+        if (!routeRequiresAuth(strict)) {
+            continue;
+        }
+        /*
+            Report one warning per protected route, naming the worst shadowing route rather than every
+            one. A route carrying extensions=, methods= or protocol= only claims a subset of requests, so
+            an unqualified route is the more serious exposure and is the one worth naming.
+         */
+        loose = 0;
+        for (j = i + 1; j < routeCount; j++) {
+            candidate = routes[j];
+            if (routeRequiresAuth(candidate)) {
+                continue;
+            }
+            if (!regionsOverlap(strict, candidate)) {
+                continue;
+            }
+            if (matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0) {
+                continue;
+            }
+            if (loose == 0 || (routeIsQualified(loose) && !routeIsQualified(candidate))) {
+                loose = candidate;
+            }
+        }
+        if (loose) {
+            /*
+                Several routes may share one prefix - shipped route.txt has three "/" routes - so name
+                the shadowing route's handler too, or the operator cannot tell which one is meant.
+             */
+            error("Security warning: route \"%s\" requires authentication, but later route \"%s\" "
+                  "(handler=%s) does not and can serve the same directory. A case or Unicode folded "
+                  "request will miss \"%s\" and be served without credentials. Reorder the routes, "
+                  "narrow \"%s\", or give \"%s\" its own dir=.",
+                  strict->prefix, loose->prefix, loose->handler ? loose->handler->name : "?",
+                  strict->prefix, loose->prefix, strict->prefix);
+            problems++;
+        }
+    }
+    return problems;
+#else
+    return 0;
+#endif
+}
+
+
+/*
+    Legacy entry point. Retained so existing callers keep working; websCheckRoutes performs this check
+    and the route shadowing check.
+ */
+PUBLIC void websCheckRouteAuth(void)
+{
+    (void) websCheckRoutes();
+}
+
+
 PUBLIC int websOpenRoute(void)
 {
     if ((handlers = hashCreate(-1)) < 0) {

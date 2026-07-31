@@ -41,6 +41,16 @@ route uri=/jst extensions=jst handler=jst
 # route uri=/goform handler=action
 
 #
-#   Catch-all route without authentication for all other URIs
+#   SECURITY WARNING: this catch-all route has no auth= or abilities= and so serves every other URI to
+#   unauthenticated clients. It is suitable for demo content only. Routes are matched in order, so with no
+#   authenticated route ahead of it, any route near-miss is served rather than denied. For a real deployment,
+#   protect content by placing authenticated routes BEFORE this route, and restrict or remove it. For example:
+#
+#       route uri=/pub/
+#       route uri=/action/login methods=POST handler=action redirect=200@/ redirect=401@/pub/login.html
+#       route uri=/action/logout methods=POST handler=action redirect=200@/pub/login.html
+#       route uri=/ auth=form handler=continue redirect=401@/pub/login.html
+#
+#   The server logs a warning at startup while no authenticated route is configured.
 #
 route uri=/

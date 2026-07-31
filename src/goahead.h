@@ -3968,6 +3968,30 @@ typedef struct WebsRoute {
 PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos);
 
 /**
+    Audit the route table for configurations that defeat the authentication gate
+    @description Emit a warning if no configured route requires authentication or abilities, and a warning for
+        each unauthenticated route that shadows an authenticated route earlier in the table. Routes are matched
+        in order and a request that misses its protected route falls through to the next match rather than being
+        denied, so any spelling the file system folds to a protected name - ASCII case, Unicode normalization,
+        Unicode case, Win32 trailing dot or space - misses the strict route and is served by the permissive one.
+        Rejecting the shadowing configuration closes every such folding axis at once because the check never
+        reasons about folding.
+        This routine is called automatically by websOpen() after the route configuration file is loaded. Embedded
+        applications that add routes programmatically should call it again once their routes are defined.
+    @return The number of problems found. Zero means the route table declares a sound authentication boundary.
+    @stability Evolving
+ */
+PUBLIC int websCheckRoutes(void);
+
+/**
+    Audit the route table for a confidentiality boundary
+    @description Legacy entry point retained for source compatibility. Calls websCheckRoutes() and discards the
+        result. New code should call websCheckRoutes() so it can act on the problem count.
+        @stability Evolving
+ */
+PUBLIC void websCheckRouteAuth(void);
+
+/**
     Close the route module
         @stability Stable
  */

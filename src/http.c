@@ -282,6 +282,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     if (routeFile && websLoad(routeFile) < 0) {
         return -1;
     }
+    websCheckRouteAuth();
     /*
         Create a mime type lookup table for quickly determining the content type
      */
