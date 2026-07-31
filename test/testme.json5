@@ -45,6 +45,7 @@
              */
             ME_GOAHEAD_AUTH: '1',
             ME_GOAHEAD_CGI: '1',
+            ME_GOAHEAD_JAVASCRIPT: '1',
             ME_GOAHEAD_UPLOAD: '1',
             ME_SSL: '1',
         },
