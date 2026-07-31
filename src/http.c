@@ -3545,13 +3545,18 @@ PUBLIC cchar *websGetSessionVar(Webs *wp, cchar *key, cchar *defaultValue)
     assert(wp);
     assert(key && *key);
 
-    if ((sp = websGetSession(wp, 1)) != 0) {
+    /*
+        SECURITY: reading a session variable must not create a session. Creating one here would let any
+        handler on an unauthenticated route mint server state (and a Set-Cookie) for an anonymous client,
+        which is an unauthenticated path to exhausting ME_GOAHEAD_LIMIT_SESSION_COUNT.
+     */
+    if ((sp = websGetSession(wp, 0)) != 0) {
         if ((sym = hashLookup(sp->cache, key)) == 0) {
             return defaultValue;
         }
         return (char*) sym->content.value.symbol;
     }
-    return 0;
+    return defaultValue;
 }
 
 
@@ -3562,7 +3567,10 @@ PUBLIC void websRemoveSessionVar(Webs *wp, cchar *key)
     assert(wp);
     assert(key && *key);
 
-    if ((sp = websGetSession(wp, 1)) != 0) {
+    /*
+        SECURITY: removing a session variable must not create a session. See websGetSessionVar.
+     */
+    if ((sp = websGetSession(wp, 0)) != 0) {
         hashDelete(sp->cache, key);
     }
 }
@@ -3576,8 +3584,11 @@ PUBLIC int websSetSessionVar(Webs *wp, cchar *key, cchar *value)
     assert(key && *key);
     assert(value);
 
+    /*
+        Writing a session variable is the one operation that legitimately establishes a session.
+     */
     if ((sp = websGetSession(wp, 1)) == 0) {
-        return 0;
+        return -1;
     }
     if (hashEnter(sp->cache, key, valueString(value, VALUE_ALLOCATE), 0) == 0) {
         return -1;

@@ -503,7 +503,15 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
         return 0;
     }
     trace(2, "Login successful for %s", username);
-    websCreateSession(wp);
+    if (websCreateSession(wp) == 0) {
+        /*
+            Session storage is full or unavailable. Fail the login rather than reporting success: the
+            client would otherwise be redirected to the protected page carrying no session cookie and
+            bounced straight back to the login form with no error anywhere it can see.
+         */
+        error("Cannot create session for %s", username);
+        return 0;
+    }
     websSetSessionVar(wp, WEBS_SESSION_USERNAME, wp->username);
     return 1;
 }
@@ -547,7 +555,16 @@ static void loginServiceProc(Webs *wp)
         if (route->askLogin) {
             (route->askLogin)(wp);
         }
-        websSetSessionVar(wp, "loginStatus", "failed");
+        /*
+            SECURITY: only record the failure in a session that already exists. Creating one here would
+            let any unauthenticated client allocate the scarcest server resource (capped by
+            ME_GOAHEAD_LIMIT_SESSION_COUNT) with a single anonymous POST, and would hand the attacker a
+            live server-issued session id. loginStatus is only meaningful to a client that already holds
+            a session to read it back from.
+         */
+        if (websGetSession(wp, 0) != 0) {
+            websSetSessionVar(wp, "loginStatus", "failed");
+        }
         websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
     }
 }

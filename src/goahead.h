@@ -4307,6 +4307,8 @@ PUBLIC WebsSession *websGetSession(Webs *wp, int create);
 
 /**
     Get a session variable
+    @description This does not create a session. If the request has no session, the default value is
+        returned. Use websSetSessionVar or websCreateSession to establish a session.
     @param wp Webs request object
     @param name Session variable name
     @param defaultValue Default value to return if the variable does not exist
@@ -4317,6 +4319,7 @@ PUBLIC cchar *websGetSessionVar(Webs *wp, cchar *name, cchar *defaultValue);
 
 /**
     Remove a session variable
+    @description This does not create a session. If the request has no session, this does nothing.
     @param wp Webs request object
     @param name Session variable name
         @stability Stable
@@ -4328,12 +4331,14 @@ PUBLIC void websRemoveSessionVar(Webs *wp, cchar *name);
     @description Stores a name-value pair in the current user session. Session variables persist
         across multiple HTTP requests from the same client until the session expires or is destroyed.
         This is useful for maintaining user state, preferences, shopping cart contents, etc.
-        Sessions are identified by cookies sent to the client browser.
+        Sessions are identified by cookies sent to the client browser. This creates a session if the
+        request does not already have one.
     @param wp Webs request object representing the current HTTP request
     @param name Session variable name. Should be a valid identifier string.
     @param value Value to store. The value is copied, so the original can be freed after this call.
         Use NULL to remove the variable from the session.
-    @return Zero if successful, otherwise -1 on error (e.g., if sessions are not initialized)
+    @return Zero if successful, otherwise -1 on error (if a session cannot be created because the
+        session limit ME_GOAHEAD_LIMIT_SESSION_COUNT is reached, or the value cannot be stored)
     @see websGetSessionVar websRemoveSessionVar websCreateSession websDestroySession
         @stability Stable
  */
