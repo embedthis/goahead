@@ -65,6 +65,28 @@ typedef int ssize_t;
 #include <unistd.h>
 #endif
 
+/*
+    cgitest is a standalone CGI program and does not include osdep.h, so it carries its own copy of
+    the printf format-checking macros. Keep these in step with osdep.h: PRINTF_ATTRIBUTE after the
+    parameter list for GCC and Clang, PRINTF_FORMAT before the format parameter for MSVC.
+ */
+#ifndef PRINTF_ATTRIBUTE
+    #if (__GNUC__ >= 3) || defined(__clang__) || MACOSX
+        #define PRINTF_ATTRIBUTE(a1, a2) __attribute__ ((format (__printf__, a1, a2)))
+    #else
+        #define PRINTF_ATTRIBUTE(a1, a2)
+    #endif
+#endif
+
+#ifndef PRINTF_FORMAT
+    #if defined(_MSC_VER) && !defined(__clang__)
+        #include <sal.h>
+        #define PRINTF_FORMAT _Printf_format_string_
+    #else
+        #define PRINTF_FORMAT
+    #endif
+#endif
+
 /*********************************** Locals ***********************************/
 
 #define CMD_VXWORKS_EOF     "_ _EOF_ _"
@@ -94,7 +116,7 @@ static int    timeout;
 
 /***************************** Forward Declarations ***************************/
 
-static void     error(char *fmt, ...);
+static void     error(PRINTF_FORMAT char *fmt, ...) PRINTF_ATTRIBUTE(1, 2);
 static void     descape(char *src);
 static char     hex2Char(char *s);
 static int      getVars(char ***cgiKeys, char *buf, size_t len);

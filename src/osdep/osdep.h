@@ -1754,12 +1754,21 @@ typedef int64 Ticks;
     portability across different toolchains.
 */
 
+/*
+    A printf-style declaration needs both of the macros below: PRINTF_ATTRIBUTE after the parameter
+    list for GCC and Clang, and PRINTF_FORMAT before the format parameter for MSVC. The two
+    compilers take the same information in different syntactic positions, so neither macro alone
+    checks every toolchain. Omitting either one silently disables format checking for that
+    declaration on that toolchain.
+ */
 #ifndef PRINTF_ATTRIBUTE
-    #if ((__GNUC__ >= 3) && !DOXYGEN) || MACOSX
+    #if (((__GNUC__ >= 3) || defined(__clang__)) && !DOXYGEN) || MACOSX
         /**
             Printf-style function format checking attribute.
-            @description Enables GCC to check printf-style format strings against their arguments at compile time.
-            Helps catch format string bugs and type mismatches early in development.
+            @description Enables GCC and Clang to check printf-style format strings against their arguments at
+            compile time. Helps catch format string bugs and type mismatches early in development.
+            Clang is matched explicitly because clang-cl targets MSVC compatibility and does not define __GNUC__,
+            yet still implements the attribute.
             @param a1 1-based index of the format string parameter
             @param a2 1-based index of the first format argument parameter
             @stability Stable
@@ -1767,6 +1776,24 @@ typedef int64 Ticks;
         #define PRINTF_ATTRIBUTE(a1, a2) __attribute__ ((format (__printf__, a1, a2)))
     #else
         #define PRINTF_ATTRIBUTE(a1, a2)
+    #endif
+#endif
+
+#ifndef PRINTF_FORMAT
+    #if defined(_MSC_VER) && !defined(__clang__) && !DOXYGEN
+        #include <sal.h>
+        /**
+            Printf-style format parameter annotation.
+            @description Marks the format-string parameter of a printf-style function so MSVC diagnoses a
+            non-literal format string (C4774). MSVC's own format warnings apply only to CRT printf functions;
+            this SAL annotation is the only way to extend the check to a user-defined variadic. Place it
+            immediately before the parameter's type. Expands to nothing on every other toolchain, where
+            PRINTF_ATTRIBUTE carries the same information.
+            @stability Stable
+         */
+        #define PRINTF_FORMAT _Printf_format_string_
+    #else
+        #define PRINTF_FORMAT
     #endif
 #endif
 

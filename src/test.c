@@ -449,7 +449,7 @@ static void uploadTest(Webs *wp)
             websWrite(wp, "FILENAME=%s\r\n", up->filename);
             websWrite(wp, "CLIENT=%s\r\n", up->clientFilename);
             websWrite(wp, "TYPE=%s\r\n", up->contentType);
-            websWrite(wp, "SIZE=%d\r\n", up->size);
+            websWrite(wp, "SIZE=%d\r\n", (int) up->size);
 
             upfile = sfmt("%s/tmp/%s", websGetDocuments(), up->clientFilename);
             if (rename(up->filename, upfile) < 0) {

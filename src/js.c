@@ -1077,9 +1077,9 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
         }
     } else {
         if (!isdigit((uchar) * lhs)) {
-            jsError(ep, "Conditional must be numeric", lhs);
+            jsError(ep, "Conditional must be numeric: %s", lhs);
         } else {
-            jsError(ep, "Conditional must be numeric", rhs);
+            jsError(ep, "Conditional must be numeric: %s", rhs);
         }
     }
     itosbuf(buf, sizeof(buf), lval, 10);

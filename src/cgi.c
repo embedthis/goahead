@@ -277,7 +277,7 @@ PUBLIC bool cgiHandler(Webs *wp)
                 wfree(cgiPath);
                 cgiPath = exe;
             } else {
-                error("Cannot find CGI program: ", cgiPath);
+                error("Cannot find CGI program: %s", cgiPath);
                 websError(wp, HTTP_CODE_NOT_FOUND | WEBS_NOLOG, "CGI program file does not exist");
                 wfree(cgiPath);
                 return 1;
@@ -482,18 +482,18 @@ PUBLIC bool websProcessCgiData(Webs *wp)
     ssize nbytes;
 
     nbytes = bufLen(&wp->input);
-    trace(5, "cgi: write %d bytes to CGI program", nbytes);
+    trace(5, "cgi: write %d bytes to CGI program", (int) nbytes);
     if (write(wp->cgifd, wp->input.servp, (int) nbytes) != nbytes) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR | WEBS_CLOSE, "Cannot write to CGI gateway");
     } else {
-        trace(5, "cgi: write %d bytes to CGI program", nbytes);
+        trace(5, "cgi: write %d bytes to CGI program", (int) nbytes);
     }
     websConsumeInput(wp, nbytes);
     return 1;
 }
 
 
-static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, char *location, char *contentType)
+static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, cchar *location, cchar *contentType)
 {
     trace(5, "cgi: Start response headers");
     websSetStatus(wp, status);
@@ -785,11 +785,11 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     trace(5, "cgi: run %s", cgiPath);
 
     if ((fdin = open(stdIn, O_RDWR | O_CREAT | O_BINARY, 0666)) < 0) {
-        error("Cannot open CGI stdin: ", cgiPath);
+        error("Cannot open CGI stdin: %s", cgiPath);
         return -1;
     }
     if ((fdout = open(stdOut, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0666)) < 0) {
-        error("Cannot open CGI stdout: ", cgiPath);
+        error("Cannot open CGI stdout: %s", cgiPath);
         return -1;
     }
 

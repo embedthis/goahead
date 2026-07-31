@@ -1406,7 +1406,7 @@ static bool filterChunkData(Webs *wp)
                 wp->eof = 1;
                 return 1;
             }
-            trace(7, "chunkFilter: start incoming chunk of %d bytes", chunkSize);
+            trace(7, "chunkFilter: start incoming chunk of %d bytes", (int) chunkSize);
             wp->rxChunkState = WEBS_CHUNK_DATA;
             break;
 
@@ -1506,7 +1506,7 @@ PUBLIC void websSetEnv(Webs *wp)
     assert(websValid(wp));
 
     websSetVar(wp, "AUTH_TYPE", wp->authType);
-    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", wp->rxLen);
+    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", (int) wp->rxLen);
     websSetVar(wp, "CONTENT_TYPE", wp->contentType);
     if (wp->route && wp->route->dir) {
         websSetVar(wp, "DOCUMENT_ROOT", wp->route->dir);
@@ -2143,7 +2143,7 @@ static bool flushChunkData(Webs *wp)
         case WEBS_CHUNK_START:
             /* Select the chunk size so that both the prefix and data will fit */
             wp->txChunkLen = min(bufLen(&wp->chunkbuf), room - 16);
-            fmt(wp->txChunkPrefix, sizeof(wp->txChunkPrefix), "\r\n%x\r\n", wp->txChunkLen);
+            fmt(wp->txChunkPrefix, sizeof(wp->txChunkPrefix), "\r\n%x\r\n", (uint) wp->txChunkLen);
             wp->txChunkPrefixLen = slen(wp->txChunkPrefix);
             wp->txChunkPrefixNext = wp->txChunkPrefix;
             wp->txChunkState = WEBS_CHUNK_HEADER;
@@ -2210,7 +2210,7 @@ PUBLIC int websFlush(Webs *wp, bool block)
             wp->flags &= ~WEBS_CHUNKING;
         }
     }
-    trace(6, "websFlush: buflen %d", bufLen(op));
+    trace(6, "websFlush: buflen %d", (int) bufLen(op));
     written = 0;
     while ((nbytes = bufLen(op)) > 0) {
         if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
@@ -2230,7 +2230,7 @@ PUBLIC int websFlush(Webs *wp, bool block)
         } else if (written == 0) {
             break;
         }
-        trace(6, "websFlush: wrote %d to socket", written);
+        trace(6, "websFlush: wrote %d to socket", (int) written);
         bufAdjustStart(op, written);
         bufCompact(op);
         nbytes = bufLen(op);
@@ -2429,7 +2429,7 @@ static void logRequest(Webs *wp, int code)
 #endif
     zoneStr[sizeof(zoneStr) - 1] = '\0';
     if (wp->written != 0) {
-        fmt(dataStr, sizeof(dataStr), "%Ld", wp->written);
+        fmt(dataStr, sizeof(dataStr), "%ld", (long) wp->written);
         dataStr[sizeof(dataStr) - 1] = '\0';
     } else {
         dataStr[0] = '-'; dataStr[1] = '\0';
@@ -3534,7 +3534,7 @@ static void setFileLimits(void)
         }
     }
     getrlimit(RLIMIT_NOFILE, &r);
-    trace(6, "Max files soft %d, max %d", r.rlim_cur, r.rlim_max);
+    trace(6, "Max files soft %ld, max %ld", (long) r.rlim_cur, (long) r.rlim_max);
 #endif
 }
 

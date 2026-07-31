@@ -312,11 +312,11 @@ static int writeToFile(Webs *wp, char *data, ssize len)
          */
         if ((rc = write(wp->upfd, data, (int) len)) != len) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot write to upload temp file %s, rc %d", wp->uploadTmp,
-                      rc);
+                      (int) rc);
             return -1;
         }
         file->size += len;
-        trace(7, "uploadFilter: Wrote %d bytes to %s", len, wp->uploadTmp);
+        trace(7, "uploadFilter: Wrote %d bytes to %s", (int) len, wp->uploadTmp);
     }
     return 0;
 }
@@ -339,7 +339,7 @@ static bool processContentData(Webs *wp)
         return 0;
     }
     if ((bp = getBoundary(wp, content->servp, size)) == 0) {
-        trace(7, "uploadFilter: Got boundary filename %x", wp->clientFilename);
+        trace(7, "uploadFilter: Got boundary filename %s", wp->clientFilename);
         if (wp->clientFilename) {
             /*
                 No signature found yet. probably more data to come. Must handle split boundaries.

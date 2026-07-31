@@ -683,7 +683,7 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 
     do {
         rc = SSL_write(wp->ssl, buf, (int) len);
-        trace(7, "OpenSSL: written %d, requested len %d", rc, len);
+        trace(7, "OpenSSL: written %d, requested len %d", rc, (int) len);
         if (rc <= 0) {
             err = SSL_get_error(wp->ssl, rc);
             if (err == SSL_ERROR_NONE || err == SSL_ERROR_WANT_WRITE) {
@@ -700,7 +700,7 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
         totalWritten += rc;
         buf = (void*) ((char*) buf + rc);
         len -= rc;
-        trace(7, "OpenSSL: write: len %d, written %d, total %d", len, rc, totalWritten);
+        trace(7, "OpenSSL: write: len %d, written %d, total %d", (int) len, rc, (int) totalWritten);
     } while (len > 0);
 
     if (totalWritten == 0 && err == SSL_ERROR_WANT_WRITE) {
