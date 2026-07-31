@@ -229,6 +229,15 @@ static void processUploadHeader(Webs *wp, char *line)
                     websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing name field");
                     return;
                 }
+                /*
+                    A part may open only one file. wp->upfd is the per-part descriptor and is reset
+                    when the part ends, so a descriptor open here means a repeated filename= pair or
+                    a repeated Content-Disposition header. Reject rather than leak the descriptor.
+                 */
+                if (wp->upfd >= 0) {
+                    websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Duplicate filename field");
+                    return;
+                }
                 value = websNormalizeUriPath(value);
                 if (*value == '.' || !websValidUriChars(value) || strpbrk(value, "\\/:*?<>|~\"'%`^\n\r\t\f")) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Bad upload client filename");
