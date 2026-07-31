@@ -86,3 +86,12 @@ route uri=/ extensions=jst,asp handler=jst
 #
 route uri=/
 
+#
+#   Reroute loop regression. The upload handler declines every request, which sends websPump back
+#   through websRouteRequest. This route is last in the table and is restricted to DELETE so the
+#   catch-all "/" above cannot match first and terminate the scan - which makes it the last matching
+#   route for a DELETE, the case where the resumed scan runs off the end of the table. That must
+#   fail with a 404, not wrap back to index zero and re-offer the same route forever.
+#   See regress/reroute-loop.tst.ts.
+#
+route uri=/reroute-loop/ methods=DELETE handler=upload

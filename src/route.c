@@ -76,12 +76,26 @@ PUBLIC void websRouteRequest(Webs *wp)
     assert(wp->method);
     assert(wp->protocol);
 
+    /*
+        Entering with a route set means this is a re-route: a handler declined and websPump routed again.
+        Every re-entry counts against the loop limit, however it was reached. Without this, a handler that
+        declines forever spins the event loop and the single threaded server never services another
+        connection.
+     */
+    if (wp->route && ++wp->routeCount >= WEBS_MAX_ROUTE) {
+        wp->route = 0;
+        error("Route loop for %s", wp->url);
+        websError(wp, HTTP_CODE_NOT_FOUND, "Cannot find suitable route for request.");
+        return;
+    }
     safeMethod = smatch(wp->method, "POST") || smatch(wp->method, "GET") || smatch(wp->method, "HEAD");
     plen = slen(wp->path);
 
     /*
-        Resume routine from last matched route. This permits the legacy service() callbacks to return false
-        and continue routing.
+        Resume routing from after the last matched route. This permits the legacy service() callbacks to
+        return false and continue routing. A resumed scan that runs off the end means no further route
+        matched, so the scan below does not run and the request fails with a 404. It must never wrap back
+        to the start: that re-offers routes the request has already been given.
      */
     if (wp->route && !(wp->flags & WEBS_REROUTE)) {
         for (i = 0; i < routeCount; i++) {
@@ -89,9 +103,6 @@ PUBLIC void websRouteRequest(Webs *wp)
                 i++;
                 break;
             }
-        }
-        if (i >= routeCount) {
-            i = 0;
         }
     } else {
         i = 0;
