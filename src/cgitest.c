@@ -7,8 +7,12 @@
         cgitest [switches]
             -a                  Output the args (used for ISINDEX queries)
             -b bytes            Output content "bytes" long
+            -c type             Output "type" as the Content-type header value
             -e                  Output the environment
             -h lines            Output header "lines" long
+            -H header           Output "header" verbatim as a response header line. The value is
+                                percent-descaped first, so %0d%0a delivers a raw CRLF into the
+                                header block (used by the response-splitting regression tests)
             -l location         Output "location" header
             -n                  Non-parsed-header ouput
             -p                  Ouput the post data
@@ -103,7 +107,10 @@ static int    originalArgc;
 static char   **originalArgv;
 static int    outputArgs, outputEnv, outputPost, outputQuery;
 static int    outputLines, outputHeaderLines, responseStatus;
+static char   *outputContentType;
+static char   *outputHeader;
 static char   *outputLocation;
+static char   *outputRaw;
 static char   *postBuf;
 static size_t postBufLen;
 static char   **postKeys;
@@ -126,6 +133,7 @@ static void     printEnv(char **env);
 static void     printQuery();
 static void     printPost(char *buf, size_t len);
 static char *safeGetenv(char *key);
+static void     finish(void);
 
 /******************************************************************************/
 /*
@@ -143,7 +151,9 @@ int main(int argc, char **argv, char **envp)
     err = 0;
     outputArgs = outputQuery = outputEnv = outputPost = 0;
     outputLines = outputHeaderLines = responseStatus = 0;
+    outputHeader = 0;
     outputLocation = 0;
+    outputRaw = 0;
     nonParsedHeader = 0;
     responseMsg = 0;
     hasError = 0;
@@ -184,6 +194,14 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
 
+            case 'c':
+                if (++i >= argc) {
+                    err = __LINE__;
+                } else {
+                    outputContentType = argv[i];
+                }
+                break;
+
             case 'e':
                 outputEnv++;
                 break;
@@ -194,6 +212,20 @@ int main(int argc, char **argv, char **envp)
                 } else {
                     outputHeaderLines = atoi(argv[i]);
                     nonParsedHeader++;
+                }
+                break;
+
+            case 'H':
+                /*
+                    getArgv descapes the whole switch string once and then splits it on whitespace,
+                    so a caller wanting a literal CRLF in the header double-encodes it as %250d%250a.
+                    Descape again here to recover the raw bytes.
+                 */
+                if (++i >= argc) {
+                    err = __LINE__;
+                } else {
+                    descape(argv[i]);
+                    outputHeader = argv[i];
                 }
                 break;
 
@@ -218,6 +250,22 @@ int main(int argc, char **argv, char **envp)
 
             case 'q':
                 outputQuery++;
+                break;
+
+            case 'r':
+                /*
+                    Emit the argument as the complete response, verbatim, generating no headers or body
+                    of our own. This drives the CGI response parser with output cgitest cannot otherwise
+                    produce: no header block at all, or a header block whose lines are ordered
+                    differently. Double-encoded like -H -- getArgv descapes once and this descapes
+                    again to recover the raw bytes.
+                 */
+                if (++i >= argc) {
+                    err = __LINE__;
+                } else {
+                    descape(argv[i]);
+                    outputRaw = argv[i];
+                }
                 break;
 
             case 's':
@@ -252,11 +300,16 @@ int main(int argc, char **argv, char **envp)
         }
     }
     if (err) {
-        fprintf(stderr, "usage: cgitest -aenp [-b bytes] [-h lines]\n"
-                "\t[-l location] [-s status] [-t timeout]\n"
+        fprintf(stderr, "usage: cgitest -aenp [-b bytes] [-c type] [-h lines] [-H header]\n"
+                "\t[-l location] [-r response] [-s status] [-t timeout]\n"
                 "\tor set the HTTP_SWITCHES environment variable\n");
         fprintf(stderr, "Error at cgitest:%d\n", __LINE__);
         exit(255);
+    }
+    if (outputRaw) {
+        fputs(outputRaw, stdout);
+        finish();
+        return 0;
     }
     if ((method = getenv("REQUEST_METHOD")) != 0 && strcmp(method, "POST") == 0) {
         if (getPostData(&postBuf, &postBufLen) < 0) {
@@ -285,7 +338,10 @@ int main(int argc, char **argv, char **envp)
         printf("Connection: close\r\n");
         printf("X-CGI-CustomHeader: Any value at all\r\n");
     }
-    printf("Content-type: %s\r\n", "text/html");
+    printf("Content-type: %s\r\n", outputContentType ? outputContentType : "text/html");
+    if (outputHeader) {
+        printf("%s\r\n", outputHeader);
+    }
 
     if (outputHeaderLines) {
         for (i = 0; i < outputHeaderLines; i++) {
@@ -333,18 +389,23 @@ int main(int argc, char **argv, char **envp)
         printf("</BODY></HTML>\r\n");
     }
 
+    finish();
+    return 0;
+}
+
+
+/*
+    Terminate the CGI output. VxWorks pipes need an explicit eof string, and must not call exit(0) as
+    that would exit the task before the CGI handler can cleanup -- the caller must return instead.
+ */
+static void finish(void)
+{
 #if VXWORKS
-    /*
-        VxWorks pipes need an explicit eof string
-        Must not call exit(0) in Vxworks as that will exit the task before the CGI handler can cleanup. Must use return
-           0.
-     */
     write(1, CMD_VXWORKS_EOF, CMD_VXWORKS_EOF_LEN);
     write(2, CMD_VXWORKS_EOF, CMD_VXWORKS_EOF_LEN);
 #endif
     fflush(stderr);
     fflush(stdout);
-    return 0;
 }
 
 

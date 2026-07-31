@@ -501,22 +501,58 @@ static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, cchar *lo
     websWriteHeader(wp, "Pragma", "no-cache");
     websWriteHeader(wp, "Cache-Control", "no-cache");
     if (contentType) {
-        websWriteHeader(wp, "Content-Type", contentType);
+        websWriteHeader(wp, "Content-Type", "%s", contentType);
     }
 }
 
 
+/*
+    Validate a CGI response header before passing it through to the client. The name must be an
+    RFC 7230 token, less '%' which in a header name is only ever an encoding artifact. The value
+    must not contain CR or LF. A value carrying CR/LF would splice attacker-chosen headers into
+    the response.
+ */
+static bool validCgiHeader(cchar *key, cchar *value)
+{
+    cchar *cp;
+
+    if (key == NULL || *key == '\0' || value == NULL) {
+        return 0;
+    }
+    for (cp = key; *cp; cp++) {
+        if (!isalnum((uchar) *cp) && !strchr("!#$&'*+-.^_`|~", *cp)) {
+            return 0;
+        }
+    }
+    for (cp = value; *cp; cp++) {
+        if (*cp == '\r' || *cp == '\n') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+    One tokenized line of the CGI response header block.
+ */
+typedef struct CgiHeader {
+    char *key;                              /* Lower case header name. Zero once consumed as a control header */
+    char *value;                            /* Trimmed header value */
+} CgiHeader;
+
+
 static ssize parseCgiHeaders(Webs *wp, char *buf)
 {
-    char  *end, *cp, *key, *value, *location, *contentType;
-    ssize len, contentLength;
-    int   status, doneHeaders;
+    CgiHeader *headers;
+    char      *end, *cp, *line, *location, *contentType;
+    ssize     len, contentLength;
+    int       count, i, nlines, status;
 
     status = HTTP_CODE_OK;
     contentLength = -1;
     contentType = 0;
     location = 0;
-    doneHeaders = 0;
 
     /*
         Look for end of headers
@@ -529,45 +565,84 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
     } else {
         len = 4;
     }
-    *end = '\0';
-    end += len;
-    cp = buf;
-    if (!strchr(cp, ':')) {
+    /*
+        Test for a header block before terminating it. Returning zero after writing the NUL would hand
+        the caller a buffer with the first byte of the separator destroyed, and the caller emits that
+        buffer verbatim as the response body.
+     */
+    if (memchr(buf, ':', end - buf) == NULL) {
         /* No headers found */
         return 0;
     }
+    *end = '\0';
+    end += len;
+    cp = buf;
     if (strncmp(cp, "HTTP/1.", 7) == 0) {
         ssplit(cp, "\r\n", &cp);
     }
-    for (; cp && *cp && (*cp != '\r' && *cp != '\n') && cp < end; ) {
-        key = slower(ssplit(cp, ":", &value));
-        if (strcmp(key, "location") == 0) {
-            location = value;
-        } else if (strcmp(key, "status") == 0) {
-            status = atoi(value);
-        } else if (strcmp(key, "content-type") == 0) {
-            contentType = value;
-        } else if (strcmp(key, "content-length") == 0) {
-            contentLength = atoi(value);
-        } else {
-            /*
-                Now pass all other headers back to the client
-             */
-            if (!doneHeaders) {
-                writeCgiHeaders(wp, status, contentLength, location, contentType);
-                doneHeaders = 1;
-            }
-            if (key && value && !strspn(key, "%<>/\\")) {
-                websWriteHeader(wp, key, "%s", value);
-            } else {
-                trace(5, "cgi: bad response http header: \"%s\": \"%s\"", key, value);
-            }
+    /*
+        Tokenize the block into header lines. The lines must be visited twice -- once to collect the CGI
+        control headers and once to pass the remainder through -- and stok is destructive, so capture
+        each line up front. There can be no more lines than there are line endings.
+     */
+    nlines = 1;
+    for (line = cp; (line = strchr(line, '\n')) != 0; line++) {
+        nlines++;
+    }
+    headers = walloc(nlines * sizeof(CgiHeader));
+    count = 0;
+    while (count < nlines && (line = stok(cp, "\r\n", &cp)) != NULL) {
+        /*
+            Tokenize one complete header line before splitting the name from the value. Splitting
+            on ":" first leaves the remainder of the header block inside "value", so a value
+            containing CR/LF carries the following headers through to the client unchecked.
+         */
+        if (strchr(line, ':') == NULL) {
+            trace(5, "cgi: bad response http header line: \"%s\"", line);
+            continue;
         }
-        stok(value, "\r\n", &cp);
+        headers[count].key = slower(ssplit(line, ":", &headers[count].value));
+        headers[count].value = strim(headers[count].value, " \t", WEBS_TRIM_BOTH);
+        count++;
     }
-    if (!doneHeaders) {
-        writeCgiHeaders(wp, status, contentLength, location, contentType);
+    /*
+        Collect the CGI control headers before emitting anything. RFC 3875 places no ordering
+        requirement on the response headers, so a control header may follow a pass-through header and
+        must still shape the status line and standard headers.
+     */
+    for (i = 0; i < count; i++) {
+        if (strcmp(headers[i].key, "location") == 0) {
+            location = headers[i].value;
+        } else if (strcmp(headers[i].key, "status") == 0) {
+            status = atoi(headers[i].value);
+        } else if (strcmp(headers[i].key, "content-type") == 0) {
+            contentType = headers[i].value;
+        } else if (strcmp(headers[i].key, "content-length") == 0) {
+            contentLength = atoi(headers[i].value);
+        } else {
+            continue;
+        }
+        /*
+            Consumed by writeCgiHeaders below, so do not pass it through as well.
+         */
+        headers[i].key = 0;
     }
+    writeCgiHeaders(wp, status, contentLength, location, contentType);
+
+    /*
+        Now pass all other headers back to the client
+     */
+    for (i = 0; i < count; i++) {
+        if (headers[i].key == 0) {
+            continue;
+        }
+        if (validCgiHeader(headers[i].key, headers[i].value)) {
+            websWriteHeader(wp, headers[i].key, "%s", headers[i].value);
+        } else {
+            trace(5, "cgi: bad response http header: \"%s\": \"%s\"", headers[i].key, headers[i].value);
+        }
+    }
+    wfree(headers);
     websWriteEndHeaders(wp);
     return end - buf;
 }
@@ -603,12 +678,24 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                             trace(5, "cgi: waiting for http headers");
                             break;
                         } else {
+                            /*
+                                The CGI emitted no recognizable header block. Emit a default set and
+                                close it. Without the end-of-headers marker the program output below is
+                                written inside the header block, so any "Name: value" line it emits --
+                                including one echoing a request header -- becomes a real response
+                                header. Closing the block also sets WEBS_HEADERS_CREATED so the output
+                                is not re-parsed as headers, and enables the chunked framing that the
+                                emitted Transfer-Encoding header promises. RFC 3875 requires a CGI to
+                                supply Content-Type; default to text/plain so headerless output cannot
+                                be sniffed as HTML.
+                             */
                             trace(5, "cgi: missing http headers - create default headers");
-                            writeCgiHeaders(wp, HTTP_CODE_OK, -1, 0, 0);
+                            writeCgiHeaders(wp, HTTP_CODE_OK, -1, 0, "text/plain");
+                            websWriteEndHeaders(wp);
                         }
                     }
                 }
-                trace(5, "cgi: write %d bytes to client", nbytes - skip);
+                trace(5, "cgi: write %d bytes to client", (int) (nbytes - skip));
                 websWriteBlock(wp, &buf[skip], nbytes - skip);
                 cgip->fplacemark += (off_t) nbytes;
             }
