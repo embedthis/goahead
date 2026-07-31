@@ -147,6 +147,15 @@ workspace "goahead"
         filter "platforms:windows"
             system  "windows"
             toolset "msc"
+            --
+            -- C4774: "format string expected in argument N is not a string literal". This is the
+            -- MSVC analogue of -Werror=format-security and the only format diagnostic that reaches
+            -- a user-defined variadic; it fires on the parameters marked PRINTF_FORMAT in osdep.h.
+            -- Without it, code inside #if ME_WIN_LIKE blocks is format-checked by no CI leg at all.
+            --
+            buildoptions {
+                "/we4774",
+            }
             disablewarnings {
                 "4100",     -- unreferenced formal parameter
                 "4127",     -- conditional expression is constant
@@ -171,7 +180,7 @@ workspace "goahead"
                 "-Wno-unknown-warning-option",
                 "-fstack-protector",
                 "--param=ssp-buffer-size=4",
-                "-Wformat", "-Wformat-security",
+                "-Wformat=2", "-Wformat-security", "-Werror=format-security",
                 "-Wsign-compare",
             }
             linkoptions {
@@ -190,7 +199,7 @@ workspace "goahead"
                 "-Wall",
                 "-fstack-protector",
                 "--param=ssp-buffer-size=4",
-                "-Wformat", "-Wformat-security",
+                "-Wformat=2", "-Wformat-security", "-Werror=format-security",
                 "-Wsign-compare",
             }
             linkoptions {
@@ -220,7 +229,7 @@ workspace "goahead"
                 "-Wall",
                 "-fstack-protector",
                 "--param=ssp-buffer-size=4",
-                "-Wformat", "-Wformat-security",
+                "-Wformat=2", "-Wformat-security", "-Werror=format-security",
                 "-Wsign-compare",
             }
             links { "dl", "pthread", "m" }

@@ -12,7 +12,8 @@
         c: {
             gcc: {
                 flags: [
-                    '-Wformat', '-Wformat-security', '-Wsign-compare', '-Wsign-conversion',
+                    '-Wformat=2', '-Wformat-security', '-Werror=format-security',
+                    '-Wsign-compare', '-Wsign-conversion',
                     '-I../src', '-I../src/osdep', '-L../build/bin',
                     '-Wl,-rpath,${CONFIGDIR}/../build/bin'
                 ],

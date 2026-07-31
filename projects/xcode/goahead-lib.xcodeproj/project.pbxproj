@@ -230,8 +230,9 @@
 					"-Wno-unknown-warning-option",
 					"-fstack-protector",
 					"--param=ssp-buffer-size=4",
-					"-Wformat",
+					"-Wformat=2",
 					"-Wformat-security",
+					"-Werror=format-security",
 					"-Wsign-compare",
 				);
 				OTHER_LDFLAGS = (
@@ -288,8 +289,9 @@
 					"-Wno-unknown-warning-option",
 					"-fstack-protector",
 					"--param=ssp-buffer-size=4",
-					"-Wformat",
+					"-Wformat=2",
 					"-Wformat-security",
+					"-Werror=format-security",
 					"-Wsign-compare",
 				);
 				OTHER_LDFLAGS = (

@@ -46,8 +46,8 @@ TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.dylib
 OBJDIR = ../../build/obj/goahead-lib-macosx-debug
 DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_DEBUG=1
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += -ldl -lpthread -lm -lpam -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -dynamiclib -Wl,-install_name,@rpath/libgoahead.dylib -g -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
 
@@ -66,8 +66,8 @@ TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-linux-debug
 DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_DEBUG=1
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += -lrt -ldl -lpthread -lm -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -shared -Wl,-soname=libgoahead.so -g -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,--no-warn-execstack
 
@@ -86,8 +86,8 @@ TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-freebsd-debug
 DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_DEBUG=1
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += -ldl -lpthread -lm -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -shared -g
 
@@ -106,8 +106,8 @@ TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.dylib
 OBJDIR = ../../build/obj/goahead-lib-macosx-release
 DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\"
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += -ldl -lpthread -lm -lpam -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -dynamiclib -Wl,-install_name,@rpath/libgoahead.dylib -s -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
 
@@ -126,8 +126,8 @@ TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-linux-release
 DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\"
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += -lrt -ldl -lpthread -lm -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -shared -Wl,-soname=libgoahead.so -s -s -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,--no-warn-execstack
 
@@ -146,8 +146,8 @@ TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-freebsd-release
 DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\"
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += -ldl -lpthread -lm -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -shared -s -s
 
