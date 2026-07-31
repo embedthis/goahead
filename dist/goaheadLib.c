@@ -617,6 +617,11 @@ PUBLIC bool websAuthenticate(Webs *wp)
         }
         if (wp->authDetails && route->parseAuth) {
             if (!(route->parseAuth)(wp)) {
+                /*
+                    parseAuth may have taken ownership of a cloned username before failing.
+                    Free it here so a failed authentication does not orphan the block.
+                 */
+                wfree(wp->username);
                 wp->username = 0;
             }
         }
@@ -1009,7 +1014,15 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
         return 0;
     }
     trace(2, "Login successful for %s", username);
-    websCreateSession(wp);
+    if (websCreateSession(wp) == 0) {
+        /*
+            Session storage is full or unavailable. Fail the login rather than reporting success: the
+            client would otherwise be redirected to the protected page carrying no session cookie and
+            bounced straight back to the login form with no error anywhere it can see.
+         */
+        error("Cannot create session for %s", username);
+        return 0;
+    }
     websSetSessionVar(wp, WEBS_SESSION_USERNAME, wp->username);
     return 1;
 }
@@ -1053,7 +1066,16 @@ static void loginServiceProc(Webs *wp)
         if (route->askLogin) {
             (route->askLogin)(wp);
         }
-        websSetSessionVar(wp, "loginStatus", "failed");
+        /*
+            SECURITY: only record the failure in a session that already exists. Creating one here would
+            let any unauthenticated client allocate the scarcest server resource (capped by
+            ME_GOAHEAD_LIMIT_SESSION_COUNT) with a single anonymous POST, and would hand the attacker a
+            live server-issued session id. loginStatus is only meaningful to a client that already holds
+            a session to read it back from.
+         */
+        if (websGetSession(wp, 0) != 0) {
+            websSetSessionVar(wp, "loginStatus", "failed");
+        }
         websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
     }
 }
@@ -2003,7 +2025,7 @@ PUBLIC bool cgiHandler(Webs *wp)
                 wfree(cgiPath);
                 cgiPath = exe;
             } else {
-                error("Cannot find CGI program: ", cgiPath);
+                error("Cannot find CGI program: %s", cgiPath);
                 websError(wp, HTTP_CODE_NOT_FOUND | WEBS_NOLOG, "CGI program file does not exist");
                 wfree(cgiPath);
                 return 1;
@@ -2208,18 +2230,18 @@ PUBLIC bool websProcessCgiData(Webs *wp)
     ssize nbytes;
 
     nbytes = bufLen(&wp->input);
-    trace(5, "cgi: write %d bytes to CGI program", nbytes);
+    trace(5, "cgi: write %d bytes to CGI program", (int) nbytes);
     if (write(wp->cgifd, wp->input.servp, (int) nbytes) != nbytes) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR | WEBS_CLOSE, "Cannot write to CGI gateway");
     } else {
-        trace(5, "cgi: write %d bytes to CGI program", nbytes);
+        trace(5, "cgi: write %d bytes to CGI program", (int) nbytes);
     }
     websConsumeInput(wp, nbytes);
     return 1;
 }
 
 
-static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, char *location, char *contentType)
+static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, cchar *location, cchar *contentType)
 {
     trace(5, "cgi: Start response headers");
     websSetStatus(wp, status);
@@ -2227,22 +2249,58 @@ static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, char *loc
     websWriteHeader(wp, "Pragma", "no-cache");
     websWriteHeader(wp, "Cache-Control", "no-cache");
     if (contentType) {
-        websWriteHeader(wp, "Content-Type", contentType);
+        websWriteHeader(wp, "Content-Type", "%s", contentType);
     }
 }
 
 
+/*
+    Validate a CGI response header before passing it through to the client. The name must be an
+    RFC 7230 token, less '%' which in a header name is only ever an encoding artifact. The value
+    must not contain CR or LF. A value carrying CR/LF would splice attacker-chosen headers into
+    the response.
+ */
+static bool validCgiHeader(cchar *key, cchar *value)
+{
+    cchar *cp;
+
+    if (key == NULL || *key == '\0' || value == NULL) {
+        return 0;
+    }
+    for (cp = key; *cp; cp++) {
+        if (!isalnum((uchar) *cp) && !strchr("!#$&'*+-.^_`|~", *cp)) {
+            return 0;
+        }
+    }
+    for (cp = value; *cp; cp++) {
+        if (*cp == '\r' || *cp == '\n') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+    One tokenized line of the CGI response header block.
+ */
+typedef struct CgiHeader {
+    char *key;                              /* Lower case header name. Zero once consumed as a control header */
+    char *value;                            /* Trimmed header value */
+} CgiHeader;
+
+
 static ssize parseCgiHeaders(Webs *wp, char *buf)
 {
-    char  *end, *cp, *key, *value, *location, *contentType;
-    ssize len, contentLength;
-    int   status, doneHeaders;
+    CgiHeader *headers;
+    char      *end, *cp, *line, *location, *contentType;
+    ssize     len, contentLength;
+    int       count, i, nlines, status;
 
     status = HTTP_CODE_OK;
     contentLength = -1;
     contentType = 0;
     location = 0;
-    doneHeaders = 0;
 
     /*
         Look for end of headers
@@ -2255,45 +2313,84 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
     } else {
         len = 4;
     }
-    *end = '\0';
-    end += len;
-    cp = buf;
-    if (!strchr(cp, ':')) {
+    /*
+        Test for a header block before terminating it. Returning zero after writing the NUL would hand
+        the caller a buffer with the first byte of the separator destroyed, and the caller emits that
+        buffer verbatim as the response body.
+     */
+    if (memchr(buf, ':', end - buf) == NULL) {
         /* No headers found */
         return 0;
     }
+    *end = '\0';
+    end += len;
+    cp = buf;
     if (strncmp(cp, "HTTP/1.", 7) == 0) {
         ssplit(cp, "\r\n", &cp);
     }
-    for (; cp && *cp && (*cp != '\r' && *cp != '\n') && cp < end; ) {
-        key = slower(ssplit(cp, ":", &value));
-        if (strcmp(key, "location") == 0) {
-            location = value;
-        } else if (strcmp(key, "status") == 0) {
-            status = atoi(value);
-        } else if (strcmp(key, "content-type") == 0) {
-            contentType = value;
-        } else if (strcmp(key, "content-length") == 0) {
-            contentLength = atoi(value);
-        } else {
-            /*
-                Now pass all other headers back to the client
-             */
-            if (!doneHeaders) {
-                writeCgiHeaders(wp, status, contentLength, location, contentType);
-                doneHeaders = 1;
-            }
-            if (key && value && !strspn(key, "%<>/\\")) {
-                websWriteHeader(wp, key, "%s", value);
-            } else {
-                trace(5, "cgi: bad response http header: \"%s\": \"%s\"", key, value);
-            }
+    /*
+        Tokenize the block into header lines. The lines must be visited twice -- once to collect the CGI
+        control headers and once to pass the remainder through -- and stok is destructive, so capture
+        each line up front. There can be no more lines than there are line endings.
+     */
+    nlines = 1;
+    for (line = cp; (line = strchr(line, '\n')) != 0; line++) {
+        nlines++;
+    }
+    headers = walloc(nlines * sizeof(CgiHeader));
+    count = 0;
+    while (count < nlines && (line = stok(cp, "\r\n", &cp)) != NULL) {
+        /*
+            Tokenize one complete header line before splitting the name from the value. Splitting
+            on ":" first leaves the remainder of the header block inside "value", so a value
+            containing CR/LF carries the following headers through to the client unchecked.
+         */
+        if (strchr(line, ':') == NULL) {
+            trace(5, "cgi: bad response http header line: \"%s\"", line);
+            continue;
         }
-        stok(value, "\r\n", &cp);
+        headers[count].key = slower(ssplit(line, ":", &headers[count].value));
+        headers[count].value = strim(headers[count].value, " \t", WEBS_TRIM_BOTH);
+        count++;
     }
-    if (!doneHeaders) {
-        writeCgiHeaders(wp, status, contentLength, location, contentType);
+    /*
+        Collect the CGI control headers before emitting anything. RFC 3875 places no ordering
+        requirement on the response headers, so a control header may follow a pass-through header and
+        must still shape the status line and standard headers.
+     */
+    for (i = 0; i < count; i++) {
+        if (strcmp(headers[i].key, "location") == 0) {
+            location = headers[i].value;
+        } else if (strcmp(headers[i].key, "status") == 0) {
+            status = atoi(headers[i].value);
+        } else if (strcmp(headers[i].key, "content-type") == 0) {
+            contentType = headers[i].value;
+        } else if (strcmp(headers[i].key, "content-length") == 0) {
+            contentLength = atoi(headers[i].value);
+        } else {
+            continue;
+        }
+        /*
+            Consumed by writeCgiHeaders below, so do not pass it through as well.
+         */
+        headers[i].key = 0;
     }
+    writeCgiHeaders(wp, status, contentLength, location, contentType);
+
+    /*
+        Now pass all other headers back to the client
+     */
+    for (i = 0; i < count; i++) {
+        if (headers[i].key == 0) {
+            continue;
+        }
+        if (validCgiHeader(headers[i].key, headers[i].value)) {
+            websWriteHeader(wp, headers[i].key, "%s", headers[i].value);
+        } else {
+            trace(5, "cgi: bad response http header: \"%s\": \"%s\"", headers[i].key, headers[i].value);
+        }
+    }
+    wfree(headers);
     websWriteEndHeaders(wp);
     return end - buf;
 }
@@ -2329,12 +2426,24 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                             trace(5, "cgi: waiting for http headers");
                             break;
                         } else {
+                            /*
+                                The CGI emitted no recognizable header block. Emit a default set and
+                                close it. Without the end-of-headers marker the program output below is
+                                written inside the header block, so any "Name: value" line it emits --
+                                including one echoing a request header -- becomes a real response
+                                header. Closing the block also sets WEBS_HEADERS_CREATED so the output
+                                is not re-parsed as headers, and enables the chunked framing that the
+                                emitted Transfer-Encoding header promises. RFC 3875 requires a CGI to
+                                supply Content-Type; default to text/plain so headerless output cannot
+                                be sniffed as HTML.
+                             */
                             trace(5, "cgi: missing http headers - create default headers");
-                            writeCgiHeaders(wp, HTTP_CODE_OK, -1, 0, 0);
+                            writeCgiHeaders(wp, HTTP_CODE_OK, -1, 0, "text/plain");
+                            websWriteEndHeaders(wp);
                         }
                     }
                 }
-                trace(5, "cgi: write %d bytes to client", nbytes - skip);
+                trace(5, "cgi: write %d bytes to client", (int) (nbytes - skip));
                 websWriteBlock(wp, &buf[skip], nbytes - skip);
                 cgip->fplacemark += (off_t) nbytes;
             }
@@ -2511,11 +2620,11 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     trace(5, "cgi: run %s", cgiPath);
 
     if ((fdin = open(stdIn, O_RDWR | O_CREAT | O_BINARY, 0666)) < 0) {
-        error("Cannot open CGI stdin: ", cgiPath);
+        error("Cannot open CGI stdin: %s", cgiPath);
         return -1;
     }
     if ((fdout = open(stdOut, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0666)) < 0) {
-        error("Cannot open CGI stdout: ", cgiPath);
+        error("Cannot open CGI stdout: %s", cgiPath);
         return -1;
     }
 
@@ -2817,6 +2926,20 @@ static uchar *tableToBlock(char **table)
 
 
 /*
+    Close a Windows handle if, and only if, it is a real handle. The two "not a handle" sentinels differ
+    by origin: CreateFile returns INVALID_HANDLE_VALUE ((HANDLE) -1) on failure, while a zeroed
+    STARTUPINFO or PROCESS_INFORMATION field is NULL. Passing either to CloseHandle raises
+    STATUS_INVALID_HANDLE under the strict-handle-check mitigation policy, which terminates the process.
+ */
+static void closeWinHandle(HANDLE h)
+{
+    if (h != NULL && h != INVALID_HANDLE_VALUE) {
+        CloseHandle(h);
+    }
+}
+
+
+/*
     Windows launchCgi
     Create a temporary stdout file and launch the CGI process. Returns a handle to the spawned CGI process.
  */
@@ -2884,7 +3007,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
      */
     newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
                                    NULL);
-    if (newinfo.hStdOutput == (HANDLE) -1) {
+    if (newinfo.hStdInput == INVALID_HANDLE_VALUE) {
         error("Cannot open CGI stdin file");
         return (CgiPid) - 1;
     }
@@ -2894,9 +3017,9 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
      */
     newinfo.hStdOutput = CreateFile(stdOut, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                     &security, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (newinfo.hStdOutput == (HANDLE) -1) {
+    if (newinfo.hStdOutput == INVALID_HANDLE_VALUE) {
         error("Cannot create CGI stdout file");
-        CloseHandle(newinfo.hStdInput);
+        closeWinHandle(newinfo.hStdInput);
         return (CgiPid) - 1;
     }
     SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_END);
@@ -2908,8 +3031,11 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     /*
         CreateProcess returns errors sometimes, even when the process was started correctly.  The cause is not evident.
         Detect an error by checking the value of procinfo.hProcess after the call.
+
+        Zero the whole structure: CreateProcess does not guarantee it populates PROCESS_INFORMATION on
+        failure, and hThread is read unconditionally in the cleanup below.
      */
-    procinfo.hProcess = NULL;
+    memset(&procinfo, 0, sizeof(procinfo));
     /*
         lpApplicationName is set explicitly to the resolved cgiPath so program identity
         does not depend on how lpCommandLine tokenises. Combined with the extension gate
@@ -2927,15 +3053,9 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
         &newinfo,           /*  STARTUPINFO                             */
         &procinfo);         /*  PROCESS_INFORMATION                     */
 
-    if (procinfo.hThread != NULL) {
-        CloseHandle(procinfo.hThread);
-    }
-    if (newinfo.hStdInput) {
-        CloseHandle(newinfo.hStdInput);
-    }
-    if (newinfo.hStdOutput) {
-        CloseHandle(newinfo.hStdOutput);
-    }
+    closeWinHandle(procinfo.hThread);
+    closeWinHandle(newinfo.hStdInput);
+    closeWinHandle(newinfo.hStdOutput);
     wfree(pEnvData);
     wfree(cmdLine);
 
@@ -4887,6 +5007,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     if (routeFile && websLoad(routeFile) < 0) {
         return -1;
     }
+    websCheckRouteAuth();
     /*
         Create a mime type lookup table for quickly determining the content type
      */
@@ -6011,7 +6132,7 @@ static bool filterChunkData(Webs *wp)
                 wp->eof = 1;
                 return 1;
             }
-            trace(7, "chunkFilter: start incoming chunk of %d bytes", chunkSize);
+            trace(7, "chunkFilter: start incoming chunk of %d bytes", (int) chunkSize);
             wp->rxChunkState = WEBS_CHUNK_DATA;
             break;
 
@@ -6111,7 +6232,7 @@ PUBLIC void websSetEnv(Webs *wp)
     assert(websValid(wp));
 
     websSetVar(wp, "AUTH_TYPE", wp->authType);
-    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", wp->rxLen);
+    websSetVarFmt(wp, "CONTENT_LENGTH", "%d", (int) wp->rxLen);
     websSetVar(wp, "CONTENT_TYPE", wp->contentType);
     if (wp->route && wp->route->dir) {
         websSetVar(wp, "DOCUMENT_ROOT", wp->route->dir);
@@ -6748,7 +6869,7 @@ static bool flushChunkData(Webs *wp)
         case WEBS_CHUNK_START:
             /* Select the chunk size so that both the prefix and data will fit */
             wp->txChunkLen = min(bufLen(&wp->chunkbuf), room - 16);
-            fmt(wp->txChunkPrefix, sizeof(wp->txChunkPrefix), "\r\n%x\r\n", wp->txChunkLen);
+            fmt(wp->txChunkPrefix, sizeof(wp->txChunkPrefix), "\r\n%x\r\n", (uint) wp->txChunkLen);
             wp->txChunkPrefixLen = slen(wp->txChunkPrefix);
             wp->txChunkPrefixNext = wp->txChunkPrefix;
             wp->txChunkState = WEBS_CHUNK_HEADER;
@@ -6815,7 +6936,7 @@ PUBLIC int websFlush(Webs *wp, bool block)
             wp->flags &= ~WEBS_CHUNKING;
         }
     }
-    trace(6, "websFlush: buflen %d", bufLen(op));
+    trace(6, "websFlush: buflen %d", (int) bufLen(op));
     written = 0;
     while ((nbytes = bufLen(op)) > 0) {
         if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
@@ -6835,7 +6956,7 @@ PUBLIC int websFlush(Webs *wp, bool block)
         } else if (written == 0) {
             break;
         }
-        trace(6, "websFlush: wrote %d to socket", written);
+        trace(6, "websFlush: wrote %d to socket", (int) written);
         bufAdjustStart(op, written);
         bufCompact(op);
         nbytes = bufLen(op);
@@ -7034,7 +7155,7 @@ static void logRequest(Webs *wp, int code)
 #endif
     zoneStr[sizeof(zoneStr) - 1] = '\0';
     if (wp->written != 0) {
-        fmt(dataStr, sizeof(dataStr), "%Ld", wp->written);
+        fmt(dataStr, sizeof(dataStr), "%ld", (long) wp->written);
         dataStr[sizeof(dataStr) - 1] = '\0';
     } else {
         dataStr[0] = '-'; dataStr[1] = '\0';
@@ -7534,6 +7655,142 @@ PUBLIC char *websNormalizeUriPath(cchar *pathArg)
 
 
 /*
+    Unicode ranges that NFC composition removes: combining marks and the Hangul conjoining jamo.
+    A path containing any of these is in decomposed (NFD) form. Normalization-insensitive file
+    systems (APFS, HFS+) resolve NFD and the precomposed (NFC) spelling of a name to the same file,
+    so an NFD request would be authorized against one string and opened as another. Composing NFD
+    to NFC needs a large table; rejecting costs nothing and the NFC spelling always remains
+    reachable. Not exhaustive - it covers the scripts that compose: Latin, Greek, Cyrillic, Hebrew,
+    Arabic, Syriac, Hangul and Japanese kana.
+ */
+static const struct {
+    uint low;
+    uint high;
+} combiningRanges[] = {
+    { 0x0300, 0x036F },                 /* Combining diacritical marks (Latin, Greek, Cyrillic) */
+    { 0x0483, 0x0489 },                 /* Cyrillic combining marks */
+    { 0x0591, 0x05C7 },                 /* Hebrew points and accents */
+    { 0x0610, 0x061A },                 /* Arabic marks */
+    { 0x064B, 0x0670 },                 /* Arabic marks and superscript alef */
+    { 0x06D6, 0x06ED },                 /* Arabic marks */
+    { 0x0711, 0x0711 },                 /* Syriac letter superscript alaph */
+    { 0x0730, 0x074A },                 /* Syriac points */
+    { 0x1100, 0x11FF },                 /* Hangul conjoining jamo */
+    { 0x1AB0, 0x1AFF },                 /* Combining diacritical marks extended */
+    { 0x1DC0, 0x1DFF },                 /* Combining diacritical marks supplement */
+    { 0x20D0, 0x20F0 },                 /* Combining marks for symbols */
+    { 0x3099, 0x309A },                 /* Kana voiced/semi-voiced sound marks */
+    { 0xFE20, 0xFE2F },                 /* Combining half marks */
+};
+
+
+/*
+    Decode the UTF-8 sequence at *sp and advance *sp past it. Returns the code point, or 0 for an
+    invalid or truncated sequence (the caller rejects those paths outright).
+ */
+static uint decodeUtf8(cchar **sp)
+{
+    cchar *cp;
+    uint  c, cp0;
+    int   i, need;
+
+    cp = *sp;
+    cp0 = (uchar) *cp++;
+    if (cp0 < 0x80) {
+        *sp = cp;
+        return cp0;
+    } else if ((cp0 & 0xE0) == 0xC0) {
+        need = 1;
+        c = cp0 & 0x1F;
+    } else if ((cp0 & 0xF0) == 0xE0) {
+        need = 2;
+        c = cp0 & 0x0F;
+    } else if ((cp0 & 0xF8) == 0xF0) {
+        need = 3;
+        c = cp0 & 0x07;
+    } else {
+        return 0;
+    }
+    for (i = 0; i < need; i++) {
+        if (((uchar) *cp & 0xC0) != 0x80) {
+            return 0;
+        }
+        c = (c << 6) | ((uchar) *cp++ & 0x3F);
+    }
+    *sp = cp;
+    return c;
+}
+
+
+/*
+    Test if a decoded, normalized URI path is in canonical form: the one spelling that names the
+    file on every supported platform.
+
+    Route selection, authentication, ability checks and protocol enforcement all compare wp->path
+    byte-for-byte against a route prefix, while the kernel later opens a path that its file system
+    may fold. Any spelling the file system folds away is therefore an authorization bypass: the
+    decision and the open are made on two different strings naming one file. The lexically
+    detectable folds are rejected here, at the single point where a request path is created, rather
+    than reproduced in each comparison.
+
+    Rejected on all platforms so that one canonical form holds everywhere:
+    - a segment ending in "." or " " - Win32 strips both from the final component
+    - ":" anywhere in a segment - an NTFS alternate data stream ("x.jst::$DATA") or a drive letter
+    - "~" followed by digits at the end of a segment or before its extension - an NTFS 8.3 alias
+    - a combining mark or conjoining jamo - an NFD spelling that APFS and HFS+ fold to NFC
+    - malformed UTF-8 - it has no single interpretation, so it has no canonical form
+
+    Case is not lexically detectable (both spellings look canonical) and is handled where routes are
+    compared. See matchRoutePrefix in route.c.
+ */
+static bool validCanonicalPath(cchar *path)
+{
+    cchar *sp, *segment;
+    uint  c;
+    int   i;
+
+    segment = path;
+    for (sp = path; *sp; ) {
+        if (*sp == '/') {
+            if (sp > segment && (sp[-1] == '.' || sp[-1] == ' ')) {
+                return 0;
+            }
+            segment = ++sp;
+            continue;
+        }
+        if (*sp == ':') {
+            return 0;
+        }
+        if (*sp == '~') {
+            for (c = 0, sp++; isdigit((uchar) *sp); sp++) {
+                c++;
+            }
+            if (c > 0 && (*sp == '\0' || *sp == '/' || *sp == '.')) {
+                return 0;
+            }
+            continue;
+        }
+        if ((uchar) *sp < 0x80) {
+            sp++;
+            continue;
+        }
+        if ((c = decodeUtf8(&sp)) == 0) {
+            return 0;
+        }
+        for (i = 0; i < (int) (sizeof(combiningRanges) / sizeof(combiningRanges[0])); i++) {
+            if (combiningRanges[i].low <= c && c <= combiningRanges[i].high) {
+                return 0;
+            }
+        }
+    }
+    if (sp > segment && (sp[-1] == '.' || sp[-1] == ' ')) {
+        return 0;
+    }
+    return 1;
+}
+
+
+/*
     Validate a URI path for use in a HTTP request line
     The URI must contain only valid characters and must being with "/" both before and after decoding.
     A decoded, normalized URI path is returned.
@@ -7557,7 +7814,7 @@ PUBLIC char *websValidateUriPath(cchar *uri)
     if (normalized == 0) {
         return 0;
     }
-    if (*normalized != '/' || strchr(normalized, '\\')) {
+    if (*normalized != '/' || strchr(normalized, '\\') || !validCanonicalPath(normalized)) {
         wfree(normalized);
         return 0;
     }
@@ -8014,13 +8271,18 @@ PUBLIC cchar *websGetSessionVar(Webs *wp, cchar *key, cchar *defaultValue)
     assert(wp);
     assert(key && *key);
 
-    if ((sp = websGetSession(wp, 1)) != 0) {
+    /*
+        SECURITY: reading a session variable must not create a session. Creating one here would let any
+        handler on an unauthenticated route mint server state (and a Set-Cookie) for an anonymous client,
+        which is an unauthenticated path to exhausting ME_GOAHEAD_LIMIT_SESSION_COUNT.
+     */
+    if ((sp = websGetSession(wp, 0)) != 0) {
         if ((sym = hashLookup(sp->cache, key)) == 0) {
             return defaultValue;
         }
         return (char*) sym->content.value.symbol;
     }
-    return 0;
+    return defaultValue;
 }
 
 
@@ -8031,7 +8293,10 @@ PUBLIC void websRemoveSessionVar(Webs *wp, cchar *key)
     assert(wp);
     assert(key && *key);
 
-    if ((sp = websGetSession(wp, 1)) != 0) {
+    /*
+        SECURITY: removing a session variable must not create a session. See websGetSessionVar.
+     */
+    if ((sp = websGetSession(wp, 0)) != 0) {
         hashDelete(sp->cache, key);
     }
 }
@@ -8045,8 +8310,11 @@ PUBLIC int websSetSessionVar(Webs *wp, cchar *key, cchar *value)
     assert(key && *key);
     assert(value);
 
+    /*
+        Writing a session variable is the one operation that legitimately establishes a session.
+     */
     if ((sp = websGetSession(wp, 1)) == 0) {
-        return 0;
+        return -1;
     }
     if (hashEnter(sp->cache, key, valueString(value, VALUE_ALLOCATE), 0) == 0) {
         return -1;
@@ -8139,7 +8407,7 @@ static void setFileLimits(void)
         }
     }
     getrlimit(RLIMIT_NOFILE, &r);
-    trace(6, "Max files soft %d, max %d", r.rlim_cur, r.rlim_max);
+    trace(6, "Max files soft %ld, max %ld", (long) r.rlim_cur, (long) r.rlim_max);
 #endif
 }
 
@@ -8360,10 +8628,24 @@ static int      charConvert(Js *ep, int base, int maxDig);
 
 /************************************* Code ***********************************/
 
+/*
+    Push a variable frame onto the frame stack and return its frame id. Frames are a simple stack: the frame id is
+    the index and frames must be closed in reverse order of creation.
+ */
+static int pushFrame(Js *ep, WebsHash variables)
+{
+    assert(ep);
+
+    ep->variables = wrealloc(ep->variables, sizeof(WebsHash) * (ep->variableMax + 1));
+    ep->variables[ep->variableMax] = variables + JS_OFFSET;
+    return ep->variableMax++;
+}
+
+
 PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
 {
     Js  *ep;
-    int jid, vid;
+    int jid;
 
     if ((jid = wallocObject(&jsHandles, &jsMax, sizeof(Js))) < 0) {
         return -1;
@@ -8373,20 +8655,13 @@ PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
 
     /*
         Create a top level symbol table if one is not provided for variables and functions. Variables may create other
-        symbol tables for block level declarations so we use walloc to manage a list of variable tables.
+        symbol tables for block level declarations so the tables are kept in a stack of variable frames.
      */
-    if ((vid = wallocHandle(&ep->variables)) < 0) {
-        jsMax = wfreeHandle(&jsHandles, ep->jid);
-        return -1;
-    }
-    if (vid >= ep->variableMax) {
-        ep->variableMax = vid + 1;
-    }
     if (variables == -1) {
-        ep->variables[vid] = hashCreate(64) + JS_OFFSET;
+        pushFrame(ep, hashCreate(64));
         ep->flags |= FLAGS_VARIABLES;
     } else {
-        ep->variables[vid] = variables + JS_OFFSET;
+        pushFrame(ep, variables);
     }
     if (functions == -1) {
         ep->functions = hashCreate(64);
@@ -8422,12 +8697,18 @@ PUBLIC void jsCloseEngine(int jid)
 
     jsLexClose(ep);
 
+    /*
+        Free every block frame. The global frame (0) is only freed if the engine created it as the caller owns it
+        otherwise.
+     */
     for (i = ep->variableMax - 1; i >= 0; i--) {
-        if (ep->flags & FLAGS_VARIABLES) {
+        if (i > 0 || (ep->flags & FLAGS_VARIABLES)) {
             hashFree(ep->variables[i] - JS_OFFSET);
         }
-        ep->variableMax = wfreeHandle(&ep->variables, i);
     }
+    wfree(ep->variables);
+    ep->variables = NULL;
+    ep->variableMax = 0;
     if (ep->flags & FLAGS_FUNCTIONS) {
         hashFree(ep->functions);
     }
@@ -8487,35 +8768,30 @@ PUBLIC char *jsEvalFile(int jid, char *path, char **emsg)
  */
 PUBLIC int jsOpenBlock(int jid)
 {
-    Js  *ep;
-    int vid;
-
-    if ((ep = jsPtr(jid)) == NULL) {
-        return -1;
-    }
-    if ((vid = wallocHandle(&ep->variables)) < 0) {
-        return -1;
-    }
-    if (vid >= ep->variableMax) {
-        ep->variableMax = vid + 1;
-    }
-    ep->variables[vid] = hashCreate(64) + JS_OFFSET;
-    return vid;
-
-}
-
-
-PUBLIC int jsCloseBlock(int jid, int vid)
-{
     Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
     }
-    hashFree(ep->variables[vid] - JS_OFFSET);
-    ep->variableMax = wfreeHandle(&ep->variables, vid);
-    return 0;
+    return pushFrame(ep, hashCreate(64));
+}
 
+
+/*
+    Close a variable scope block and any block opened after it. The global frame cannot be closed here, it is owned
+    by the engine and is released by jsCloseEngine.
+ */
+PUBLIC int jsCloseBlock(int jid, int vid)
+{
+    Js *ep;
+
+    if ((ep = jsPtr(jid)) == NULL || vid <= 0 || vid >= ep->variableMax) {
+        return -1;
+    }
+    while (ep->variableMax > vid) {
+        hashFree(ep->variables[--ep->variableMax] - JS_OFFSET);
+    }
+    return 0;
 }
 
 
@@ -8806,12 +9082,16 @@ static int parseStmt(Js *ep, int state, int flags)
                 value = NULL;
                 if (state == STATE_DEC) {
                     if (jsGetVar(ep->jid, identifier, &value) > 0) {
-                        jsError(ep, "Variable already declared",
-                                identifier);
+                        jsError(ep, "Variable already declared: %s", identifier);
                         clearString(&identifier);
                         goto error;
                     }
                     jsSetLocalVar(ep->jid, identifier, NULL);
+                    /*
+                        jsGetVar may have returned a value owned by an outer frame. Declaring the variable can
+                        replace and free that value, so it must not be used here. A declaration yields undefined.
+                     */
+                    value = NULL;
                 } else {
                     if (flags & FLAGS_EXE) {
                         if (jsGetVar(ep->jid, identifier, &value) < 0) {
@@ -9394,9 +9674,9 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
         }
     } else {
         if (!isdigit((uchar) * lhs)) {
-            jsError(ep, "Conditional must be numeric", lhs);
+            jsError(ep, "Conditional must be numeric: %s", lhs);
         } else {
-            jsError(ep, "Conditional must be numeric", rhs);
+            jsError(ep, "Conditional must be numeric: %s", rhs);
         }
     }
     itosbuf(buf, sizeof(buf), lval, 10);
@@ -10618,15 +10898,27 @@ static bool jstHandler(Webs *wp)
     WebsFileInfo sbuf;
     char         *lang, *token, *result, *ep, *cp, *buf, *nextp, *last;
     ssize        len;
-    int          rc, jid;
+    int          rc, jid, vid;
 
     assert(websValid(wp));
     assert(wp->filename && *wp->filename);
     assert(wp->ext && *wp->ext);
 
     buf = 0;
+    vid = -1;
     if ((jid = jsOpenEngine(wp->vars, websJstFunctions)) < 0) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create JavaScript engine");
+        goto done;
+    }
+    /*
+        The engine's global variable frame is the request variable table (wp->vars) which owns its values.
+        Run the page script in a variable frame of its own so that script declarations shadow request query
+        and form variables instead of replacing and freeing them. Reads still fall back to the global frame
+        and assignments to undeclared names still define request variables, so templates are unaffected.
+        The frame spans all the <% %> blocks in the page as they share the one engine.
+     */
+    if ((vid = jsOpenBlock(jid)) < 0) {
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create JavaScript variable scope");
         goto done;
     }
     jsSetUserHandle(jid, wp);
@@ -10745,11 +11037,18 @@ static bool jstHandler(Webs *wp)
     Common exit and cleanup
  */
 done:
+    /*
+        Close the block before the engine. jsCloseEngine only frees variable frames it owns and it does not
+        own any here because the caller supplied the global frame.
+     */
+    if (jid >= 0) {
+        if (vid >= 0) {
+            jsCloseBlock(jid, vid);
+        }
+        jsCloseEngine(jid);
+    }
     if (websValid(wp)) {
         websPageClose(wp);
-        if (jid >= 0) {
-            jsCloseEngine(jid);
-        }
     }
     websDone(wp);
     wfree(buf);
@@ -12206,7 +12505,7 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 
     do {
         rc = SSL_write(wp->ssl, buf, (int) len);
-        trace(7, "OpenSSL: written %d, requested len %d", rc, len);
+        trace(7, "OpenSSL: written %d, requested len %d", rc, (int) len);
         if (rc <= 0) {
             err = SSL_get_error(wp->ssl, rc);
             if (err == SSL_ERROR_NONE || err == SSL_ERROR_WANT_WRITE) {
@@ -12223,7 +12522,7 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
         totalWritten += rc;
         buf = (void*) ((char*) buf + rc);
         len -= rc;
-        trace(7, "OpenSSL: write: len %d, written %d, total %d", len, rc, totalWritten);
+        trace(7, "OpenSSL: write: len %d, written %d, total %d", (int) len, rc, (int) totalWritten);
     } while (len > 0);
 
     if (totalWritten == 0 && err == SSL_ERROR_WANT_WRITE) {
@@ -12949,6 +13248,29 @@ static bool redirectHandler(Webs *wp);
 
 /************************************ Code ************************************/
 /*
+    Compare a request path against a route prefix.
+
+    On a case-insensitive file system the kernel resolves a case-variant path to the same file, so
+    the route gate must fold case too. Otherwise /AUTH/ selects the unauthenticated catch-all route
+    while the subsequent open() serves the protected /auth/ document, and the authorization decision
+    and the file open are made on two different strings naming one file. Folding here rather than in
+    wp->path keeps the client's spelling for open(), PATH_INFO and REQUEST_URI.
+
+    This folds ASCII case only. The other folding axes that the file system applies - NFD/NFC and
+    Win32 trailing dot, space, ADS and 8.3 aliases - are rejected as non-canonical when the request
+    path is created. See validCanonicalPath in http.c.
+ */
+static int matchRoutePrefix(cchar *path, cchar *prefix, ssize len)
+{
+#if ME_GOAHEAD_CASE_INSENSITIVE_FS
+    return sncaselesscmp(path, prefix, len);
+#else
+    return sncmp(path, prefix, len);
+#endif
+}
+
+
+/*
     Route the request. If wp->route is already set, test routes after that route
  */
 
@@ -12997,7 +13319,7 @@ PUBLIC void websRouteRequest(Webs *wp)
         /*
             Match route
          */
-        if (strncmp(wp->path, route->prefix, len) != 0) {
+        if (matchRoutePrefix(wp->path, route->prefix, len) != 0) {
             continue;
         }
         if (route->protocol && !smatch(route->protocol, wp->protocol)) {
@@ -13324,6 +13646,151 @@ PUBLIC int websRemoveRoute(cchar *uri)
 }
 
 
+#if ME_GOAHEAD_AUTH
+/*
+    Does this route gate access behind authentication or an ability check?
+ */
+static int routeRequiresAuth(WebsRoute *route)
+{
+    return route->authType || route->abilities >= 0;
+}
+
+
+/*
+    Does this route narrow itself with a selector? A qualified route claims only a subset of the requests
+    its prefix covers, so it shadows less than a bare prefix route does.
+ */
+static int routeIsQualified(WebsRoute *route)
+{
+    return route->extensions >= 0 || route->methods >= 0 || route->protocol != 0;
+}
+
+
+/*
+    Can two routes serve the same files? Routes without an explicit dir= share the document root, so the
+    common configuration overlaps by default. Compares the configured directories rather than their
+    realpath, so two paths that reach one directory through a symlink are not detected - that yields a
+    missed warning, never a false one.
+ */
+static int regionsOverlap(WebsRoute *r1, WebsRoute *r2)
+{
+    cchar *d1, *d2, *shorter, *longer;
+    ssize len;
+
+    d1 = r1->dir ? r1->dir : websGetDocuments();
+    d2 = r2->dir ? r2->dir : websGetDocuments();
+    if (d1 == 0 || d2 == 0) {
+        return 1;
+    }
+    if (slen(d1) <= slen(d2)) {
+        shorter = d1;
+        longer = d2;
+    } else {
+        shorter = d2;
+        longer = d1;
+    }
+    len = slen(shorter);
+    if (sncmp(shorter, longer, len) != 0) {
+        return 0;
+    }
+    return longer[len] == '\0' || longer[len] == '/';
+}
+#endif /* ME_GOAHEAD_AUTH */
+
+
+/*
+    Audit the loaded route table and warn about configurations that defeat the authentication gate.
+    Returns the number of problems found.
+
+    Two checks. First, no route requires authentication at all. Second, an unauthenticated route later in
+    the table shadows an authenticated route earlier in it. The second is the structural cause of the
+    route-prefix authorization bypass family: routes are matched in order and a request that misses its
+    protected route falls through to the next match rather than being denied, so any spelling the file
+    system folds to a protected name - case, Unicode normalization, Unicode case, Win32 trailing dot or
+    space - misses the strict route and is served by the permissive one. Rejecting the shadowing
+    configuration closes every such axis at once, including axes not yet enumerated, because the check
+    never reasons about folding.
+
+    Uses error() rather than logmsg() so warnings are visible at the default log level.
+ */
+PUBLIC int websCheckRoutes(void)
+{
+#if ME_GOAHEAD_AUTH
+    WebsRoute *strict, *loose, *candidate;
+    int       i, j, authRoutes, problems;
+
+    if (routeCount == 0) {
+        return 0;
+    }
+    problems = 0;
+    authRoutes = 0;
+    for (i = 0; i < routeCount; i++) {
+        if (routeRequiresAuth(routes[i])) {
+            authRoutes++;
+        }
+    }
+    if (authRoutes == 0) {
+        error("Security warning: no authenticated routes configured. All content is served to "
+              "unauthenticated clients. See route.txt for how to protect content.");
+        return 1;
+    }
+    for (i = 0; i < routeCount; i++) {
+        strict = routes[i];
+        if (!routeRequiresAuth(strict)) {
+            continue;
+        }
+        /*
+            Report one warning per protected route, naming the worst shadowing route rather than every
+            one. A route carrying extensions=, methods= or protocol= only claims a subset of requests, so
+            an unqualified route is the more serious exposure and is the one worth naming.
+         */
+        loose = 0;
+        for (j = i + 1; j < routeCount; j++) {
+            candidate = routes[j];
+            if (routeRequiresAuth(candidate)) {
+                continue;
+            }
+            if (!regionsOverlap(strict, candidate)) {
+                continue;
+            }
+            if (matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0) {
+                continue;
+            }
+            if (loose == 0 || (routeIsQualified(loose) && !routeIsQualified(candidate))) {
+                loose = candidate;
+            }
+        }
+        if (loose) {
+            /*
+                Several routes may share one prefix - shipped route.txt has three "/" routes - so name
+                the shadowing route's handler too, or the operator cannot tell which one is meant.
+             */
+            error("Security warning: route \"%s\" requires authentication, but later route \"%s\" "
+                  "(handler=%s) does not and can serve the same directory. A case or Unicode folded "
+                  "request will miss \"%s\" and be served without credentials. Reorder the routes, "
+                  "narrow \"%s\", or give \"%s\" its own dir=.",
+                  strict->prefix, loose->prefix, loose->handler ? loose->handler->name : "?",
+                  strict->prefix, loose->prefix, strict->prefix);
+            problems++;
+        }
+    }
+    return problems;
+#else
+    return 0;
+#endif
+}
+
+
+/*
+    Legacy entry point. Retained so existing callers keep working; websCheckRoutes performs this check
+    and the route shadowing check.
+ */
+PUBLIC void websCheckRouteAuth(void)
+{
+    (void) websCheckRoutes();
+}
+
+
 PUBLIC int websOpenRoute(void)
 {
     if ((handlers = hashCreate(-1)) < 0) {
@@ -13627,7 +14094,7 @@ typedef struct Callback {
 #define CLASS_DIGIT     5               /* [1-9]            Field widths */
 #define CLASS_DOT       6               /* [.]              Introduce precision */
 #define CLASS_BITS      7               /* [hlL]            Length bits */
-#define CLASS_TYPE      8               /* [cdefginopsSuxX] Type specifiers */
+#define CLASS_TYPE      8               /* [cdefgiopsSuxX]  Type specifiers ('n' excluded) */
 
 #define STATE_NORMAL    0               /* Normal chars in format string */
 #define STATE_PERCENT   1               /* "%" */
@@ -13678,7 +14145,7 @@ PUBLIC char classMap[] = {
     /*  40   '     a     b     c     d     e     f     g */
     0,    0,    0,    8,    8,    8,    8,    8,
     /*  47   h     i     j     k     l     m     n     o */
-    7,    8,    0,    0,    7,    0,    8,    8,
+    7,    8,    0,    0,    7,    0,    0,    8,
     /*  50   p     q     r     s     t     u     v     w */
     8,    0,    0,    8,    0,    8,    0,    8,
     /*  57   x     y     z  */
@@ -14210,18 +14677,16 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                 }
                 break;
 
-            case 'n':       /* Count of chars seen thus far */
-                if (fmt.flags & SPRINTF_SHORT) {
-                    short *count = va_arg(args, short*);
-                    *count = (int) (fmt.end - fmt.start);
-                } else if (fmt.flags & SPRINTF_LONG) {
-                    long *count = va_arg(args, long*);
-                    *count = (int) (fmt.end - fmt.start);
-                } else {
-                    int *count = va_arg(args, int*);
-                    *count = (int) (fmt.end - fmt.start);
-                }
-                break;
+            /*
+                The %n conversion is deliberately not implemented. It is the only printf
+                conversion that writes through a caller-supplied pointer, so any format string
+                that an attacker can influence becomes a write-what-where primitive. GoAhead has
+                its own formatter, so neither platform defence applies: not the glibc
+                _FORTIFY_SOURCE %n check, nor the MSVC CRT, which has refused %n by default
+                since VS2005 unless _set_printf_count_output() re-enables it.
+                'n' is mapped to CLASS_NORMAL in classMap, so "%n" emits a literal "n" - the same
+                treatment any other unknown conversion gets - and consumes no vararg.
+             */
 
             case 'p':       /* Pointer */
 #if ME_64
@@ -18682,11 +19147,11 @@ static int writeToFile(Webs *wp, char *data, ssize len)
          */
         if ((rc = write(wp->upfd, data, (int) len)) != len) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot write to upload temp file %s, rc %d", wp->uploadTmp,
-                      rc);
+                      (int) rc);
             return -1;
         }
         file->size += len;
-        trace(7, "uploadFilter: Wrote %d bytes to %s", len, wp->uploadTmp);
+        trace(7, "uploadFilter: Wrote %d bytes to %s", (int) len, wp->uploadTmp);
     }
     return 0;
 }
@@ -18709,7 +19174,7 @@ static bool processContentData(Webs *wp)
         return 0;
     }
     if ((bp = getBoundary(wp, content->servp, size)) == 0) {
-        trace(7, "uploadFilter: Got boundary filename %x", wp->clientFilename);
+        trace(7, "uploadFilter: Got boundary filename %s", wp->clientFilename);
         if (wp->clientFilename) {
             /*
                 No signature found yet. probably more data to come. Must handle split boundaries.

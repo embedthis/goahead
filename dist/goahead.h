@@ -223,6 +223,21 @@ extern "C" {
         #define ME_GOAHEAD_DEBUG 0
     #endif
 #endif
+
+/*
+    Set to 1 when the target file system is case-insensitive (Windows/NTFS, macOS/APFS, vfat).
+    When set, security-gating path comparisons fold ASCII case so that a case-variant URI cannot
+    select a different route than the file the kernel will subsequently open. Override in me.h for
+    a case-insensitive mount on an otherwise case-sensitive host (a FAT or SMB document root under
+    Linux), or clear it for a case-sensitive mount on macOS.
+ */
+#ifndef ME_GOAHEAD_CASE_INSENSITIVE_FS
+    #if ME_WIN_LIKE || MACOSX
+        #define ME_GOAHEAD_CASE_INSENSITIVE_FS 1
+    #else
+        #define ME_GOAHEAD_CASE_INSENSITIVE_FS 0
+    #endif
+#endif
 #if ECOS
     #if ME_GOAHEAD_CGI
         #error "Ecos does not support CGI. Disable ME_GOAHEAD_CGI"
@@ -391,7 +406,7 @@ PUBLIC_DATA int logLevel;
     #if ME_COMPILER_HAS_MACRO_VARARGS
       #define trace(l, ...) if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else {}
     #else
-inline void trace(int level, cchar *fmt, ...)
+PRINTF_ATTRIBUTE(2, 3) inline void trace(int level, PRINTF_FORMAT cchar *fmt, ...)
 {
     WebsLogHandler logHandler = logGetHandler();
 
@@ -412,7 +427,7 @@ inline void trace(int level, cchar *fmt, ...)
     #if ME_COMPILER_HAS_MACRO_VARARGS
         #define logmsg(l, ...) if ((l) <= logLevel) { logmsgProc(l, __VA_ARGS__); } else {}
     #else
-inline void logmsg(int level, cchar *fmt, ...)
+PRINTF_ATTRIBUTE(2, 3) inline void logmsg(int level, PRINTF_FORMAT cchar *fmt, ...)
 {
     WebsLogHandler logHandler = logGetHandler();
 
@@ -440,7 +455,7 @@ inline void logmsg(int level, cchar *fmt, ...)
 extern void assert(bool cond);
 #elif ME_GOAHEAD_DEBUG
     #define assert(C) if (C); else assertError(WEBS_L, "%s", #C)
-PUBLIC void assertError(WEBS_ARGS_DEC, char *fmt, ...);
+PUBLIC void assertError(WEBS_ARGS_DEC, PRINTF_FORMAT char *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 #else
     #define assert(C) if (1); else {}
 #endif
@@ -459,7 +474,7 @@ typedef void (*WebsLogHandler)(int level, cchar *msg);
     @return Zero if successful
     @stability Stable
  */
-PUBLIC void error(cchar *fmt, ...);
+PUBLIC void error(PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(1, 2);
 
 /**
     Open the log logging module
@@ -522,7 +537,7 @@ PUBLIC void logSetPath(cchar *path);
     @param ... Arguments for the format string
     @stability Stable
  */
-PUBLIC void logmsgProc(int level, cchar *fmt, ...);
+PUBLIC void logmsgProc(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 
 /**
     Emit a debug trace message to the log
@@ -536,7 +551,7 @@ PUBLIC void logmsgProc(int level, cchar *fmt, ...);
     @param ... Arguments for the format string
     @stability Stable
  */
-PUBLIC void traceProc(int level, cchar *fmt, ...);
+PUBLIC void traceProc(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 
 #else /*! ME_GOAHEAD_LOGGING */
     #define assert(C)         if (1); else {}
@@ -906,7 +921,7 @@ PUBLIC ssize bufPutBlk(WebsBuf *bp, cchar *blk, ssize len);
     @return Count of characters appended. Returns negative if there is an allocation error.
         @stability Stable
  */
-PUBLIC ssize bufPut(WebsBuf *bp, cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
+PUBLIC ssize bufPut(WebsBuf *bp, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 
 /**
     Append a string to the buffer at the endp position and increment the endp
@@ -1593,7 +1608,7 @@ PUBLIC WebsSocket *socketPtr(int sid);
     @return Returns the buffer.
         @stability Stable
  */
-PUBLIC char *fmt(char *buf, ssize maxSize, cchar *format, ...);
+PUBLIC char *fmt(char *buf, ssize maxSize, PRINTF_FORMAT cchar *format, ...) PRINTF_ATTRIBUTE(3, 4);
 
 /**
     Allocate a handle from a map
@@ -1727,7 +1742,7 @@ PUBLIC ssize scopy(char *dest, ssize destMax, cchar *src);
     @return Returns a newly allocated string
         @stability Stable
  */
-PUBLIC char *sfmt(cchar *format, ...);
+PUBLIC char *sfmt(PRINTF_FORMAT cchar *format, ...) PRINTF_ATTRIBUTE(1, 2);
 
 /**
     Format a string with varargs. This is a secure version of printf that can handle null args.
@@ -1738,7 +1753,7 @@ PUBLIC char *sfmt(cchar *format, ...);
     @return Returns a newly allocated string
         @stability Stable
  */
-PUBLIC char *sfmtv(cchar *format, va_list args);
+PUBLIC char *sfmtv(PRINTF_FORMAT cchar *format, va_list args) PRINTF_ATTRIBUTE(1, 0);
 
 /**
     Return the length of a string.
@@ -2531,7 +2546,7 @@ PUBLIC char *websEscapeUri(cchar *str);
     @param ... Format args
         @stability Stable
  */
-PUBLIC void websError(Webs *wp, int code, cchar *fmt, ...);
+PUBLIC void websError(Webs *wp, int code, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 
 /**
     Get a message for a HTTP status code
@@ -3427,7 +3442,7 @@ PUBLIC void websSetTxLength(Webs *wp, ssize length);
     @return the allocated WebsKey
         @stability Stable
  */
-PUBLIC WebsKey *websSetVarFmt(Webs *wp, cchar *name, cchar *fmt, ...);
+PUBLIC WebsKey *websSetVarFmt(Webs *wp, cchar *name, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 
 /**
     Set a request variable to a string value
@@ -3589,7 +3604,7 @@ PUBLIC void websWriteEndHeaders(Webs *wp);
     @return Zero if successful, otherwise -1.
         @stability Stable
  */
-PUBLIC int websWriteHeader(Webs *wp, cchar *key, cchar *fmt, ...);
+PUBLIC int websWriteHeader(Webs *wp, cchar *key, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 
 /**
     Write formatted data to the response
@@ -3605,7 +3620,7 @@ PUBLIC int websWriteHeader(Webs *wp, cchar *key, cchar *fmt, ...);
     @see websWriteBlock websFlush websWriteHeaders websWriteEndHeaders
         @stability Stable
  */
-PUBLIC ssize websWrite(Webs *wp, cchar *fmt, ...);
+PUBLIC ssize websWrite(Webs *wp, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 
 /**
     Write data to the open file
@@ -3953,6 +3968,30 @@ typedef struct WebsRoute {
 PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos);
 
 /**
+    Audit the route table for configurations that defeat the authentication gate
+    @description Emit a warning if no configured route requires authentication or abilities, and a warning for
+        each unauthenticated route that shadows an authenticated route earlier in the table. Routes are matched
+        in order and a request that misses its protected route falls through to the next match rather than being
+        denied, so any spelling the file system folds to a protected name - ASCII case, Unicode normalization,
+        Unicode case, Win32 trailing dot or space - misses the strict route and is served by the permissive one.
+        Rejecting the shadowing configuration closes every such folding axis at once because the check never
+        reasons about folding.
+        This routine is called automatically by websOpen() after the route configuration file is loaded. Embedded
+        applications that add routes programmatically should call it again once their routes are defined.
+    @return The number of problems found. Zero means the route table declares a sound authentication boundary.
+    @stability Evolving
+ */
+PUBLIC int websCheckRoutes(void);
+
+/**
+    Audit the route table for a confidentiality boundary
+    @description Legacy entry point retained for source compatibility. Calls websCheckRoutes() and discards the
+        result. New code should call websCheckRoutes() so it can act on the problem count.
+        @stability Evolving
+ */
+PUBLIC void websCheckRouteAuth(void);
+
+/**
     Close the route module
         @stability Stable
  */
@@ -4292,6 +4331,8 @@ PUBLIC WebsSession *websGetSession(Webs *wp, int create);
 
 /**
     Get a session variable
+    @description This does not create a session. If the request has no session, the default value is
+        returned. Use websSetSessionVar or websCreateSession to establish a session.
     @param wp Webs request object
     @param name Session variable name
     @param defaultValue Default value to return if the variable does not exist
@@ -4302,6 +4343,7 @@ PUBLIC cchar *websGetSessionVar(Webs *wp, cchar *name, cchar *defaultValue);
 
 /**
     Remove a session variable
+    @description This does not create a session. If the request has no session, this does nothing.
     @param wp Webs request object
     @param name Session variable name
         @stability Stable
@@ -4313,12 +4355,14 @@ PUBLIC void websRemoveSessionVar(Webs *wp, cchar *name);
     @description Stores a name-value pair in the current user session. Session variables persist
         across multiple HTTP requests from the same client until the session expires or is destroyed.
         This is useful for maintaining user state, preferences, shopping cart contents, etc.
-        Sessions are identified by cookies sent to the client browser.
+        Sessions are identified by cookies sent to the client browser. This creates a session if the
+        request does not already have one.
     @param wp Webs request object representing the current HTTP request
     @param name Session variable name. Should be a valid identifier string.
     @param value Value to store. The value is copied, so the original can be freed after this call.
         Use NULL to remove the variable from the session.
-    @return Zero if successful, otherwise -1 on error (e.g., if sessions are not initialized)
+    @return Zero if successful, otherwise -1 on error (if a session cannot be created because the
+        session limit ME_GOAHEAD_LIMIT_SESSION_COUNT is reached, or the value cannot be stored)
     @see websGetSessionVar websRemoveSessionVar websCreateSession websDestroySession
         @stability Stable
  */
@@ -4494,8 +4538,8 @@ typedef WebsSocket socket_t;
 typedef WebsStat gstat_t;
 typedef WebsValue value_t;
 
-PUBLIC int fmtValloc(char **s, int n, cchar *fmt, va_list arg);
-PUBLIC int fmtAlloc(char **s, int n, cchar *fmt, ...);
+PUBLIC int fmtValloc(char **s, int n, PRINTF_FORMAT cchar *fmt, va_list arg) PRINTF_ATTRIBUTE(3, 0);
+PUBLIC int fmtAlloc(char **s, int n, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 PUBLIC void websFooter(Webs *wp);
 PUBLIC void websHeader(Webs *wp);
 PUBLIC int websPublish(cchar *prefix, cchar *path);

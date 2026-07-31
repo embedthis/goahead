@@ -183,7 +183,7 @@ PUBLIC void jsCloseEngine(int jid);
     @param fmt Error message format string
     @ingroup Js
  */
-PUBLIC void jsError(Js *js, cchar *fmt, ...);
+PUBLIC void jsError(Js *js, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 
 /**
     Parse and evaluate a script. Return the last function return value.
