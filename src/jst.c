@@ -30,15 +30,27 @@ static bool jstHandler(Webs *wp)
     WebsFileInfo sbuf;
     char         *lang, *token, *result, *ep, *cp, *buf, *nextp, *last;
     ssize        len;
-    int          rc, jid;
+    int          rc, jid, vid;
 
     assert(websValid(wp));
     assert(wp->filename && *wp->filename);
     assert(wp->ext && *wp->ext);
 
     buf = 0;
+    vid = -1;
     if ((jid = jsOpenEngine(wp->vars, websJstFunctions)) < 0) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create JavaScript engine");
+        goto done;
+    }
+    /*
+        The engine's global variable frame is the request variable table (wp->vars) which owns its values.
+        Run the page script in a variable frame of its own so that script declarations shadow request query
+        and form variables instead of replacing and freeing them. Reads still fall back to the global frame
+        and assignments to undeclared names still define request variables, so templates are unaffected.
+        The frame spans all the <% %> blocks in the page as they share the one engine.
+     */
+    if ((vid = jsOpenBlock(jid)) < 0) {
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create JavaScript variable scope");
         goto done;
     }
     jsSetUserHandle(jid, wp);
@@ -157,11 +169,18 @@ static bool jstHandler(Webs *wp)
     Common exit and cleanup
  */
 done:
+    /*
+        Close the block before the engine. jsCloseEngine only frees variable frames it owns and it does not
+        own any here because the caller supplied the global frame.
+     */
+    if (jid >= 0) {
+        if (vid >= 0) {
+            jsCloseBlock(jid, vid);
+        }
+        jsCloseEngine(jid);
+    }
     if (websValid(wp)) {
         websPageClose(wp);
-        if (jid >= 0) {
-            jsCloseEngine(jid);
-        }
     }
     websDone(wp);
     wfree(buf);

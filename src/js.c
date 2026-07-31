@@ -43,10 +43,24 @@ static int      charConvert(Js *ep, int base, int maxDig);
 
 /************************************* Code ***********************************/
 
+/*
+    Push a variable frame onto the frame stack and return its frame id. Frames are a simple stack: the frame id is
+    the index and frames must be closed in reverse order of creation.
+ */
+static int pushFrame(Js *ep, WebsHash variables)
+{
+    assert(ep);
+
+    ep->variables = wrealloc(ep->variables, sizeof(WebsHash) * (ep->variableMax + 1));
+    ep->variables[ep->variableMax] = variables + JS_OFFSET;
+    return ep->variableMax++;
+}
+
+
 PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
 {
     Js  *ep;
-    int jid, vid;
+    int jid;
 
     if ((jid = wallocObject(&jsHandles, &jsMax, sizeof(Js))) < 0) {
         return -1;
@@ -56,20 +70,13 @@ PUBLIC int jsOpenEngine(WebsHash variables, WebsHash functions)
 
     /*
         Create a top level symbol table if one is not provided for variables and functions. Variables may create other
-        symbol tables for block level declarations so we use walloc to manage a list of variable tables.
+        symbol tables for block level declarations so the tables are kept in a stack of variable frames.
      */
-    if ((vid = wallocHandle(&ep->variables)) < 0) {
-        jsMax = wfreeHandle(&jsHandles, ep->jid);
-        return -1;
-    }
-    if (vid >= ep->variableMax) {
-        ep->variableMax = vid + 1;
-    }
     if (variables == -1) {
-        ep->variables[vid] = hashCreate(64) + JS_OFFSET;
+        pushFrame(ep, hashCreate(64));
         ep->flags |= FLAGS_VARIABLES;
     } else {
-        ep->variables[vid] = variables + JS_OFFSET;
+        pushFrame(ep, variables);
     }
     if (functions == -1) {
         ep->functions = hashCreate(64);
@@ -105,12 +112,18 @@ PUBLIC void jsCloseEngine(int jid)
 
     jsLexClose(ep);
 
+    /*
+        Free every block frame. The global frame (0) is only freed if the engine created it as the caller owns it
+        otherwise.
+     */
     for (i = ep->variableMax - 1; i >= 0; i--) {
-        if (ep->flags & FLAGS_VARIABLES) {
+        if (i > 0 || (ep->flags & FLAGS_VARIABLES)) {
             hashFree(ep->variables[i] - JS_OFFSET);
         }
-        ep->variableMax = wfreeHandle(&ep->variables, i);
     }
+    wfree(ep->variables);
+    ep->variables = NULL;
+    ep->variableMax = 0;
     if (ep->flags & FLAGS_FUNCTIONS) {
         hashFree(ep->functions);
     }
@@ -170,35 +183,30 @@ PUBLIC char *jsEvalFile(int jid, char *path, char **emsg)
  */
 PUBLIC int jsOpenBlock(int jid)
 {
-    Js  *ep;
-    int vid;
-
-    if ((ep = jsPtr(jid)) == NULL) {
-        return -1;
-    }
-    if ((vid = wallocHandle(&ep->variables)) < 0) {
-        return -1;
-    }
-    if (vid >= ep->variableMax) {
-        ep->variableMax = vid + 1;
-    }
-    ep->variables[vid] = hashCreate(64) + JS_OFFSET;
-    return vid;
-
-}
-
-
-PUBLIC int jsCloseBlock(int jid, int vid)
-{
     Js *ep;
 
     if ((ep = jsPtr(jid)) == NULL) {
         return -1;
     }
-    hashFree(ep->variables[vid] - JS_OFFSET);
-    ep->variableMax = wfreeHandle(&ep->variables, vid);
-    return 0;
+    return pushFrame(ep, hashCreate(64));
+}
 
+
+/*
+    Close a variable scope block and any block opened after it. The global frame cannot be closed here, it is owned
+    by the engine and is released by jsCloseEngine.
+ */
+PUBLIC int jsCloseBlock(int jid, int vid)
+{
+    Js *ep;
+
+    if ((ep = jsPtr(jid)) == NULL || vid <= 0 || vid >= ep->variableMax) {
+        return -1;
+    }
+    while (ep->variableMax > vid) {
+        hashFree(ep->variables[--ep->variableMax] - JS_OFFSET);
+    }
+    return 0;
 }
 
 
@@ -489,12 +497,16 @@ static int parseStmt(Js *ep, int state, int flags)
                 value = NULL;
                 if (state == STATE_DEC) {
                     if (jsGetVar(ep->jid, identifier, &value) > 0) {
-                        jsError(ep, "Variable already declared",
-                                identifier);
+                        jsError(ep, "Variable already declared: %s", identifier);
                         clearString(&identifier);
                         goto error;
                     }
                     jsSetLocalVar(ep->jid, identifier, NULL);
+                    /*
+                        jsGetVar may have returned a value owned by an outer frame. Declaring the variable can
+                        replace and free that value, so it must not be used here. A declaration yields undefined.
+                     */
+                    value = NULL;
                 } else {
                     if (flags & FLAGS_EXE) {
                         if (jsGetVar(ep->jid, identifier, &value) < 0) {
