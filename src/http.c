@@ -3294,7 +3294,13 @@ PUBLIC void websSetCookie(Webs *wp, cchar *name, cchar *value, cchar *path, ccha
     }
     cookie = sfmt("%s=%s; path=%s%s%s%s%s%s%s%s", name, value, path, domainAtt, domain, expiresAtt, expires, secure,
                   httponly, sameSite);
-    hashEnter(wp->responseCookies, name, valueString(cookie, 0), 0);
+    /*
+        The hash must own the cookie string. With VALUE_ALLOCATE, valueFree() releases it both when
+        hashEnter replaces a same-named cookie and when termWebs calls hashFree. Without it, neither
+        path frees and every Set-Cookie orphans its allocation.
+     */
+    hashEnter(wp->responseCookies, name, valueString(cookie, VALUE_ALLOCATE), 0);
+    wfree(cookie);
     wfree(domain);
 }
 
