@@ -4096,6 +4096,10 @@ PUBLIC void websCloseRoute(void);
 
 /**
     Load routing tables from the specified filename
+    @description A directive describing an access control policy the build cannot enforce is refused rather
+        than loaded. In a build configured with ME_GOAHEAD_AUTH=0 that means the auth and abilities route
+        keywords and the user and role directives, all of which would otherwise be recorded and never
+        consulted.
     @param path Route configuration filename
     @return Zero if successful, otherwise -1.
         @stability Stable
@@ -4145,6 +4149,8 @@ PUBLIC bool websRunRequest(Webs *wp);
     @param methods Hash of permissible HTTP methods. (GET, HEAD, POST, PUT)
     @param extensions Hash of permissible URI filename extensions.
     @param abilities Required user abilities. If abilities are required, the user must be authenticated.
+        Requiring abilities in a build configured with ME_GOAHEAD_AUTH=0 is an error: that build compiles
+        out the authorization gate and could only record the requirement, never enforce it.
     @param redirects Set of applicable response redirections when completing the request.
     @return Zero if successful, otherwise -1.
         @stability Stable
@@ -4155,7 +4161,8 @@ PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, Webs
 /**
     Set route authentication scheme
     @param route Route to modify
-    @param authType Set to "basic", "digest" or "form".
+    @param authType Set to "basic", "digest" or "form". Any other type is an error, as is "digest" in a
+        build configured with ME_GOAHEAD_DIGEST=0.
     @return Zero if successful, otherwise -1.
         @stability Stable
  */
@@ -4313,8 +4320,10 @@ PUBLIC int websRemoveUser(cchar *name);
 
 /**
     Open the authentication module
+    @description Fails if the password store named by ME_GOAHEAD_AUTH_STORE is not compiled into this build,
+        rather than falling back to a store holding different secrets than the operator configured.
     @param minimal Reserved. Set to zero.
-    @return True if the user has the required ability.
+    @return Zero if successful, otherwise -1.
         @stability Stable
  */
 PUBLIC int websOpenAuth(int minimal);

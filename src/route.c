@@ -386,6 +386,22 @@ PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, Webs
     route->extensions = extensions;
     route->methods = methods;
     route->redirects = redirects;
+
+#if !ME_GOAHEAD_AUTH
+    /*
+        This build compiles out the authorization gate, so an ability requirement can only be
+        recorded on the route and never consulted. Refuse it here - the single choke point through
+        which every ability set reaches a route - rather than let the route table describe a policy
+        the binary cannot enforce. The hashes are attached to the route above before failing so that
+        websCloseRoute still owns and frees them.
+     */
+    if (abilities >= 0) {
+        error("Route \"%s\" requires abilities, but this build has ME_GOAHEAD_AUTH=0 and cannot "
+              "enforce them. Rebuild with ME_GOAHEAD_AUTH=1 or remove the abilities requirement.",
+              route->prefix);
+        return -1;
+    }
+#endif
     return 0;
 }
 
@@ -806,6 +822,23 @@ static void addOption(WebsHash *hash, char *keys, char *value)
 }
 
 
+#if !ME_GOAHEAD_AUTH
+/*
+    Refuse a configuration directive that describes an access control policy this build cannot
+    enforce. Loading it and serving the resource unprotected leaves the operator with a configuration
+    that reads as if authentication were in force while every protected route is public; declining to
+    start is strictly the better failure. Returns -1 for the caller's result code.
+ */
+static int rejectAuthDirective(cchar *directive)
+{
+    error("Configuration directive \"%s\" requires ME_GOAHEAD_AUTH, but this build cannot enforce "
+          "authentication. Refusing the configuration rather than serving it without the access "
+          "control it describes. Rebuild with ME_GOAHEAD_AUTH=1 or remove the directive.", directive);
+    return -1;
+}
+#endif
+
+
 /*
     Load route and authentication configuration files
  */
@@ -872,13 +905,24 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
-            websSetRouteMatch(route, dir, protocol, methods, extensions, abilities, redirects);
+            if (websSetRouteMatch(route, dir, protocol, methods, extensions, abilities, redirects) < 0) {
+                rc = -1;
+                break;
+            }
 #if ME_GOAHEAD_AUTH
             if (auth && websSetRouteAuth(route, auth) < 0) {
                 rc = -1;
                 break;
             }
+#else
+            if (auth) {
+                rc = rejectAuthDirective("auth");
+                break;
+            }
+#endif
+
         } else if (smatch(kind, "user")) {
+#if ME_GOAHEAD_AUTH
             char *name, *password, *roles;
             name = password = roles = 0;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
@@ -898,7 +942,13 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
+#else
+            rc = rejectAuthDirective(kind);
+            break;
+#endif
+
         } else if (smatch(kind, "role")) {
+#if ME_GOAHEAD_AUTH
             char *name;
             name = 0;
             abilities = -1;
@@ -914,7 +964,11 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
+#else
+            rc = rejectAuthDirective(kind);
+            break;
 #endif
+
         } else {
             error("Unknown route keyword %s", kind);
             rc = -1;

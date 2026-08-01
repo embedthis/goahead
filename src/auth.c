@@ -171,6 +171,24 @@ PUBLIC int websOpenAuth(int minimal)
     } else if (smatch(ME_GOAHEAD_AUTH_STORE, "pam")) {
         verifyPassword = websVerifyPasswordFromPam;
 #endif
+    } else {
+        /*
+            The configured store is not compiled in - typically ME_GOAHEAD_AUTH_STORE="pam" on a
+            build without PAM. Falling back to the file store would verify credentials against a
+            different set of secrets than the operator configured, so refuse to start instead.
+         */
+        error("Password store \"%s\" is not available in this build. Rebuild with support for it, "
+              "or set ME_GOAHEAD_AUTH_STORE to \"file\".", ME_GOAHEAD_AUTH_STORE);
+        return -1;
+    }
+    /*
+        Auto-login serves every authenticated route without credentials. It is a development aid, so
+        it is not fatal, but it must never be silent: use error() so the warning appears at the
+        default log level.
+     */
+    if (autoLogin) {
+        error("Security warning: ME_GOAHEAD_AUTO_LOGIN is enabled. Routes that require "
+              "authentication are served to unauthenticated clients. Do not deploy this build.");
     }
     return 0;
 }
@@ -1227,8 +1245,26 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
         askLogin = digestLogin;
         parseAuth = parseDigestDetails;
 #endif
+    } else if (smatch(auth, "form")) {
+        /*
+            Form authentication carries no per-request credential to parse and issues no challenge:
+            the login action establishes the session and the route's abilities gate the request. It
+            still sets authType so the route counts as authenticated.
+         */
+#if !ME_GOAHEAD_DIGEST
+    } else if (smatch(auth, "digest")) {
+        error("Route \"%s\" requests digest authentication, but this build has ME_GOAHEAD_DIGEST=0. "
+              "Rebuild with ME_GOAHEAD_DIGEST=1 or use another authentication type.", route->prefix);
+        return -1;
+#endif
     } else {
-        auth = 0;
+        /*
+            An unrecognized type used to be silently reduced to the form-authentication behaviour, so
+            a typo produced a route that could never issue a challenge and denied every request.
+         */
+        error("Route \"%s\" requests unknown authentication type \"%s\". Use \"basic\", \"digest\" "
+              "or \"form\".", route->prefix, auth);
+        return -1;
     }
     route->authType = sclone(auth);
     route->askLogin = askLogin;

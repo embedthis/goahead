@@ -44,8 +44,11 @@ static void sigHandler(int signo);
 /*********************************** Code *************************************/
 
 MAIN(goahead, int argc, char **argv, char **envp) {
-    char *argp, *home, *documents, *endpoints, *endpoint, *route, *auth, *tok, *lspec;
+    char *argp, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
     int  argind;
+#if ME_GOAHEAD_AUTH
+    char *auth;
+#endif
 
 #if WINDOWS
     if (windowsInit() < 0) {
@@ -53,16 +56,24 @@ MAIN(goahead, int argc, char **argv, char **envp) {
     }
 #endif
     route = "route.txt";
+#if ME_GOAHEAD_AUTH
     auth = "auth.txt";
+#endif
 
     for (argind = 1; argind < argc; argind++) {
         argp = argv[argind];
         if (*argp != '-') {
             break;
 
+#if ME_GOAHEAD_AUTH
+        /*
+            Only offered when the build can act on it. A build with ME_GOAHEAD_AUTH=0 used to accept
+            --auth and silently ignore the file; it now reports the option as unknown.
+         */
         } else if (smatch(argp, "--auth") || smatch(argp, "-a")) {
             if (argind >= argc) usage();
             auth = argv[++argind];
+#endif
 
 #if ME_UNIX_LIKE && !MACOSX
         } else if (smatch(argp, "--background") || smatch(argp, "-b")) {
