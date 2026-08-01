@@ -20,6 +20,15 @@
 
     ME_GOAHEAD_LIMIT_TIMEOUT is a compile-time constant with no runtime setter, so the 60 second
     wait cannot be shortened for the test without rebuilding the server.
+
+    The request carries an ISINDEX query so the registry slot also holds a live argv backing store
+    when it is torn down. cgiHandler tokenizes the query in place and hands the buffer to the slot
+    as Cgi.query; cgiCleanup is the only site that releases it. Reaching cgiCleanup through
+    websCgiDetach -- the request dying while its child is still registered -- is the one path that
+    frees a non-NULL Cgi.query, and the timeout is the only trigger for it. A plain client close
+    does not reach it: GoAhead does not notice the disconnect, so the child runs to completion and
+    the ordinary websCgiPoll teardown fires instead. The query costs nothing here because the test
+    already runs past the timeout by construction.
  */
 
 import { Http, Uri } from '@embedthis/ejscript'
@@ -83,7 +92,7 @@ if (thas('ME_GOAHEAD_CGI')) {
     const proc = Bun.spawn(
         ['curl', '-s', '-i', '--http1.0', '--max-time', String(REAP_WAIT / 1000),
          '-H', 'SWITCHES: -t ' + CGI_SLEEP,
-         'http://' + uri.host + ':' + uri.port + '/cgi-bin/cgitest'],
+         'http://' + uri.host + ':' + uri.port + '/cgi-bin/cgitest?alpha+beta+gamma'],
         {stdout: 'pipe', stderr: 'ignore'})
     const text = await new Response(proc.stdout).text()
     await proc.exited

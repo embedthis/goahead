@@ -29,6 +29,7 @@ typedef struct Cgi {            /* Struct for CGI tasks which have completed */
     char *stdIn;                /* File desc. for task's temp input fd */
     char *stdOut;               /* File desc. for task's temp output fd */
     char *cgiPath;              /* Path to executable process file */
+    char *query;                /* Backing store for the argp strings */
     char **argp;                /* Pointer to buf containing argv tokens */
     char **envp;                /* Pointer to array of environment strings */
     CgiPid handle;              /* Process handle of the task */
@@ -472,11 +473,18 @@ PUBLIC bool cgiHandler(Webs *wp)
         cgip->stdIn = stdIn;
         cgip->stdOut = stdOut;
         cgip->cgiPath = cgiPath;
+        /*
+            argp holds interior pointers into query, which stok tokenized in place. fork/exec and
+            CreateProcess copy the argument vector before launchCgi returns, but taskSpawn does not:
+            the spawned task reads argp after this function returns. Hand the backing store to the
+            registry so its lifetime matches argp's on every platform, rather than leaving a lifetime
+            rule that only holds where the spawn backend happens to copy.
+         */
+        cgip->query = query;
         cgip->argp = argp;
         cgip->envp = envp;
         cgip->wp = wp;
         cgip->fplacemark = 0;
-        wfree(query);
     }
     /*
         Restore the current working directory after spawning child CGI
@@ -514,6 +522,7 @@ static void cgiCleanup(Cgi *cgip, int cid)
     }
     wfreeset(cgip->cgiPath);
     wfreeset(cgip->stdOut);
+    wfreeset(cgip->query);
     wfreeset(cgip->argp);
     wfreeset(cgip->envp);
     wfree(cgip);
