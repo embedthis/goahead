@@ -1,0 +1,340 @@
+{
+    "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.5",
+    "serialNumber": "urn:uuid:ae1cc7dd-bb41-47cb-b876-8f584fd3ed25",
+    "version": 2,
+    "metadata": {
+        "timestamp": "2026-08-02T00:00:00Z",
+        "tools": {
+            "components": [
+                {
+                    "type": "application",
+                    "publisher": "EmbedThis Software",
+                    "name": "release-skill",
+                    "version": "1.3.0",
+                    "description": "The EmbedThis /release skill, executed by Claude Code. Components derived from package.json (paks map and devDependencies), paks/*/package.json and node_modules/*/package.json."
+                }
+            ]
+        },
+        "component": {
+            "bom-ref": "goahead",
+            "type": "application",
+            "name": "goahead",
+            "version": "6.1.1",
+            "description": "Embedthis GoAhead embedded web server",
+            "supplier": {
+                "name": "EmbedThis Software",
+                "url": [
+                    "https://www.embedthis.com"
+                ],
+                "contact": [
+                    {
+                        "name": "EmbedThis Security",
+                        "email": "security@embedthis.com"
+                    }
+                ]
+            },
+            "author": "EmbedThis Software",
+            "licenses": [
+                {
+                    "license": {
+                        "name": "Embedthis Commercial License",
+                        "url": "https://embedthis.com/licensing/"
+                    }
+                }
+            ],
+            "purl": "pkg:generic/goahead@6.1.1",
+            "externalReferences": [
+                {
+                    "type": "website",
+                    "url": "https://embedthis.com/goahead/"
+                },
+                {
+                    "type": "vcs",
+                    "url": "https://github.com/embedthis/goahead"
+                },
+                {
+                    "type": "issue-tracker",
+                    "url": "https://github.com/embedthis/goahead/issues"
+                }
+            ]
+        },
+        "manufacture": {
+            "name": "EmbedThis Software",
+            "url": [
+                "https://www.embedthis.com"
+            ]
+        },
+        "supplier": {
+            "name": "EmbedThis Software",
+            "url": [
+                "https://www.embedthis.com"
+            ],
+            "contact": [
+                {
+                    "name": "EmbedThis Software",
+                    "email": "dev@embedthis.com"
+                },
+                {
+                    "name": "Security contact",
+                    "email": "security@embedthis.com"
+                }
+            ]
+        }
+    },
+    "components": [
+        {
+            "bom-ref": "osdep",
+            "type": "library",
+            "name": "osdep",
+            "version": "1.2.0",
+            "description": "O/S Dependent Layer",
+            "scope": "required",
+            "licenses": [
+                {
+                    "license": {
+                        "name": "Embedthis Commercial License",
+                        "url": "https://embedthis.com/licensing/"
+                    }
+                }
+            ],
+            "purl": "pkg:generic/osdep@1.2.0",
+            "externalReferences": [
+                {
+                    "type": "vcs",
+                    "url": "https://github.com/embedthis/osdep"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "shipped - compiled into the product"
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "in-scope - shipped in the product"
+                }
+            ]
+        },
+        {
+            "bom-ref": "certs",
+            "type": "library",
+            "name": "certs",
+            "version": "1.2.0",
+            "description": "Test certificates",
+            "scope": "excluded",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ],
+            "purl": "pkg:generic/certs@1.2.0",
+            "externalReferences": [
+                {
+                    "type": "vcs",
+                    "url": "https://github.com/embedthis/certs"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "build and test only - self-signed development certificates; not compiled into the product and not part of the placed-on-market artifact"
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "out-of-scope - not part of the product placed on the market"
+                }
+            ]
+        },
+        {
+            "bom-ref": "embedthis-ejscript",
+            "type": "library",
+            "name": "@embedthis/ejscript",
+            "version": "2.1.1",
+            "description": "Ejscript core API implementation for Bun runtime - used by the TestMe unit test suite",
+            "scope": "excluded",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "GPL-2.0-only"
+                    }
+                }
+            ],
+            "purl": "pkg:npm/%40embedthis/ejscript@2.1.1",
+            "externalReferences": [
+                {
+                    "type": "vcs",
+                    "url": "https://github.com/embedthis/ejscript"
+                },
+                {
+                    "type": "distribution",
+                    "url": "https://registry.npmjs.org/@embedthis/ejscript"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "build and test only - npm devDependency used by the unit test suite; never linked into the product"
+                },
+                {
+                    "name": "embedthis:license-status",
+                    "value": "RESOLVED - the published npm package declares \"license\": \"GPL-2.0-only\" and ships LICENSE.md, whose text confirms GNU GPL version 2 only."
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "out-of-scope - not part of the product placed on the market"
+                }
+            ]
+        },
+        {
+            "bom-ref": "embedthis-testme",
+            "type": "library",
+            "name": "@embedthis/testme",
+            "version": "0.8.32",
+            "description": "TestMe unit test runner - executes the GoAhead test suite",
+            "scope": "excluded",
+            "licenses": [
+                {
+                    "license": {
+                        "name": "GPL-2.0"
+                    }
+                }
+            ],
+            "purl": "pkg:npm/%40embedthis/testme@0.8.32",
+            "externalReferences": [
+                {
+                    "type": "vcs",
+                    "url": "https://github.com/embedthis/testme"
+                },
+                {
+                    "type": "distribution",
+                    "url": "https://registry.npmjs.org/@embedthis/testme"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "build and test only - npm devDependency used by the unit test suite; never linked into the product"
+                },
+                {
+                    "name": "embedthis:license-status",
+                    "value": "DECLARED, NOT VERIFIED - the published npm package declares \"license\": \"GPL-2.0\", a deprecated SPDX identifier, and ships no license text. Recorded verbatim as a license name rather than an SPDX id because the deprecated string does not disambiguate GPL-2.0-only from GPL-2.0-or-later; the ambiguity is not resolved here by inference. Test-only, so it creates no distribution obligation on the shipped product. Ask the upstream publisher to declare a current SPDX id and ship LICENSE.md."
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "out-of-scope - not part of the product placed on the market"
+                }
+            ]
+        },
+        {
+            "bom-ref": "openssl",
+            "type": "library",
+            "name": "openssl",
+            "description": "TLS provider (default). Linked from the build host or integrator toolchain; not vendored in this repository.",
+            "scope": "required",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "Apache-2.0"
+                    }
+                }
+            ],
+            "purl": "pkg:generic/openssl",
+            "externalReferences": [
+                {
+                    "type": "website",
+                    "url": "https://www.openssl.org/"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "external system library - selected via premake tls=openssl (default), adapter src/openssl.c"
+                },
+                {
+                    "name": "embedthis:version-authority",
+                    "value": "INTEGRATOR - the concrete version is fixed at link time by the integrator's toolchain and MUST be recorded in the integrator's own SBOM. GoAhead does not pin it."
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "in-scope - shipped in the product"
+                }
+            ]
+        },
+        {
+            "bom-ref": "mbedtls",
+            "type": "library",
+            "name": "mbedtls",
+            "description": "TLS provider (alternative). Linked from the build host or integrator toolchain; not vendored in this repository.",
+            "scope": "optional",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "Apache-2.0"
+                    }
+                }
+            ],
+            "purl": "pkg:generic/mbedtls",
+            "externalReferences": [
+                {
+                    "type": "website",
+                    "url": "https://www.trustedfirmware.org/projects/mbed-tls/"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "external system library - selected via premake tls=mbedtls, adapter src/mbedtls.c"
+                },
+                {
+                    "name": "embedthis:version-authority",
+                    "value": "INTEGRATOR - the concrete version is fixed at link time by the integrator's toolchain and MUST be recorded in the integrator's own SBOM. GoAhead does not pin it."
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "in-scope - shipped in the product"
+                }
+            ]
+        }
+    ],
+    "dependencies": [
+        {
+            "ref": "goahead",
+            "dependsOn": [
+                "osdep",
+                "certs",
+                "embedthis-ejscript",
+                "embedthis-testme",
+                "openssl",
+                "mbedtls"
+            ]
+        },
+        {
+            "ref": "osdep",
+            "dependsOn": []
+        },
+        {
+            "ref": "certs",
+            "dependsOn": []
+        },
+        {
+            "ref": "embedthis-ejscript",
+            "dependsOn": []
+        },
+        {
+            "ref": "embedthis-testme",
+            "dependsOn": []
+        },
+        {
+            "ref": "openssl",
+            "dependsOn": []
+        },
+        {
+            "ref": "mbedtls",
+            "dependsOn": []
+        }
+    ]
+}
