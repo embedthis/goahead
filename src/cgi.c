@@ -34,6 +34,10 @@ typedef struct Cgi {            /* Struct for CGI tasks which have completed */
     char **envp;                /* Pointer to array of environment strings */
     CgiPid handle;              /* Process handle of the task */
     off_t fplacemark;           /* Seek location for CGI output file */
+    ssize txLen;                /* Content length the CGI declared, or -1 for chunked framing */
+    ssize txBytes;              /* Body bytes actually forwarded to the client */
+    ssize txExcess;             /* Body bytes dropped beyond the declared content length */
+    bool txSuppress;            /* Response carries no body at all, whatever the CGI writes */
 } Cgi;
 
 static Cgi **cgiList;           /* walloc chain list of wp's to be closed */
@@ -485,6 +489,10 @@ PUBLIC bool cgiHandler(Webs *wp)
         cgip->envp = envp;
         cgip->wp = wp;
         cgip->fplacemark = 0;
+        cgip->txLen = -1;
+        cgip->txBytes = 0;
+        cgip->txExcess = 0;
+        cgip->txSuppress = 0;
     }
     /*
         Restore the current working directory after spawning child CGI
@@ -614,6 +622,76 @@ static bool validCgiHeader(cchar *key, cchar *value)
 
 
 /*
+    Parse a Content-Length declared by the CGI program. The value is a claim by an untrusted child,
+    not a fact, so admit it only as a plain non-negative decimal that fits an ssize. A sign, trailing
+    junk or an overflowing value yields -1, which selects chunked framing so the byte count actually
+    forwarded frames the response instead. atoi() accepted all of these silently.
+ */
+static ssize parseCgiContentLength(cchar *value)
+{
+    cchar *cp;
+    ssize len;
+
+    if (value == NULL || *value == '\0') {
+        return -1;
+    }
+    len = 0;
+    for (cp = value; *cp; cp++) {
+        if (!isdigit((uchar) *cp)) {
+            return -1;
+        }
+        if (len > (MAXSSIZE - (*cp - '0')) / 10) {
+            return -1;
+        }
+        len = (len * 10) + (*cp - '0');
+    }
+    return len;
+}
+
+
+/*
+    Parse a status code declared by the CGI. RFC 3875 defines the value as three digits optionally
+    followed by a space and a reason phrase; anything else is a malformed response, not a status.
+    atoi() turned "abc" into 0 and emitted it verbatim as the code in the response line. Return 0 for
+    a value that cannot be a status so the caller answers on its own behalf rather than passing the
+    CGI's claim through.
+ */
+static int parseCgiStatus(cchar *value)
+{
+    int code, i;
+
+    if (value == NULL) {
+        return 0;
+    }
+    code = 0;
+    for (i = 0; i < 3; i++) {
+        if (!isdigit((uchar) value[i])) {
+            return 0;
+        }
+        code = (code * 10) + (value[i] - '0');
+    }
+    if (value[3] != '\0' && value[3] != ' ' && value[3] != '\t') {
+        return 0;
+    }
+    /*
+        1XX is refused. An informational status is interim: it announces that the real response is
+        still to come, so a client given one as the final response waits for a second response that
+        this gateway will never send. A CGI has no way to emit an interim response through the
+        gateway, so a 1XX here can only be a mistake.
+
+        Codes above 5XX are not refused. They are outside the classes RFC 9110 defines, but a CGI
+        setting its own status code is long-standing documented behaviour here and such a code
+        misframes nothing -- unlike a 1XX, which stalls the client waiting for a response that never
+        arrives. Three digits is the bound that matters.
+     */
+    if (code < 200) {
+        return 0;
+    }
+    return code;
+}
+
+
+/*
     One tokenized line of the CGI response header block.
  */
 typedef struct CgiHeader {
@@ -622,14 +700,18 @@ typedef struct CgiHeader {
 } CgiHeader;
 
 
-static ssize parseCgiHeaders(Webs *wp, char *buf)
+static ssize parseCgiHeaders(Cgi *cgip, char *buf)
 {
     CgiHeader *headers;
+    Webs      *wp;
     char      *end, *cp, *line, *location, *contentType;
-    ssize     len, contentLength;
-    int       count, i, nlines, status;
+    ssize     len, contentLength, bodyLimit;
+    int       count, i, nlines, status, seenLength, malformed;
 
+    wp = cgip->wp;
     status = HTTP_CODE_OK;
+    seenLength = 0;
+    malformed = 0;
     contentLength = -1;
     contentType = 0;
     location = 0;
@@ -694,11 +776,27 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
         if (strcmp(headers[i].key, "location") == 0) {
             location = headers[i].value;
         } else if (strcmp(headers[i].key, "status") == 0) {
-            status = atoi(headers[i].value);
+            if ((status = parseCgiStatus(headers[i].value)) == 0) {
+                trace(5, "cgi: bad Status \"%s\"", headers[i].value);
+                malformed = 1;
+            }
         } else if (strcmp(headers[i].key, "content-type") == 0) {
             contentType = headers[i].value;
         } else if (strcmp(headers[i].key, "content-length") == 0) {
-            contentLength = atoi(headers[i].value);
+            len = parseCgiContentLength(headers[i].value);
+            /*
+                RFC 9110 makes a message carrying two different Content-Length values unrecoverably
+                invalid. Taking the last one, as this did, makes the framing depend on the order the
+                CGI happened to write them. Repeating the same value is permitted and is collapsed.
+             */
+            if (seenLength && len != contentLength) {
+                trace(5, "cgi: conflicting Content-Length \"%s\"", headers[i].value);
+                malformed = 1;
+            } else if (len < 0) {
+                trace(5, "cgi: bad Content-Length \"%s\" - using chunked", headers[i].value);
+            }
+            contentLength = len;
+            seenLength = 1;
         } else {
             continue;
         }
@@ -707,12 +805,52 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
          */
         headers[i].key = 0;
     }
+    /*
+        A response this gateway cannot interpret is answered on the gateway's own behalf. Emitting a
+        status or a framing the CGI did not validly declare passes its confusion on to the client.
+        Nothing of the CGI's response is forwarded -- not the body, and not the remaining headers,
+        which may carry cookies or cache directives that were meant to accompany a response the
+        client is not going to receive.
+     */
+    if (malformed) {
+        status = HTTP_CODE_INTERNAL_SERVER_ERROR;
+        contentLength = 0;
+        location = 0;
+        contentType = 0;
+    }
+
+    /*
+        Decide whether this response may carry a body at all, before any of it is written. A 204 or
+        304 carries none: no Content-Length is emitted for those statuses and chunking is only
+        enabled when the length is unknown, so a body written after one is unframed data -- the
+        client frames the response as empty and reads the body as the start of the next one on the
+        connection. A HEAD response carries none whatever its status, and a response the gateway
+        already rejected carries none either.
+
+        Suppression is not the same as a CGI over-writing its declared length: the framing here is
+        honest, so this must not be reported or close the connection. It is flagged rather than
+        expressed as a zero limit for exactly that reason.
+
+        The header still declares what an equivalent GET would return where the CGI said so, because
+        that is what a HEAD response is for. Everywhere else declare zero, and never leave the length
+        unknown: an unknown length selects chunked framing, and the chunk trailer is itself body
+        bytes on a response that must not have any.
+     */
+    bodyLimit = contentLength;
+    if (websStatusHasNoBody(status) || smatch(wp->method, "HEAD") || malformed) {
+        cgip->txSuppress = 1;
+        bodyLimit = 0;
+        if (!smatch(wp->method, "HEAD") || contentLength < 0) {
+            contentLength = 0;
+        }
+    }
     writeCgiHeaders(wp, status, contentLength, location, contentType);
+    cgip->txLen = bodyLimit;
 
     /*
         Now pass all other headers back to the client
      */
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < count && !malformed; i++) {
         if (headers[i].key == 0) {
             continue;
         }
@@ -733,7 +871,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
     Webs     *wp;
     WebsStat sbuf;
     char     buf[ME_GOAHEAD_LIMIT_HEADERS + 2];
-    ssize    nbytes, skip;
+    ssize    nbytes, skip, nbody;
     int      fdout;
 
     /*
@@ -753,7 +891,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                 buf[nbytes] = 0;
                 skip = 0;
                 if (!(wp->flags & WEBS_HEADERS_CREATED)) {
-                    if ((skip = parseCgiHeaders(wp, buf)) == 0) {
+                    if ((skip = parseCgiHeaders(cgip, buf)) == 0) {
                         if (cgip->handle && sbuf.st_size < ME_GOAHEAD_LIMIT_HEADERS) {
                             trace(5, "cgi: waiting for http headers");
                             break;
@@ -775,8 +913,37 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                         }
                     }
                 }
-                trace(5, "cgi: write %d bytes to client", (int) (nbytes - skip));
-                websWriteBlock(wp, &buf[skip], nbytes - skip);
+                nbody = nbytes - skip;
+                /*
+                    A CGI that writes more than the Content-Length it declared has already had that
+                    length put on the wire, so the client frames the response there and reads the
+                    surplus as the start of the next response on a keep-alive connection. That is the
+                    whole response-splitting primitive, and closing afterwards does not retract bytes
+                    the client has already buffered. Drop the surplus rather than emit it, and take
+                    the connection down so nothing further is read from a stream this CGI has shown
+                    it cannot frame.
+
+                    Only accumulate the dropped count here. A CGI that keeps writing re-enters this
+                    branch on every later read, so reporting per read turns a single request into one
+                    log entry per buffer of surplus. The total is reported once when the child exits.
+                 */
+                if (cgip->txSuppress) {
+                    /*
+                        The response was framed as carrying no body, so dropping one is the framing
+                        working, not a fault. Say nothing and leave the connection reusable.
+                     */
+                    nbody = 0;
+
+                } else if (cgip->txLen >= 0 && (cgip->txBytes + nbody) > cgip->txLen) {
+                    cgip->txExcess += (cgip->txBytes + nbody) - cgip->txLen;
+                    nbody = cgip->txLen - cgip->txBytes;
+                    wp->flags &= ~WEBS_KEEP_ALIVE;
+                }
+                if (nbody > 0) {
+                    trace(5, "cgi: write %d bytes to client", (int) nbody);
+                    websWriteBlock(wp, &buf[skip], nbody);
+                    cgip->txBytes += nbody;
+                }
                 cgip->fplacemark += (off_t) nbytes;
             }
             close(fdout);
@@ -825,6 +992,25 @@ int websCgiPoll(void)
                 if (cgip->fplacemark == 0) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "CGI generated no output");
                 } else {
+                    /*
+                        Report a length the CGI could not honour, once per request. Surplus output
+                        was already truncated and the connection already dropped by the loop above,
+                        but that leaves txBytes equal to txLen, so the shortfall test below cannot
+                        see it -- the accumulated excess is what records it. A shortfall has not been
+                        acted on yet: the headers are long since on the wire so the framing cannot be
+                        corrected, the client is left waiting for bytes that will never arrive, and
+                        the next response on this connection would be read as their continuation.
+                        Close rather than keep a desynchronised stream alive.
+                     */
+                    if (cgip->txExcess > 0) {
+                        error("cgi: declared Content-Length %d and dropped %d surplus bytes",
+                              (int) cgip->txLen, (int) cgip->txExcess);
+
+                    } else if (cgip->txLen >= 0 && cgip->txBytes != cgip->txLen) {
+                        error("cgi: declared Content-Length %d but wrote %d bytes",
+                              (int) cgip->txLen, (int) cgip->txBytes);
+                        wp->flags &= ~WEBS_KEEP_ALIVE;
+                    }
                     trace(5, "cgi: Request complete - calling websDone");
                     websDone(wp);
                 }

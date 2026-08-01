@@ -7,6 +7,9 @@
         cgitest [switches]
             -a                  Output the args (used for ISINDEX queries)
             -b bytes            Output content "bytes" long
+            -B bytes            Output exactly "bytes" body bytes, where byte N is '0' + (N % 10).
+                                Independent of -L, so a response can declare one length and write
+                                another, at any size (used by the response framing tests)
             -c type             Output "type" as the Content-type header value
             -e                  Output the environment
             -h lines            Output header "lines" long
@@ -14,6 +17,8 @@
                                 percent-descaped first, so %0d%0a delivers a raw CRLF into the
                                 header block (used by the response-splitting regression tests)
             -l location         Output "location" header
+            -L length           Output "length" verbatim as the Content-length header value. Not
+                                derived from the body, so it may be honest, wrong or unparsable
             -n                  Non-parsed-header ouput
             -p                  Ouput the post data
             -q                  Ouput the query data
@@ -115,6 +120,8 @@ static int    originalArgc;
 static char   **originalArgv;
 static int    outputArgs, outputEnv, outputPost, outputQuery;
 static int    outputLines, outputHeaderLines, responseStatus;
+static int    outputBodyBytes;
+static char   *outputContentLength;
 static char   *outputContentType;
 static char   *outputHeader;
 static char   *outputLocation;
@@ -142,6 +149,7 @@ static void     printQuery();
 static void     printPost(char *buf, size_t len);
 static char *safeGetenv(char *key);
 static void     finish(void);
+static void     writeBody(int bytes);
 
 /******************************************************************************/
 /*
@@ -159,6 +167,8 @@ int main(int argc, char **argv, char **envp)
     err = 0;
     outputArgs = outputQuery = outputEnv = outputPost = 0;
     outputLines = outputHeaderLines = responseStatus = 0;
+    outputBodyBytes = 0;
+    outputContentLength = 0;
     outputHeader = 0;
     outputLocation = 0;
     outputRaw = 0;
@@ -199,6 +209,14 @@ int main(int argc, char **argv, char **envp)
                     err = __LINE__;
                 } else {
                     outputLines = atoi(argv[i]);
+                }
+                break;
+
+            case 'B':
+                if (++i >= argc) {
+                    err = __LINE__;
+                } else {
+                    outputBodyBytes = atoi(argv[i]);
                 }
                 break;
 
@@ -245,6 +263,14 @@ int main(int argc, char **argv, char **envp)
                     if (responseStatus == 0) {
                         responseStatus = 302;
                     }
+                }
+                break;
+
+            case 'L':
+                if (++i >= argc) {
+                    err = __LINE__;
+                } else {
+                    outputContentLength = argv[i];
                 }
                 break;
 
@@ -309,7 +335,7 @@ int main(int argc, char **argv, char **envp)
     }
     if (err) {
         fprintf(stderr, "usage: cgitest -aenp [-b bytes] [-c type] [-h lines] [-H header]\n"
-                "\t[-l location] [-r response] [-s status] [-t timeout]\n"
+                "\t[-B bytes] [-l location] [-L length] [-r response] [-s status] [-t timeout]\n"
                 "\tor set the HTTP_SWITCHES environment variable\n");
         fprintf(stderr, "Error at cgitest:%d\n", __LINE__);
         exit(255);
@@ -354,6 +380,9 @@ int main(int argc, char **argv, char **envp)
         printf("X-CGI-CustomHeader: Any value at all\r\n");
     }
     printf("Content-type: %s\r\n", outputContentType ? outputContentType : "text/html");
+    if (outputContentLength) {
+        printf("Content-length: %s\r\n", outputContentLength);
+    }
     if (outputHeader) {
         printf("%s\r\n", outputHeader);
     }
@@ -371,15 +400,17 @@ int main(int argc, char **argv, char **envp)
     }
     printf("\r\n");
 
-    if ((outputLines + outputArgs + outputEnv + outputQuery + outputPost + responseStatus) == 0 &&
-        outputLocation == NULL) {
+    if ((outputLines + outputArgs + outputEnv + outputQuery + outputPost + responseStatus +
+         outputBodyBytes) == 0 && outputLocation == NULL) {
         outputArgs++;
         outputEnv++;
         outputQuery++;
         outputPost++;
     }
 
-    if (outputLines) {
+    if (outputBodyBytes > 0) {
+        writeBody(outputBodyBytes);
+    } else if (outputLines) {
         for (j = 0; j < outputLines; j++) {
             printf("%010d\n", j);
         }
@@ -406,6 +437,31 @@ int main(int argc, char **argv, char **envp)
 
     finish();
     return 0;
+}
+
+
+/*
+    Emit exactly "bytes" body bytes, where byte N of the body is '0' + (N % 10). The chunk length is
+    a multiple of ten so the pattern runs unbroken across chunks, which lets a test verify not just
+    how many bytes arrived but the offset at which a truncated body was cut. Written with write()
+    rather than printf so the byte count is exact and does not depend on stdio buffering.
+ */
+static void writeBody(int bytes)
+{
+    char chunk[1000];
+    int  i, n;
+
+    for (i = 0; i < (int) sizeof(chunk); i++) {
+        chunk[i] = (char) ('0' + (i % 10));
+    }
+    fflush(stdout);
+    while (bytes > 0) {
+        n = (bytes < (int) sizeof(chunk)) ? bytes : (int) sizeof(chunk);
+        if ((int) write(1, chunk, n) != n) {
+            break;
+        }
+        bytes -= n;
+    }
 }
 
 
