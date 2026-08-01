@@ -20,7 +20,7 @@
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a48fc76d92c206efcfdf3a376f85214dd" class="nameRef">bufGrow</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, ssize room)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Grow the buffer by at least the required amount of room.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1aa0ae470cc24e8e57db77e42ffb751b83" class="nameRef">bufInsertc</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, char c)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Insert a character to the buffer before the servp position and decrement the servp.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a284f3c18de56b775c0a13f58f78d4744" class="nameRef">bufLen</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the length of available data in the buffer.</td></tr>
-<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a31ab202e1cef11fa44e7232100fc500f" class="nameRef">bufPut</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, cchar *fmt, ...) PRINTF_ATTRIBUTE(2</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Append a formatted string to the buffer at the endp position and increment the endp.</td></tr>
+<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a551928577018500d4539098dad559443" class="nameRef">bufPut</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Append a formatted string to the buffer at the endp position and increment the endp.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1ad14675b48245dc6eaabd6e6da8686a73" class="nameRef">bufPutBlk</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, cchar *blk, ssize len)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Put a block to the buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize ssize</td><td><a href="#goahead_8h_1aea6647f6507f65ea81faf7c47e8703e1" class="nameRef">bufPutStr</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Append a string to the buffer at the endp position and increment the endp.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a7c38d63ce718b544ebdb32807a34ca3e" class="nameRef">bufPutc</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, char c)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Append a character to the buffer at the endp position and increment the endp.</td></tr>
@@ -28,8 +28,8 @@
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a2ffac4a06b33a774a59e0441bbf0a555" class="nameRef">bufRoom</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Determine the room available in the buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a11bc74b37775ab735849a2dfa60eda8e" class="nameRef">bufStart</a>(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a reference to the start of buffer data.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a42bf90b6014430498b3a9328b421bbab" class="nameRef">buildWinCmdLine</a>(char **argp, char *out)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Build a Windows <computeroutput>lpCommandLine</computeroutput> string from a NULL-terminated argv array.</td></tr>
-<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a03544bf56dde3a257391d07e1d6f6a3a" class="nameRef">error</a>(cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit an error message.</td></tr>
-<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1adcb481a002871c7f627ac99bf6a4725d" class="nameRef">fmt</a>(char *buf, ssize maxSize, cchar *format, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>GoAhead Web Server Runtime.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a88f1b7ca2fcb4d32d0c8ffbeb1d86533" class="nameRef">error</a>(PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(1</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit an error message.</td></tr>
+<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1abc57dc4bcada8f2284706b6616fb1cbc" class="nameRef">fmt</a>(char *buf, ssize maxSize, PRINTF_FORMAT cchar *format, ...) PRINTF_ATTRIBUTE(3</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>GoAhead Web Server Runtime.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a></td><td><a href="#goahead_8h_1a38965650a2f6f2666e0120498594a135" class="nameRef">hashCreate</a>(int size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a hash table.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a9ba32a89679bec0a778ce61dbc7a8e7b" class="nameRef">hashDelete</a>(<a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> id, cchar *name)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Delete a key by name.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> *</td><td><a href="#goahead_8h_1aee271bb91786340b275d1871736e8bc1" class="nameRef">hashEnter</a>(<a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> id, cchar *name, <a href="#struct_webs_value" class="ref">WebsValue</a> value, int arg)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Enter a new key and value into the hash table.</td></tr>
@@ -43,18 +43,18 @@
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a09d77f66f305e34c9d8f38d0f108a9b0" class="nameRef">itosbuf</a>(char *buf, ssize size, int64 value, int radix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Convert an integer to a string buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a95bd348305d4a3044216ec4d694cd1d4" class="nameRef">logClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the log logging module.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1af07cb7c6e3a418059b33eb2243e0e945" class="nameRef">logGetHandler</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the log callback.</td></tr>
-<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a2c0c1dd956ebfaf981553f5a99cd7bb7" class="nameRef">logOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the log logging module.</td></tr>
+<tr class="apiDef"><td class="apiType">void int</td><td><a href="#goahead_8h_1a5307e0c8b3986abd0e08f0bb29363e24" class="nameRef">logOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the log logging module.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1a69d48d711cafc09c257c41705b29eb6a" class="nameRef">logSetHandler</a>(<a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a> handler)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a log callback.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a973f65430b9ee826c6906891d2173bd3" class="nameRef">logSetPath</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the filename to save logging output.</td></tr>
-<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a02f3703e8699520d66c2477e225af267" class="nameRef">logmsgProc</a>(int level, cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit a message to the log.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a95b7d06b693ad303d3fc0fa333ce77bd" class="nameRef">logmsgProc</a>(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit a message to the log.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1af9cb27956141ddc4724cca9903fa69b2" class="nameRef">scaselesscmp</a>(cchar *s1, cchar *s2)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare strings ignoring case.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a021eac46fe21719fb1f9c9d257f64280" class="nameRef">scaselessmatch</a>(cchar *s1, cchar *s2)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare strings ignoring case.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1acb666da0fc979829bdfa3805d30690b8" class="nameRef">sclone</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Clone a string.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a130862b0d455d9584014457bfeb4c139" class="nameRef">scmp</a>(cchar *s1, cchar *s2)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare strings.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a96df0c576bf6004507a3d0d11e18599a" class="nameRef">scopy</a>(char *dest, ssize destMax, cchar *src)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Copy a string.</td></tr>
-<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1ad5e0d437ef73e87ac046e67f03f85b30" class="nameRef">sfmt</a>(cchar *format, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Format a string.</td></tr>
-<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a78d631aa2272557805c10ff2b704ced3" class="nameRef">sfmtv</a>(cchar *format, va_list args)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Format a string with varargs.</td></tr>
-<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1ade405095134ad54db6dc94fcd6216961" class="nameRef">slen</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Return the length of a string.</td></tr>
+<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a5b9c6b81a8ab2b6e75923ada56116e70" class="nameRef">sfmt</a>(PRINTF_FORMAT cchar *format, ...) PRINTF_ATTRIBUTE(1</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Format a string.</td></tr>
+<tr class="apiDef"><td class="apiType">char char *</td><td><a href="#goahead_8h_1a56aa8df6f277d95c012c3df2203bfb47" class="nameRef">sfmtv</a>(PRINTF_FORMAT cchar *format, va_list args) PRINTF_ATTRIBUTE(1</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Format a string with varargs.</td></tr>
+<tr class="apiDef"><td class="apiType">char char ssize</td><td><a href="#goahead_8h_1a632d23187a2f7736875fa3015d6a14b0" class="nameRef">slen</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Return the length of a string.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a42007ed5398b5037a88270ab46e126b6" class="nameRef">slower</a>(char *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Convert a string to lower case.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1abe7d2af6c4afc8a57904b9276a43ffea" class="nameRef">smatch</a>(cchar *s1, cchar *s2)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare strings.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a30d6259caa94ed51abd25be83c0c4972" class="nameRef">sncaselesscmp</a>(cchar *s1, cchar *s2, ssize len)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare strings ignoring case.</td></tr>
@@ -93,6 +93,7 @@
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a87a2c90218477d33c088510d629174c7" class="nameRef">socketSetBlock</a>(int sid, int on)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the socket blocking mode.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a5c81a3a08f01ced0e6346142663c0bac" class="nameRef">socketSetError</a>(int error)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the error code for the last socket operation on this thread.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a172c24a34fcdff1a79fdde165738e07c" class="nameRef">socketSetNoDelay</a>(int sid, bool on)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the socket delay mode.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ad3eef3b00f5400f789662f42a0658977" class="nameRef">socketSetSendTimeout</a>(int sid, int timeout)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the socket send timeout.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1afeb307811160403ba50be3739ddaf5f9" class="nameRef">socketWaitForEvent</a>(<a href="#struct_webs_socket" class="ref">WebsSocket</a> *sp, int mask)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Wait for a socket I/O event.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1ab6d98261221e514d69b3f4e411fdea4a" class="nameRef">socketWrite</a>(int sid, void *buf, ssize len)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write data to the socket.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a7e6149e63a2f4ad6fc53ac6ac60cec1a" class="nameRef">sslClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the ssl module.</td></tr>
@@ -106,13 +107,13 @@
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1adbeb0bae6f0eaa147eaab42666cc5fb2" class="nameRef">stok</a>(char *str, cchar *delim, char **last)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Tokenize a string.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a68a5bbcfe9b29e51522dc16335d31440" class="nameRef">strim</a>(char *str, cchar *set, int where)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Trim a string.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1aa382db637596478a9ad1176e485a2743" class="nameRef">supper</a>(char *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Convert a string to upper case.</td></tr>
-<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a377d5247f829befd58214234183e84ee" class="nameRef">traceProc</a>(int level, cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit a debug trace message to the log.</td></tr>
+<tr class="apiDef"><td class="apiType">void void</td><td><a href="#goahead_8h_1af0b13a23ecd2a43904490b7804c38693" class="nameRef">traceProc</a>(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit a debug trace message to the log.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ac5058870cad6692d50f7fa9775a56c25" class="nameRef">valueFree</a>(<a href="#struct_webs_value" class="ref">WebsValue</a> *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Free any allocated string in a value.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_value" class="ref">WebsValue</a></td><td><a href="#goahead_8h_1aa27f5beea810d9124985ecf1c1fe41fa" class="nameRef">valueInteger</a>(long value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create an integer value.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_value" class="ref">WebsValue</a></td><td><a href="#goahead_8h_1adb8296687c9b528cfa0d9deb2eb42cf0" class="nameRef">valueString</a>(cchar *value, int flags)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create an string value.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_value" class="ref">WebsValue</a></td><td><a href="#goahead_8h_1aa9292efb92931035fbdb7e8cc9fc2a58" class="nameRef">valueSymbol</a>(void *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create an symbol value containing an object reference.</td></tr>
 <tr class="apiDef"><td class="apiType">void *</td><td><a href="#goahead_8h_1a07c94497642f16a8df96cfcd33fd0395" class="nameRef">walloc</a>(ssize size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Allocate a block of the requested size.</td></tr>
-<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1af7553e70a9cd19a472ed5af514776e09" class="nameRef">wallocHandle</a>(void *map)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Allocate a handle from a map.</td></tr>
+<tr class="apiDef"><td class="apiType">char int</td><td><a href="#goahead_8h_1a1207c82a44b1d715f7b8c9f89e0400c3" class="nameRef">wallocHandle</a>(void *map)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Allocate a handle from a map.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a5bdd5a92db14503e6bb55c5c37c7580d" class="nameRef">wallocObject</a>(void *map, int *max, int size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Allocate an object in a halloc map.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ab07b7c0b89520599c586358086c52568" class="nameRef">wcloseAlloc</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the GoAhead memory allocator.</td></tr>
 <tr class="apiDef"><td class="apiType">void *</td><td><a href="#goahead_8h_1a0a3f39cab6c63b65ed61e995d66fcbe3" class="nameRef">wdup</a>(cvoid *ptr, ssize usize)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Duplicate memory.</td></tr>
@@ -126,10 +127,14 @@
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a2e7099150ce40f126e53901b37055164" class="nameRef">websAuthenticate</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Authenticate a user for the current request.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a4b9213d33c030e357c81a97765a83ab3" class="nameRef">websCan</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> ability)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a user possesses the required ability.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ad02e7e70e4f3b7bca1ee2a318a336e80" class="nameRef">websCancelTimeout</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Cancel the request timeout.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a948de393139df0f83d12fc5fb7ec16ec" class="nameRef">websCgiDetach</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Detach a request from the CGI registry.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac05856f3dd04aeef0732570bedf044ad" class="nameRef">websCgiHandler</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>CGI handler service callback.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ae908f662db14b2f0571634f48dda790c" class="nameRef">websCgiOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the CGI handler.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac14f9e9acabae760c4225c6a372747a5" class="nameRef">websCgiPoll</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Poll for output from CGI processes and output.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a93ffe2fd6f833e223e48dac77c650daa" class="nameRef">websCheckPassword</a>(cchar *plainTextPassword, cchar *passwordHash)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Check a plain-text password against the defined hashed password.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a9b52c801466f2773eacbfcbffe9299fb" class="nameRef">websCheckRouteAuth</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the route table for a confidentiality boundary.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a74665a5a2b59bd9a7fa085d23ad6226e" class="nameRef">websCheckRoutes</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the route table for configurations that defeat the authentication gate.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a1d7c74aaa238a802aa601fb869dc2e25" class="nameRef">websCheckTempDirs</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the temporary directories against the served directories.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a94471225b733c21ebe13449aed71cf98" class="nameRef">websClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the core GoAhead web server module.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1afd247c60a4a156f514fae54aba5c95af" class="nameRef">websCloseAuth</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the authentication module.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ac3d3297f51f566d7dcd0c1003180f210" class="nameRef">websCloseFile</a>(int fd)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close an open file.</td></tr>
@@ -137,7 +142,7 @@
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a2ebc310e8ccbfd0e52a29d5f8d192b13" class="nameRef">websCompareVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *var, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare a request variable.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a4d6532cddbf3407711d240f6d2591bc9" class="nameRef">websComputeAllUserAbilities</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compute the abilities for all users by resolving roles into abilities.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a6e0b2ea7b62d847fd10d7bb761d1189e" class="nameRef">websConsumeInput</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, ssize nbytes)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Consume input from the request input buffer.</td></tr>
-<tr class="apiDef"><td class="apiType"><a href="#struct_webs_session" class="ref">WebsSession</a> *</td><td><a href="#goahead_8h_1ac09375688ef922985f1a70da6cb57315" class="nameRef">websCreateSession</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a user possesses the required ability.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#struct_webs_session" class="ref">WebsSession</a> *</td><td><a href="#goahead_8h_1ac09375688ef922985f1a70da6cb57315" class="nameRef">websCreateSession</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a new session for the request.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1ab78b11cb89e356f65f0f1e631e7f7197" class="nameRef">websCryptPassword</a>(cchar *password, cchar *salt, int rounds)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Encrypt a password using the Blowfish algorithm.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1ab2de4f62778e48a29efb32367b7892aa" class="nameRef">websDecode64</a>(char *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Decode the string using base-64 encoding.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1af4a3078d67578f8a87e7c8bd00e98ab7" class="nameRef">websDecode64Block</a>(char *str, ssize *len, int flags)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Decode a block using base-46 encoding.</td></tr>
@@ -149,8 +154,8 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ac2af58b7a686cb33e44eb010cf755ce1" class="nameRef">websDone</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Complete a request.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a3b53aecc379c749b448bd2e7a97cd139" class="nameRef">websEncode64</a>(char *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Encode a string using base-64 encoding.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a3bf8a9fb4498ace5f110829a05a84b12" class="nameRef">websEncode64Block</a>(char *str, ssize len)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Encode a block using base-64 encoding.</td></tr>
-<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ac898af1d6d0c6cccb905e6a53479b559" class="nameRef">websError</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, int code, cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Complete a request with an error response.</td></tr>
-<tr class="apiDef"><td class="apiType">cchar *</td><td><a href="#goahead_8h_1aaec1002e4782fac4bb4efc164bf52852" class="nameRef">websErrorMsg</a>(int code)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a message for a HTTP status code.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1aab6a8689183666869e1738a6a70aaf92" class="nameRef">websError</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, int code, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Complete a request with an error response.</td></tr>
+<tr class="apiDef"><td class="apiType">void cchar *</td><td><a href="#goahead_8h_1a6bfe97212b2e5f6df60ba207880c0aae" class="nameRef">websErrorMsg</a>(int code)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a message for a HTTP status code.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a4ec7e48d4586a004ae6e40ee3d9c412d" class="nameRef">websEscapeHtml</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Escape unsafe characters in a string.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a147eafef2fb33fde77fd107b0a722333" class="nameRef">websEscapeUri</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Escape unsafe URI characters in a string using CC substitution.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1af24cee2f9e39e20e09e73067b8b5b072" class="nameRef">websFileOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open and initialize the file handler.</td></tr>
@@ -161,6 +166,8 @@
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a0014f224e979be944998d31c4faad46f" class="nameRef">websFsOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the file system module.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a4ac722a8a552f9740ad97de6f23891a4" class="nameRef">websGetBackground</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the background execution flag.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a7d6a17eed675024232223dd1133a5a40" class="nameRef">websGetCgiCommName</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a unique temporary filename for CGI communications.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a19a6ac8b0b19a519479d734de836e8e4" class="nameRef">websGetConnectionCount</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the number of connections currently accepted.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a32c05800847fc93cf003dd37d808c0f3" class="nameRef">websGetConnectionCountForIp</a>(cchar *ip)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the number of connections currently accepted from one peer address.</td></tr>
 <tr class="apiDef"><td class="apiType">cchar *</td><td><a href="#goahead_8h_1a381cc690d7609586e26c24d21c725948" class="nameRef">websGetCookie</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the request cookie if supplied.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1adb28bad0b0dcc291ba971fc6949704f6" class="nameRef">websGetDateString</a>(<a href="#struct_webs_file_info" class="ref">WebsFileInfo</a> *sbuf)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a date as a string.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a9cbfca3c673e58c64325460d6e0c5e74" class="nameRef">websGetDebug</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the debug flag.</td></tr>
@@ -239,6 +246,7 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ab0e25f7d5e2ab92116e94a3d2f0e6712" class="nameRef">websResponse</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, int status, cchar *msg)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create and send a request response.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a766658ed30f45bec60eef120f2b74c08" class="nameRef">websRestartEvent</a>(int id, int delay)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Restart an event.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a5a766509244081e0f76bc70479b2a912" class="nameRef">websRewriteRequest</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *url)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Rewrite a request.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#struct_webs_session" class="ref">WebsSession</a> *</td><td><a href="#goahead_8h_1a79048eaf79b2f55a72c7fc0c053d3486" class="nameRef">websRotateSession</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Rotate the session id at a privilege transition.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1abac20ffa1da08fefb06d471c6a589c1d" class="nameRef">websRouteRequest</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Route a request.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a31529c388cac3e90a71766bc445b6575" class="nameRef">websRunEvents</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Run due events.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a13356d1f5c87381edd681495e5187bcd" class="nameRef">websRunRequest</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Run a request handler.</td></tr>
@@ -249,6 +257,8 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a81d8a2cfbe5360e1a46011172470368a" class="nameRef">websServiceEvents</a>(int *finished)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Service I/O events until finished.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1aed3bf51e30277fe1b56379bb6a1b6699" class="nameRef">websSetBackground</a>(int on)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the background processing flag.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a5a271ccc2e8fbc76a49f2f2022db21cc" class="nameRef">websSetBackgroundWriter</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, <a href="#goahead_8h_1ab831e30480b27feb88a15c09f382719f" class="ref">WebsWriteProc</a> proc)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Define a background write I/O event callback.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1af9284ae5cac9b258b43b899c6b29c736" class="nameRef">websSetConnectionLimit</a>(int limit)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the runtime concurrent-connection cap.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a7e83374a793b4bc98a433ed3dcb6b10f" class="nameRef">websSetConnectionLimitPerIp</a>(int limit)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the runtime per-peer connection cap.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a628ad13f465a4c67339e2b53540ad01a" class="nameRef">websSetCookie</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value, cchar *path, cchar *domain, int lifespan, int flags)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Define a cookie to include in the response.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ae3b839fa0c223b457f109c61c177da96" class="nameRef">websSetDebug</a>(int on)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the debug processing flag.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1af0802eca30adb2cc9d2b7d2ccc2badc6" class="nameRef">websSetDocuments</a>(cchar *dir)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the web documents directory.</td></tr>
@@ -271,12 +281,13 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a999bb54215bbc7d71c7d6e828fcf49c8" class="nameRef">websSetTxLength</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, ssize length)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the response body content length.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1abf304efa46ec70b19997a6587344c6d1" class="nameRef">websSetUserPassword</a>(cchar *username, cchar *password)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a password for the user.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ad77d33b025ea6680b2172f2dac62639b" class="nameRef">websSetUserRoles</a>(cchar *username, cchar *roles)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Define the set of roles for a user.</td></tr>
-<tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> *</td><td><a href="#goahead_8h_1a17caa27f9a4cbb6ebd321351d4ae621b" class="nameRef">websSetVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a request variable to a string value.</td></tr>
-<tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> *</td><td><a href="#goahead_8h_1a9a90db3b557d20dfb131ae675b66f783" class="nameRef">websSetVarFmt</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a request variable to a formatted string value.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> WebsKey,*</td><td><a href="#goahead_8h_1a8b6b87fae3b1234fdf3f550c334a29ce" class="nameRef">websSetVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a request variable to a string value.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> *</td><td><a href="#goahead_8h_1af16831984b06212a1e89e13debf502d1" class="nameRef">websSetVarFmt</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a request variable to a formatted string value.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a3d52faf06a56379bb23247aa9a0acb0f" class="nameRef">websStartEvent</a>(int delay, <a href="#goahead_8h_1acc671375a3241fd84d5151c9dd001dc7" class="ref">WebsEventProc</a> proc, void *data)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Start a callback event.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a040b642a888cc259456bacfec4227217" class="nameRef">websStatFile</a>(cchar *path, <a href="#struct_webs_file_info" class="ref">WebsFileInfo</a> *sbuf)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get file status for a file.</td></tr>
+<tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a40bc46b78be838ec12ca5d6acefc2cf4" class="nameRef">websStatusHasNoBody</a>(int code)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a status code defines a response that carries no body.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a9a6524bc11288246c84651f99fd24425" class="nameRef">websStopEvent</a>(int id)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Stop an event.</td></tr>
-<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a6a9c3b30f23d8eec41ff6b261fa35105" class="nameRef">websTempFile</a>(cchar *dir, cchar *prefix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a temporary filename This does not guarantee the filename is unique or that it is not already in use by another application.</td></tr>
+<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a6a9c3b30f23d8eec41ff6b261fa35105" class="nameRef">websTempFile</a>(cchar *dir, cchar *prefix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a temporary file.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1ab42afeb8b16720903e8289fcb9c072ba" class="nameRef">websTestVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a request variable is defined.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1afc3db65ebb5f3a86ec0e3ccde56c1f31" class="nameRef">websTimeClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the date/time parsing module.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a4a94586b4fdeb3c91b1555c3d70151a0" class="nameRef">websTimeOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the date/time parsing module.</td></tr>
@@ -287,11 +298,11 @@
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a7c2f526fe8a0df22e1340eaac675b4d1" class="nameRef">websValidateUriPath</a>(cchar *uri)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Validate a URI path as expected in a HTTP request line.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a85dd3dca55f2cba94bd02ac206acb70f" class="nameRef">websVerifyPasswordFromCustom</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>User password verification routine from a custom password back-end store.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1acf13eed5b4f7dff570f75098a1e34923" class="nameRef">websVerifyPasswordFromFile</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>User password verification routine from auth.txt.</td></tr>
-<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1ac41407ff97f138db72108cb142258f5e" class="nameRef">websWrite</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write formatted data to the response.</td></tr>
+<tr class="apiDef"><td class="apiType">int ssize</td><td><a href="#goahead_8h_1a3a3afd9c0470834771a137db20aed1fb" class="nameRef">websWrite</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write formatted data to the response.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a9b63519c49d00fae1e06b2c918f970f7" class="nameRef">websWriteBlock</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *buf, ssize size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write a block of data to the response.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a7b3fddd74796c79f7e41e8bd9ce107a4" class="nameRef">websWriteEndHeaders</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Signify the end of the response headers.</td></tr>
-<tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1add0a77daf2fd10766c587c179b09081e" class="nameRef">websWriteFile</a>(int fd, cchar *buf, ssize size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write data to the open file.</td></tr>
-<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a34f4159f41e89e67c22a8767d6cd98bb" class="nameRef">websWriteHeader</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *key, cchar *fmt, ...)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write a response header.</td></tr>
+<tr class="apiDef"><td class="apiType">int ssize ssize</td><td><a href="#goahead_8h_1a3bc4f06fac26ecf8ad7527ca313f4afb" class="nameRef">websWriteFile</a>(int fd, cchar *buf, ssize size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write data to the open file.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a8a87034da96f3c04b50b591c45c8498a" class="nameRef">websWriteHeader</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *key, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write a response header.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a174c1184ac25621b34337fe47e3be7d6" class="nameRef">websWriteHeaders</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, ssize contentLength, cchar *redirect)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write a set of standard response headers.</td></tr>
 <tr class="apiDef"><td class="apiType">ssize</td><td><a href="#goahead_8h_1a8712767b916c5e7a281760ee5d0cbb12" class="nameRef">websWriteSocket</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *buf, ssize size)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Write a block of data to the network.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1acd2db135e5aacbdc8e6a1f766298b2dd" class="nameRef">wfree</a>(void *blk)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Free an allocated block of memory.</td></tr>
@@ -758,6 +769,13 @@
 <td>#define</td><td><a href="#goahead_8h_1a971517f9ec706c960482115682b44653" class="nameRef">WEBS_WARN</a>&nbsp;&nbsp;&nbsp;2</td>
 </tr>
 <tr class="apiBrief"><td>&nbsp;</td><td>Soft warning trace level.</td></tr>
+<tr class="apiDef">
+<td>#define</td><td><a href="#goahead_8h_1a529dc1ff34dc35030ebf67684112006e" class="nameRef">wfreeset</a>&nbsp;&nbsp;&nbsp;    do {              \
+        wfree(ptr);   \
+        (ptr) = 0;    \
+    } while (0)</td>
+</tr>
+<tr class="apiBrief"><td>&nbsp;</td><td>Free an allocated block of memory and clear the pointer.</td></tr>
   </table>
 <h2>Typedefs</h2>
 <a name="goahead_8h_1ae03359f7e0b6d71d55a625ae867c0032"></a>
@@ -1037,6 +1055,9 @@ Session ID key.
 </td></tr>
 <tr><td class="param">int</td><td>lifespan</td><td>
 Session inactivity timeout (secs).
+</td></tr>
+<tr><td class="param">int</td><td>retired</td><td>
+Session removed from the session store, awaiting its last holder.
 </td></tr>
     </table></dd></dl>
   </div>
@@ -1424,7 +1445,11 @@ Rx chunk encoding state.
 Pointer to end of raw data in input beyond endp.
 </td></tr>
 <tr><td class="param">ssize</td><td>rxLen</td><td>
-Rx content length.
+Rx body length. 
+-1 until known: set from Content-Length, or from the decoded total once a chunked body completes.
+</td></tr>
+<tr><td class="param">int</td><td>rxPrologue</td><td>
+Count of blank-line bytes stripped before the request line.
 </td></tr>
 <tr><td class="param">ssize</td><td>rxRemaining</td><td>
 Remaining content to read from client.
@@ -1440,6 +1465,10 @@ Parsed if-modified-since time.
 </td></tr>
 <tr><td class="param">void *</td><td>ssl</td><td>
 SSL context.
+</td></tr>
+<tr><td class="param">WebsTime</td><td>started</td><td>
+When the first byte of the current request arrived. 
+0 if none yet.
 </td></tr>
 <tr><td class="param">int</td><td>state</td><td>
 Current state.
@@ -1835,12 +1864,12 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a31ab202e1cef11fa44e7232100fc500f"></a>
+<a name="goahead_8h_1a551928577018500d4539098dad559443"></a>
 <div class="api">
   <div class="prototype">
     ssize
     bufPut
-(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, cchar *fmt, ...)
+(<a href="#struct_webs_buf" class="ref">WebsBuf</a> *bp, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Append a formatted string to the buffer at the endp position and increment the endp.</p>
@@ -1979,12 +2008,12 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Internal.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a03544bf56dde3a257391d07e1d6f6a3a"></a>
+<a name="goahead_8h_1a88f1b7ca2fcb4d32d0c8ffbeb1d86533"></a>
 <div class="api">
   <div class="prototype">
     void
     error
-(cchar *fmt, ...)
+(PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Emit an error message.</p>
@@ -1992,12 +2021,12 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1adcb481a002871c7f627ac99bf6a4725d"></a>
+<a name="goahead_8h_1abc57dc4bcada8f2284706b6616fb1cbc"></a>
 <div class="api">
   <div class="prototype">
     char *
     fmt
-(char *buf, ssize maxSize, cchar *format, ...)
+(char *buf, ssize maxSize, PRINTF_FORMAT cchar *format, ...)
   </div>
   <div class="apiDetail">
 <p>GoAhead Web Server Runtime.</p>
@@ -2238,12 +2267,12 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a02f3703e8699520d66c2477e225af267"></a>
+<a name="goahead_8h_1a95b7d06b693ad303d3fc0fa333ce77bd"></a>
 <div class="api">
   <div class="prototype">
     void
     logmsgProc
-(int level, cchar *fmt, ...)
+(int level, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Emit a message to the log.</p>
@@ -2257,10 +2286,10 @@ provides efficient ring buffer functionality ideal for:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a2c0c1dd956ebfaf981553f5a99cd7bb7"></a>
+<a name="goahead_8h_1a5307e0c8b3986abd0e08f0bb29363e24"></a>
 <div class="api">
   <div class="prototype">
-    int
+    void int
     logOpen
 (void )
   </div>
@@ -2399,12 +2428,12 @@ This is similar to scaselesscmp but it returns a boolean
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1ad5e0d437ef73e87ac046e67f03f85b30"></a>
+<a name="goahead_8h_1a5b9c6b81a8ab2b6e75923ada56116e70"></a>
 <div class="api">
   <div class="prototype">
     char *
     sfmt
-(cchar *format, ...)
+(PRINTF_FORMAT cchar *format, ...)
   </div>
   <div class="apiDetail">
 <p>Format a string.</p>
@@ -2419,12 +2448,12 @@ This is a secure version of printf that can handle null args
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a78d631aa2272557805c10ff2b704ced3"></a>
+<a name="goahead_8h_1a56aa8df6f277d95c012c3df2203bfb47"></a>
 <div class="api">
   <div class="prototype">
-    char *
+    char char *
     sfmtv
-(cchar *format, va_list args)
+(PRINTF_FORMAT cchar *format, va_list args)
   </div>
   <div class="apiDetail">
 <p>Format a string with varargs.</p>
@@ -2439,10 +2468,10 @@ This is a secure version of printf that can handle null args
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1ade405095134ad54db6dc94fcd6216961"></a>
+<a name="goahead_8h_1a632d23187a2f7736875fa3015d6a14b0"></a>
 <div class="api">
   <div class="prototype">
-    ssize
+    char char ssize
     slen
 (cchar *str)
   </div>
@@ -3122,6 +3151,25 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1ad3eef3b00f5400f789662f42a0658977"></a>
+<div class="api">
+  <div class="prototype">
+    int
+    socketSetSendTimeout
+(int sid, int timeout)
+  </div>
+  <div class="apiDetail">
+<p>Set the socket send timeout.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Bound how long a blocking send may wait for the peer to accept data. Without a send timeout, a peer that stops reading will block the single-threaded event loop indefinitely. Support is detected at runtime: stacks without SO_SNDTIMEO (older VxWorks, ECOS, TIDSP) return -1 and retain an unbounded wait.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">sid</td><td>Socket ID handle returned from socketConnect or socketAccept.</td></tr>
+    <tr><td class="param">timeout</td><td>Timeout in milliseconds. Set to zero to wait indefinitely.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>Zero if the platform supports a send timeout, otherwise -1.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1afeb307811160403ba50be3739ddaf5f9"></a>
 <div class="api">
   <div class="prototype">
@@ -3352,12 +3400,12 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a377d5247f829befd58214234183e84ee"></a>
+<a name="goahead_8h_1af0b13a23ecd2a43904490b7804c38693"></a>
 <div class="api">
   <div class="prototype">
-    void
+    void void
     traceProc
-(int level, cchar *fmt, ...)
+(int level, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Emit a debug trace message to the log.</p>
@@ -3456,10 +3504,10 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1af7553e70a9cd19a472ed5af514776e09"></a>
+<a name="goahead_8h_1a1207c82a44b1d715f7b8c9f89e0400c3"></a>
 <div class="api">
   <div class="prototype">
-    int
+    char int
     wallocHandle
 (void *map)
   </div>
@@ -3701,6 +3749,23 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a948de393139df0f83d12fc5fb7ec16ec"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websCgiDetach
+(<a href="#struct_webs" class="ref">Webs</a> *wp)
+  </div>
+  <div class="apiDetail">
+<p>Detach a request from the CGI registry.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Called from the <a class="ref" href="#struct_webs">Webs</a> teardown before the object is released. The CGI registry holds a borrowed <a class="ref" href="#struct_webs">Webs</a> pointer and borrowed temp file names for the life of the child process. A request may die by timeout, client close or error while its child is still running, so the owner must unregister here or websCgiPoll will use the freed object. Any orphaned child is killed and reaped and its temp files removed.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> object.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1ac05856f3dd04aeef0732570bedf044ad"></a>
 <div class="api">
   <div class="prototype">
@@ -3760,6 +3825,47 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>True if the password is correct.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a9b52c801466f2773eacbfcbffe9299fb"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websCheckRouteAuth
+(void )
+  </div>
+  <div class="apiDetail">
+<p>Audit the route table for a confidentiality boundary.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Legacy entry point retained for source compatibility. Calls websCheckRoutes() and discards the result. New code should call websCheckRoutes() so it can act on the problem count.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a74665a5a2b59bd9a7fa085d23ad6226e"></a>
+<div class="api">
+  <div class="prototype">
+    int
+    websCheckRoutes
+(void )
+  </div>
+  <div class="apiDetail">
+<p>Audit the route table for configurations that defeat the authentication gate.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Emit a warning if no configured route requires authentication or abilities, and a warning for each unauthenticated route that shadows an authenticated route earlier in the table. Routes are matched in order and a request that misses its protected route falls through to the next match rather than being denied, so any spelling the file system folds to a protected name - ASCII case, Unicode normalization, Unicode case, Win32 trailing dot or space - misses the strict route and is served by the permissive one. Rejecting the shadowing configuration closes every such folding axis at once because the check never reasons about folding. This routine is called automatically by websOpen() after the route configuration file is loaded. Embedded applications that add routes programmatically should call it again once their routes are defined.</dd></dl>
+    <dl><dt>Returns:</dt><dd>The number of problems found. Zero means the route table declares a sound authentication boundary.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a1d7c74aaa238a802aa601fb869dc2e25"></a>
+<div class="api">
+  <div class="prototype">
+    int
+    websCheckTempDirs
+(void )
+  </div>
+  <div class="apiDetail">
+<p>Audit the temporary directories against the served directories.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Verify that no directory used to stage request data - ME_GOAHEAD_TEMP_DIR for CGI stdin and stdout, ME_GOAHEAD_UPLOAD_DIR for upload staging, ME_GOAHEAD_PUT_DIR for PUT staging - names a route&apos;s documents directory or a location inside one. A temporary file inside a served directory is fetchable over HTTP, so one client&apos;s in-flight request body or CGI response is readable by another. Emits an error naming the setting for each such directory. This routine is called automatically by websOpen() after the route configuration file is loaded, and websOpen() refuses to start the server if it reports a problem. Embedded applications that add routes programmatically should call it again once their routes are defined.</dd></dl>
+    <dl><dt>Returns:</dt><dd>The number of problems found. Zero means no request data is staged inside a served directory.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a94471225b733c21ebe13449aed71cf98"></a>
@@ -3872,7 +3978,8 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
 (<a href="#struct_webs" class="ref">Webs</a> *wp)
   </div>
   <div class="apiDetail">
-<p>Test if a user possesses the required ability.</p>
+<p>Create a new session for the request.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Destroys any session bound to the request and creates a new session with a fresh, server-generated id. Equivalent to websRotateSession, which names the security invariant and is preferred in new code.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -4087,12 +4194,12 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1ac898af1d6d0c6cccb905e6a53479b559"></a>
+<a name="goahead_8h_1aab6a8689183666869e1738a6a70aaf92"></a>
 <div class="api">
   <div class="prototype">
     void
     websError
-(<a href="#struct_webs" class="ref">Webs</a> *wp, int code, cchar *fmt, ...)
+(<a href="#struct_webs" class="ref">Webs</a> *wp, int code, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Complete a request with an error response.</p>
@@ -4106,10 +4213,10 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1aaec1002e4782fac4bb4efc164bf52852"></a>
+<a name="goahead_8h_1a6bfe97212b2e5f6df60ba207880c0aae"></a>
 <div class="api">
   <div class="prototype">
-    cchar *
+    void cchar *
     websErrorMsg
 (int code)
   </div>
@@ -4271,6 +4378,38 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
 <p>Get a unique temporary filename for CGI communications.</p>
     <dl><dt>Returns:</dt><dd>Allocated filename string. Caller must free.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a19a6ac8b0b19a519479d734de836e8e4"></a>
+<div class="api">
+  <div class="prototype">
+    int
+    websGetConnectionCount
+(void )
+  </div>
+  <div class="apiDetail">
+<p>Get the number of connections currently accepted.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Counts live accepted connections, not the high-water size of the connection table. Intended for monitoring and for tests that need to assert the cap without inferring it from timing.</dd></dl>
+    <dl><dt>Returns:</dt><dd>The number of live accepted connections.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a32c05800847fc93cf003dd37d808c0f3"></a>
+<div class="api">
+  <div class="prototype">
+    int
+    websGetConnectionCountForIp
+(cchar *ip)
+  </div>
+  <div class="apiDetail">
+<p>Get the number of connections currently accepted from one peer address.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Counts live accepted connections whose peer address matches. Returns 0 for an address with no live connections, and 0 when per-peer accounting is disabled.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">ip</td><td>Peer IP address in the textual form held by <a class="ref" href="#struct_webs_1ac21f6941c9734ea4f38dabb92c097d3f">Webs.ipaddr</a></td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>The number of live connections from that address.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a381cc690d7609586e26c24d21c725948"></a>
@@ -4714,6 +4853,7 @@ If authentication fails, appropriate HTTP status codes are set (401 Unauthorized
   </div>
   <div class="apiDetail">
 <p>Get a session variable.</p>
+    <dl><dt><b>Description</b>:</dt><dd>This does not create a session. If the request has no session, the default value is returned. Use websSetSessionVar or websCreateSession to establish a session.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -4888,6 +5028,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
   </div>
   <div class="apiDetail">
 <p>Load routing tables from the specified filename.</p>
+    <dl><dt><b>Description</b>:</dt><dd>A directive describing an access control policy the build cannot enforce is refused rather than loaded. In a build configured with ME_GOAHEAD_AUTH=0 that means the auth and abilities route keywords and the user and role directives, all of which would otherwise be recorded and never consulted.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">path</td><td>Route configuration filename.</td></tr>
@@ -5103,11 +5244,12 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
   </div>
   <div class="apiDetail">
 <p>Open the authentication module.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Fails if the password store named by ME_GOAHEAD_AUTH_STORE is not compiled into this build, rather than falling back to a store holding different secrets than the operator configured.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">minimal</td><td>Reserved. Set to zero.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>True if the user has the required ability.</dd></dl>
+    <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -5517,6 +5659,7 @@ The function automatically calls websDone() to complete the response, so no addi
   </div>
   <div class="apiDetail">
 <p>Remove a session variable.</p>
+    <dl><dt><b>Description</b>:</dt><dd>This does not create a session. If the request has no session, this does nothing.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -5595,6 +5738,24 @@ The function automatically calls websDone() to complete the response, so no addi
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a79048eaf79b2f55a72c7fc0c053d3486"></a>
+<div class="api">
+  <div class="prototype">
+    <a href="#struct_webs_session" class="ref">WebsSession</a> *
+    websRotateSession
+(<a href="#struct_webs" class="ref">Webs</a> *wp)
+  </div>
+  <div class="apiDetail">
+<p>Rotate the session id at a privilege transition.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Destroys the session bound to the request and creates a new session with a fresh, server-generated id, issuing a new session cookie. Session variables held by the old session are discarded: they were established while the request was unauthenticated. Call this whenever a request transitions from unauthenticated to authenticated. Do not use websGetSession(wp, 1) for that purpose: it returns the session named by the client&apos;s cookie if that session is live, which stores the authenticated identity in a session the client chose and enables session fixation.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>The new session object, or zero if a session cannot be created because the session limit ME_GOAHEAD_LIMIT_SESSION_COUNT is reached.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1abac20ffa1da08fefb06d471c6a589c1d"></a>
@@ -5755,6 +5916,40 @@ This mechanism allows for non-blocking, event-driven data transmission that does
     <tr><td class="param">proc</td><td>Callback function of type WebsWriteProc that will be called to write response data. The callback receives the <a class="ref" href="#struct_webs">Webs</a> request object as its parameter.</td></tr>
     </table></dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1af9284ae5cac9b258b43b899c6b29c736"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetConnectionLimit
+(int limit)
+  </div>
+  <div class="apiDetail">
+<p>Override the runtime concurrent-connection cap.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS default with a runtime-chosen value. Pass 0 (or a negative value) to restore the compile-time default. A connection accepted beyond the cap is closed immediately, before any request is read from it.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">limit</td><td>Maximum concurrently accepted connections.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a7e83374a793b4bc98a433ed3dcb6b10f"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetConnectionLimitPerIp
+(int limit)
+  </div>
+  <div class="apiDetail">
+<p>Override the runtime per-peer connection cap.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP default with a runtime-chosen value. Pass 0 to disable per-peer accounting; pass a negative value to restore the compile-time default.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">limit</td><td>Maximum concurrent connections permitted from a single peer address.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a628ad13f465a4c67339e2b53540ad01a"></a>
@@ -6007,7 +6202,7 @@ Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a spac
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">route</td><td>Route to modify.</td></tr>
-    <tr><td class="param">authType</td><td>Set to &quot;basic&quot;, &quot;digest&quot; or &quot;form&quot;.</td></tr>
+    <tr><td class="param">authType</td><td>Set to &quot;basic&quot;, &quot;digest&quot; or &quot;form&quot;. Any other type is an error, as is &quot;digest&quot; in a build configured with ME_GOAHEAD_DIGEST=0.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
@@ -6029,7 +6224,7 @@ Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a spac
     <tr><td class="param">protocol</td><td>Set the matching HTTP protocol (http or https).</td></tr>
     <tr><td class="param">methods</td><td>Hash of permissible HTTP methods. (GET, HEAD, POST, PUT).</td></tr>
     <tr><td class="param">extensions</td><td>Hash of permissible URI filename extensions.</td></tr>
-    <tr><td class="param">abilities</td><td>Required user abilities. If abilities are required, the user must be authenticated.</td></tr>
+    <tr><td class="param">abilities</td><td>Required user abilities. If abilities are required, the user must be authenticated. Requiring abilities in a build configured with ME_GOAHEAD_AUTH=0 is an error: that build compiles out the authorization gate and could only record the requirement, never enforce it.</td></tr>
     <tr><td class="param">redirects</td><td>Set of applicable response redirections when completing the request.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1.</dd></dl>
@@ -6045,14 +6240,14 @@ Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a spac
   </div>
   <div class="apiDetail">
 <p>Set a session variable name value.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Stores a name-value pair in the current user session. Session variables persist across multiple HTTP requests from the same client until the session expires or is destroyed. This is useful for maintaining user state, preferences, shopping cart contents, etc. Sessions are identified by cookies sent to the client browser.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>Stores a name-value pair in the current user session. Session variables persist across multiple HTTP requests from the same client until the session expires or is destroyed. This is useful for maintaining user state, preferences, shopping cart contents, etc. Sessions are identified by cookies sent to the client browser. This creates a session if the request does not already have one.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request.</td></tr>
     <tr><td class="param">name</td><td>Session variable name. Should be a valid identifier string.</td></tr>
     <tr><td class="param">value</td><td>Value to store. The value is copied, so the original can be freed after this call. Use NULL to remove the variable from the session.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1 on error (e.g., if sessions are not initialized).</dd></dl>
+    <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1 on error (if a session cannot be created because the session limit ME_GOAHEAD_LIMIT_SESSION_COUNT is reached, or the value cannot be stored).</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -6168,10 +6363,10 @@ If the content length is not set, GoAhead may use chunked transfer encoding or c
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a17caa27f9a4cbb6ebd321351d4ae621b"></a>
+<a name="goahead_8h_1a8b6b87fae3b1234fdf3f550c334a29ce"></a>
 <div class="api">
   <div class="prototype">
-    <a href="#struct_webs_key" class="ref">WebsKey</a> *
+    WebsKeyWebsKey *
     websSetVar
 (<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value)
   </div>
@@ -6182,12 +6377,12 @@ Variable names should follow these conventions:
 <ul><li>HTTP headers: &quot;HTTP_&quot; prefix (e.g., &quot;HTTP_USER_AGENT&quot;)</li><li>Form data: field names (e.g., &quot;username&quot;, &quot;email&quot;)</li><li>Custom data: descriptive names (e.g., &quot;authLevel&quot;, &quot;userRole&quot;) <parameterlist kind="param"><parameteritem><parameternamelist><parametername>wp</parametername></parameternamelist><parameterdescription><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request </parameterdescription></parameteritem><parameteritem><parameternamelist><parametername>name</parametername></parameternamelist><parameterdescription>Variable name to set. Names are case-sensitive. </parameterdescription></parameteritem><parameteritem><parameternamelist><parametername>value</parametername></parameternamelist><parameterdescription>String value to store. The value is copied so the original can be freed. </parameterdescription></parameteritem></parameterlist><simplesect kind="return">Pointer to the allocated <a class="ref" href="#struct_webs_key">WebsKey</a> structure, or NULL on error </simplesect><simplesect kind="par"><b>API</b> Stability:Stable </simplesect></li></ul>
   </div>
 </div>
-<a name="goahead_8h_1a9a90db3b557d20dfb131ae675b66f783"></a>
+<a name="goahead_8h_1af16831984b06212a1e89e13debf502d1"></a>
 <div class="api">
   <div class="prototype">
     <a href="#struct_webs_key" class="ref">WebsKey</a> *
     websSetVarFmt
-(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *fmt, ...)
+(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Set a request variable to a formatted string value.</p>
@@ -6241,6 +6436,24 @@ Variable names should follow these conventions:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a40bc46b78be838ec12ca5d6acefc2cf4"></a>
+<div class="api">
+  <div class="prototype">
+    bool
+    websStatusHasNoBody
+(int code)
+  </div>
+  <div class="apiDetail">
+<p>Test if a status code defines a response that carries no body.</p>
+    <dl><dt><b>Description</b>:</dt><dd>A 1XX, 204 or 304 response has no content and carries no header describing the length of one. Body bytes written after such a status are not payload: the client frames the response as empty and reads them as the start of the next response on the connection. Handlers that forward a body from an external source must consult this before writing any of it.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">code</td><td>HTTP status code.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>True if the status code prohibits a response body.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a9a6524bc11288246c84651f99fd24425"></a>
 <div class="api">
   <div class="prototype">
@@ -6265,13 +6478,14 @@ Variable names should follow these conventions:
 (cchar *dir, cchar *prefix)
   </div>
   <div class="apiDetail">
-<p>Create a temporary filename This does not guarantee the filename is unique or that it is not already in use by another application.</p>
+<p>Create a temporary file.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Creates an empty file with an unguessable name using an exclusive create that will not follow a symlink, and returns its path. The file exists on return, is private to the server user, and the caller must unlink it and free the returned name when done. The directory must be outside every route&apos;s documents directory: temporary files hold live request data and are served to any client that can name them.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
-    <tr><td class="param">dir</td><td>Directory to locate the temp file. Defaults to the O/S default temporary directory (usually /tmp).</td></tr>
+    <tr><td class="param">dir</td><td>Directory to hold the temp file. Defaults to ME_GOAHEAD_TEMP_DIR (usually /tmp), or the TEMP environment variable on Windows.</td></tr>
     <tr><td class="param">prefix</td><td>Filename prefix.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>An allocated filename string.</dd></dl>
+    <dl><dt>Returns:</dt><dd>An allocated filename string, or NULL if the file could not be created. Callers must fail the request rather than proceed with a NULL name.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -6443,12 +6657,12 @@ Some components of the URI have restricted character sets that this routine does
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1ac41407ff97f138db72108cb142258f5e"></a>
+<a name="goahead_8h_1a3a3afd9c0470834771a137db20aed1fb"></a>
 <div class="api">
   <div class="prototype">
-    ssize
+    int ssize
     websWrite
-(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *fmt, ...)
+(<a href="#struct_webs" class="ref">Webs</a> *wp, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Write formatted data to the response.</p>
@@ -6500,10 +6714,10 @@ Some components of the URI have restricted character sets that this routine does
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1add0a77daf2fd10766c587c179b09081e"></a>
+<a name="goahead_8h_1a3bc4f06fac26ecf8ad7527ca313f4afb"></a>
 <div class="api">
   <div class="prototype">
-    ssize
+    int ssize ssize
     websWriteFile
 (int fd, cchar *buf, ssize size)
   </div>
@@ -6519,12 +6733,12 @@ Some components of the URI have restricted character sets that this routine does
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
-<a name="goahead_8h_1a34f4159f41e89e67c22a8767d6cd98bb"></a>
+<a name="goahead_8h_1a8a87034da96f3c04b50b591c45c8498a"></a>
 <div class="api">
   <div class="prototype">
     int
     websWriteHeader
-(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *key, cchar *fmt, ...)
+(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *key, PRINTF_FORMAT cchar *fmt, ...)
   </div>
   <div class="apiDetail">
 <p>Write a response header.</p>

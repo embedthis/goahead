@@ -368,6 +368,13 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
+      <type>int</type>
+      <name>rxPrologue</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a6a00d3cb2e54df0a9a879ac601ca5cc0</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>ssize</type>
       <name>rxRemaining</name>
       <anchorfile>struct_webs.html</anchorfile>
@@ -400,6 +407,13 @@
       <name>ssl</name>
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>aecf8e2ec7bb0ed6ed23c530863e9a972</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsTime</type>
+      <name>started</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a872fd54d73b54c977cfabe8fdfbe2e2d</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -888,6 +902,13 @@
       <name>lifespan</name>
       <anchorfile>struct_webs_session.html</anchorfile>
       <anchor>aaf9823c1b658c32dfe1a13d12bcbe3bb</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>retired</name>
+      <anchorfile>struct_webs_session.html</anchorfile>
+      <anchor>a5ee1219dd9f009ac8fa4b5729f8acc7f</anchor>
       <arglist></arglist>
     </member>
   </compound>
