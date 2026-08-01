@@ -4,11 +4,10 @@
 
 ## Overview
 
-GoAhead v6.1.1 is a security patch release. It is issued as a **private release through the Builder**
-(https://admin.embedthis.com) to subscribers, inside the coordinated-disclosure embargo, so
-integrators can patch deployed devices before the defects are published. **The GitHub release
-follows later**, at embargo end, together with the corresponding advisories. Recipients of the
-private release are asked to treat these notes as confidential until then.
+GoAhead v6.1.1 is a security patch release. It closes an authentication bypass, several TLS and mTLS
+certificate-validation defects, CGI argument- and environment-injection defects, HTTP request-smuggling
+vectors, and the findings of an in-house source audit of the 6.1.1 tree. Upgrading is recommended for
+all deployments.
 
 ## Security Fixes
 

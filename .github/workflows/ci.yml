@@ -78,12 +78,21 @@ jobs:
 
       #
       #   dist/ is generated from src/ but committed for pak consumers. Fail loudly if a
-      #   source change (in particular a security fix) has not been amalgamated.
+      #   source change (in particular a security fix) has not been amalgamated. Calls
+      #   bin/buildLib.sh directly rather than "make check-dist": that target lives in
+      #   .local.mk, which is not in the repository.
       #
       - name: Verify dist/ is in sync with src/
         if: matrix.os == 'ubuntu-latest'
         run: |
-          make check-dist
+          rm -fr build/dist-check
+          DIST=$PWD/build/dist-check bash bin/buildLib.sh --dist-only >/dev/null
+          if ! diff -r -q dist build/dist-check >/dev/null 2>&1 ; then
+            echo "::error::dist/ is stale. Run 'make package' and commit the result."
+            diff -r -u dist build/dist-check | head -40
+            exit 1
+          fi
+          echo "dist/ is in sync with src/"
 
       - name: Run test suite (Unix)
         if: runner.os != 'Windows'

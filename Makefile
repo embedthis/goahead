@@ -39,7 +39,7 @@ CDPATH      :=
 
 .EXPORT_ALL_VARIABLES:
 
-.PHONY: all build check-dist clean help package test
+.PHONY: all build clean help test
 
 ifndef SHOW
 .SILENT:
@@ -61,26 +61,6 @@ clean:
 test: build
 	tm test
 
-package:
-	bash bin/buildLib.sh
-
-#
-#   dist/ is generated from src/ but committed for pak consumers, so it can go stale
-#   and ship code that src/ has already fixed. Regenerate into a scratch directory and
-#   diff. Run by CI on every push.
-#
-check-dist:
-	@rm -fr $(BUILD)/dist-check
-	@DIST=$(TOP)/$(BUILD)/dist-check bash bin/buildLib.sh --dist-only >/dev/null
-	@if ! diff -r -q dist $(BUILD)/dist-check >/dev/null 2>&1 ; then \
-		echo "      [Error] dist/ is stale. Run 'make package' and commit the result." >&2 ; \
-		diff -r -u dist $(BUILD)/dist-check | head -40 >&2 ; \
-		rm -fr $(BUILD)/dist-check ; \
-		exit 1 ; \
-	fi
-	@rm -fr $(BUILD)/dist-check
-	@echo "      [Info] dist/ is in sync with src/"
-
 help:
 	@echo '' >&2
 	@echo 'usage: make [clean, build, test]' >&2
@@ -89,8 +69,6 @@ help:
 	@echo '  build               Build libgoahead and executables (default)' >&2
 	@echo '  clean               Remove build artifacts' >&2
 	@echo '  test                Run unit tests' >&2
-	@echo '  package             Build dist/goaheadLib.c amalgamated source' >&2
-	@echo '  check-dist          Verify committed dist/ matches src/' >&2
 	@echo '' >&2
 	@echo 'Make variables:' >&2
 	@echo '  OPTIMIZE=debug|release    Optimization level (default: debug)' >&2

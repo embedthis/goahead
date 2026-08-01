@@ -2,7 +2,7 @@
 
 Product: Embedthis GoAhead
 Version: 6.1.1
-Release Date: 2026-08-02 — issued first as a private release to Builder subscribers inside the coordinated-disclosure embargo; the public release follows
+Release Date: 2026-08-02
 
 This document provides required user information per the EU Cyber Resilience Act (CRA) Annex II. It
 accompanies the product and is distributed with every release archive.
@@ -215,15 +215,14 @@ defect class relevant to this product:
 GoAhead releases are distributed through two channels:
 
 - **Builder site** — https://admin.embedthis.com. Subscribers download the source distribution here.
-  Security releases are published to the Builder **first**, and where a release is made under
-  coordinated-disclosure embargo it is available *only* here until the embargo lifts.
+  Security releases are published to the Builder **first**.
 - **Public repository** — https://github.com/embedthis/goahead, for releases, release notes and the
-  issue tracker. An embargoed release reaches this channel only at embargo end.
+  issue tracker.
 
 **Notification.** Subscribers receive a private email notification from the Builder when a security
 update is published. Advisories are published separately as GitHub Security Advisories (see §10.3).
-Subscribers under embargo should raise questions through the Builder integrated support portal rather
-than the public issue tracker.
+Questions about a security update should be raised through the Builder integrated support portal
+rather than the public issue tracker.
 
 ### 8.2 Verifying Update Integrity
 
