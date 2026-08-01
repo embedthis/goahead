@@ -96,3 +96,47 @@ jobs:
         run: |
           call projects\openssl-prep.bat
           tm test
+
+  #
+  #   SDL/CRA release-gate evidence. These run on every push so the release-time evidence is a
+  #   CI artifact rather than a hand-run pass, per the SDL Verification Phase requirement that
+  #   dependency scans and static analysis be "current and clean".
+  #
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev clang-tools
+
+      #
+      #   Build and test tooling only - no third-party package ships in the product, so this is
+      #   build-integrity evidence rather than a CRA gate. Advisories here do not block a release;
+      #   see doc/releases/*/vulnerability-disposition.md Scope A.
+      #
+      - name: Dependency audit (build/test tree)
+        run: npm audit --audit-level=high
+
+      #
+      #   Static analysis over the full product build. Findings are triaged into
+      #   doc/releases/*/vulnerability-disposition.md Scope C. The step reports rather than fails:
+      #   the analyzer flags the assert-based API contract and dead stores that are dispositioned
+      #   as not-applicable, so a raw count is not a pass/fail signal. The report is uploaded for
+      #   the release evidence package.
+      #
+      - name: Static analysis (scan-build)
+        run: |
+          scan-build -o build/scan-results --status-bugs make || true
+          scan-build -o /dev/null make 2>&1 | tail -1
+
+      - name: Upload static-analysis report
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-build-report
+          path: build/scan-results
+          if-no-files-found: ignore
+          retention-days: 90
