@@ -41,29 +41,78 @@ PUBLIC void websOsClose(void)
 }
 
 
+/*
+    Create a temporary file and return its allocated path name.
+
+    The file is created here, empty and private, before the name is returned. Two properties matter and
+    both are security properties. The name carries 64 bits from the system CSPRNG, so a client cannot
+    predict where another request's data is staged. The create is exclusive and refuses a symlink, so a
+    local attacker can neither pre-create the path to read what lands there nor aim it at a file the
+    server may not write. The caller opens the returned path, and must unlink the file and free the
+    name when done.
+
+    A counter was used previously. It started at zero, reset on restart, and named a file that nothing
+    created, so the path of the next request's CGI output was known to everyone and belonged to whoever
+    made it first.
+
+    Returns NULL if no temporary file could be created. Callers must fail the request rather than
+    proceed with an unnamed staging file.
+ */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
 {
-    static int count = 0;
-    char       sep;
+    cchar *hex = "0123456789abcdef";
+    uchar bytes[8];
+    char  name[sizeof(bytes) * 2 + 1], *path;
+    char  sep;
+    int   fd, i, tries;
 
-    sep = '/';
-    if (!dir || *dir == '\0') {
 #if WINCE
-        dir = "/Temp";
-        sep = '\\';
+    sep = '\\';
 #elif ME_WIN_LIKE
+    sep = '\\';
+    if (!dir || *dir == '\0') {
         dir = getenv("TEMP");
-        sep = '\\';
-#elif VXWORKS
-        dir = ".";
+    }
 #else
-        dir = "/tmp";
+    sep = '/';
 #endif
+    /*
+        Must never fall back to the current directory. The CGI handler runs the request with the working
+        directory set to the route's documents directory, so a relative default stages request data
+        inside the served tree where any client can fetch it.
+     */
+    if (!dir || *dir == '\0') {
+        dir = ME_GOAHEAD_TEMP_DIR;
     }
     if (!prefix) {
         prefix = "tmp";
     }
-    return sfmt("%s%c%s-%d.tmp", dir, sep, prefix, count++);
+    for (tries = 0; tries < 8; tries++) {
+        if (websGetRandomBytes((char*) bytes, sizeof(bytes), 0) < 0) {
+            error("Cannot read random bytes for a temp file name");
+            return 0;
+        }
+        for (i = 0; i < (int) sizeof(bytes); i++) {
+            name[i * 2] = hex[bytes[i] >> 4];
+            name[i * 2 + 1] = hex[bytes[i] & 0xf];
+        }
+        name[sizeof(name) - 1] = '\0';
+        path = sfmt("%s%c%s-%s.tmp", dir, sep, prefix, name);
+        if ((fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_BINARY | O_NOFOLLOW, 0600)) >= 0) {
+            close(fd);
+            return path;
+        }
+        wfree(path);
+        if (errno != EEXIST) {
+            /*
+                A missing or unwritable temp directory. Retrying cannot help and would only spin.
+             */
+            break;
+        }
+    }
+    error("Cannot create a temp file in \"%s\". Set ME_GOAHEAD_TEMP_DIR to a writable directory "
+          "outside the documents directory.", dir);
+    return 0;
 }
 
 

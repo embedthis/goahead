@@ -437,7 +437,11 @@ PUBLIC bool cgiHandler(Webs *wp)
         Now launch the process.  If not successful, do the cleanup of resources.  If successful, the cleanup will be
         done after the process completes.
      */
-    if ((pHandle = launchCgi(cgiPath, argp, envp, stdIn, stdOut)) == (CgiPid) - 1) {
+    pHandle = (CgiPid) - 1;
+    if (stdIn && stdOut) {
+        pHandle = launchCgi(cgiPath, argp, envp, stdIn, stdOut);
+    }
+    if (pHandle == (CgiPid) - 1) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
         for (ep = envp; *ep != NULL; ep++) {
             wfree(*ep);
@@ -445,8 +449,18 @@ PUBLIC bool cgiHandler(Webs *wp)
         wfree(cgiPath);
         wfree(argp);
         wfree(envp);
-        wfree(stdOut);
         wfree(query);
+        /*
+            websTempFile creates the file with the name, and no registry entry was made, so cgiCleanup
+            will never run for this request. Remove the staging files here or they accumulate.
+         */
+        if (stdIn) {
+            unlink(stdIn);
+        }
+        if (stdOut) {
+            unlink(stdOut);
+            wfree(stdOut);
+        }
 
     } else {
         /*
@@ -719,7 +733,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
         headers are written or more than ME_GOAHEAD_LIMIT_HEADERS of data is received.
      */
     if ((stat(cgip->stdOut, &sbuf) == 0) && (sbuf.st_size > cgip->fplacemark)) {
-        if ((fdout = open(cgip->stdOut, O_RDONLY | O_BINARY, 0444)) >= 0) {
+        if ((fdout = open(cgip->stdOut, O_RDONLY | O_BINARY | O_NOFOLLOW, 0444)) >= 0) {
             /*
                 Check to see if any data is available in the output file and send its contents to the socket.
                 Write the HTTP header on our first pass. The header must fit into ME_GOAHEAD_LIMIT_BUFFER.
@@ -926,12 +940,17 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
 
     trace(5, "cgi: run %s", cgiPath);
 
-    if ((fdin = open(stdIn, O_RDWR | O_CREAT | O_BINARY, 0666)) < 0) {
+    /*
+        websTempFile already created both files, private and empty, so these open an existing file.
+        O_NOFOLLOW keeps that true if the path is replaced between the create and here.
+     */
+    if ((fdin = open(stdIn, O_RDWR | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
         error("Cannot open CGI stdin: %s", cgiPath);
         return -1;
     }
-    if ((fdout = open(stdOut, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0666)) < 0) {
+    if ((fdout = open(stdOut, O_RDWR | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
         error("Cannot open CGI stdout: %s", cgiPath);
+        close(fdin);
         return -1;
     }
 
@@ -1139,13 +1158,18 @@ static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, c
         Open the stdIn and stdOut files and redirect stdin and stdout to them.
      */
     taskId = taskIdSelf();
-    if ((fdout = open(stdOut, O_RDWR | O_CREAT, 0666)) < 0 &&
+    /*
+        websTempFile created both files before the task was spawned, so these open an existing file.
+        The creat() fallbacks remain for a file system that lost it, but must not be reached in
+        normal operation.
+     */
+    if ((fdout = open(stdOut, O_RDWR | O_NOFOLLOW, 0600)) < 0 &&
         (fdout = creat(stdOut, O_RDWR)) < 0) {
         exit(0);
     }
     ioTaskStdSet(taskId, 1, fdout);
 
-    if ((fdin = open(stdIn, O_RDONLY | O_CREAT, 0666)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
+    if ((fdin = open(stdIn, O_RDONLY | O_NOFOLLOW, 0600)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
         printf("content-type: text/html\n\n" "Can not create CGI stdin to %s\n", stdIn);
         close(fdout);
         exit(0);

@@ -78,6 +78,10 @@ static void stageAndFail(Holder *holder)
     holder->name = websTempFile(NULL, "put");
     tnotnull(holder->name, "B1 websTempFile must return a name");
     /* open() failed - full disk, bad PUT dir, fd exhaustion, or a permissions error */
+    if (holder->name) {
+        /* websTempFile creates the file with the name, so the error path must remove it */
+        unlink(holder->name);
+    }
     wfreeset(holder->name);
 }
 

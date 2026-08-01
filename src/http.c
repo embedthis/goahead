@@ -289,6 +289,14 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     }
     websCheckRouteAuth();
     /*
+        Refuse to serve when request data would be staged inside a served directory. The exposure is
+        unauthenticated and nothing at request time can contain it, so this is a startup failure rather
+        than a warning.
+     */
+    if (websCheckTempDirs() > 0) {
+        return -1;
+    }
+    /*
         Create a mime type lookup table for quickly determining the content type
      */
     websMime = hashCreate(WEBS_HASH_INIT * 4);
@@ -986,8 +994,15 @@ static bool parseIncoming(Webs *wp)
 #if ME_GOAHEAD_CGI
     if (wp->route && wp->route->handler && wp->route->handler->service == cgiHandler) {
         if (smatch(wp->method, "POST")) {
-            wp->cgiStdin = websGetCgiCommName();
-            if ((wp->cgifd = open(wp->cgiStdin, O_CREAT | O_WRONLY | O_BINARY | O_TRUNC, 0666)) < 0) {
+            if ((wp->cgiStdin = websGetCgiCommName()) == 0) {
+                websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR | WEBS_CLOSE, "Cannot create CGI file");
+                return 1;
+            }
+            /*
+                websGetCgiCommName created the file, so this opens an existing private file rather
+                than creating one. O_NOFOLLOW keeps that true if the path is replaced in between.
+             */
+            if ((wp->cgifd = open(wp->cgiStdin, O_WRONLY | O_BINARY | O_TRUNC | O_NOFOLLOW, 0600)) < 0) {
                 websError(wp, HTTP_CODE_NOT_FOUND | WEBS_CLOSE, "Cannot open CGI file");
                 return 1;
             }
@@ -1000,8 +1015,15 @@ static bool parseIncoming(Webs *wp)
         wp->code =
             (stat(wp->filename, &sbuf) == 0 && S_ISDIR(sbuf.st_mode)) ? HTTP_CODE_NO_CONTENT : HTTP_CODE_CREATED;
         wfreeset(wp->putname);
-        wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put");
-        if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_CREAT | O_BINARY, 0644)) < 0) {
+        if ((wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put")) == 0) {
+            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
+            return 1;
+        }
+        /*
+            The staging file exists and is private. Open it rather than create it, so a path swapped
+            underneath us fails here instead of writing the request body somewhere else.
+         */
+        if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_NOFOLLOW, 0600)) < 0) {
             error("Cannot create PUT filename %s", wp->putname);
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
             wfreeset(wp->putname);

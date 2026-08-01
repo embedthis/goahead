@@ -211,7 +211,10 @@ PUBLIC int websWriteAuthFile(char *path)
 
     assert(path && *path);
 
-    tempFile = websTempFile(NULL, NULL);
+    if ((tempFile = websTempFile(NULL, NULL)) == 0) {
+        error("Cannot create a temp file to rewrite %s", path);
+        return -1;
+    }
     if ((fp = fopen(tempFile, "w" FILE_TEXT)) == 0) {
         error("Cannot open %s", tempFile);
         wfree(tempFile);

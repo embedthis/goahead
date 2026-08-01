@@ -126,6 +126,20 @@
 #ifndef ME_GOAHEAD_STEALTH
     #define ME_GOAHEAD_STEALTH               1
 #endif
+/*
+    Directory for temporary files holding live request data: CGI stdin/stdout, the auth file rewrite and
+    the default upload staging area. It MUST NOT be inside any route's documents directory or the data
+    is served to any client that can name the file. Platforms without a temporary directory convention
+    must define this to a writable location outside the served tree. Never defaults to the current
+    directory: the CGI handler runs with the working directory set to the route's documents directory.
+ */
+#ifndef ME_GOAHEAD_TEMP_DIR
+    #if ME_WIN_LIKE
+        #define ME_GOAHEAD_TEMP_DIR          "\\Temp"
+    #else
+        #define ME_GOAHEAD_TEMP_DIR          "/tmp"
+    #endif
+#endif
 #ifndef ME_GOAHEAD_UPLOAD
     #define ME_GOAHEAD_UPLOAD                1
 #endif
@@ -199,6 +213,14 @@
 /************************************ Includes ********************************/
 
 #include    "osdep.h"
+
+/*
+    Not all platforms provide O_NOFOLLOW. Where it is missing, open() cannot refuse a symlink and the
+    exclusive create is the only guard, so define it away rather than conditionalize every call site.
+ */
+#ifndef O_NOFOLLOW
+    #define O_NOFOLLOW 0
+#endif
 
 /************************************ Defaults ********************************/
 
@@ -3517,11 +3539,17 @@ PUBLIC WebsKey *websSetVar(Webs *wp, cchar *name, cchar *value);
 PUBLIC bool websTestVar(Webs *wp, cchar *name);
 
 /**
-    Create a temporary filename
-    This does not guarantee the filename is unique or that it is not already in use by another application.
-    @param dir Directory to locate the temp file. Defaults to the O/S default temporary directory (usually /tmp)
+    Create a temporary file
+    @description Creates an empty file with an unguessable name using an exclusive create that will not
+        follow a symlink, and returns its path. The file exists on return, is private to the server user,
+        and the caller must unlink it and free the returned name when done. The directory must be outside
+        every route's documents directory: temporary files hold live request data and are served to any
+        client that can name them.
+    @param dir Directory to hold the temp file. Defaults to ME_GOAHEAD_TEMP_DIR (usually /tmp), or the
+        TEMP environment variable on Windows.
     @param prefix Filename prefix
-    @return An allocated filename string
+    @return An allocated filename string, or NULL if the file could not be created. Callers must fail the
+        request rather than proceed with a NULL name.
         @stability Stable
  */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix);
@@ -4036,6 +4064,21 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos);
     @stability Evolving
  */
 PUBLIC int websCheckRoutes(void);
+
+/**
+    Audit the temporary directories against the served directories
+    @description Verify that no directory used to stage request data - ME_GOAHEAD_TEMP_DIR for CGI stdin and
+        stdout, ME_GOAHEAD_UPLOAD_DIR for upload staging, ME_GOAHEAD_PUT_DIR for PUT staging - names a
+        route's documents directory or a location inside one. A temporary file inside a served directory is
+        fetchable over HTTP, so one client's in-flight request body or CGI response is readable by another.
+        Emits an error naming the setting for each such directory.
+        This routine is called automatically by websOpen() after the route configuration file is loaded, and
+        websOpen() refuses to start the server if it reports a problem. Embedded applications that add routes
+        programmatically should call it again once their routes are defined.
+    @return The number of problems found. Zero means no request data is staged inside a served directory.
+    @stability Evolving
+ */
+PUBLIC int websCheckTempDirs(void);
 
 /**
     Audit the route table for a confidentiality boundary

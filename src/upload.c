@@ -258,7 +258,11 @@ static void processUploadHeader(Webs *wp, char *line)
                 }
                 trace(5, "File upload of: %s stored as %s", wp->clientFilename, wp->uploadTmp);
 
-                if ((wp->upfd = open(wp->uploadTmp, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600)) < 0) {
+                /*
+                    websTempFile created the file, private and empty, so this opens an existing file
+                    rather than creating one. O_NOFOLLOW keeps that true if the path is replaced.
+                 */
+                if ((wp->upfd = open(wp->uploadTmp, O_WRONLY | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot open upload temp file %s", wp->uploadTmp);
                     return;
                 }
@@ -476,9 +480,10 @@ PUBLIC void websUploadOpen(void)
     if (*uploadDir == '\0') {
 #if ME_WIN_LIKE
         uploadDir = getenv("TEMP");
-#else
-        uploadDir = "/tmp";
 #endif
+        if (uploadDir == 0 || *uploadDir == '\0') {
+            uploadDir = ME_GOAHEAD_TEMP_DIR;
+        }
     }
     trace(4, "Upload directory is %s", uploadDir);
     websDefineHandler("upload", 0, uploadHandler, 0, 0);

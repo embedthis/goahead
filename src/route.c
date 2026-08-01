@@ -605,6 +605,124 @@ PUBLIC void websCheckRouteAuth(void)
 }
 
 
+/*
+    Return an allocated absolute form of path with '\' folded to '/' and any trailing separator removed,
+    so two directory names can be compared as strings. A relative path is resolved against the current
+    directory, which is where every relative configuration directory is resolved at runtime.
+ */
+static char *absolutePath(cchar *path)
+{
+    char cwd[ME_GOAHEAD_LIMIT_FILENAME], *result, *cp;
+    int  absolute;
+
+    absolute = (*path == '/' || *path == '\\');
+#if ME_WIN_LIKE
+    if (isalpha((uchar) path[0]) && path[1] == ':') {
+        absolute = 1;
+    }
+#endif
+    if (absolute) {
+        result = sclone(path);
+    } else if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        result = sclone(path);
+    } else {
+        result = sfmt("%s/%s", cwd, path);
+    }
+    for (cp = result; *cp; cp++) {
+        if (*cp == '\\') {
+            *cp = '/';
+        }
+    }
+    /*
+        "/" is its own trailing separator and must keep it, or every path compares as inside it.
+     */
+    for (cp = &result[slen(result) - 1]; cp > result && *cp == '/'; cp--) {
+        *cp = '\0';
+    }
+    return result;
+}
+
+
+/*
+    Test if child names dir or a location inside it. Compares the configured directories rather than
+    their realpath, so a path that reaches one directory through a symlink is not detected - that yields
+    a missed warning, never a false one.
+ */
+static int dirContains(cchar *dir, cchar *child)
+{
+    char  *parent, *sub;
+    ssize len;
+    int   rc;
+
+    parent = absolutePath(dir);
+    sub = absolutePath(child);
+    len = slen(parent);
+    rc = 0;
+    if (len > 0 && (ME_WIN_LIKE ? sncaselesscmp(parent, sub, len) : sncmp(parent, sub, len)) == 0) {
+        /*
+            "/tmp" contains "/tmp" and "/tmp/x", but not "/tmpdir". A parent of "/" ends in the
+            separator itself, so the child's next character is already part of its own name.
+         */
+        rc = sub[len] == '\0' || sub[len] == '/' || parent[len - 1] == '/';
+    }
+    wfree(parent);
+    wfree(sub);
+    return rc;
+}
+
+
+/*
+    Audit the directories used to stage request data - CGI stdin and stdout, upload and PUT staging -
+    against the served directories. A temporary file inside a served directory is fetchable over HTTP,
+    so one client's in-flight request body or CGI response is readable by another. Returns the number of
+    problems found; websOpen refuses to start the server when this is non-zero, because the exposure is
+    unauthenticated and there is no request-time check that could contain it.
+ */
+PUBLIC int websCheckTempDirs(void)
+{
+    cchar *staging[3], *setting[3], *docs;
+    int   i, j, count, problems;
+
+    count = 0;
+    staging[count] = ME_GOAHEAD_TEMP_DIR;
+    setting[count++] = "ME_GOAHEAD_TEMP_DIR";
+#if ME_GOAHEAD_UPLOAD
+    staging[count] = ME_GOAHEAD_UPLOAD_DIR;
+    setting[count++] = "ME_GOAHEAD_UPLOAD_DIR";
+#endif
+#if !ME_ROM
+    staging[count] = ME_GOAHEAD_PUT_DIR;
+    setting[count++] = "ME_GOAHEAD_PUT_DIR";
+#endif
+
+    problems = 0;
+    for (i = 0; i < count; i++) {
+        if (staging[i] == 0 || *staging[i] == '\0') {
+            continue;
+        }
+        for (j = -1; j < routeCount; j++) {
+            /*
+                Routes without an explicit dir= serve the document root, so it is checked once here
+                rather than once per route.
+             */
+            docs = (j < 0) ? websGetDocuments() : routes[j]->dir;
+            if (docs == 0 || *docs == '\0') {
+                continue;
+            }
+            if (dirContains(docs, staging[i])) {
+                error("Security error: %s \"%s\" is inside the served directory \"%s\". Request data "
+                      "staged there - CGI output, uploads, PUT bodies - is served to any client that "
+                      "names the file. Set %s to a directory outside the documents directory.",
+                      setting[i], staging[i], docs, setting[i]);
+                problems++;
+                break;
+            }
+        }
+    }
+    return problems;
+}
+
+
 PUBLIC int websOpenRoute(void)
 {
     if ((handlers = hashCreate(-1)) < 0) {
