@@ -138,12 +138,51 @@ done
 [ -d "$TOP/certs" ] && cp -r "$TOP/certs" "$STAGE/certs"
 
 #
-#   doc/ -- only the API and man pages are shipped
+#   doc/ -- API and man pages, plus the compliance documents that must accompany the product
 #
 if [ -d "$TOP/doc/api" ]; then
     mkdir -p "$STAGE/doc"
     cp -r "$TOP/doc/api" "$STAGE/doc/api"
     cp -r "$TOP/doc/man" "$STAGE/doc/man"
+fi
+
+#
+#   Compliance documents. The EU Cyber Resilience Act requires the Annex II user information and the
+#   Annex V Declaration of Conformity to accompany the product. The SBOM is NOT required to ship -
+#   it must be drawn up and produced to market surveillance authorities on request - but integrators
+#   need it to build their own, so it is included as a courtesy. The technical documentation
+#   (conformity dossier, risk assessment, Annex I matrix, vulnerability disposition) is retained by
+#   the manufacturer and deliberately not shipped.
+#
+RELDOC="$TOP/doc/releases/$VERSION"
+
+if [ ! -d "$RELDOC" ] ; then
+    echo "      [Warn] No doc/releases/$VERSION - the package ships without the user information" >&2
+    echo "      [Warn] and Declaration of Conformity that must accompany the product" >&2
+fi
+
+if [ -d "$RELDOC" ] ; then
+    mkdir -p "$STAGE/doc"
+    for f in user-information.md declaration-of-conformity.md; do
+        if [ -f "$RELDOC/$f" ] ; then
+            cp "$RELDOC/$f" "$STAGE/doc/$f"
+        else
+            echo "      [Warn] $f missing from doc/releases/$VERSION - required to accompany the product" >&2
+        fi
+    done
+
+    #
+    #   Release notes carry an internal reviewer/embargo comment block. Strip every HTML comment
+    #   rather than shipping notes that address the reviewer instead of the customer.
+    #
+    if [ -f "$RELDOC/release-notes.md" ] ; then
+        sed -e '/<!--/,/-->/d' "$RELDOC/release-notes.md" > "$STAGE/doc/release-notes.md"
+    fi
+
+    if [ -f "$RELDOC/sbom.json" ] ; then
+        cp "$RELDOC/sbom.json" "$STAGE/doc/sbom.json"
+    fi
+    echo "      [Info] Staged compliance documents into doc/"
 fi
 
 #
@@ -188,6 +227,42 @@ mkdir -p "$BUILD"
 tar -czf "$OUTPUT" -C "$BUILD/stage" "$NAME"
 
 cp "$OUTPUT" "$BUILD/goahead-src.tgz"
+
+# ---------------------------------------------------------------
+#  SHA256SUMS -- integrity evidence published with the release
+# ---------------------------------------------------------------
+#
+#   The versioned tarball is the authoritative artifact; goahead-src.tgz is a convenience copy of
+#   the same bytes, so both are listed.
+#
+#   The sums are written twice, from the one computation: build/SHA256SUMS is published alongside
+#   the archive on the download channel, and doc/releases/VERSION/SHA256SUMS is the retained
+#   release record that the Declaration of Conformity cites as the build identifier. Generating
+#   both here rather than copying one by hand keeps them from diverging.
+#
+#   SHA256SUMS is deliberately NOT staged into the tarball: a checksum file cannot live inside the
+#   archive it checksums. It travels beside the archive on the distribution channel.
+#
+if command -v shasum >/dev/null 2>&1; then
+    SHACMD="shasum -a 256"
+elif command -v sha256sum >/dev/null 2>&1; then
+    SHACMD="sha256sum"
+else
+    SHACMD=""
+fi
+
+if [ -n "$SHACMD" ] ; then
+    (cd "$BUILD" && $SHACMD "${NAME}-src.tgz" "goahead-src.tgz" > SHA256SUMS)
+    echo "      [Info] Created build/SHA256SUMS"
+    if [ -d "$RELDOC" ] ; then
+        cp "$BUILD/SHA256SUMS" "$RELDOC/SHA256SUMS"
+        echo "      [Info] Recorded doc/releases/$VERSION/SHA256SUMS"
+    else
+        echo "      [Warn] No doc/releases/$VERSION - checksums not recorded with the release documents" >&2
+    fi
+else
+    echo "      [Warn] No shasum or sha256sum found; build/SHA256SUMS not created" >&2
+fi
 
 COUNT=$(tar -tzf "$OUTPUT" | wc -l | tr -d ' ')
 SIZE=$(ls -lh "$OUTPUT" | awk '{print $5}')
