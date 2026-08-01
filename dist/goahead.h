@@ -126,6 +126,20 @@
 #ifndef ME_GOAHEAD_STEALTH
     #define ME_GOAHEAD_STEALTH               1
 #endif
+/*
+    Directory for temporary files holding live request data: CGI stdin/stdout, the auth file rewrite and
+    the default upload staging area. It MUST NOT be inside any route's documents directory or the data
+    is served to any client that can name the file. Platforms without a temporary directory convention
+    must define this to a writable location outside the served tree. Never defaults to the current
+    directory: the CGI handler runs with the working directory set to the route's documents directory.
+ */
+#ifndef ME_GOAHEAD_TEMP_DIR
+    #if ME_WIN_LIKE
+        #define ME_GOAHEAD_TEMP_DIR          "\\Temp"
+    #else
+        #define ME_GOAHEAD_TEMP_DIR          "/tmp"
+    #endif
+#endif
 #ifndef ME_GOAHEAD_UPLOAD
     #define ME_GOAHEAD_UPLOAD                1
 #endif
@@ -144,6 +158,26 @@
 #endif
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
     #define ME_GOAHEAD_LIMIT_CGI_ARGS      4096
+#endif
+/*
+    Maximum concurrently accepted connections. The server is single threaded and multiplexes with
+    select, so FD_SETSIZE descriptors is its entire serving capacity - reaching that ceiling is the
+    outage, not a margin. Default below it so listeners, CGI staging files, log files and TLS always
+    have descriptors available. Note this bounds resource consumption; it does not by itself preserve
+    availability for other clients, because a flood still occupies the slots it is granted.
+ */
+#ifndef ME_GOAHEAD_LIMIT_CONNECTIONS
+    #define ME_GOAHEAD_LIMIT_CONNECTIONS   (FD_SETSIZE - 32)
+#endif
+/*
+    Maximum concurrently accepted connections from any one peer address. Unlike the total cap, this
+    preserves capacity for other clients: a flood from one source is refused while the rest of the
+    table stays available. Defaults permissively because the control has real false positives - many
+    legitimate clients share one source address behind NAT, which on a LAN-facing device is the normal
+    case. Set to 0 to disable per-peer accounting entirely.
+ */
+#ifndef ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP
+    #define ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP 64
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILENAME
     #define ME_GOAHEAD_LIMIT_FILENAME      256
@@ -199,6 +233,14 @@
 /************************************ Includes ********************************/
 
 #include    "osdep.h"
+
+/*
+    Not all platforms provide O_NOFOLLOW. Where it is missing, open() cannot refuse a symlink and the
+    exclusive create is the only guard, so define it away rather than conditionalize every call site.
+ */
+#ifndef O_NOFOLLOW
+    #define O_NOFOLLOW 0
+#endif
 
 /************************************ Defaults ********************************/
 
@@ -2059,6 +2101,7 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
     @{
  */
 #define WEBS_VARS_ADDED      0x4000          /**< Query string and form variables have been parsed and added */
+#define WEBS_NO_CACHE        0x10000         /**< Response is dynamic and must never be cached */
 #if ME_GOAHEAD_LEGACY
 #define WEBS_LOCAL           0x8000          /**< Request originated from the local system (legacy) */
 #endif
@@ -2140,6 +2183,8 @@ typedef struct Webs {
     ssize rxChunkSize;                  /**< Rx chunk size */
     char *rxEndp;                       /**< Pointer to end of raw data in input beyond endp */
     ssize lastRead;                     /**< Number of bytes last read from the socket */
+    int rxPrologue;                     /**< Count of blank-line bytes stripped before the request line */
+    WebsTime started;                   /**< When the first byte of the current request arrived. 0 if none yet */
     bool eof;                           /**< If at the end of the request content */
 
     char txChunkPrefix[16];             /**< Transmit chunk prefix */
@@ -3309,6 +3354,50 @@ PUBLIC void websSetDebug(int on);
 PUBLIC void websSetPostLimit(ssize limit);
 
 /**
+    Override the runtime concurrent-connection cap.
+    @description Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS default with a runtime-chosen
+        value. Pass 0 (or a negative value) to restore the compile-time default. A connection accepted
+        beyond the cap is closed immediately, before any request is read from it.
+    @param limit Maximum concurrently accepted connections.
+    @see websGetConnectionCount
+    @stability Prototype
+ */
+PUBLIC void websSetConnectionLimit(int limit);
+
+/**
+    Get the number of connections currently accepted.
+    @description Counts live accepted connections, not the high-water size of the connection table.
+        Intended for monitoring and for tests that need to assert the cap without inferring it from
+        timing.
+    @return The number of live accepted connections.
+    @see websSetConnectionLimit
+    @stability Prototype
+ */
+PUBLIC int websGetConnectionCount(void);
+
+/**
+    Override the runtime per-peer connection cap.
+    @description Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP default with a
+        runtime-chosen value. Pass 0 to disable per-peer accounting; pass a negative value to restore
+        the compile-time default.
+    @param limit Maximum concurrent connections permitted from a single peer address.
+    @see websGetConnectionCountForIp
+    @stability Prototype
+ */
+PUBLIC void websSetConnectionLimitPerIp(int limit);
+
+/**
+    Get the number of connections currently accepted from one peer address.
+    @description Counts live accepted connections whose peer address matches. Returns 0 for an address
+        with no live connections, and 0 when per-peer accounting is disabled.
+    @param ip Peer IP address in the textual form held by Webs.ipaddr.
+    @return The number of live connections from that address.
+    @see websSetConnectionLimitPerIp
+    @stability Prototype
+ */
+PUBLIC int websGetConnectionCountForIp(cchar *ip);
+
+/**
     Set the web documents directory
     @description The web documents directory is used when resolving request URIs into filenames.
     @param dir Directory path to use
@@ -3515,11 +3604,17 @@ PUBLIC WebsKey *websSetVar(Webs *wp, cchar *name, cchar *value);
 PUBLIC bool websTestVar(Webs *wp, cchar *name);
 
 /**
-    Create a temporary filename
-    This does not guarantee the filename is unique or that it is not already in use by another application.
-    @param dir Directory to locate the temp file. Defaults to the O/S default temporary directory (usually /tmp)
+    Create a temporary file
+    @description Creates an empty file with an unguessable name using an exclusive create that will not
+        follow a symlink, and returns its path. The file exists on return, is private to the server user,
+        and the caller must unlink it and free the returned name when done. The directory must be outside
+        every route's documents directory: temporary files hold live request data and are served to any
+        client that can name them.
+    @param dir Directory to hold the temp file. Defaults to ME_GOAHEAD_TEMP_DIR (usually /tmp), or the
+        TEMP environment variable on Windows.
     @param prefix Filename prefix
-    @return An allocated filename string
+    @return An allocated filename string, or NULL if the file could not be created. Callers must fail the
+        request rather than proceed with a NULL name.
         @stability Stable
  */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix);
@@ -3613,6 +3708,18 @@ PUBLIC char *websValidateUriPath(cchar *uri);
         @stability Stable
  */
 PUBLIC bool websValidUriChars(cchar *uri);
+
+/**
+    Test if a status code defines a response that carries no body
+    @description A 1XX, 204 or 304 response has no content and carries no header describing the length of one.
+        Body bytes written after such a status are not payload: the client frames the response as empty and reads
+        them as the start of the next response on the connection. Handlers that forward a body from an external
+        source must consult this before writing any of it.
+    @param code HTTP status code
+    @return True if the status code prohibits a response body
+    @stability Evolving
+ */
+PUBLIC bool websStatusHasNoBody(int code);
 
 /**
     Write a set of standard response headers
@@ -4024,6 +4131,21 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos);
 PUBLIC int websCheckRoutes(void);
 
 /**
+    Audit the temporary directories against the served directories
+    @description Verify that no directory used to stage request data - ME_GOAHEAD_TEMP_DIR for CGI stdin and
+        stdout, ME_GOAHEAD_UPLOAD_DIR for upload staging, ME_GOAHEAD_PUT_DIR for PUT staging - names a
+        route's documents directory or a location inside one. A temporary file inside a served directory is
+        fetchable over HTTP, so one client's in-flight request body or CGI response is readable by another.
+        Emits an error naming the setting for each such directory.
+        This routine is called automatically by websOpen() after the route configuration file is loaded, and
+        websOpen() refuses to start the server if it reports a problem. Embedded applications that add routes
+        programmatically should call it again once their routes are defined.
+    @return The number of problems found. Zero means no request data is staged inside a served directory.
+    @stability Evolving
+ */
+PUBLIC int websCheckTempDirs(void);
+
+/**
     Audit the route table for a confidentiality boundary
     @description Legacy entry point retained for source compatibility. Calls websCheckRoutes() and discards the
         result. New code should call websCheckRoutes() so it can act on the problem count.
@@ -4039,6 +4161,10 @@ PUBLIC void websCloseRoute(void);
 
 /**
     Load routing tables from the specified filename
+    @description A directive describing an access control policy the build cannot enforce is refused rather
+        than loaded. In a build configured with ME_GOAHEAD_AUTH=0 that means the auth and abilities route
+        keywords and the user and role directives, all of which would otherwise be recorded and never
+        consulted.
     @param path Route configuration filename
     @return Zero if successful, otherwise -1.
         @stability Stable
@@ -4088,6 +4214,8 @@ PUBLIC bool websRunRequest(Webs *wp);
     @param methods Hash of permissible HTTP methods. (GET, HEAD, POST, PUT)
     @param extensions Hash of permissible URI filename extensions.
     @param abilities Required user abilities. If abilities are required, the user must be authenticated.
+        Requiring abilities in a build configured with ME_GOAHEAD_AUTH=0 is an error: that build compiles
+        out the authorization gate and could only record the requirement, never enforce it.
     @param redirects Set of applicable response redirections when completing the request.
     @return Zero if successful, otherwise -1.
         @stability Stable
@@ -4098,7 +4226,8 @@ PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, Webs
 /**
     Set route authentication scheme
     @param route Route to modify
-    @param authType Set to "basic", "digest" or "form".
+    @param authType Set to "basic", "digest" or "form". Any other type is an error, as is "digest" in a
+        build configured with ME_GOAHEAD_DIGEST=0.
     @return Zero if successful, otherwise -1.
         @stability Stable
  */
@@ -4256,8 +4385,10 @@ PUBLIC int websRemoveUser(cchar *name);
 
 /**
     Open the authentication module
+    @description Fails if the password store named by ME_GOAHEAD_AUTH_STORE is not compiled into this build,
+        rather than falling back to a store holding different secrets than the operator configured.
     @param minimal Reserved. Set to zero.
-    @return True if the user has the required ability.
+    @return Zero if successful, otherwise -1.
         @stability Stable
  */
 PUBLIC int websOpenAuth(int minimal);

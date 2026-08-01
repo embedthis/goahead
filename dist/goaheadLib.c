@@ -677,6 +677,24 @@ PUBLIC int websOpenAuth(int minimal)
     } else if (smatch(ME_GOAHEAD_AUTH_STORE, "pam")) {
         verifyPassword = websVerifyPasswordFromPam;
 #endif
+    } else {
+        /*
+            The configured store is not compiled in - typically ME_GOAHEAD_AUTH_STORE="pam" on a
+            build without PAM. Falling back to the file store would verify credentials against a
+            different set of secrets than the operator configured, so refuse to start instead.
+         */
+        error("Password store \"%s\" is not available in this build. Rebuild with support for it, "
+              "or set ME_GOAHEAD_AUTH_STORE to \"file\".", ME_GOAHEAD_AUTH_STORE);
+        return -1;
+    }
+    /*
+        Auto-login serves every authenticated route without credentials. It is a development aid, so
+        it is not fatal, but it must never be silent: use error() so the warning appears at the
+        default log level.
+     */
+    if (autoLogin) {
+        error("Security warning: ME_GOAHEAD_AUTO_LOGIN is enabled. Routes that require "
+              "authentication are served to unauthenticated clients. Do not deploy this build.");
     }
     return 0;
 }
@@ -717,7 +735,10 @@ PUBLIC int websWriteAuthFile(char *path)
 
     assert(path && *path);
 
-    tempFile = websTempFile(NULL, NULL);
+    if ((tempFile = websTempFile(NULL, NULL)) == 0) {
+        error("Cannot create a temp file to rewrite %s", path);
+        return -1;
+    }
     if ((fp = fopen(tempFile, "w" FILE_TEXT)) == 0) {
         error("Cannot open %s", tempFile);
         wfree(tempFile);
@@ -1730,8 +1751,26 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
         askLogin = digestLogin;
         parseAuth = parseDigestDetails;
 #endif
+    } else if (smatch(auth, "form")) {
+        /*
+            Form authentication carries no per-request credential to parse and issues no challenge:
+            the login action establishes the session and the route's abilities gate the request. It
+            still sets authType so the route counts as authenticated.
+         */
+#if !ME_GOAHEAD_DIGEST
+    } else if (smatch(auth, "digest")) {
+        error("Route \"%s\" requests digest authentication, but this build has ME_GOAHEAD_DIGEST=0. "
+              "Rebuild with ME_GOAHEAD_DIGEST=1 or use another authentication type.", route->prefix);
+        return -1;
+#endif
     } else {
-        auth = 0;
+        /*
+            An unrecognized type used to be silently reduced to the form-authentication behaviour, so
+            a typo produced a route that could never issue a challenge and denied every request.
+         */
+        error("Route \"%s\" requests unknown authentication type \"%s\". Use \"basic\", \"digest\" "
+              "or \"form\".", route->prefix, auth);
+        return -1;
     }
     route->authType = sclone(auth);
     route->askLogin = askLogin;
@@ -1780,10 +1819,15 @@ typedef struct Cgi {            /* Struct for CGI tasks which have completed */
     char *stdIn;                /* File desc. for task's temp input fd */
     char *stdOut;               /* File desc. for task's temp output fd */
     char *cgiPath;              /* Path to executable process file */
+    char *query;                /* Backing store for the argp strings */
     char **argp;                /* Pointer to buf containing argv tokens */
     char **envp;                /* Pointer to array of environment strings */
     CgiPid handle;              /* Process handle of the task */
     off_t fplacemark;           /* Seek location for CGI output file */
+    ssize txLen;                /* Content length the CGI declared, or -1 for chunked framing */
+    ssize txBytes;              /* Body bytes actually forwarded to the client */
+    ssize txExcess;             /* Body bytes dropped beyond the declared content length */
+    bool txSuppress;            /* Response carries no body at all, whatever the CGI writes */
 } Cgi;
 
 static Cgi **cgiList;           /* walloc chain list of wp's to be closed */
@@ -2188,7 +2232,11 @@ PUBLIC bool cgiHandler(Webs *wp)
         Now launch the process.  If not successful, do the cleanup of resources.  If successful, the cleanup will be
         done after the process completes.
      */
-    if ((pHandle = launchCgi(cgiPath, argp, envp, stdIn, stdOut)) == (CgiPid) - 1) {
+    pHandle = (CgiPid) - 1;
+    if (stdIn && stdOut) {
+        pHandle = launchCgi(cgiPath, argp, envp, stdIn, stdOut);
+    }
+    if (pHandle == (CgiPid) - 1) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
         for (ep = envp; *ep != NULL; ep++) {
             wfree(*ep);
@@ -2196,8 +2244,18 @@ PUBLIC bool cgiHandler(Webs *wp)
         wfree(cgiPath);
         wfree(argp);
         wfree(envp);
-        wfree(stdOut);
         wfree(query);
+        /*
+            websTempFile creates the file with the name, and no registry entry was made, so cgiCleanup
+            will never run for this request. Remove the staging files here or they accumulate.
+         */
+        if (stdIn) {
+            unlink(stdIn);
+        }
+        if (stdOut) {
+            unlink(stdOut);
+            wfree(stdOut);
+        }
 
     } else {
         /*
@@ -2209,11 +2267,22 @@ PUBLIC bool cgiHandler(Webs *wp)
         cgip->stdIn = stdIn;
         cgip->stdOut = stdOut;
         cgip->cgiPath = cgiPath;
+        /*
+            argp holds interior pointers into query, which stok tokenized in place. fork/exec and
+            CreateProcess copy the argument vector before launchCgi returns, but taskSpawn does not:
+            the spawned task reads argp after this function returns. Hand the backing store to the
+            registry so its lifetime matches argp's on every platform, rather than leaving a lifetime
+            rule that only holds where the spawn backend happens to copy.
+         */
+        cgip->query = query;
         cgip->argp = argp;
         cgip->envp = envp;
         cgip->wp = wp;
         cgip->fplacemark = 0;
-        wfree(query);
+        cgip->txLen = -1;
+        cgip->txBytes = 0;
+        cgip->txExcess = 0;
+        cgip->txSuppress = 0;
     }
     /*
         Restore the current working directory after spawning child CGI
@@ -2251,6 +2320,7 @@ static void cgiCleanup(Cgi *cgip, int cid)
     }
     wfreeset(cgip->cgiPath);
     wfreeset(cgip->stdOut);
+    wfreeset(cgip->query);
     wfreeset(cgip->argp);
     wfreeset(cgip->envp);
     wfree(cgip);
@@ -2301,9 +2371,13 @@ static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, cchar *lo
 {
     trace(5, "cgi: Start response headers");
     websSetStatus(wp, status);
+    /*
+        A CGI response is dynamic. Mark it uncacheable before the headers are built so websWriteHeaders emits the
+        single authoritative Cache-Control rather than a second, weaker one here.
+     */
+    wp->flags |= WEBS_NO_CACHE;
     websWriteHeaders(wp, contentLength, location);
     websWriteHeader(wp, "Pragma", "no-cache");
-    websWriteHeader(wp, "Cache-Control", "no-cache");
     if (contentType) {
         websWriteHeader(wp, "Content-Type", "%s", contentType);
     }
@@ -2338,6 +2412,76 @@ static bool validCgiHeader(cchar *key, cchar *value)
 
 
 /*
+    Parse a Content-Length declared by the CGI program. The value is a claim by an untrusted child,
+    not a fact, so admit it only as a plain non-negative decimal that fits an ssize. A sign, trailing
+    junk or an overflowing value yields -1, which selects chunked framing so the byte count actually
+    forwarded frames the response instead. atoi() accepted all of these silently.
+ */
+static ssize parseCgiContentLength(cchar *value)
+{
+    cchar *cp;
+    ssize len;
+
+    if (value == NULL || *value == '\0') {
+        return -1;
+    }
+    len = 0;
+    for (cp = value; *cp; cp++) {
+        if (!isdigit((uchar) *cp)) {
+            return -1;
+        }
+        if (len > (MAXSSIZE - (*cp - '0')) / 10) {
+            return -1;
+        }
+        len = (len * 10) + (*cp - '0');
+    }
+    return len;
+}
+
+
+/*
+    Parse a status code declared by the CGI. RFC 3875 defines the value as three digits optionally
+    followed by a space and a reason phrase; anything else is a malformed response, not a status.
+    atoi() turned "abc" into 0 and emitted it verbatim as the code in the response line. Return 0 for
+    a value that cannot be a status so the caller answers on its own behalf rather than passing the
+    CGI's claim through.
+ */
+static int parseCgiStatus(cchar *value)
+{
+    int code, i;
+
+    if (value == NULL) {
+        return 0;
+    }
+    code = 0;
+    for (i = 0; i < 3; i++) {
+        if (!isdigit((uchar) value[i])) {
+            return 0;
+        }
+        code = (code * 10) + (value[i] - '0');
+    }
+    if (value[3] != '\0' && value[3] != ' ' && value[3] != '\t') {
+        return 0;
+    }
+    /*
+        1XX is refused. An informational status is interim: it announces that the real response is
+        still to come, so a client given one as the final response waits for a second response that
+        this gateway will never send. A CGI has no way to emit an interim response through the
+        gateway, so a 1XX here can only be a mistake.
+
+        Codes above 5XX are not refused. They are outside the classes RFC 9110 defines, but a CGI
+        setting its own status code is long-standing documented behaviour here and such a code
+        misframes nothing -- unlike a 1XX, which stalls the client waiting for a response that never
+        arrives. Three digits is the bound that matters.
+     */
+    if (code < 200) {
+        return 0;
+    }
+    return code;
+}
+
+
+/*
     One tokenized line of the CGI response header block.
  */
 typedef struct CgiHeader {
@@ -2346,14 +2490,18 @@ typedef struct CgiHeader {
 } CgiHeader;
 
 
-static ssize parseCgiHeaders(Webs *wp, char *buf)
+static ssize parseCgiHeaders(Cgi *cgip, char *buf)
 {
     CgiHeader *headers;
+    Webs      *wp;
     char      *end, *cp, *line, *location, *contentType;
-    ssize     len, contentLength;
-    int       count, i, nlines, status;
+    ssize     len, contentLength, bodyLimit;
+    int       count, i, nlines, status, seenLength, malformed;
 
+    wp = cgip->wp;
     status = HTTP_CODE_OK;
+    seenLength = 0;
+    malformed = 0;
     contentLength = -1;
     contentType = 0;
     location = 0;
@@ -2418,11 +2566,27 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
         if (strcmp(headers[i].key, "location") == 0) {
             location = headers[i].value;
         } else if (strcmp(headers[i].key, "status") == 0) {
-            status = atoi(headers[i].value);
+            if ((status = parseCgiStatus(headers[i].value)) == 0) {
+                trace(5, "cgi: bad Status \"%s\"", headers[i].value);
+                malformed = 1;
+            }
         } else if (strcmp(headers[i].key, "content-type") == 0) {
             contentType = headers[i].value;
         } else if (strcmp(headers[i].key, "content-length") == 0) {
-            contentLength = atoi(headers[i].value);
+            len = parseCgiContentLength(headers[i].value);
+            /*
+                RFC 9110 makes a message carrying two different Content-Length values unrecoverably
+                invalid. Taking the last one, as this did, makes the framing depend on the order the
+                CGI happened to write them. Repeating the same value is permitted and is collapsed.
+             */
+            if (seenLength && len != contentLength) {
+                trace(5, "cgi: conflicting Content-Length \"%s\"", headers[i].value);
+                malformed = 1;
+            } else if (len < 0) {
+                trace(5, "cgi: bad Content-Length \"%s\" - using chunked", headers[i].value);
+            }
+            contentLength = len;
+            seenLength = 1;
         } else {
             continue;
         }
@@ -2431,12 +2595,52 @@ static ssize parseCgiHeaders(Webs *wp, char *buf)
          */
         headers[i].key = 0;
     }
+    /*
+        A response this gateway cannot interpret is answered on the gateway's own behalf. Emitting a
+        status or a framing the CGI did not validly declare passes its confusion on to the client.
+        Nothing of the CGI's response is forwarded -- not the body, and not the remaining headers,
+        which may carry cookies or cache directives that were meant to accompany a response the
+        client is not going to receive.
+     */
+    if (malformed) {
+        status = HTTP_CODE_INTERNAL_SERVER_ERROR;
+        contentLength = 0;
+        location = 0;
+        contentType = 0;
+    }
+
+    /*
+        Decide whether this response may carry a body at all, before any of it is written. A 204 or
+        304 carries none: no Content-Length is emitted for those statuses and chunking is only
+        enabled when the length is unknown, so a body written after one is unframed data -- the
+        client frames the response as empty and reads the body as the start of the next one on the
+        connection. A HEAD response carries none whatever its status, and a response the gateway
+        already rejected carries none either.
+
+        Suppression is not the same as a CGI over-writing its declared length: the framing here is
+        honest, so this must not be reported or close the connection. It is flagged rather than
+        expressed as a zero limit for exactly that reason.
+
+        The header still declares what an equivalent GET would return where the CGI said so, because
+        that is what a HEAD response is for. Everywhere else declare zero, and never leave the length
+        unknown: an unknown length selects chunked framing, and the chunk trailer is itself body
+        bytes on a response that must not have any.
+     */
+    bodyLimit = contentLength;
+    if (websStatusHasNoBody(status) || smatch(wp->method, "HEAD") || malformed) {
+        cgip->txSuppress = 1;
+        bodyLimit = 0;
+        if (!smatch(wp->method, "HEAD") || contentLength < 0) {
+            contentLength = 0;
+        }
+    }
     writeCgiHeaders(wp, status, contentLength, location, contentType);
+    cgip->txLen = bodyLimit;
 
     /*
         Now pass all other headers back to the client
      */
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < count && !malformed; i++) {
         if (headers[i].key == 0) {
             continue;
         }
@@ -2457,7 +2661,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
     Webs     *wp;
     WebsStat sbuf;
     char     buf[ME_GOAHEAD_LIMIT_HEADERS + 2];
-    ssize    nbytes, skip;
+    ssize    nbytes, skip, nbody;
     int      fdout;
 
     /*
@@ -2466,7 +2670,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
         headers are written or more than ME_GOAHEAD_LIMIT_HEADERS of data is received.
      */
     if ((stat(cgip->stdOut, &sbuf) == 0) && (sbuf.st_size > cgip->fplacemark)) {
-        if ((fdout = open(cgip->stdOut, O_RDONLY | O_BINARY, 0444)) >= 0) {
+        if ((fdout = open(cgip->stdOut, O_RDONLY | O_BINARY | O_NOFOLLOW, 0444)) >= 0) {
             /*
                 Check to see if any data is available in the output file and send its contents to the socket.
                 Write the HTTP header on our first pass. The header must fit into ME_GOAHEAD_LIMIT_BUFFER.
@@ -2477,7 +2681,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                 buf[nbytes] = 0;
                 skip = 0;
                 if (!(wp->flags & WEBS_HEADERS_CREATED)) {
-                    if ((skip = parseCgiHeaders(wp, buf)) == 0) {
+                    if ((skip = parseCgiHeaders(cgip, buf)) == 0) {
                         if (cgip->handle && sbuf.st_size < ME_GOAHEAD_LIMIT_HEADERS) {
                             trace(5, "cgi: waiting for http headers");
                             break;
@@ -2499,8 +2703,37 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                         }
                     }
                 }
-                trace(5, "cgi: write %d bytes to client", (int) (nbytes - skip));
-                websWriteBlock(wp, &buf[skip], nbytes - skip);
+                nbody = nbytes - skip;
+                /*
+                    A CGI that writes more than the Content-Length it declared has already had that
+                    length put on the wire, so the client frames the response there and reads the
+                    surplus as the start of the next response on a keep-alive connection. That is the
+                    whole response-splitting primitive, and closing afterwards does not retract bytes
+                    the client has already buffered. Drop the surplus rather than emit it, and take
+                    the connection down so nothing further is read from a stream this CGI has shown
+                    it cannot frame.
+
+                    Only accumulate the dropped count here. A CGI that keeps writing re-enters this
+                    branch on every later read, so reporting per read turns a single request into one
+                    log entry per buffer of surplus. The total is reported once when the child exits.
+                 */
+                if (cgip->txSuppress) {
+                    /*
+                        The response was framed as carrying no body, so dropping one is the framing
+                        working, not a fault. Say nothing and leave the connection reusable.
+                     */
+                    nbody = 0;
+
+                } else if (cgip->txLen >= 0 && (cgip->txBytes + nbody) > cgip->txLen) {
+                    cgip->txExcess += (cgip->txBytes + nbody) - cgip->txLen;
+                    nbody = cgip->txLen - cgip->txBytes;
+                    wp->flags &= ~WEBS_KEEP_ALIVE;
+                }
+                if (nbody > 0) {
+                    trace(5, "cgi: write %d bytes to client", (int) nbody);
+                    websWriteBlock(wp, &buf[skip], nbody);
+                    cgip->txBytes += nbody;
+                }
                 cgip->fplacemark += (off_t) nbytes;
             }
             close(fdout);
@@ -2549,6 +2782,25 @@ int websCgiPoll(void)
                 if (cgip->fplacemark == 0) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "CGI generated no output");
                 } else {
+                    /*
+                        Report a length the CGI could not honour, once per request. Surplus output
+                        was already truncated and the connection already dropped by the loop above,
+                        but that leaves txBytes equal to txLen, so the shortfall test below cannot
+                        see it -- the accumulated excess is what records it. A shortfall has not been
+                        acted on yet: the headers are long since on the wire so the framing cannot be
+                        corrected, the client is left waiting for bytes that will never arrive, and
+                        the next response on this connection would be read as their continuation.
+                        Close rather than keep a desynchronised stream alive.
+                     */
+                    if (cgip->txExcess > 0) {
+                        error("cgi: declared Content-Length %d and dropped %d surplus bytes",
+                              (int) cgip->txLen, (int) cgip->txExcess);
+
+                    } else if (cgip->txLen >= 0 && cgip->txBytes != cgip->txLen) {
+                        error("cgi: declared Content-Length %d but wrote %d bytes",
+                              (int) cgip->txLen, (int) cgip->txBytes);
+                        wp->flags &= ~WEBS_KEEP_ALIVE;
+                    }
                     trace(5, "cgi: Request complete - calling websDone");
                     websDone(wp);
                 }
@@ -2673,12 +2925,17 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
 
     trace(5, "cgi: run %s", cgiPath);
 
-    if ((fdin = open(stdIn, O_RDWR | O_CREAT | O_BINARY, 0666)) < 0) {
+    /*
+        websTempFile already created both files, private and empty, so these open an existing file.
+        O_NOFOLLOW keeps that true if the path is replaced between the create and here.
+     */
+    if ((fdin = open(stdIn, O_RDWR | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
         error("Cannot open CGI stdin: %s", cgiPath);
         return -1;
     }
-    if ((fdout = open(stdOut, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0666)) < 0) {
+    if ((fdout = open(stdOut, O_RDWR | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
         error("Cannot open CGI stdout: %s", cgiPath);
+        close(fdin);
         return -1;
     }
 
@@ -2886,13 +3143,18 @@ static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, c
         Open the stdIn and stdOut files and redirect stdin and stdout to them.
      */
     taskId = taskIdSelf();
-    if ((fdout = open(stdOut, O_RDWR | O_CREAT, 0666)) < 0 &&
+    /*
+        websTempFile created both files before the task was spawned, so these open an existing file.
+        The creat() fallbacks remain for a file system that lost it, but must not be reached in
+        normal operation.
+     */
+    if ((fdout = open(stdOut, O_RDWR | O_NOFOLLOW, 0600)) < 0 &&
         (fdout = creat(stdOut, O_RDWR)) < 0) {
         exit(0);
     }
     ioTaskStdSet(taskId, 1, fdout);
 
-    if ((fdin = open(stdIn, O_RDONLY | O_CREAT, 0666)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
+    if ((fdin = open(stdIn, O_RDONLY | O_NOFOLLOW, 0600)) < 0 && (fdin = creat(stdIn, O_RDWR)) < 0) {
         printf("content-type: text/html\n\n" "Can not create CGI stdin to %s\n", stdIn);
         close(fdout);
         exit(0);
@@ -4928,6 +5190,7 @@ static WebsRomIndex *lookup(WebsHash fs, char *path)
 #define PARSE_TIMEOUT      (ME_GOAHEAD_LIMIT_PARSE_TIMEOUT * 1000)
 #define FLUSH_SLICE        1000                    /* Max msec to block in one send before retesting the deadline */
 #define CHUNK_LOW          128                     /* Low water mark for chunking */
+#define MAX_PROLOGUE       8                       /* Max leading CR/LF bytes before a request line (4 blank lines) */
 
 #define TOKEN_HEADER_KEY   0x1                     /* Validate token as a header key */
 #define TOKEN_HEADER_VALUE 0x2                     /* Validate token as a header value */
@@ -4952,6 +5215,10 @@ static char     websIpAddr[ME_MAX_IP];             /* IP address for the server 
 static char     *websHostUrl = NULL;               /* URL to access server */
 static char     *websIpAddrUrl = NULL;             /* URL to access server */
 static ssize    postLimit = ME_GOAHEAD_LIMIT_POST; /* Runtime-settable POST body cap */
+static int      connLimit = ME_GOAHEAD_LIMIT_CONNECTIONS; /* Runtime-settable concurrent connection cap */
+static int      connCount;                         /* Live accepted connections */
+static int      connLimitPerIp = ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP; /* Runtime-settable per-peer cap */
+static WebsHash connIps = -1;                      /* Live connection count keyed by peer address */
 
 #define WEBS_ENCODE_HTML 0x1                       /* Bit setting in charMatch[] */
 #define WEBS_ENCODE_URI  0x4                       /* Encode URI characters */
@@ -5115,6 +5382,7 @@ static int      pruneId;                            /* Callback ID */
 
 /**************************** Forward Declarations ****************************/
 
+static void     adjustIpCount(cchar *ip, int delta);
 static void     checkTimeout(void *arg, int id);
 static bool     filterChunkData(Webs *wp);
 static int      getTimeSinceMark(Webs *wp);
@@ -5168,6 +5436,9 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     if ((sessions = hashCreate(-1)) < 0) {
         return -1;
     }
+    if ((connIps = hashCreate(WEBS_HASH_INIT)) < 0) {
+        return -1;
+    }
     if (!websDebug) {
         pruneId = websStartEvent(WEBS_SESSION_PRUNE, (WebsEventProc) pruneSessions, 0);
     }
@@ -5198,6 +5469,14 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
         return -1;
     }
     websCheckRouteAuth();
+    /*
+        Refuse to serve when request data would be staged inside a served directory. The exposure is
+        unauthenticated and nothing at request time can contain it, so this is a startup failure rather
+        than a warning.
+     */
+    if (websCheckTempDirs() > 0) {
+        return -1;
+    }
     /*
         Create a mime type lookup table for quickly determining the content type
      */
@@ -5271,6 +5550,8 @@ PUBLIC void websClose(void)
 #endif
     websFsClose();
     hashFree(websMime);
+    hashFree(connIps);
+    connIps = -1;
     socketClose();
     logClose();
     websTimeClose();
@@ -5467,6 +5748,13 @@ PUBLIC int websAlloc(int sid)
     if ((wid = wallocObject(&webs, &websMax, sizeof(Webs))) < 0) {
         return -1;
     }
+    /*
+        Count only after the allocation that can fail, and decrement in websFree alone. One increment
+        site and one decrement site is the whole of the correctness here: a count incremented before a
+        failing allocation, or never rolled back, drifts until it reads as permanently full or
+        permanently empty.
+     */
+    connCount++;
     wp = webs[wid];
     assert(wp);
     initWebs(wp, 0, 0);
@@ -5496,10 +5784,68 @@ PUBLIC void websFree(Webs *wp)
     assert(wp);
     assert(websValid(wp));
 
+    adjustIpCount(wp->ipaddr, -1);
     termWebs(wp, 0);
     websMax = wfreeHandle(&webs, wp->wid);
     wfree(wp);
     assert(websMax >= 0);
+    if (connCount > 0) {
+        connCount--;
+    }
+}
+
+
+/*
+    Adjust the live count for a peer address by delta. The entry is removed when it reaches zero: the
+    table is keyed by attacker-chosen addresses, so leaving spent entries behind turns the control
+    into its own unbounded allocation.
+ */
+static void adjustIpCount(cchar *ip, int delta)
+{
+    WebsKey *key;
+    int     count;
+
+    if (connIps < 0 || connLimitPerIp <= 0 || ip == 0 || *ip == '\0') {
+        return;
+    }
+    count = ((key = hashLookup(connIps, ip)) != 0) ? (int) key->content.value.integer : 0;
+    count += delta;
+    if (count <= 0) {
+        if (key) {
+            hashDelete(connIps, ip);
+        }
+        return;
+    }
+    hashEnter(connIps, ip, valueInteger(count), 0);
+}
+
+
+PUBLIC void websSetConnectionLimitPerIp(int limit)
+{
+    connLimitPerIp = limit < 0 ? ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP : limit;
+}
+
+
+PUBLIC int websGetConnectionCountForIp(cchar *ip)
+{
+    WebsKey *key;
+
+    if (connIps < 0 || ip == 0 || *ip == '\0') {
+        return 0;
+    }
+    return ((key = hashLookup(connIps, ip)) != 0) ? (int) key->content.value.integer : 0;
+}
+
+
+PUBLIC void websSetConnectionLimit(int limit)
+{
+    connLimit = limit > 0 ? limit : ME_GOAHEAD_LIMIT_CONNECTIONS;
+}
+
+
+PUBLIC int websGetConnectionCount(void)
+{
+    return connCount;
 }
 
 
@@ -5625,6 +5971,23 @@ PUBLIC int websAccept(int sid, cchar *ipaddr, int port, int listenSid)
     assert(port >= 0);
 
     /*
+        Refuse before allocating anything. Returning -1 makes socketAccept call socketFree, which
+        shuts down and closes the descriptor, so the peer is dropped without reading a request from it.
+     */
+    if (connCount >= connLimit) {
+        trace(2, "Refused connection from %s: at connection limit %d", ipaddr, connLimit);
+        return -1;
+    }
+    /*
+        The total cap above bounds resource use but refuses everyone equally once reached, so a flood
+        denies service to the clients it is meant to protect. The per-peer cap is what preserves
+        capacity for other addresses.
+     */
+    if (connLimitPerIp > 0 && websGetConnectionCountForIp(ipaddr) >= connLimitPerIp) {
+        trace(2, "Refused connection from %s: at per-address limit %d", ipaddr, connLimitPerIp);
+        return -1;
+    }
+    /*
         Allocate a new handle for this accepted connection. This will allocate a Webs structure in the webs[] list
      */
     if ((wid = websAlloc(sid)) < 0) {
@@ -5635,6 +5998,12 @@ PUBLIC int websAccept(int sid, cchar *ipaddr, int port, int listenSid)
     wp->listenSid = listenSid;
     strncpy(wp->ipaddr, ipaddr, sizeof(wp->ipaddr) - 1);
     wp->ipaddr[sizeof(wp->ipaddr) - 1] = '\0';
+    /*
+        Count against the peer only once the address is recorded on the connection, so the matching
+        decrement in websFree can find the same key. Every failure path below releases through
+        websFree, so the pair holds without an explicit rollback here.
+     */
+    adjustIpCount(wp->ipaddr, 1);
 
     /*
         Get the ip address of the interface that accept the connection.
@@ -5755,6 +6124,16 @@ static void readEvent(Webs *wp)
         }
     }
     if ((nbytes = websRead(wp, (char*) rxbuf->endp, ME_GOAHEAD_LIMIT_BUFFER)) > 0) {
+        /*
+            Start the parse clock on the first byte of a request, not when the connection was accepted.
+            A connection that has sent nothing is an idle connection and belongs to WEBS_TIMEOUT and to
+            the connection cap; only a request that has begun to arrive gets a completion deadline.
+            Stamping at accept, or on keep-alive reuse, would apply the deadline to a persistent
+            connection waiting for its next request and close it seconds after its previous response.
+         */
+        if (wp->started == 0) {
+            wp->started = time(0);
+        }
         wp->lastRead = nbytes;
         bufAdjustEnd(rxbuf, nbytes);
         bufAddNull(rxbuf);
@@ -5837,9 +6216,29 @@ static bool parseIncoming(Webs *wp)
     char    *end, c;
 
     rxbuf = &wp->rxbuf;
+    /*
+        Ignore blank lines before the request line, as clients may emit a trailing CRLF after a body.
+        These bytes are consumed here, so they never reach the LIMIT_HEADER test below and cannot be
+        measured by bufLen. An unbounded strip is therefore a free and unloggable way to hold a
+        connection open forever. Charge them against a separate budget.
+
+        The budget must live on the connection. parseIncoming is re-entered on every read event, so a
+        counter local to this function would restart at zero for each instalment and a client feeding
+        two bytes at a time would never reach the cap. initWebs memsets the request state, so the
+        count resets for each request on a keep-alive connection without an explicit reset here.
+     */
     while (*rxbuf->servp == '\r' || *rxbuf->servp == '\n') {
         if (bufGetc(rxbuf) < 0) {
             break;
+        }
+        /*
+            Charge only bytes actually discarded. Testing the budget before the read would also charge
+            a pass that consumed nothing, and parseIncoming is re-entered whenever the connection is
+            serviced, so an idle connection would accumulate its way to a spurious rejection.
+         */
+        if (++wp->rxPrologue > MAX_PROLOGUE) {
+            websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Too many leading blank lines");
+            return 1;
         }
     }
     if ((end = strstr((char*) wp->rxbuf.servp, "\r\n\r\n")) == 0) {
@@ -5876,8 +6275,15 @@ static bool parseIncoming(Webs *wp)
 #if ME_GOAHEAD_CGI
     if (wp->route && wp->route->handler && wp->route->handler->service == cgiHandler) {
         if (smatch(wp->method, "POST")) {
-            wp->cgiStdin = websGetCgiCommName();
-            if ((wp->cgifd = open(wp->cgiStdin, O_CREAT | O_WRONLY | O_BINARY | O_TRUNC, 0666)) < 0) {
+            if ((wp->cgiStdin = websGetCgiCommName()) == 0) {
+                websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR | WEBS_CLOSE, "Cannot create CGI file");
+                return 1;
+            }
+            /*
+                websGetCgiCommName created the file, so this opens an existing private file rather
+                than creating one. O_NOFOLLOW keeps that true if the path is replaced in between.
+             */
+            if ((wp->cgifd = open(wp->cgiStdin, O_WRONLY | O_BINARY | O_TRUNC | O_NOFOLLOW, 0600)) < 0) {
                 websError(wp, HTTP_CODE_NOT_FOUND | WEBS_CLOSE, "Cannot open CGI file");
                 return 1;
             }
@@ -5890,8 +6296,15 @@ static bool parseIncoming(Webs *wp)
         wp->code =
             (stat(wp->filename, &sbuf) == 0 && S_ISDIR(sbuf.st_mode)) ? HTTP_CODE_NO_CONTENT : HTTP_CODE_CREATED;
         wfreeset(wp->putname);
-        wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put");
-        if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_CREAT | O_BINARY, 0644)) < 0) {
+        if ((wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put")) == 0) {
+            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
+            return 1;
+        }
+        /*
+            The staging file exists and is private. Open it rather than create it, so a path swapped
+            underneath us fails here instead of writing the request body somewhere else.
+         */
+        if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_NOFOLLOW, 0600)) < 0) {
             error("Cannot create PUT filename %s", wp->putname);
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
             wfreeset(wp->putname);
@@ -6924,6 +7337,19 @@ PUBLIC void websSetStatus(Webs *wp, int code)
 
 
 /*
+    A 1XX, 204 or 304 response carries no body. This governs both the headers written below and, for
+    a handler that forwards a body it did not generate, whether any of that body may be written at
+    all -- so it is a shared predicate rather than a test repeated at each site. The two must not be
+    able to drift: a site that emits no Content-Length while another still writes the body produces a
+    response the client frames as empty followed by unframed bytes.
+ */
+PUBLIC bool websStatusHasNoBody(int code)
+{
+    return (100 <= code && code <= 199) || code == HTTP_CODE_NO_CONTENT || code == HTTP_CODE_NOT_MODIFIED;
+}
+
+
+/*
     Write a set of headers. Does not write the trailing blank line so callers can add more headers.
     Set length to -1 if unknown and transfer-chunk-encoding will be employed.
  */
@@ -6931,6 +7357,8 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
 {
     WebsKey *cookie, *key, *next;
     char    *date, *protoVersion;
+    char    lenbuf[32];
+    int     cacheable;
 
     assert(websValid(wp));
 
@@ -6952,11 +7380,21 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
             websWriteHeader(wp, "WWW-Authenticate", "%s", wp->authResponse);
         }
         if (length >= 0) {
-            if (smatch(wp->method, "HEAD")) {
-                websWriteHeader(wp, "Content-Length", "%d", (int) length);
-            } else if (!((100 <= wp->code && wp->code <= 199) || wp->code == 204 || wp->code == 304)) {
-                /* Server must not emit a content length header for 1XX, 204 and 304 status */
-                websWriteHeader(wp, "Content-Length", "%d", (int) length);
+            /*
+                Emit the full width. wp->txLen below keeps the untruncated value and governs the body, so
+                truncating here makes the header disagree with the bytes actually written and splits the
+                response on a keep-alive connection. Convert via itosbuf rather than a format specifier:
+                fmt() has no %z, and its %Ld extension conflicts with the printf attribute on
+                websWriteHeader, under which L means long double.
+             */
+            itosbuf(lenbuf, sizeof(lenbuf), (int64) length, 10);
+            /*
+                A HEAD response declares the length the equivalent GET would return, so it carries
+                Content-Length despite having no body. Otherwise the server must not emit one for a
+                1XX, 204 or 304 status.
+             */
+            if (smatch(wp->method, "HEAD") || !websStatusHasNoBody(wp->code)) {
+                websWriteHeader(wp, "Content-Length", "%s", lenbuf);
             }
         }
         wp->txLen = length;
@@ -6973,20 +7411,43 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
         } else if ((key = hashLookup(websMime, wp->ext)) != 0) {
             websWriteHeader(wp, "Content-Type", "%s", key->content.value.string);
         }
+        /*
+            Decide cacheability before emitting any Cache-Control so that exactly one is written. Only a plain,
+            unauthenticated 200 or 304 may be publicly cached. A challenge, an error, or any response whose content
+            depended on credentials must never be stored by a shared cache: a cached 401 locks out clients that DO
+            hold credentials, and a cached authenticated body is served to clients that hold none. responseCookies is
+            a WebsHash index, not a pointer, so test emptiness via hashFirst -- hash id 0 is a valid table.
+         */
+        cacheable = (wp->code == HTTP_CODE_OK || wp->code == HTTP_CODE_NOT_MODIFIED) &&
+                    !(wp->flags & WEBS_NO_CACHE) && !wp->authType && !wp->username &&
+                    hashFirst(wp->responseCookies) == 0;
+
         for (cookie = hashFirst(wp->responseCookies); cookie; cookie = next) {
             websWriteHeader(wp, "Set-Cookie", "%s", cookie->content.value.string);
-            websWriteHeader(wp, "Cache-Control", "%s", "no-cache=\"set-cookie\"");
             next = hashNext(wp->responseCookies, cookie);
         }
 #if defined(ME_GOAHEAD_CLIENT_CACHE)
-        if (wp->ext) {
-            char *etok = sfmt("%s,", &wp->ext[1]);
-            if (strstr(ME_GOAHEAD_CLIENT_CACHE ",", etok)) {
+        if (cacheable && wp->ext) {
+            /*
+                Comma-delimit both the list and the extension so only whole entries match. Matching a bare "ext,"
+                against the raw list publicly caches any extension that is a tail of a listed one -- ".g" matched
+                "jpg".
+             */
+            char *etok = sfmt(",%s,", &wp->ext[1]);
+            if (strstr("," ME_GOAHEAD_CLIENT_CACHE ",", etok)) {
                 websWriteHeader(wp, "Cache-Control", "public, max-age=%d", ME_GOAHEAD_CLIENT_CACHE_LIFESPAN);
             }
             wfree(etok);
         }
 #endif
+        if (!cacheable) {
+            /*
+                Not inside the CLIENT_CACHE guard: a build without client caching still needs no-store on a 401,
+                because the poisoning cache is the intermediary's, not ours.
+             */
+            websWriteHeader(wp, "Cache-Control", "no-store, private");
+            websWriteHeader(wp, "Vary", "Authorization, Cookie");
+        }
 #ifdef ME_GOAHEAD_XFRAME_HEADER
         if (*ME_GOAHEAD_XFRAME_HEADER) {
             websWriteHeader(wp, "X-Frame-Options", "%s", ME_GOAHEAD_XFRAME_HEADER);
@@ -7443,7 +7904,8 @@ static void logRequest(Webs *wp, int code)
 static void checkTimeout(void *arg, int id)
 {
     Webs *wp;
-    int  elapsed, delay;
+    int  elapsed, parseElapsed, delay;
+    bool parsing;
 
     wp = (Webs*) arg;
     assert(websValid(wp));
@@ -7453,9 +7915,25 @@ static void checkTimeout(void *arg, int id)
         websRestartEvent(id, (int) WEBS_TIMEOUT);
         return;
     }
-    if (elapsed >= WEBS_TIMEOUT) {
+    /*
+        The idle mark is refreshed by the peer on every read, so it cannot bound how long a request may
+        take to arrive: a client dribbling a byte a minute renews it forever. Hold the request start
+        separately and enforce it while the request line and headers are still outstanding.
+
+        Only WEBS_BEGIN is covered. A body legitimately takes longer than any parse deadline, so
+        applying this to WEBS_CONTENT would close every slow upload.
+     */
+    parsing = wp->started != 0 && wp->state == WEBS_BEGIN;
+    if (parsing) {
+        parseElapsed = (int) (time(0) - wp->started) * 1000;
+    } else {
+        parseElapsed = 0;
+    }
+    if (elapsed >= WEBS_TIMEOUT || (parsing && parseElapsed >= PARSE_TIMEOUT)) {
         if (!(wp->flags & WEBS_HEADERS_CREATED)) {
-            if (wp->state > WEBS_BEGIN) {
+            if (parsing && parseElapsed >= PARSE_TIMEOUT && elapsed < WEBS_TIMEOUT) {
+                websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Request header timeout");
+            } else if (wp->state > WEBS_BEGIN) {
                 websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Request exceeded timeout");
             } else {
                 websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Idle connection closed");
@@ -7467,8 +7945,17 @@ static void checkTimeout(void *arg, int id)
         /* WARNING: wp not valid here */
         return;
     }
+    /*
+        Re-arm at the nearer of the two deadlines. Always re-arming at the idle period would detect a
+        blown parse deadline up to WEBS_TIMEOUT late, which is the whole of what it is meant to bound.
+     */
     delay = WEBS_TIMEOUT - elapsed;
-    assert(delay > 0);
+    if (parsing && (PARSE_TIMEOUT - parseElapsed) < delay) {
+        delay = PARSE_TIMEOUT - parseElapsed;
+    }
+    if (delay <= 0) {
+        delay = 1;
+    }
     websRestartEvent(id, delay);
 }
 
@@ -8205,7 +8692,13 @@ PUBLIC void websSetCookie(Webs *wp, cchar *name, cchar *value, cchar *path, ccha
     }
     cookie = sfmt("%s=%s; path=%s%s%s%s%s%s%s%s", name, value, path, domainAtt, domain, expiresAtt, expires, secure,
                   httponly, sameSite);
-    hashEnter(wp->responseCookies, name, valueString(cookie, 0), 0);
+    /*
+        The hash must own the cookie string. With VALUE_ALLOCATE, valueFree() releases it both when
+        hashEnter replaces a same-named cookie and when termWebs calls hashFree. Without it, neither
+        path frees and every Set-Cookie orphans its allocation.
+     */
+    hashEnter(wp->responseCookies, name, valueString(cookie, VALUE_ALLOCATE), 0);
+    wfree(cookie);
     wfree(domain);
 }
 
@@ -11276,9 +11769,13 @@ static bool jstHandler(Webs *wp)
         goto done;
     }
     websPageClose(wp);
+    /*
+        A JST page is dynamic. Mark it uncacheable before the headers are built so websWriteHeaders emits the single
+        authoritative Cache-Control rather than a second, weaker one here.
+     */
+    wp->flags |= WEBS_NO_CACHE;
     websWriteHeaders(wp, (ssize) - 1, 0);
     websWriteHeader(wp, "Pragma", "no-cache");
-    websWriteHeader(wp, "Cache-Control", "no-cache");
     websWriteEndHeaders(wp);
 
     /*
@@ -13269,29 +13766,78 @@ PUBLIC void websOsClose(void)
 }
 
 
+/*
+    Create a temporary file and return its allocated path name.
+
+    The file is created here, empty and private, before the name is returned. Two properties matter and
+    both are security properties. The name carries 64 bits from the system CSPRNG, so a client cannot
+    predict where another request's data is staged. The create is exclusive and refuses a symlink, so a
+    local attacker can neither pre-create the path to read what lands there nor aim it at a file the
+    server may not write. The caller opens the returned path, and must unlink the file and free the
+    name when done.
+
+    A counter was used previously. It started at zero, reset on restart, and named a file that nothing
+    created, so the path of the next request's CGI output was known to everyone and belonged to whoever
+    made it first.
+
+    Returns NULL if no temporary file could be created. Callers must fail the request rather than
+    proceed with an unnamed staging file.
+ */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
 {
-    static int count = 0;
-    char       sep;
+    cchar *hex = "0123456789abcdef";
+    uchar bytes[8];
+    char  name[sizeof(bytes) * 2 + 1], *path;
+    char  sep;
+    int   fd, i, tries;
 
-    sep = '/';
-    if (!dir || *dir == '\0') {
 #if WINCE
-        dir = "/Temp";
-        sep = '\\';
+    sep = '\\';
 #elif ME_WIN_LIKE
+    sep = '\\';
+    if (!dir || *dir == '\0') {
         dir = getenv("TEMP");
-        sep = '\\';
-#elif VXWORKS
-        dir = ".";
+    }
 #else
-        dir = "/tmp";
+    sep = '/';
 #endif
+    /*
+        Must never fall back to the current directory. The CGI handler runs the request with the working
+        directory set to the route's documents directory, so a relative default stages request data
+        inside the served tree where any client can fetch it.
+     */
+    if (!dir || *dir == '\0') {
+        dir = ME_GOAHEAD_TEMP_DIR;
     }
     if (!prefix) {
         prefix = "tmp";
     }
-    return sfmt("%s%c%s-%d.tmp", dir, sep, prefix, count++);
+    for (tries = 0; tries < 8; tries++) {
+        if (websGetRandomBytes((char*) bytes, sizeof(bytes), 0) < 0) {
+            error("Cannot read random bytes for a temp file name");
+            return 0;
+        }
+        for (i = 0; i < (int) sizeof(bytes); i++) {
+            name[i * 2] = hex[bytes[i] >> 4];
+            name[i * 2 + 1] = hex[bytes[i] & 0xf];
+        }
+        name[sizeof(name) - 1] = '\0';
+        path = sfmt("%s%c%s-%s.tmp", dir, sep, prefix, name);
+        if ((fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_BINARY | O_NOFOLLOW, 0600)) >= 0) {
+            close(fd);
+            return path;
+        }
+        wfree(path);
+        if (errno != EEXIST) {
+            /*
+                A missing or unwritable temp directory. Retrying cannot help and would only spin.
+             */
+            break;
+        }
+    }
+    error("Cannot create a temp file in \"%s\". Set ME_GOAHEAD_TEMP_DIR to a writable directory "
+          "outside the documents directory.", dir);
+    return 0;
 }
 
 
@@ -13927,6 +14473,22 @@ PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, Webs
     route->extensions = extensions;
     route->methods = methods;
     route->redirects = redirects;
+
+#if !ME_GOAHEAD_AUTH
+    /*
+        This build compiles out the authorization gate, so an ability requirement can only be
+        recorded on the route and never consulted. Refuse it here - the single choke point through
+        which every ability set reaches a route - rather than let the route table describe a policy
+        the binary cannot enforce. The hashes are attached to the route above before failing so that
+        websCloseRoute still owns and frees them.
+     */
+    if (abilities >= 0) {
+        error("Route \"%s\" requires abilities, but this build has ME_GOAHEAD_AUTH=0 and cannot "
+              "enforce them. Rebuild with ME_GOAHEAD_AUTH=1 or remove the abilities requirement.",
+              route->prefix);
+        return -1;
+    }
+#endif
     return 0;
 }
 
@@ -14146,6 +14708,124 @@ PUBLIC void websCheckRouteAuth(void)
 }
 
 
+/*
+    Return an allocated absolute form of path with '\' folded to '/' and any trailing separator removed,
+    so two directory names can be compared as strings. A relative path is resolved against the current
+    directory, which is where every relative configuration directory is resolved at runtime.
+ */
+static char *absolutePath(cchar *path)
+{
+    char cwd[ME_GOAHEAD_LIMIT_FILENAME], *result, *cp;
+    int  absolute;
+
+    absolute = (*path == '/' || *path == '\\');
+#if ME_WIN_LIKE
+    if (isalpha((uchar) path[0]) && path[1] == ':') {
+        absolute = 1;
+    }
+#endif
+    if (absolute) {
+        result = sclone(path);
+    } else if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        result = sclone(path);
+    } else {
+        result = sfmt("%s/%s", cwd, path);
+    }
+    for (cp = result; *cp; cp++) {
+        if (*cp == '\\') {
+            *cp = '/';
+        }
+    }
+    /*
+        "/" is its own trailing separator and must keep it, or every path compares as inside it.
+     */
+    for (cp = &result[slen(result) - 1]; cp > result && *cp == '/'; cp--) {
+        *cp = '\0';
+    }
+    return result;
+}
+
+
+/*
+    Test if child names dir or a location inside it. Compares the configured directories rather than
+    their realpath, so a path that reaches one directory through a symlink is not detected - that yields
+    a missed warning, never a false one.
+ */
+static int dirContains(cchar *dir, cchar *child)
+{
+    char  *parent, *sub;
+    ssize len;
+    int   rc;
+
+    parent = absolutePath(dir);
+    sub = absolutePath(child);
+    len = slen(parent);
+    rc = 0;
+    if (len > 0 && (ME_WIN_LIKE ? sncaselesscmp(parent, sub, len) : sncmp(parent, sub, len)) == 0) {
+        /*
+            "/tmp" contains "/tmp" and "/tmp/x", but not "/tmpdir". A parent of "/" ends in the
+            separator itself, so the child's next character is already part of its own name.
+         */
+        rc = sub[len] == '\0' || sub[len] == '/' || parent[len - 1] == '/';
+    }
+    wfree(parent);
+    wfree(sub);
+    return rc;
+}
+
+
+/*
+    Audit the directories used to stage request data - CGI stdin and stdout, upload and PUT staging -
+    against the served directories. A temporary file inside a served directory is fetchable over HTTP,
+    so one client's in-flight request body or CGI response is readable by another. Returns the number of
+    problems found; websOpen refuses to start the server when this is non-zero, because the exposure is
+    unauthenticated and there is no request-time check that could contain it.
+ */
+PUBLIC int websCheckTempDirs(void)
+{
+    cchar *staging[3], *setting[3], *docs;
+    int   i, j, count, problems;
+
+    count = 0;
+    staging[count] = ME_GOAHEAD_TEMP_DIR;
+    setting[count++] = "ME_GOAHEAD_TEMP_DIR";
+#if ME_GOAHEAD_UPLOAD
+    staging[count] = ME_GOAHEAD_UPLOAD_DIR;
+    setting[count++] = "ME_GOAHEAD_UPLOAD_DIR";
+#endif
+#if !ME_ROM
+    staging[count] = ME_GOAHEAD_PUT_DIR;
+    setting[count++] = "ME_GOAHEAD_PUT_DIR";
+#endif
+
+    problems = 0;
+    for (i = 0; i < count; i++) {
+        if (staging[i] == 0 || *staging[i] == '\0') {
+            continue;
+        }
+        for (j = -1; j < routeCount; j++) {
+            /*
+                Routes without an explicit dir= serve the document root, so it is checked once here
+                rather than once per route.
+             */
+            docs = (j < 0) ? websGetDocuments() : routes[j]->dir;
+            if (docs == 0 || *docs == '\0') {
+                continue;
+            }
+            if (dirContains(docs, staging[i])) {
+                error("Security error: %s \"%s\" is inside the served directory \"%s\". Request data "
+                      "staged there - CGI output, uploads, PUT bodies - is served to any client that "
+                      "names the file. Set %s to a directory outside the documents directory.",
+                      setting[i], staging[i], docs, setting[i]);
+                problems++;
+                break;
+            }
+        }
+    }
+    return problems;
+}
+
+
 PUBLIC int websOpenRoute(void)
 {
     if ((handlers = hashCreate(-1)) < 0) {
@@ -14229,6 +14909,23 @@ static void addOption(WebsHash *hash, char *keys, char *value)
 }
 
 
+#if !ME_GOAHEAD_AUTH
+/*
+    Refuse a configuration directive that describes an access control policy this build cannot
+    enforce. Loading it and serving the resource unprotected leaves the operator with a configuration
+    that reads as if authentication were in force while every protected route is public; declining to
+    start is strictly the better failure. Returns -1 for the caller's result code.
+ */
+static int rejectAuthDirective(cchar *directive)
+{
+    error("Configuration directive \"%s\" requires ME_GOAHEAD_AUTH, but this build cannot enforce "
+          "authentication. Refusing the configuration rather than serving it without the access "
+          "control it describes. Rebuild with ME_GOAHEAD_AUTH=1 or remove the directive.", directive);
+    return -1;
+}
+#endif
+
+
 /*
     Load route and authentication configuration files
  */
@@ -14295,13 +14992,24 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
-            websSetRouteMatch(route, dir, protocol, methods, extensions, abilities, redirects);
+            if (websSetRouteMatch(route, dir, protocol, methods, extensions, abilities, redirects) < 0) {
+                rc = -1;
+                break;
+            }
 #if ME_GOAHEAD_AUTH
             if (auth && websSetRouteAuth(route, auth) < 0) {
                 rc = -1;
                 break;
             }
+#else
+            if (auth) {
+                rc = rejectAuthDirective("auth");
+                break;
+            }
+#endif
+
         } else if (smatch(kind, "user")) {
+#if ME_GOAHEAD_AUTH
             char *name, *password, *roles;
             name = password = roles = 0;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
@@ -14321,7 +15029,13 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
+#else
+            rc = rejectAuthDirective(kind);
+            break;
+#endif
+
         } else if (smatch(kind, "role")) {
+#if ME_GOAHEAD_AUTH
             char *name;
             name = 0;
             abilities = -1;
@@ -14337,7 +15051,11 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
+#else
+            rc = rejectAuthDirective(kind);
+            break;
 #endif
+
         } else {
             error("Unknown route keyword %s", kind);
             rc = -1;
@@ -17469,10 +18187,18 @@ static void socketAccept(WebsSocket *sp)
     /*
         Create a socket structure and insert into the socket list
      */
+    /*
+        newSock is not owned by a WebsSocket until the assignment below, so nothing else will close it.
+        Returning without closing abandons the descriptor, and the listening socket stays readable, so
+        at the allocation ceiling every wakeup accepts and leaks one more.
+     */
     if ((nid = socketAlloc(sp->ip, sp->port, sp->accept, sp->flags)) < 0) {
+        closesocket(newSock);
         return;
     }
     if ((nsp = socketList[nid]) == 0) {
+        closesocket(newSock);
+        socketFree(nid);
         return;
     }
     assert(nsp);
@@ -19493,7 +20219,11 @@ static void processUploadHeader(Webs *wp, char *line)
                 }
                 trace(5, "File upload of: %s stored as %s", wp->clientFilename, wp->uploadTmp);
 
-                if ((wp->upfd = open(wp->uploadTmp, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600)) < 0) {
+                /*
+                    websTempFile created the file, private and empty, so this opens an existing file
+                    rather than creating one. O_NOFOLLOW keeps that true if the path is replaced.
+                 */
+                if ((wp->upfd = open(wp->uploadTmp, O_WRONLY | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot open upload temp file %s", wp->uploadTmp);
                     return;
                 }
@@ -19711,9 +20441,10 @@ PUBLIC void websUploadOpen(void)
     if (*uploadDir == '\0') {
 #if ME_WIN_LIKE
         uploadDir = getenv("TEMP");
-#else
-        uploadDir = "/tmp";
 #endif
+        if (uploadDir == 0 || *uploadDir == '\0') {
+            uploadDir = ME_GOAHEAD_TEMP_DIR;
+        }
     }
     trace(4, "Upload directory is %s", uploadDir);
     websDefineHandler("upload", 0, uploadHandler, 0, 0);
