@@ -17,6 +17,7 @@
 #define PARSE_TIMEOUT      (ME_GOAHEAD_LIMIT_PARSE_TIMEOUT * 1000)
 #define FLUSH_SLICE        1000                    /* Max msec to block in one send before retesting the deadline */
 #define CHUNK_LOW          128                     /* Low water mark for chunking */
+#define MAX_PROLOGUE       8                       /* Max leading CR/LF bytes before a request line (4 blank lines) */
 
 #define TOKEN_HEADER_KEY   0x1                     /* Validate token as a header key */
 #define TOKEN_HEADER_VALUE 0x2                     /* Validate token as a header value */
@@ -926,9 +927,29 @@ static bool parseIncoming(Webs *wp)
     char    *end, c;
 
     rxbuf = &wp->rxbuf;
+    /*
+        Ignore blank lines before the request line, as clients may emit a trailing CRLF after a body.
+        These bytes are consumed here, so they never reach the LIMIT_HEADER test below and cannot be
+        measured by bufLen. An unbounded strip is therefore a free and unloggable way to hold a
+        connection open forever. Charge them against a separate budget.
+
+        The budget must live on the connection. parseIncoming is re-entered on every read event, so a
+        counter local to this function would restart at zero for each instalment and a client feeding
+        two bytes at a time would never reach the cap. initWebs memsets the request state, so the
+        count resets for each request on a keep-alive connection without an explicit reset here.
+     */
     while (*rxbuf->servp == '\r' || *rxbuf->servp == '\n') {
         if (bufGetc(rxbuf) < 0) {
             break;
+        }
+        /*
+            Charge only bytes actually discarded. Testing the budget before the read would also charge
+            a pass that consumed nothing, and parseIncoming is re-entered whenever the connection is
+            serviced, so an idle connection would accumulate its way to a spurious rejection.
+         */
+        if (++wp->rxPrologue > MAX_PROLOGUE) {
+            websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Too many leading blank lines");
+            return 1;
         }
     }
     if ((end = strstr((char*) wp->rxbuf.servp, "\r\n\r\n")) == 0) {
@@ -2013,6 +2034,19 @@ PUBLIC void websSetStatus(Webs *wp, int code)
 
 
 /*
+    A 1XX, 204 or 304 response carries no body. This governs both the headers written below and, for
+    a handler that forwards a body it did not generate, whether any of that body may be written at
+    all -- so it is a shared predicate rather than a test repeated at each site. The two must not be
+    able to drift: a site that emits no Content-Length while another still writes the body produces a
+    response the client frames as empty followed by unframed bytes.
+ */
+PUBLIC bool websStatusHasNoBody(int code)
+{
+    return (100 <= code && code <= 199) || code == HTTP_CODE_NO_CONTENT || code == HTTP_CODE_NOT_MODIFIED;
+}
+
+
+/*
     Write a set of headers. Does not write the trailing blank line so callers can add more headers.
     Set length to -1 if unknown and transfer-chunk-encoding will be employed.
  */
@@ -2020,6 +2054,7 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
 {
     WebsKey *cookie, *key, *next;
     char    *date, *protoVersion;
+    char    lenbuf[32];
     int     cacheable;
 
     assert(websValid(wp));
@@ -2042,11 +2077,21 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
             websWriteHeader(wp, "WWW-Authenticate", "%s", wp->authResponse);
         }
         if (length >= 0) {
-            if (smatch(wp->method, "HEAD")) {
-                websWriteHeader(wp, "Content-Length", "%d", (int) length);
-            } else if (!((100 <= wp->code && wp->code <= 199) || wp->code == 204 || wp->code == 304)) {
-                /* Server must not emit a content length header for 1XX, 204 and 304 status */
-                websWriteHeader(wp, "Content-Length", "%d", (int) length);
+            /*
+                Emit the full width. wp->txLen below keeps the untruncated value and governs the body, so
+                truncating here makes the header disagree with the bytes actually written and splits the
+                response on a keep-alive connection. Convert via itosbuf rather than a format specifier:
+                fmt() has no %z, and its %Ld extension conflicts with the printf attribute on
+                websWriteHeader, under which L means long double.
+             */
+            itosbuf(lenbuf, sizeof(lenbuf), (int64) length, 10);
+            /*
+                A HEAD response declares the length the equivalent GET would return, so it carries
+                Content-Length despite having no body. Otherwise the server must not emit one for a
+                1XX, 204 or 304 status.
+             */
+            if (smatch(wp->method, "HEAD") || !websStatusHasNoBody(wp->code)) {
+                websWriteHeader(wp, "Content-Length", "%s", lenbuf);
             }
         }
         wp->txLen = length;

@@ -2141,6 +2141,7 @@ typedef struct Webs {
     ssize rxChunkSize;                  /**< Rx chunk size */
     char *rxEndp;                       /**< Pointer to end of raw data in input beyond endp */
     ssize lastRead;                     /**< Number of bytes last read from the socket */
+    int rxPrologue;                     /**< Count of blank-line bytes stripped before the request line */
     bool eof;                           /**< If at the end of the request content */
 
     char txChunkPrefix[16];             /**< Transmit chunk prefix */
@@ -3614,6 +3615,18 @@ PUBLIC char *websValidateUriPath(cchar *uri);
         @stability Stable
  */
 PUBLIC bool websValidUriChars(cchar *uri);
+
+/**
+    Test if a status code defines a response that carries no body
+    @description A 1XX, 204 or 304 response has no content and carries no header describing the length of one.
+        Body bytes written after such a status are not payload: the client frames the response as empty and reads
+        them as the start of the next response on the connection. Handlers that forward a body from an external
+        source must consult this before writing any of it.
+    @param code HTTP status code
+    @return True if the status code prohibits a response body
+    @stability Evolving
+ */
+PUBLIC bool websStatusHasNoBody(int code);
 
 /**
     Write a set of standard response headers
