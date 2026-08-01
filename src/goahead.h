@@ -2184,6 +2184,7 @@ typedef struct Webs {
     char *rxEndp;                       /**< Pointer to end of raw data in input beyond endp */
     ssize lastRead;                     /**< Number of bytes last read from the socket */
     int rxPrologue;                     /**< Count of blank-line bytes stripped before the request line */
+    WebsTime started;                   /**< When the first byte of the current request arrived. 0 if none yet */
     bool eof;                           /**< If at the end of the request content */
 
     char txChunkPrefix[16];             /**< Transmit chunk prefix */

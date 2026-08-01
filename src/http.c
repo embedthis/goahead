@@ -951,6 +951,16 @@ static void readEvent(Webs *wp)
         }
     }
     if ((nbytes = websRead(wp, (char*) rxbuf->endp, ME_GOAHEAD_LIMIT_BUFFER)) > 0) {
+        /*
+            Start the parse clock on the first byte of a request, not when the connection was accepted.
+            A connection that has sent nothing is an idle connection and belongs to WEBS_TIMEOUT and to
+            the connection cap; only a request that has begun to arrive gets a completion deadline.
+            Stamping at accept, or on keep-alive reuse, would apply the deadline to a persistent
+            connection waiting for its next request and close it seconds after its previous response.
+         */
+        if (wp->started == 0) {
+            wp->started = time(0);
+        }
         wp->lastRead = nbytes;
         bufAdjustEnd(rxbuf, nbytes);
         bufAddNull(rxbuf);
@@ -2721,7 +2731,8 @@ static void logRequest(Webs *wp, int code)
 static void checkTimeout(void *arg, int id)
 {
     Webs *wp;
-    int  elapsed, delay;
+    int  elapsed, parseElapsed, delay;
+    bool parsing;
 
     wp = (Webs*) arg;
     assert(websValid(wp));
@@ -2731,9 +2742,25 @@ static void checkTimeout(void *arg, int id)
         websRestartEvent(id, (int) WEBS_TIMEOUT);
         return;
     }
-    if (elapsed >= WEBS_TIMEOUT) {
+    /*
+        The idle mark is refreshed by the peer on every read, so it cannot bound how long a request may
+        take to arrive: a client dribbling a byte a minute renews it forever. Hold the request start
+        separately and enforce it while the request line and headers are still outstanding.
+
+        Only WEBS_BEGIN is covered. A body legitimately takes longer than any parse deadline, so
+        applying this to WEBS_CONTENT would close every slow upload.
+     */
+    parsing = wp->started != 0 && wp->state == WEBS_BEGIN;
+    if (parsing) {
+        parseElapsed = (int) (time(0) - wp->started) * 1000;
+    } else {
+        parseElapsed = 0;
+    }
+    if (elapsed >= WEBS_TIMEOUT || (parsing && parseElapsed >= PARSE_TIMEOUT)) {
         if (!(wp->flags & WEBS_HEADERS_CREATED)) {
-            if (wp->state > WEBS_BEGIN) {
+            if (parsing && parseElapsed >= PARSE_TIMEOUT && elapsed < WEBS_TIMEOUT) {
+                websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Request header timeout");
+            } else if (wp->state > WEBS_BEGIN) {
                 websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Request exceeded timeout");
             } else {
                 websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Idle connection closed");
@@ -2745,8 +2772,17 @@ static void checkTimeout(void *arg, int id)
         /* WARNING: wp not valid here */
         return;
     }
+    /*
+        Re-arm at the nearer of the two deadlines. Always re-arming at the idle period would detect a
+        blown parse deadline up to WEBS_TIMEOUT late, which is the whole of what it is meant to bound.
+     */
     delay = WEBS_TIMEOUT - elapsed;
-    assert(delay > 0);
+    if (parsing && (PARSE_TIMEOUT - parseElapsed) < delay) {
+        delay = PARSE_TIMEOUT - parseElapsed;
+    }
+    if (delay <= 0) {
+        delay = 1;
+    }
     websRestartEvent(id, delay);
 }
 
