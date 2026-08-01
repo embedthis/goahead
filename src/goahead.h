@@ -2059,6 +2059,7 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
     @{
  */
 #define WEBS_VARS_ADDED      0x4000          /**< Query string and form variables have been parsed and added */
+#define WEBS_NO_CACHE        0x10000         /**< Response is dynamic and must never be cached */
 #if ME_GOAHEAD_LEGACY
 #define WEBS_LOCAL           0x8000          /**< Request originated from the local system (legacy) */
 #endif

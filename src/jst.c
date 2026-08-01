@@ -78,9 +78,13 @@ static bool jstHandler(Webs *wp)
         goto done;
     }
     websPageClose(wp);
+    /*
+        A JST page is dynamic. Mark it uncacheable before the headers are built so websWriteHeaders emits the single
+        authoritative Cache-Control rather than a second, weaker one here.
+     */
+    wp->flags |= WEBS_NO_CACHE;
     websWriteHeaders(wp, (ssize) - 1, 0);
     websWriteHeader(wp, "Pragma", "no-cache");
-    websWriteHeader(wp, "Cache-Control", "no-cache");
     websWriteEndHeaders(wp);
 
     /*

@@ -550,9 +550,13 @@ static void writeCgiHeaders(Webs *wp, int status, ssize contentLength, cchar *lo
 {
     trace(5, "cgi: Start response headers");
     websSetStatus(wp, status);
+    /*
+        A CGI response is dynamic. Mark it uncacheable before the headers are built so websWriteHeaders emits the
+        single authoritative Cache-Control rather than a second, weaker one here.
+     */
+    wp->flags |= WEBS_NO_CACHE;
     websWriteHeaders(wp, contentLength, location);
     websWriteHeader(wp, "Pragma", "no-cache");
-    websWriteHeader(wp, "Cache-Control", "no-cache");
     if (contentType) {
         websWriteHeader(wp, "Content-Type", "%s", contentType);
     }

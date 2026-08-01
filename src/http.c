@@ -2020,6 +2020,7 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
 {
     WebsKey *cookie, *key, *next;
     char    *date, *protoVersion;
+    int     cacheable;
 
     assert(websValid(wp));
 
@@ -2062,20 +2063,43 @@ PUBLIC void websWriteHeaders(Webs *wp, ssize length, cchar *location)
         } else if ((key = hashLookup(websMime, wp->ext)) != 0) {
             websWriteHeader(wp, "Content-Type", "%s", key->content.value.string);
         }
+        /*
+            Decide cacheability before emitting any Cache-Control so that exactly one is written. Only a plain,
+            unauthenticated 200 or 304 may be publicly cached. A challenge, an error, or any response whose content
+            depended on credentials must never be stored by a shared cache: a cached 401 locks out clients that DO
+            hold credentials, and a cached authenticated body is served to clients that hold none. responseCookies is
+            a WebsHash index, not a pointer, so test emptiness via hashFirst -- hash id 0 is a valid table.
+         */
+        cacheable = (wp->code == HTTP_CODE_OK || wp->code == HTTP_CODE_NOT_MODIFIED) &&
+                    !(wp->flags & WEBS_NO_CACHE) && !wp->authType && !wp->username &&
+                    hashFirst(wp->responseCookies) == 0;
+
         for (cookie = hashFirst(wp->responseCookies); cookie; cookie = next) {
             websWriteHeader(wp, "Set-Cookie", "%s", cookie->content.value.string);
-            websWriteHeader(wp, "Cache-Control", "%s", "no-cache=\"set-cookie\"");
             next = hashNext(wp->responseCookies, cookie);
         }
 #if defined(ME_GOAHEAD_CLIENT_CACHE)
-        if (wp->ext) {
-            char *etok = sfmt("%s,", &wp->ext[1]);
-            if (strstr(ME_GOAHEAD_CLIENT_CACHE ",", etok)) {
+        if (cacheable && wp->ext) {
+            /*
+                Comma-delimit both the list and the extension so only whole entries match. Matching a bare "ext,"
+                against the raw list publicly caches any extension that is a tail of a listed one -- ".g" matched
+                "jpg".
+             */
+            char *etok = sfmt(",%s,", &wp->ext[1]);
+            if (strstr("," ME_GOAHEAD_CLIENT_CACHE ",", etok)) {
                 websWriteHeader(wp, "Cache-Control", "public, max-age=%d", ME_GOAHEAD_CLIENT_CACHE_LIFESPAN);
             }
             wfree(etok);
         }
 #endif
+        if (!cacheable) {
+            /*
+                Not inside the CLIENT_CACHE guard: a build without client caching still needs no-store on a 401,
+                because the poisoning cache is the intermediary's, not ours.
+             */
+            websWriteHeader(wp, "Cache-Control", "no-store, private");
+            websWriteHeader(wp, "Vary", "Authorization, Cookie");
+        }
 #ifdef ME_GOAHEAD_XFRAME_HEADER
         if (*ME_GOAHEAD_XFRAME_HEADER) {
             websWriteHeader(wp, "X-Frame-Options", "%s", ME_GOAHEAD_XFRAME_HEADER);
