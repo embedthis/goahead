@@ -42,6 +42,10 @@ static char     websIpAddr[ME_MAX_IP];             /* IP address for the server 
 static char     *websHostUrl = NULL;               /* URL to access server */
 static char     *websIpAddrUrl = NULL;             /* URL to access server */
 static ssize    postLimit = ME_GOAHEAD_LIMIT_POST; /* Runtime-settable POST body cap */
+static int      connLimit = ME_GOAHEAD_LIMIT_CONNECTIONS; /* Runtime-settable concurrent connection cap */
+static int      connCount;                         /* Live accepted connections */
+static int      connLimitPerIp = ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP; /* Runtime-settable per-peer cap */
+static WebsHash connIps = -1;                      /* Live connection count keyed by peer address */
 
 #define WEBS_ENCODE_HTML 0x1                       /* Bit setting in charMatch[] */
 #define WEBS_ENCODE_URI  0x4                       /* Encode URI characters */
@@ -205,6 +209,7 @@ static int      pruneId;                            /* Callback ID */
 
 /**************************** Forward Declarations ****************************/
 
+static void     adjustIpCount(cchar *ip, int delta);
 static void     checkTimeout(void *arg, int id);
 static bool     filterChunkData(Webs *wp);
 static int      getTimeSinceMark(Webs *wp);
@@ -256,6 +261,9 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     }
 #endif
     if ((sessions = hashCreate(-1)) < 0) {
+        return -1;
+    }
+    if ((connIps = hashCreate(WEBS_HASH_INIT)) < 0) {
         return -1;
     }
     if (!websDebug) {
@@ -369,6 +377,8 @@ PUBLIC void websClose(void)
 #endif
     websFsClose();
     hashFree(websMime);
+    hashFree(connIps);
+    connIps = -1;
     socketClose();
     logClose();
     websTimeClose();
@@ -565,6 +575,13 @@ PUBLIC int websAlloc(int sid)
     if ((wid = wallocObject(&webs, &websMax, sizeof(Webs))) < 0) {
         return -1;
     }
+    /*
+        Count only after the allocation that can fail, and decrement in websFree alone. One increment
+        site and one decrement site is the whole of the correctness here: a count incremented before a
+        failing allocation, or never rolled back, drifts until it reads as permanently full or
+        permanently empty.
+     */
+    connCount++;
     wp = webs[wid];
     assert(wp);
     initWebs(wp, 0, 0);
@@ -594,10 +611,68 @@ PUBLIC void websFree(Webs *wp)
     assert(wp);
     assert(websValid(wp));
 
+    adjustIpCount(wp->ipaddr, -1);
     termWebs(wp, 0);
     websMax = wfreeHandle(&webs, wp->wid);
     wfree(wp);
     assert(websMax >= 0);
+    if (connCount > 0) {
+        connCount--;
+    }
+}
+
+
+/*
+    Adjust the live count for a peer address by delta. The entry is removed when it reaches zero: the
+    table is keyed by attacker-chosen addresses, so leaving spent entries behind turns the control
+    into its own unbounded allocation.
+ */
+static void adjustIpCount(cchar *ip, int delta)
+{
+    WebsKey *key;
+    int     count;
+
+    if (connIps < 0 || connLimitPerIp <= 0 || ip == 0 || *ip == '\0') {
+        return;
+    }
+    count = ((key = hashLookup(connIps, ip)) != 0) ? (int) key->content.value.integer : 0;
+    count += delta;
+    if (count <= 0) {
+        if (key) {
+            hashDelete(connIps, ip);
+        }
+        return;
+    }
+    hashEnter(connIps, ip, valueInteger(count), 0);
+}
+
+
+PUBLIC void websSetConnectionLimitPerIp(int limit)
+{
+    connLimitPerIp = limit < 0 ? ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP : limit;
+}
+
+
+PUBLIC int websGetConnectionCountForIp(cchar *ip)
+{
+    WebsKey *key;
+
+    if (connIps < 0 || ip == 0 || *ip == '\0') {
+        return 0;
+    }
+    return ((key = hashLookup(connIps, ip)) != 0) ? (int) key->content.value.integer : 0;
+}
+
+
+PUBLIC void websSetConnectionLimit(int limit)
+{
+    connLimit = limit > 0 ? limit : ME_GOAHEAD_LIMIT_CONNECTIONS;
+}
+
+
+PUBLIC int websGetConnectionCount(void)
+{
+    return connCount;
 }
 
 
@@ -723,6 +798,23 @@ PUBLIC int websAccept(int sid, cchar *ipaddr, int port, int listenSid)
     assert(port >= 0);
 
     /*
+        Refuse before allocating anything. Returning -1 makes socketAccept call socketFree, which
+        shuts down and closes the descriptor, so the peer is dropped without reading a request from it.
+     */
+    if (connCount >= connLimit) {
+        trace(2, "Refused connection from %s: at connection limit %d", ipaddr, connLimit);
+        return -1;
+    }
+    /*
+        The total cap above bounds resource use but refuses everyone equally once reached, so a flood
+        denies service to the clients it is meant to protect. The per-peer cap is what preserves
+        capacity for other addresses.
+     */
+    if (connLimitPerIp > 0 && websGetConnectionCountForIp(ipaddr) >= connLimitPerIp) {
+        trace(2, "Refused connection from %s: at per-address limit %d", ipaddr, connLimitPerIp);
+        return -1;
+    }
+    /*
         Allocate a new handle for this accepted connection. This will allocate a Webs structure in the webs[] list
      */
     if ((wid = websAlloc(sid)) < 0) {
@@ -733,6 +825,12 @@ PUBLIC int websAccept(int sid, cchar *ipaddr, int port, int listenSid)
     wp->listenSid = listenSid;
     strncpy(wp->ipaddr, ipaddr, sizeof(wp->ipaddr) - 1);
     wp->ipaddr[sizeof(wp->ipaddr) - 1] = '\0';
+    /*
+        Count against the peer only once the address is recorded on the connection, so the matching
+        decrement in websFree can find the same key. Every failure path below releases through
+        websFree, so the pair holds without an explicit rollback here.
+     */
+    adjustIpCount(wp->ipaddr, 1);
 
     /*
         Get the ip address of the interface that accept the connection.

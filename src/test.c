@@ -6,6 +6,8 @@
         --auth authFile        # User and role configuration
         --background           # Run as a Unix daemon (not MacOS)
         --cert certFile        # Server SSL certificate (PEM)
+        --connections count    # Concurrent connection cap (test harness)
+        --connections-per-ip n # Per-peer connection cap (test harness)
         --debugger             # Disable timeouts to enable debugging
         --duration secs        # Exit after the given number of seconds
         --home directory       # Change to directory to run
@@ -63,6 +65,7 @@ static int bigTest(int eid, Webs *wp, int argc, char **argv);
 static void actionTest(Webs *wp);
 static void sessionTest(Webs *wp);
 static void showTest(Webs *wp);
+static void connectionsTest(Webs *wp);
 #if ME_GOAHEAD_UPLOAD && !ME_ROM
 static void uploadTest(Webs *wp);
 #endif
@@ -114,6 +117,18 @@ MAIN(goahead, int argc, char **argv, char **envp)
             if (argind >= argc) usage();
             websSetSslKeyFile(argv[++argind]);
 #endif
+
+        } else if (smatch(argp, "--connections")) {
+            /*
+                Lower the concurrent-connection cap so a test can reach it without opening a thousand
+                sockets. The shipped default is derived from FD_SETSIZE and is impractical to drive.
+             */
+            if (argind >= argc) usage();
+            websSetConnectionLimit(atoi(argv[++argind]));
+
+        } else if (smatch(argp, "--connections-per-ip")) {
+            if (argind >= argc) usage();
+            websSetConnectionLimitPerIp(atoi(argv[++argind]));
 
         } else if (smatch(argp, "--debugger") || smatch(argp, "-d") || smatch(argp, "-D")) {
             websSetDebug(1);
@@ -204,6 +219,7 @@ MAIN(goahead, int argc, char **argv, char **envp)
     websDefineAction("test", actionTest);
     websDefineAction("sessionTest", sessionTest);
     websDefineAction("showTest", showTest);
+    websDefineAction("connections", connectionsTest);
 #if ME_GOAHEAD_UPLOAD && !ME_ROM
     websDefineAction("uploadTest", uploadTest);
 #endif
@@ -267,6 +283,8 @@ static void usage(void)
 #if ME_COM_SSL
             "    --cert certFile        # Server SSL certificate (PEM)\n"
 #endif
+            "    --connections count    # Concurrent connection cap (test harness)\n"
+            "    --connections-per-ip n # Per-peer connection cap (test harness)\n"
             "    --debugger             # Run in debug mode\n"
             "    --home directory       # Change to directory to run\n"
 #if ME_COM_SSL
@@ -407,6 +425,34 @@ static void sessionTest(Webs *wp)
     websWriteHeaders(wp, -1, 0);
     websWriteEndHeaders(wp);
     websWrite(wp, "<html><body><p>Number %s</p></body></html>\n", number);
+    websDone(wp);
+}
+
+
+/*
+    Report the live connection count so a test can assert the cap directly instead of inferring it
+    from timing. The count is server-side state and a test runs in another process, so there is no
+    other way to observe it. The response is the bare number to keep parsing trivial.
+
+    The request being serviced is itself counted, so a caller comparing against a flood it is holding
+    must account for this connection.
+ */
+static void connectionsTest(Webs *wp)
+{
+    char body[64];
+
+    /*
+        Emit a known Content-Length rather than passing -1. A negative length selects chunked framing,
+        and a caller scanning for the first digits after the header block then reads the chunk size
+        instead of the value. Tag the value too, so the response cannot be misparsed silently.
+     */
+    fmt(body, sizeof(body), "connections=%d peer=%d\n", websGetConnectionCount(),
+        websGetConnectionCountForIp(wp->ipaddr));
+    websSetStatus(wp, 200);
+    websWriteHeaders(wp, (ssize) slen(body), 0);
+    websWriteHeader(wp, "Content-Type", "text/plain");
+    websWriteEndHeaders(wp);
+    websWriteBlock(wp, body, slen(body));
     websDone(wp);
 }
 

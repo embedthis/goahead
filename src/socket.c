@@ -311,10 +311,18 @@ static void socketAccept(WebsSocket *sp)
     /*
         Create a socket structure and insert into the socket list
      */
+    /*
+        newSock is not owned by a WebsSocket until the assignment below, so nothing else will close it.
+        Returning without closing abandons the descriptor, and the listening socket stays readable, so
+        at the allocation ceiling every wakeup accepts and leaks one more.
+     */
     if ((nid = socketAlloc(sp->ip, sp->port, sp->accept, sp->flags)) < 0) {
+        closesocket(newSock);
         return;
     }
     if ((nsp = socketList[nid]) == 0) {
+        closesocket(newSock);
+        socketFree(nid);
         return;
     }
     assert(nsp);

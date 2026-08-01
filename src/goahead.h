@@ -159,6 +159,26 @@
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
     #define ME_GOAHEAD_LIMIT_CGI_ARGS      4096
 #endif
+/*
+    Maximum concurrently accepted connections. The server is single threaded and multiplexes with
+    select, so FD_SETSIZE descriptors is its entire serving capacity - reaching that ceiling is the
+    outage, not a margin. Default below it so listeners, CGI staging files, log files and TLS always
+    have descriptors available. Note this bounds resource consumption; it does not by itself preserve
+    availability for other clients, because a flood still occupies the slots it is granted.
+ */
+#ifndef ME_GOAHEAD_LIMIT_CONNECTIONS
+    #define ME_GOAHEAD_LIMIT_CONNECTIONS   (FD_SETSIZE - 32)
+#endif
+/*
+    Maximum concurrently accepted connections from any one peer address. Unlike the total cap, this
+    preserves capacity for other clients: a flood from one source is refused while the rest of the
+    table stays available. Defaults permissively because the control has real false positives - many
+    legitimate clients share one source address behind NAT, which on a LAN-facing device is the normal
+    case. Set to 0 to disable per-peer accounting entirely.
+ */
+#ifndef ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP
+    #define ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP 64
+#endif
 #ifndef ME_GOAHEAD_LIMIT_FILENAME
     #define ME_GOAHEAD_LIMIT_FILENAME      256
 #endif
@@ -3331,6 +3351,50 @@ PUBLIC void websSetDebug(int on);
         @stability Prototype
  */
 PUBLIC void websSetPostLimit(ssize limit);
+
+/**
+    Override the runtime concurrent-connection cap.
+    @description Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS default with a runtime-chosen
+        value. Pass 0 (or a negative value) to restore the compile-time default. A connection accepted
+        beyond the cap is closed immediately, before any request is read from it.
+    @param limit Maximum concurrently accepted connections.
+    @see websGetConnectionCount
+    @stability Prototype
+ */
+PUBLIC void websSetConnectionLimit(int limit);
+
+/**
+    Get the number of connections currently accepted.
+    @description Counts live accepted connections, not the high-water size of the connection table.
+        Intended for monitoring and for tests that need to assert the cap without inferring it from
+        timing.
+    @return The number of live accepted connections.
+    @see websSetConnectionLimit
+    @stability Prototype
+ */
+PUBLIC int websGetConnectionCount(void);
+
+/**
+    Override the runtime per-peer connection cap.
+    @description Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP default with a
+        runtime-chosen value. Pass 0 to disable per-peer accounting; pass a negative value to restore
+        the compile-time default.
+    @param limit Maximum concurrent connections permitted from a single peer address.
+    @see websGetConnectionCountForIp
+    @stability Prototype
+ */
+PUBLIC void websSetConnectionLimitPerIp(int limit);
+
+/**
+    Get the number of connections currently accepted from one peer address.
+    @description Counts live accepted connections whose peer address matches. Returns 0 for an address
+        with no live connections, and 0 when per-peer accounting is disabled.
+    @param ip Peer IP address in the textual form held by Webs.ipaddr.
+    @return The number of live connections from that address.
+    @see websSetConnectionLimitPerIp
+    @stability Prototype
+ */
+PUBLIC int websGetConnectionCountForIp(cchar *ip);
 
 /**
     Set the web documents directory
