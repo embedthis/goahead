@@ -53,9 +53,22 @@ function serverPid(): number {
     }
 }
 
+/*
+    A sanitizer build cannot be measured this way. AddressSanitizer surrounds every allocation with
+    redzones and holds freed blocks in a quarantine rather than returning them, so the resident set
+    grows by tens of megabytes over a campaign of this size whether or not anything leaked -- both
+    of these gates fail by ~100x with no defect present. Detect it and skip: use LeakSanitizer or
+    valgrind for leak detection in a sanitizer build, not an RSS delta.
+ */
+function sanitized(): boolean {
+    return tget('ME_SANITIZE') == '1' || tget('ASAN_OPTIONS') != null || tget('UBSAN_OPTIONS') != null
+}
+
 if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
     tskip('JavaScript templates not enabled')
-} else if (Config.OS == 'windows') {
+} else if (sanitized()) {
+    tskip('Resident set is not a leak signal under a sanitizer build')
+} else if (Config.OS == 'windows' || Config.OS == 'win32') {
     tskip('No resident set sampling on windows')
 } else {
     let pid = serverPid()
