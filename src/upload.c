@@ -252,8 +252,13 @@ static void processUploadHeader(Webs *wp, char *line)
                  */
                 wfreeset(wp->uploadTmp);
                 if ((wp->uploadTmp = websTempFile(uploadDir, "tmp")) == 0) {
+                    /*
+                        Do not name the temp file here: the assignment above is what failed, so
+                        wp->uploadTmp is unconditionally NULL on this path. gcc proves it at -O2
+                        and reports it as a null %s argument.
+                     */
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR,
-                              "Cannot create upload temp file %s. Check upload temp dir %s", wp->uploadTmp, uploadDir);
+                              "Cannot create upload temp file. Check upload temp dir %s", uploadDir);
                     return;
                 }
                 trace(5, "File upload of: %s stored as %s", wp->clientFilename, wp->uploadTmp);
