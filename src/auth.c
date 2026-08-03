@@ -795,7 +795,15 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
             }
             bufAddNull(&abilities);
             trace(5, "Create temp user \"%s\" with abilities: %s", wp->username, abilities.servp);
-            if ((wp->user = websAddUser(wp->username, 0, abilities.servp)) == 0) {
+            /*
+                websAddUser copies the ability string, so the buffer is done with either way. Free
+                it on both paths: this runs once per authentication of a user not already in the
+                user table, so leaking it here is a remote-request-driven leak on a long-running
+                device.
+             */
+            wp->user = websAddUser(wp->username, 0, abilities.servp);
+            bufFree(&abilities);
+            if (wp->user == 0) {
                 return 0;
             }
             computeUserAbilities(wp->user);
