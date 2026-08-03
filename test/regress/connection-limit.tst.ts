@@ -44,7 +44,7 @@ const HOST = '127.0.0.1'
 const TESTDIR = join(import.meta.dir, '..')
 const SERVER = join(TESTDIR, '..', 'build', 'bin', 'goahead-test')
 
-if (Config.OS == 'windows') {
+if (Config.OS == 'windows' || Config.OS == 'win32') {
     tskip('spawns its own server and counts descriptors; not portable to the Windows runner')
 } else {
 

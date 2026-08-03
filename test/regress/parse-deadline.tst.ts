@@ -42,7 +42,7 @@ const PORT = uri.port
 /* Comfortably past the 5 s parse deadline, comfortably short of the 60 s idle timeout. */
 const PAST_PARSE = 8000
 
-if (Config.OS == 'windows') {
+if (Config.OS == 'windows' || Config.OS == 'win32') {
     tskip('drives multi-second socket timing; too slow and too timing-sensitive for the Windows runner')
 } else {
 

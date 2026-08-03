@@ -45,7 +45,7 @@ ttrue(status(response) == 200)
     A FIFO in the document root must be refused rather than opened. Before the fix this request never
     returned and the server never answered another client. The fixture is POSIX only.
  */
-if (Config.OS != 'windows') {
+if (Config.OS != 'windows' && Config.OS != 'win32') {
     response = await rawGet('/fifo.txt')
     ttrue(status(response) == 404)
 }

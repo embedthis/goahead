@@ -45,7 +45,7 @@ const V6 = '::1'
 const TESTDIR = join(import.meta.dir, '..')
 const SERVER = join(TESTDIR, '..', 'build', 'bin', 'goahead-test')
 
-if (Config.OS == 'windows') {
+if (Config.OS == 'windows' || Config.OS == 'win32') {
     tskip('spawns its own server on two loopback families; not portable to the Windows runner')
 } else {
 

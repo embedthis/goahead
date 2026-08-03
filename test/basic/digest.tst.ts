@@ -38,7 +38,7 @@ if (thas('ME_GOAHEAD_AUTH')) {
     await http.wait()
     ttrue(http.status == 401)
 
-    if (Config.OS == "windows") {
+    if (Config.OS == "windows" || Config.OS == "win32") {
         // Case won't matter
         http.setCredentials("joshua", "pass1")
         http.get(HTTP + "/auth/diGEST/diGEST.hTMl")

@@ -42,7 +42,7 @@ if (thas('ME_GOAHEAD_CGI')) {
         contains("cgitest: Output")
         http.close()
 
-        if (Config.OS == "windows") {
+        if (Config.OS == "windows" || Config.OS == "win32") {
             http.get(HTTP + "/cgi-bin/cgitest.exe")
             await http.wait()
             ttrue(http.status == 200)

@@ -37,7 +37,7 @@ function status(response: string): number {
     return match ? parseInt(match[1]) : 0
 }
 
-const isWindows = Config.OS == 'windows'
+const isWindows = Config.OS == 'windows' || Config.OS == 'win32'
 
 if (thas('ME_GOAHEAD_CGI')) {
 

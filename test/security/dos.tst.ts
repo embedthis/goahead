@@ -14,7 +14,7 @@ await http.wait()
 ttrue(http.status == 200)
 http.close()
 
-if (Config.OS != "windows") {
+if (Config.OS != "windows" && Config.OS != "win32") {
     //  Try to create a bunch of dangling sockets. Should not be able to DOS the server
     // Note: Connecting to wrong port intentionally - these should fail quickly
     let i

@@ -30,7 +30,7 @@ import { join } from 'node:path'
 const HTTP = tget('TM_HTTP') || '127.0.0.1:18080'
 const httpUri = new Uri(HTTP)
 
-if (Config.OS == 'windows') {
+if (Config.OS == 'windows' || Config.OS == 'win32') {
     tskip('sparse-file fixtures are not portable to the Windows CI filesystem')
 } else {
 

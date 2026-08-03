@@ -30,7 +30,7 @@ http.get(HTTP + "/index.html", 'name=John&address=700+Park+Ave')
 await http.wait()
 ttrue(http.status == 200)
 
-if (Config.OS == "windows") {
+if (Config.OS == "windows" || Config.OS == "win32") {
     http.get(HTTP + "/inDEX.htML")
     await http.wait()
     ttrue(http.status == 200)
