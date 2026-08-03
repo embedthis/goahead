@@ -42,9 +42,9 @@
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a58a63c1fa72fc2f8566dd0ebbfef093b" class="nameRef">isCgiExeOnWindows</a>(cchar *cgiPath)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test whether a CGI path is admissible as a Windows CGI target.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a09d77f66f305e34c9d8f38d0f108a9b0" class="nameRef">itosbuf</a>(char *buf, ssize size, int64 value, int radix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Convert an integer to a string buffer.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a95bd348305d4a3044216ec4d694cd1d4" class="nameRef">logClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the log logging module.</td></tr>
-<tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1af07cb7c6e3a418059b33eb2243e0e945" class="nameRef">logGetHandler</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the log callback.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1a1f455902f6e73e426989d8d0c1c44aab" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1af07cb7c6e3a418059b33eb2243e0e945" class="nameRef">logGetHandler</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the log callback.</td></tr>
 <tr class="apiDef"><td class="apiType">void int</td><td><a href="#goahead_8h_1a5307e0c8b3986abd0e08f0bb29363e24" class="nameRef">logOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the log logging module.</td></tr>
-<tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1a69d48d711cafc09c257c41705b29eb6a" class="nameRef">logSetHandler</a>(<a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a> handler)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a log callback.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1a1f455902f6e73e426989d8d0c1c44aab" class="ref">WebsLogHandler</a></td><td><a href="#goahead_8h_1a69d48d711cafc09c257c41705b29eb6a" class="nameRef">logSetHandler</a>(<a href="#goahead_8h_1a1f455902f6e73e426989d8d0c1c44aab" class="ref">WebsLogHandler</a> handler)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a log callback.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a973f65430b9ee826c6906891d2173bd3" class="nameRef">logSetPath</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the filename to save logging output.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a95b7d06b693ad303d3fc0fa333ce77bd" class="nameRef">logmsgProc</a>(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Emit a message to the log.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1af9cb27956141ddc4724cca9903fa69b2" class="nameRef">scaselesscmp</a>(cchar *s1, cchar *s2)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Compare strings ignoring case.</td></tr>
@@ -329,7 +329,6 @@
 <tr class="apiDef"><td class="apiName"><a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="nameRef">WebsHash</a></td><td class="apiBrief">Hash table ID returned by hashCreate.</td></tr>
 <tr class="apiDef"><td class="apiName"><a href="#goahead_8h_1a35aa7f7f128a9d1a4c4f3eeb7849d638" class="nameRef">WebsJstProc</a></td><td class="apiBrief">Javascript native function.</td></tr>
 <tr class="apiDef"><td class="apiName"><a href="#struct_webs_key" class="nameRef">WebsKey</a></td><td class="apiBrief">Hash table key-value entry structure.</td></tr>
-<tr class="apiDef"><td class="apiName"><a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="nameRef">WebsLogHandler</a></td><td class="apiBrief">Callback for emitting trace log output.</td></tr>
 <tr class="apiDef"><td class="apiName"><a href="#struct_webs_mime" class="nameRef">WebsMime</a></td><td class="apiBrief">Mime type list.</td></tr>
 <tr class="apiDef"><td class="apiName"><a href="#goahead_8h_1a8813a82488191e0cb2df0f7cafcd1414" class="nameRef">WebsParseAuth</a></td><td class="apiBrief">Callback to parse authentication details submitted with the web request.</td></tr>
 <tr class="apiDef"><td class="apiName"><a href="#struct_webs_role" class="nameRef">WebsRole</a></td><td class="apiBrief">Role definition structure.</td></tr>
@@ -905,21 +904,6 @@
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Return zero if successful, otherwise -1.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
-  </div>
-</div>
-<a name="goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb"></a>
-<div class="api">
-  <div class="prototype">
-    typedef void(* WebsLogHandler) (int level, cchar *msg)
-  </div>
-  <div class="apiDetail">
-<p>Callback for emitting trace log output.</p>
-    <dl><dt>Parameters:</dt><dd>
-    <table class="parameters" title="Parameters">
-    <tr><td class="param">level</td><td>Integer between 0 and 9. Zero is the lowest trace level used for the most important messages.</td></tr>
-    <tr><td class="param">msg</td><td>Message to log.</td></tr>
-    </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>Zero if successful.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a8813a82488191e0cb2df0f7cafcd1414"></a>
@@ -2257,7 +2241,7 @@ provides efficient ring buffer functionality ideal for:
 <a name="goahead_8h_1af07cb7c6e3a418059b33eb2243e0e945"></a>
 <div class="api">
   <div class="prototype">
-    <a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a>
+    <a href="#goahead_8h_1a1f455902f6e73e426989d8d0c1c44aab" class="ref">WebsLogHandler</a>
     logGetHandler
 (void )
   </div>
@@ -2301,9 +2285,9 @@ provides efficient ring buffer functionality ideal for:
 <a name="goahead_8h_1a69d48d711cafc09c257c41705b29eb6a"></a>
 <div class="api">
   <div class="prototype">
-    <a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a>
+    <a href="#goahead_8h_1a1f455902f6e73e426989d8d0c1c44aab" class="ref">WebsLogHandler</a>
     logSetHandler
-(<a href="#goahead_8h_1ab4a2aa1bcdb9d47e37c84baa32cbf5fb" class="ref">WebsLogHandler</a> handler)
+(<a href="#goahead_8h_1a1f455902f6e73e426989d8d0c1c44aab" class="ref">WebsLogHandler</a> handler)
   </div>
   <div class="apiDetail">
 <p>Set a log callback.</p>
