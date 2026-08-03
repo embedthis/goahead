@@ -29,7 +29,10 @@ See [LICENSE.md](LICENSE.md) and https://www.embedthis.com/goahead/licensing.htm
 
 You can build GoAhead with make, Visual Studio or Xcode.
 
-The IDE projects and Makefiles will build with SSL using the [MbedTLS](https://github.com/ARMmbed/mbedtls) TLS stack. 
+The supplied project files and Makefiles build with SSL using OpenSSL. GoAhead also supports the
+[MbedTLS](https://github.com/ARMmbed/mbedtls) TLS stack via `src/mbedtls.c`, but MbedTLS is not
+included in this distribution; to use it, supply your own MbedTLS and regenerate the project files
+with `premake5 --tls=mbedtls`.
 
 ## To Build with Make
 
@@ -45,9 +48,7 @@ You can pass make variables to tailor the build. For a list of variables:
 
 	make help
 
-To run
-
-	make run
+See [To run](#to-run) below for running the server once it is built.
 
 ### Windows
 
@@ -101,7 +102,18 @@ Click Project -> Run to run.
 
 ## To run
 
-    make run
+Run the server from the `test` directory, which supplies the sample documents, route configuration
+and authentication file:
+
+    cd test
+    ../build/bin/goahead -v web 127.0.0.1:8080
+
+Then browse to http://127.0.0.1:8080/.
+
+The command line is `goahead [options] [documents] [[IPaddress][:port] ...]`. The first non-option
+argument is the documents directory, so it must be given whenever a listen endpoint is. With no
+arguments GoAhead serves `web` on ports 80 and 443, which usually requires privilege. Use `--help`
+for the full option list.
 
 The build products are left under `build/bin`. GoAhead does not install itself into the system;
 embed the library and copy the binaries into your product image as required.
