@@ -1,7 +1,7 @@
 /*
     framing.tst - HTTP request smuggling (CWE-444) via HEAD body retention and chunk-size integer wrap
 
-    Covers the two novel root causes tracked by issue #0025 / GOAHEAD-SA-2026-0010:
+    Covers the two novel root causes tracked by GOAHEAD-SA-2026-0010:
 
       1. HEAD body retention - a HEAD request that declares a Content-Length must have its body drained before the
          keep-alive connection is reused. Previously the declared body was left in the receive buffer and re-parsed

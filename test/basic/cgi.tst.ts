@@ -289,7 +289,7 @@ if (thas('ME_GOAHEAD_CGI')) {
     }
 
     /*
-        Layer 2 of the cgi-windows-arg-injection fix (GOAHEAD-SA-2026-0007).
+        Layer 2 of the Windows CGI argument-quoting fix (GOAHEAD-SA-2026-0007).
         ISINDEX argv round-trip end-to-end through the HTTP path.
 
         On POSIX (macOS / Linux) these tests exercise the unchanged execve

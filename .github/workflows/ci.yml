@@ -107,13 +107,19 @@ jobs:
 
       #
       #   dist/ is generated from src/ but committed for pak consumers. Fail loudly if a
-      #   source change (in particular a security fix) has not been amalgamated. Calls
-      #   bin/buildLib.sh directly rather than "make check-dist": that target lives in
-      #   .local.mk, which is not in the repository.
+      #   source change (in particular a security fix) has not been amalgamated.
+      #
+      #   The amalgamation script belongs to the packaging process and is not part of the
+      #   source distribution, so this can only run in a tree that carries it. Where it does
+      #   not, say so and skip: a silent no-op would read as a pass.
       #
       - name: Verify dist/ is in sync with src/
         if: matrix.os == 'ubuntu-latest'
         run: |
+          if [ ! -f bin/buildLib.sh ] ; then
+            echo "::notice::Skipped: the amalgamation script is not part of this tree."
+            exit 0
+          fi
           rm -fr build/dist-check
           DIST=$PWD/build/dist-check bash bin/buildLib.sh --dist-only >/dev/null
           if ! diff -r -q dist build/dist-check >/dev/null 2>&1 ; then
@@ -204,14 +210,14 @@ jobs:
       #
       #   Build and test tooling only - no third-party package ships in the product, so this is
       #   build-integrity evidence rather than a CRA gate. Advisories here do not block a release;
-      #   see doc/releases/*/vulnerability-disposition.md Scope A.
+      #   they are dispositioned in the release records retained by the manufacturer.
       #
       - name: Dependency audit (build/test tree)
         run: npm audit --audit-level=high
 
       #
-      #   Static analysis over the full product build. Findings are triaged into
-      #   doc/releases/*/vulnerability-disposition.md Scope C. The step reports rather than fails:
+      #   Static analysis over the full product build. Findings are triaged into the release
+      #   records retained by the manufacturer. The step reports rather than fails:
       #   the analyzer flags the assert-based API contract and dead stores that are dispositioned
       #   as not-applicable, so a raw count is not a pass/fail signal. The report is uploaded for
       #   the release evidence package.

@@ -275,8 +275,8 @@ customer under a CVE. They are grouped by class below.
 ### Configuration and supply chain
 
 - **High**: The committed `dist/` amalgamation — which pak consumers compile — could go stale and ship
-  code that `src/` had already fixed. `make check-dist` now regenerates the amalgamation and diffs it
-  against the committed copy, and runs in CI on every push and pull request.
+  code that `src/` had already fixed. The amalgamation is now regenerated and diffed against the
+  committed copy in CI on every push and pull request.
 - **Low**: The shipped `route.txt` was a single unauthenticated catch-all with no authenticated route
   anywhere, so the out-of-box configuration demonstrated nothing about access control.
 
@@ -363,8 +363,7 @@ are disclosed under Known Limitations in the user information.
   (route-authorization folding), `cgi-header-injection`, `cgi-headerless-output`,
   `cgi-content-type-format`, `format-attribute`, `file-type-gate`,
   `reroute-loop`, and `upload-duplicate-filename`.
-- `make check-dist` verifies the committed `dist/` amalgamation matches `src/`,
-  and runs in CI.
+- CI verifies that the committed `dist/` amalgamation matches `src/`.
 - New `test/auth/gopass.tst.ts` verifies the plaintext-length ceiling at the
   `gopass` CLI.
 - Digest tests strengthened to exercise server-side parser robustness

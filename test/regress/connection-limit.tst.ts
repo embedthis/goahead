@@ -29,7 +29,7 @@
     Scope note: a total cap bounds resource consumption. It does NOT preserve availability for other
     clients - a flood still occupies the slots it is granted, and legitimate clients are refused
     alongside it. That is what the per-IP limit is for, and it is why this suite does not assert that
-    a normal client is served during a flood. See doc/issues/tickets/10012.md phase 3.
+    a normal client is served during a flood. See connection-limit-perip.tst.ts for that guarantee.
  */
 
 import { Config } from '@embedthis/ejscript'

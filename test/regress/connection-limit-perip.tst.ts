@@ -1,8 +1,8 @@
 /*
     connection-limit-perip.tst - A flood from one peer must not deny service to another
 
-    There was no per-address accounting anywhere in the accept path. The total connection cap added in
-    phase 1 bounds resource consumption, but it refuses everyone equally once reached: a flood still
+    There was no per-address accounting anywhere in the accept path. The total connection cap
+    bounds resource consumption, but it refuses everyone equally once reached: a flood still
     occupies the slots it is granted and legitimate clients are refused alongside it. The per-peer cap
     is the control that actually preserves availability, and E2 is the assertion that says so.
 
@@ -21,8 +21,8 @@
     distinct peers. Skipped where IPv6 loopback is unavailable rather than asserting a false pass.
 
     Scope note: per-address accounting is a speed bump over IPv6, where a single allocation is
-    routinely a /64, and it has real false positives behind NAT. Both are documented limitations in
-    doc/issues/tickets/10012.md, not defects this suite is asserting away.
+    routinely a /64, and it has real false positives behind NAT. Both are known limitations of
+    per-address accounting, not defects this suite is asserting away.
  */
 
 import { Config } from '@embedthis/ejscript'
@@ -148,7 +148,7 @@ try {
     /*
         E2 - the availability guarantee. The flood from the IPv4 peer is still held; a request from
         the IPv6 peer must be served normally. This is what the total cap alone cannot deliver, and
-        the reason phase 3 exists.
+        the reason the per-address limit exists.
      */
     let other = await counts(V6)
     ttrue(other.total > 0, 'a different peer must still be served while another peer floods')

@@ -46,8 +46,8 @@
 
     The ME_VERSION fallback exists so that dist/goaheadLib.c compiles on its own, without the
     generated project files. Nothing in the distribution supplies -DME_VERSION to a consumer who
-    embeds the amalgamation directly in their own build. bin/buildLib.sh fails the package if this
-    value and package.json disagree, so the fallback cannot go stale.
+    embeds the amalgamation directly in their own build. The packaging process fails the build if
+    this value and package.json disagree, so the fallback cannot go stale.
  */
 #ifndef ME_VERSION
     #define ME_VERSION             "6.1.1"

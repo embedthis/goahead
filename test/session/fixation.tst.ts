@@ -1,5 +1,5 @@
 /*
-    fixation.tst - Session fixation regression (issue #20, GOAHEAD-SA-2026-0011)
+    fixation.tst - Session fixation regression (GOAHEAD-SA-2026-0011)
 
     A session id planted in the client's cookie before login must NOT survive into the
     authenticated session. On a successful login GoAhead must issue a fresh, server-generated
