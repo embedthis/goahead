@@ -497,10 +497,17 @@ PRINTF_ATTRIBUTE(2, 3) inline void logmsg(int level, PRINTF_FORMAT cchar *fmt, .
 extern void assert(bool cond);
 #elif ME_GOAHEAD_DEBUG
     #define assert(C) if (C); else assertError(WEBS_L, "%s", #C)
-PUBLIC void assertError(WEBS_ARGS_DEC, PRINTF_FORMAT char *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 #else
     #define assert(C) if (1); else { }
 #endif
+
+/*
+    Declared unconditionally. runtime.c defines assertError in every configuration, so guarding the
+    prototype with ME_GOAHEAD_DEBUG left a release build compiling an exported function with no
+    prior declaration: the format attribute never applied, its format string went unchecked despite
+    the build enabling -Wformat=2, and the definition drew -Wformat-nonliteral.
+ */
+PUBLIC void assertError(WEBS_ARGS_DEC, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 
 /**
     Callback for emitting trace log output

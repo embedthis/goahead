@@ -1010,7 +1010,7 @@ PUBLIC void error(cchar *fmt, ...)
 }
 
 
-PUBLIC void assertError(WEBS_ARGS_DEC, char *fmt, ...)
+PUBLIC void assertError(WEBS_ARGS_DEC, cchar *fmt, ...)
 {
     va_list args;
     char    *fmtBuf, *message;
