@@ -4,14 +4,33 @@
 #
 BIN=$(cd "$(dirname "${BIN}")" && pwd)/$(basename "${BIN}")
 
+#
+#   Diagnostics. testme reports only "Prep script completed successfully", so when staging goes
+#   wrong the first visible symptom is a wall of unrelated test failures. Record what actually
+#   happened to a file the CI job can print; also echo it, for when prep output is shown.
+#
+#   Written outside test/ and not named *.log: cleanup.sh does "rm -f *.log" and "rm -f cgi-bin/*"
+#   after the run, so a diagnostic left in test/ is destroyed before anything can read it.
+DIAG="../prep-diag.txt"
+: > "$DIAG"
+diag() {
+    echo "$@" | tee -a "$DIAG"
+}
+
+diag "prep: TESTME_OS='${TESTME_OS}' uname='$(uname -s 2>/dev/null)'"
+
 if [ "$TESTME_OS" = "windows" ] ; then
     EXE=".exe"
-    echo "Running prep-test.bat"
+    diag "prep: taking the windows branch, running prep-test.bat"
     (cd .. ; test/utils/prep-test.bat)
+    diag "prep: prep-test.bat exit=$?"
 else
     EXE=""
+    diag "prep: taking the posix branch, running prep-test.sh"
     (cd .. ; test/utils/prep-test.sh)
+    diag "prep: prep-test.sh exit=$?"
 fi
+diag "prep: EXE='${EXE}'"
 
 mkdir -p cgi-bin web/tmp
 
@@ -33,12 +52,23 @@ if [ "$TESTME_OS" != "windows" ] ; then
 fi
 cp ../certs/self.key  ../certs/self.crt .
 cp ../build/bin/cgitest* cgi-bin
-# cgitest links against libgoahead; its rpath is @loader_path so the lib must sit beside it
-if [ -f ../build/bin/libgoahead.dylib ] ; then
-    cp ../build/bin/libgoahead.dylib cgi-bin/
-elif [ -f ../build/bin/libgoahead.so ] ; then
-    cp ../build/bin/libgoahead.so cgi-bin/
-fi
+#
+#   cgitest links against libgoahead, so the library must sit beside it: the rpath is @loader_path
+#   on macOS, $ORIGIN on Linux, and on Windows the loader searches the executable's own directory.
+#
+#   Windows needs this more than the others, not less. The CGI child is spawned with a constructed
+#   environment and PATH is in cgiHandler's envBlackList, so the child cannot fall back to finding
+#   libgoahead.dll anywhere else. Without the .dll here cgitest.exe fails to start, no CGI runs at
+#   all, and every CGI test fails - while the negative assertions in regress/cgi-bat-gate.tst.ts
+#   pass vacuously, because nothing executing is indistinguishable from the gate refusing to.
+#
+#   On Windows every DLL must come, not just libgoahead.dll: that library itself imports
+#   libssl-3-x64.dll and libcrypto-3-x64.dll, and with PATH stripped the loader has nowhere else to
+#   find them. Copying libgoahead.dll alone leaves it unloadable and cgitest.exe still cannot start.
+#
+for lib in ../build/bin/libgoahead.dylib ../build/bin/libgoahead.so ../build/bin/*.dll ; do
+    [ -f "$lib" ] && cp "$lib" cgi-bin/
+done
 
 #
 #   Fixtures for regress/cgi-bat-gate.tst.ts. probe.bat carries the reporter's payload so a shell
@@ -53,3 +83,9 @@ whoami
 ENDOFBAT
 chmod +x cgi-bin/probe.bat
 cp "../build/bin/cgitest${EXE}" "cgi-bin/cgitest.batch.exe"
+diag "prep: cgitest.batch.exe copy exit=$? (source ../build/bin/cgitest${EXE})"
+
+diag "prep: build/bin contains:"
+ls -l ../build/bin 2>&1 | tee -a "$DIAG"
+diag "prep: cgi-bin contains:"
+ls -l cgi-bin 2>&1 | tee -a "$DIAG"

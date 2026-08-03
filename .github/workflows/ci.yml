@@ -128,12 +128,62 @@ jobs:
         run: |
           make test
 
+      #
+      #   The staging diagnostics are printed here, inside the test step, rather than only in the
+      #   separate step below: this is the output people read when the suite fails, and a report in
+      #   an adjacent collapsed section is easily missed. tm's exit code is saved and restored so
+      #   printing the diagnostics cannot mask a test failure.
+      #
       - name: Run test suite (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: |
           call projects\openssl-prep.bat
           tm test
+          set TMRC=%ERRORLEVEL%
+          echo.
+          echo ---- prep-diag.txt (CGI staging, captured before cleanup) ----
+          if exist prep-diag.txt (type prep-diag.txt) else (echo "(absent - prep.sh did not run)")
+          echo ---- end prep-diag.txt ----
+          echo.
+          rem  Only cgiHandler's own failure messages. A broader filter is useless: the suite drives
+          rem  error paths deliberately, so a passing run already logs 82,000 level-0 lines. None of
+          rem  these appear on a passing run, so whichever shows up names the exact failure point.
+          echo ---- server-log.txt: CGI failures ----
+          if exist server-log.txt (findstr /c:"Cannot find CGI program" /c:"CGI program file does not exist" /c:"CGI process file is not executable" /c:"failed to spawn CGI task" /c:"CGI generated no output" /c:"Cannot open CGI stdin" /c:"Cannot open CGI stdout" /c:"Cannot create CGI stdout" /c:"Cannot write to CGI gateway" /c:"Missing CGI name" server-log.txt) else (echo "(absent)")
+          echo ---- end server-log.txt ----
+          exit /b %TMRC%
+
+      #
+      #   Windows CGI staging diagnostics. testme reports only "Prep script completed successfully",
+      #   so a staging failure surfaces as a wall of unrelated CGI test failures with no indication
+      #   of the cause. Runs on failure as well as success, and must never fail the job itself.
+      #
+      #   The standalone cgitest run is the decisive one: if it cannot start, the CGI child cannot
+      #   either, and the reason (missing DLL, wrong architecture, ...) is printed here rather than
+      #   inferred from which assertions happened to pass.
+      #
+      - name: CGI staging diagnostics (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: cmd
+        continue-on-error: true
+        run: |
+          rem  prep-diag.txt is written by prep.sh at the repository root. It records the state of
+          rem  cgi-bin at staging time, which is the only moment that matters: cleanup.sh empties
+          rem  cgi-bin and deletes *.log before this step runs.
+          echo ---- prep-diag.txt ----
+          if exist prep-diag.txt (type prep-diag.txt) else (echo "(prep-diag.txt absent - prep.sh did not run)")
+          echo ---- build\bin ----
+          dir build\bin
+          echo ---- test\cgi-bin (post-cleanup, expected empty) ----
+          dir test\cgi-bin
+          echo ---- cgitest.exe standalone ----
+          rem  Run the build/bin copy: the cgi-bin copy has been removed by cleanup.sh. This shows
+          rem  whether the binary can start at all - a DLL resolution failure reports here.
+          rem  cgitest only reads stdin when CONTENT_LENGTH is set, but redirect anyway so this
+          rem  step can never block the job waiting on a console.
+          build\bin\cgitest.exe < NUL
+          echo cgitest exit=%ERRORLEVEL%
 
   #
   #   SDL/CRA release-gate evidence. These run on every push so the release-time evidence is a

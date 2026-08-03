@@ -50,7 +50,13 @@ if [ -f "$PIDFILE" ] ; then
     rm -f "$PIDFILE"
 fi
 
-goahead-test -v --cert self.crt --key self.key &
+#
+#   Keep the server's own log. cgiHandler reports why a CGI request failed via error(), and
+#   nothing was retaining that output, so a CGI failure gave the test suite a status code and no
+#   reason. Written outside test/ and not named *.log so cleanup.sh cannot remove it before it can
+#   be read. Readiness is decided by the healthcheck URL, not by watching this stream.
+#
+goahead-test -v --cert self.crt --key self.key > ../server-log.txt 2>&1 &
 PID=$!
 echo "$PID" > "$PIDFILE"
 
