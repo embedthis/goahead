@@ -1556,7 +1556,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     /*
         Stdin file should already exist.
      */
-    newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+    newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
                                    NULL);
     if (newinfo.hStdInput == INVALID_HANDLE_VALUE) {
         error("Cannot open CGI stdin file");
@@ -1564,16 +1564,17 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     }
 
     /*
-        Stdout file is created and file pointer is reset to start.
+        Stdout file should already exist.
      */
     newinfo.hStdOutput = CreateFile(stdOut, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                    &security, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+                                    &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (newinfo.hStdOutput == INVALID_HANDLE_VALUE) {
-        error("Cannot create CGI stdout file");
+        error("Cannot open CGI stdout file");
         closeWinHandle(newinfo.hStdInput);
         return (CgiPid) - 1;
     }
-    SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_END);
+    SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_BEGIN);
+    SetEndOfFile(newinfo.hStdOutput);
     newinfo.hStdError = newinfo.hStdOutput;
 
     dwCreateFlags = CREATE_NEW_CONSOLE;
