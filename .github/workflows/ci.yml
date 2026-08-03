@@ -77,6 +77,35 @@ jobs:
           msbuild projects\vs2022\goahead.sln /p:Configuration=debug /p:Platform=windows /v:normal
 
       #
+      #   The release configuration is what an integrator ships, but every other step here builds
+      #   debug. Optimisation enables diagnostics the debug build cannot produce, so a release-only
+      #   warning or error would otherwise reach customers unseen. Build it, and treat any warning
+      #   as a failure so the configuration stays clean.
+      #
+      - name: Build release (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          make clean
+          make OPTIMIZE=release SHOW=1 2>&1 | tee /tmp/release-build.log
+          #
+          #   Match "warning:" rather than "warning": SHOW=1 echoes the compiler command lines,
+          #   which carry flags such as -Wno-unknown-warning-option that a looser pattern hits.
+          #
+          if grep -qE 'warning:|is obsolete' /tmp/release-build.log ; then
+            echo "::error::Release build produced warnings"
+            grep -E 'warning:|is obsolete' /tmp/release-build.log
+            exit 1
+          fi
+          make clean
+
+      - name: Build release (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call projects\openssl-prep.bat
+          msbuild projects\vs2022\goahead.sln /p:Configuration=release /p:Platform=windows /v:normal
+
+      #
       #   dist/ is generated from src/ but committed for pak consumers. Fail loudly if a
       #   source change (in particular a security fix) has not been amalgamated. Calls
       #   bin/buildLib.sh directly rather than "make check-dist": that target lives in
@@ -143,7 +172,7 @@ jobs:
           scan-build -o /dev/null make 2>&1 | tail -1
 
       - name: Upload static-analysis report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scan-build-report
           path: build/scan-results
