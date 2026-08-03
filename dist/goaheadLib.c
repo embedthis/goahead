@@ -1301,7 +1301,15 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
             }
             bufAddNull(&abilities);
             trace(5, "Create temp user \"%s\" with abilities: %s", wp->username, abilities.servp);
-            if ((wp->user = websAddUser(wp->username, 0, abilities.servp)) == 0) {
+            /*
+                websAddUser copies the ability string, so the buffer is done with either way. Free
+                it on both paths: this runs once per authentication of a user not already in the
+                user table, so leaking it here is a remote-request-driven leak on a long-running
+                device.
+             */
+            wp->user = websAddUser(wp->username, 0, abilities.servp);
+            bufFree(&abilities);
+            if (wp->user == 0) {
                 return 0;
             }
             computeUserAbilities(wp->user);
@@ -1413,18 +1421,18 @@ static bool parseDigestDetails(Webs *wp)
     key = keyBuf = sclone(wp->authDetails);
 
     while (*key) {
-        while (*key && isspace((uchar) * key)) {
+        while (*key && isspace((uchar) *key)) {
             key++;
         }
         tok = key;
-        while (*tok && !isspace((uchar) * tok) && *tok != ',' && *tok != '=') {
+        while (*tok && !isspace((uchar) *tok) && *tok != ',' && *tok != '=') {
             tok++;
         }
         if (*tok) {
             *tok++ = '\0';
         }
 
-        while (isspace((uchar) * tok)) {
+        while (isspace((uchar) *tok)) {
             tok++;
         }
         seenComma = 0;
@@ -1460,7 +1468,7 @@ static bool parseDigestDetails(Webs *wp)
         /*
             user, response, oqaque, uri, realm, nonce, nc, cnonce, qop
          */
-        switch (tolower((uchar) * key)) {
+        switch (tolower((uchar) *key)) {
         case 'a':
             if (scaselesscmp(key, "algorithm") == 0) {
                 break;
@@ -3164,8 +3172,7 @@ static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, c
     /*
         Count the number of entries in argv
      */
-    for (argc = 0, p = argp; p != NULL && *p != NULL; p++, argc++) {
-    }
+    for (argc = 0, p = argp; p != NULL && *p != NULL; p++, argc++) { }
 
     /*
         Create a private environment and copy the envp strings to it.
@@ -3347,7 +3354,7 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     /*
         Stdin file should already exist.
      */
-    newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+    newinfo.hStdInput = CreateFile(stdIn, GENERIC_READ, FILE_SHARE_READ, &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
                                    NULL);
     if (newinfo.hStdInput == INVALID_HANDLE_VALUE) {
         error("Cannot open CGI stdin file");
@@ -3355,16 +3362,17 @@ static CgiPid launchCgi(char *cgiPath, char **argp, char **envp, char *stdIn, ch
     }
 
     /*
-        Stdout file is created and file pointer is reset to start.
+        Stdout file should already exist.
      */
     newinfo.hStdOutput = CreateFile(stdOut, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                    &security, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+                                    &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (newinfo.hStdOutput == INVALID_HANDLE_VALUE) {
-        error("Cannot create CGI stdout file");
+        error("Cannot open CGI stdout file");
         closeWinHandle(newinfo.hStdInput);
         return (CgiPid) - 1;
     }
-    SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_END);
+    SetFilePointer(newinfo.hStdOutput, 0, NULL, FILE_BEGIN);
+    SetEndOfFile(newinfo.hStdOutput);
     newinfo.hStdError = newinfo.hStdOutput;
 
     dwCreateFlags = CREATE_NEW_CONSOLE;
@@ -3512,24 +3520,24 @@ static uchar PADDING[64] = {
  */
 
 #define FF(a, b, c, d, x, s, ac) { \
-            (a) += F((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += F((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 #define GG(a, b, c, d, x, s, ac) { \
-            (a) += G((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += G((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 #define HH(a, b, c, d, x, s, ac) { \
-            (a) += H((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += H((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 #define II(a, b, c, d, x, s, ac) { \
-            (a) += I((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += I((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 
 typedef struct {
@@ -6713,8 +6721,7 @@ static bool filterChunkData(Webs *wp)
             }
             start = rxbuf->servp;
             bad = (start[0] != '\r' || start[1] != '\n');
-            for (cp = &start[2]; cp < rxbuf->endp && *cp != '\n'; cp++) {
-            }
+            for (cp = &start[2]; cp < rxbuf->endp && *cp != '\n'; cp++) { }
             if (*cp != '\n' && (cp - start) < 80) {
                 /* Insufficient data */
                 return 0;
@@ -7195,7 +7202,7 @@ PUBLIC char *websEscapeHtml(cchar *html)
         return sclone("");
     }
     for (len = 1, ip = html; *ip; ip++, len++) {
-        if (charMatch[(int) (uchar) * ip] & WEBS_ENCODE_HTML) {
+        if (charMatch[(int) (uchar) *ip] & WEBS_ENCODE_HTML) {
             len += 5;
         }
     }
@@ -7207,7 +7214,7 @@ PUBLIC char *websEscapeHtml(cchar *html)
      */
     op = result;
     while (*html != '\0') {
-        if (charMatch[(uchar) * html] & WEBS_ENCODE_HTML) {
+        if (charMatch[(uchar) *html] & WEBS_ENCODE_HTML) {
             if (*html == '&') {
                 strcpy(op, "&amp;");
                 op += 5;
@@ -7262,7 +7269,7 @@ PUBLIC char *websEscapeUri(cchar *uri)
         return sclone("");
     }
     for (len = 1, ip = uri; *ip; ip++, len++) {
-        if (charMatch[(uchar) * ip] & WEBS_ENCODE_URI) {
+        if (charMatch[(uchar) *ip] & WEBS_ENCODE_URI) {
             len += 2;
         }
     }
@@ -7826,7 +7833,7 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len)
              */
             ip++;
             for (i = 0, num = 0; i < 2; i++, ip++) {
-                c = tolower((uchar) * ip);
+                c = tolower((uchar) *ip);
                 if (c >= 'a' && c <= 'f') {
                     num = (num * 16) + 10 + c - 'a';
                 } else {
@@ -7960,6 +7967,9 @@ static void checkTimeout(void *arg, int id)
 }
 
 
+/*
+    Seed the server's idea of its own address.
+ */
 static int setLocalHost(void)
 {
     struct in_addr intaddr;
@@ -7988,36 +7998,64 @@ static int setLocalHost(void)
             error("Cannot get host address for host %s: errno %d", host, errno);
             return -1;
         }
-        memcpy((char*) &intaddr, (char*) hp->h_addr[0], (size_t) hp->h_length);
-        ipaddr = inet_ntoa(intaddr);
-        websSetIpAddr(ipaddr);
-        websSetHost(ipaddr);
-    }
-#elif MACOSX
-    {
-        struct hostent *hp;
-        if ((hp = gethostbyname(host)) == NULL) {
-            if ((hp = gethostbyname(sfmt("%s.local", host))) == NULL) {
-                error("Cannot get host address for host %s: errno %d", host, errno);
-                return -1;
-            }
-        }
+        /*
+            h_addr is a compatibility macro for h_addr_list[0], so h_addr[0] would index into the
+            address bytes and use the first byte as a pointer.
+         */
         memcpy((char*) &intaddr, (char*) hp->h_addr_list[0], (size_t) hp->h_length);
         ipaddr = inet_ntoa(intaddr);
         websSetIpAddr(ipaddr);
         websSetHost(ipaddr);
     }
 #else
+    /*
+        Resolve with getaddrinfo rather than gethostbyname. gethostbyname is obsolete, is not
+        thread safe, and returns a hostent whose h_addr_list is not required to be suitably
+        aligned for a pointer load -- macOS in fact returns an unaligned one, which is undefined
+        behaviour to dereference and traps under UndefinedBehaviorSanitizer. socketInfo() in
+        socket.c already resolves this way.
+
+        If the host name is not resolvable, fall back to loopback. This address seeds GoAhead's
+        self identity for redirects and diagnostics; actual listening is still controlled by the
+        configured endpoints.
+     */
     {
-        struct hostent *hp;
-        if ((hp = gethostbyname(host)) == NULL) {
-            error("Cannot get host address for host %s: errno %d", host, errno);
-            return -1;
+        struct addrinfo hints, *res;
+        struct sockaddr_in *sa;
+        int             rc;
+
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+
+        res = 0;
+        rc = getaddrinfo(host, NULL, &hints, &res);
+#if MACOSX
+        if (rc != 0) {
+            /*
+                Bare hostnames are commonly absent from DNS on macOS while the mDNS ".local" form
+                resolves. sfmt allocates, so keep the name to free rather than passing it inline.
+             */
+            char *mdnsName = sfmt("%s.local", host);
+            rc = getaddrinfo(mdnsName, NULL, &hints, &res);
+            wfree(mdnsName);
         }
-        memcpy((char*) &intaddr, (char*) hp->h_addr_list[0], (size_t) hp->h_length);
+#endif
+        if (rc != 0 || res == NULL) {
+            error("Cannot get host address for host %s: %s - using 127.0.0.1", host, gai_strerror(rc));
+            if (res) {
+                freeaddrinfo(res);
+            }
+            websSetIpAddr("127.0.0.1");
+            websSetHost("127.0.0.1");
+            return 0;
+        }
+        sa = (struct sockaddr_in*) (void*) res->ai_addr;
+        intaddr = sa->sin_addr;
         ipaddr = inet_ntoa(intaddr);
         websSetIpAddr(ipaddr);
         websSetHost(ipaddr);
+        freeaddrinfo(res);
     }
 #endif
     return 0;
@@ -8726,8 +8764,7 @@ static char *getToken(Webs *wp, char *delim, int validation)
         Eat white space before token
      */
     if (validation != TOKEN_HEADER_VALUE && validation != TOKEN_HEADER_KEY) {
-        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) {
-        }
+        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) { }
     }
 
     if (delim) {
@@ -8771,14 +8808,14 @@ static char *validateToken(char *token, char *endToken, int validation)
         if (token < endToken) {
             /* Trim white space */
             for (t = &token[slen(token) - 1]; t >= token; t--) {
-                if (isspace((uchar) * t)) {
+                if (isspace((uchar) *t)) {
                     *t = '\0';
                 } else {
                     break;
                 }
             }
         }
-        while (isspace((uchar) * token)) {
+        while (isspace((uchar) *token)) {
             token++;
         }
         for (t = token; *t; t++) {
@@ -10487,7 +10524,7 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
     assert(rel > 0);
 
     lval = 0;
-    if (isdigit((uchar) * lhs) && isdigit((uchar) * rhs)) {
+    if (isdigit((uchar) *lhs) && isdigit((uchar) *rhs)) {
         l = atoi(lhs);
         r = atoi(rhs);
         switch (rel) {
@@ -10502,7 +10539,7 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
             return -1;
         }
     } else {
-        if (!isdigit((uchar) * lhs)) {
+        if (!isdigit((uchar) *lhs)) {
             jsError(ep, "Conditional must be numeric: %s", lhs);
         } else {
             jsError(ep, "Conditional must be numeric: %s", rhs);
@@ -10532,14 +10569,14 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
      */
     numeric = 1;
     for (cp = lhs; *cp; cp++) {
-        if (!isdigit((uchar) * cp)) {
+        if (!isdigit((uchar) *cp)) {
             numeric = 0;
             break;
         }
     }
     if (numeric) {
         for (cp = rhs; *cp; cp++) {
-            if (!isdigit((uchar) * cp)) {
+            if (!isdigit((uchar) *cp)) {
                 numeric = 0;
                 break;
             }
@@ -11520,7 +11557,7 @@ static int getLexicalToken(Js *ep, int state)
                     break;
                 }
             }
-            if (!isalpha((uchar) * tokq->servp) && *tokq->servp != '$' && *tokq->servp != '_') {
+            if (!isalpha((uchar) *tokq->servp) && *tokq->servp != '$' && *tokq->servp != '_') {
                 jsError(ep, "Invalid identifier %s", tokq->servp);
                 return TOK_ERR;
             }
@@ -11774,7 +11811,7 @@ static bool jstHandler(Webs *wp)
         authoritative Cache-Control rather than a second, weaker one here.
      */
     wp->flags |= WEBS_NO_CACHE;
-    websWriteHeaders(wp, (ssize) - 1, 0);
+    websWriteHeaders(wp, (ssize) -1, 0);
     websWriteHeader(wp, "Pragma", "no-cache");
     websWriteEndHeaders(wp);
 
@@ -11943,7 +11980,7 @@ static char *strtokcmp(char *s1, char *s2)
 
     s1 = skipWhite(s1);
     len = strlen(s2);
-    for (len = strlen(s2); len > 0 && (tolower((uchar) * s1) == tolower((uchar) * s2)); len--) {
+    for (len = strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
         if (*s2 == '\0') {
             return s1;
         }
@@ -11964,7 +12001,7 @@ static char *skipWhite(char *s)
     if (s == NULL) {
         return s;
     }
-    while (*s && isspace((uchar) * s)) {
+    while (*s && isspace((uchar) *s)) {
         s++;
     }
     return s;
@@ -12499,8 +12536,7 @@ static int *getCipherSuite(char *ciphers, int *len)
     if (!ciphers || *ciphers == 0) {
         return 0;
     }
-    for (nciphers = 0, cp = mbedtls_ssl_list_ciphersuites(); cp && *cp; cp++, nciphers++) {
-    }
+    for (nciphers = 0, cp = mbedtls_ssl_list_ciphersuites(); cp && *cp; cp++, nciphers++) { }
     result = walloc((nciphers + 1) * sizeof(int));
 
     next = ciphers = sclone(ciphers);
@@ -12711,10 +12747,10 @@ void mbedDummy()
 #define OPENSSL_TLSV3_DEFAULT_CIPHERS "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
     #define OPENSSL_DEFAULT_CIPHERS   OPENSSL_TLSV3_DEFAULT_CIPHERS \
-            ":ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256"
+        ":ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256"
 #else
     #define OPENSSL_DEFAULT_CIPHERS   OPENSSL_TLSV3_DEFAULT_CIPHERS \
-            ":ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4:!SSLv3"
+        ":ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4:!SSLv3"
 #endif
 
 /*
@@ -15254,27 +15290,27 @@ typedef struct Format {
 } Format;
 
 #define BPUT(fmt, c) \
-        do { \
-            /* Less one to allow room for the null */ \
-            if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
-                if (growBuf(fmt) > 0) { \
-                    *(fmt)->end++ = (c); \
-                } \
-            } else { \
+    do { \
+        /* Less one to allow room for the null */ \
+        if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
+            if (growBuf(fmt) > 0) { \
                 *(fmt)->end++ = (c); \
             } \
-        } while (0)
+        } else { \
+            *(fmt)->end++ = (c); \
+        } \
+    } while (0)
 
 #define BPUTNULL(fmt) \
-        do { \
-            if ((fmt)->end > (fmt)->endbuf) { \
-                if (growBuf(fmt) > 0) { \
-                    *(fmt)->end = '\0'; \
-                } \
-            } else { \
+    do { \
+        if ((fmt)->end > (fmt)->endbuf) { \
+            if (growBuf(fmt) > 0) { \
                 *(fmt)->end = '\0'; \
             } \
-        } while (0)
+        } else { \
+            *(fmt)->end = '\0'; \
+        } \
+    } while (0)
 
 /*
     The handle list stores the length of the list and the number of used handles in the first two words.  These are
@@ -15314,7 +15350,15 @@ char *embedthisGoAheadCopyright = EMBEDTHIS_GOAHEAD_COPYRIGHT;
 
 #if ME_GOAHEAD_LOGGING
 static char *logPath;               /* Log file name */
-static int  logFd;                  /* Log file handle */
+/*
+    Log file handle. Must start at -1, the same "not open" sentinel logClose() restores. Zero
+    would be file descriptor 0, and logHandler is bound to defaultLogHandler from process start,
+    so every message emitted before logOpen() -- notably the command line parsing errors in
+    goahead.c and test.c -- would be written into standard input rather than the log. That is
+    silent to an operator on a terminal, and on a device started from a supervisor or inetd it
+    injects log text into whatever pipe or socket occupies descriptor 0.
+ */
+static int  logFd = -1;             /* Log file handle */
 #endif
 
 /********************************** Forwards **********************************/
@@ -15791,7 +15835,7 @@ static void outString(Format *fmt, char *str, ssize len)
         len = 4;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (ssize) * str;
+        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == '\0') {
@@ -15831,7 +15875,7 @@ static void outWideString(Format *fmt, wchar *str, ssize len)
         return;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (ssize) * str;
+        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == 0) {
@@ -16097,21 +16141,27 @@ PUBLIC void valueFree(WebsValue *v)
 static void defaultLogHandler(int flags, cchar *buf)
 {
     char prefix[ME_GOAHEAD_LIMIT_STRING];
+    int  fd;
 
-    if (logFd >= 0) {
-        if (flags & WEBS_RAW_MSG) {
-            write(logFd, buf, (int) slen(buf));
-        } else {
-            fmt(prefix, sizeof(prefix), "%s: %d: ", ME_NAME, flags & WEBS_LEVEL_MASK);
-            write(logFd, prefix, (int) slen(prefix));
-            write(logFd, buf, (int) slen(buf));
-            write(logFd, "\n", 1);
+    /*
+        Before logOpen() and after logClose() there is no log to write to, but the messages still
+        matter: goahead.c and test.c report fatal command line errors and exit before the log is
+        ever configured. Fall back to stderr so those reach the operator instead of vanishing.
+     */
+    fd = (logFd >= 0) ? logFd : 2;
+
+    if (flags & WEBS_RAW_MSG) {
+        write(fd, buf, (int) slen(buf));
+    } else {
+        fmt(prefix, sizeof(prefix), "%s: %d: ", ME_NAME, flags & WEBS_LEVEL_MASK);
+        write(fd, prefix, (int) slen(prefix));
+        write(fd, buf, (int) slen(buf));
+        write(fd, "\n", 1);
 #if ME_WIN_LIKE || ME_UNIX_LIKE
-            if (flags & WEBS_ERROR_MSG && websGetBackground()) {
-                syslog(LOG_ERR, "%s", buf);
-            }
-#endif
+        if (flags & WEBS_ERROR_MSG && websGetBackground()) {
+            syslog(LOG_ERR, "%s", buf);
         }
+#endif
     }
 }
 
@@ -16132,7 +16182,7 @@ PUBLIC void error(cchar *fmt, ...)
 }
 
 
-PUBLIC void assertError(WEBS_ARGS_DEC, char *fmt, ...)
+PUBLIC void assertError(WEBS_ARGS_DEC, cchar *fmt, ...)
 {
     va_list args;
     char    *fmtBuf, *message;
@@ -16274,7 +16324,7 @@ PUBLIC char *slower(char *string)
     s = string;
     while (*s) {
         if (isupper(*s)) {
-            *s = (char) tolower((uchar) * s);
+            *s = (char) tolower((uchar) *s);
         }
         s++;
     }
@@ -16295,8 +16345,8 @@ PUBLIC char *supper(char *string)
     }
     s = string;
     while (*s) {
-        if (islower((uchar) * s)) {
-            *s = (char) toupper((uchar) * s);
+        if (islower((uchar) *s)) {
+            *s = (char) toupper((uchar) *s);
         }
         s++;
     }
@@ -17424,7 +17474,7 @@ uint hextoi(cchar *hexstring)
     if (*h == '0' && (*(h + 1) == 'x' || *(h + 1) == 'X')) {
         h += 2;
     }
-    while ((c = (uint) * h++) != 0) {
+    while ((c = (uint) *h++) != 0) {
         if (c >= '0' && c <= '9') {
             c -= '0';
         } else if (c >= 'a' && c <= 'f') {
@@ -17681,7 +17731,7 @@ PUBLIC int sncaselesscmp(cchar *s1, cchar *s2, ssize n)
         return 1;
     }
     for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
-        rc = tolower((uchar) * s1) - tolower((uchar) * s2);
+        rc = tolower((uchar) *s1) - tolower((uchar) *s2);
     }
     if (rc) {
         return (rc > 0) ? 1 : -1;
@@ -17801,7 +17851,7 @@ PUBLIC int websParseArgs(char *args, char **argv, int maxArgc)
         Becomes:    ["showColors", "red", "light blue", "yellow white", "Cannot \"render\""]
      */
     for (argc = 0, src = args; src && *src != '\0' && argc < maxArgc; argc++) {
-        while (isspace((uchar) * src)) {
+        while (isspace((uchar) *src)) {
             src++;
         }
         if (*src == '\0') {
@@ -18617,8 +18667,9 @@ PUBLIC int socketSetBlock(int sid, int on)
 PUBLIC int socketSetSendTimeout(int sid, int timeout)
 {
     WebsSocket *sp;
+
 #if ME_WIN_LIKE
-    DWORD      tv;
+    DWORD tv;
 #else
     struct timeval tv;
 #endif
@@ -18863,11 +18914,9 @@ PUBLIC void socketFree(int sid)
     socketRegisterInterest(sid, 0);
     if (sp->sock >= 0) {
         socketSetBlock(sid, 0);
-        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {
-        }
+        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) { }
         if (shutdown(sp->sock, SHUT_RDWR) >= 0) {
-            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {
-            }
+            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) { }
         }
         closesocket(sp->sock);
     }
@@ -19271,7 +19320,7 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
             *pport = defaultPort;
 
         } else {
-            if (isdigit((uchar) * ip)) {
+            if (isdigit((uchar) *ip)) {
                 *pport = atoi(ip);
                 wfree(ip);
                 ip = 0;
@@ -19584,7 +19633,7 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
     if (token == NULL || *token == NULL || **token == '\0') {
         return 0;
     }
-    if (isalpha((uchar) * *token)) {
+    if (isalpha((uchar) **token)) {
         *isAlpah = 1;
         cp = strchr(*token, sep);
         if (cp) {
@@ -19711,7 +19760,7 @@ PUBLIC int websParseDateTime(WebsTime *time, cchar *dateString, struct tm *defau
             }
             zoneOffset = negate * (hour * 60 + min);
 
-        } else if (isalpha((uchar) * token)) {
+        } else if (isalpha((uchar) *token)) {
             if ((tt = (TimeToken*) hashLookupSymbol(timeTokens, token)) != 0) {
                 kind = tt->type;
                 value = tt->value;
@@ -20213,8 +20262,13 @@ static void processUploadHeader(Webs *wp, char *line)
                  */
                 wfreeset(wp->uploadTmp);
                 if ((wp->uploadTmp = websTempFile(uploadDir, "tmp")) == 0) {
+                    /*
+                        Do not name the temp file here: the assignment above is what failed, so
+                        wp->uploadTmp is unconditionally NULL on this path. gcc proves it at -O2
+                        and reports it as a null %s argument.
+                     */
                     websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR,
-                              "Cannot create upload temp file %s. Check upload temp dir %s", wp->uploadTmp, uploadDir);
+                              "Cannot create upload temp file. Check upload temp dir %s", uploadDir);
                     return;
                 }
                 trace(5, "File upload of: %s stored as %s", wp->clientFilename, wp->uploadTmp);
