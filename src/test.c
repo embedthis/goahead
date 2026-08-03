@@ -32,7 +32,16 @@ static int finished = 0;
 #undef ME_GOAHEAD_LISTEN
 /*
     These must match TM_HTTP, TM_HTTPS, TM_HTTPV6 and TM_HTTPSV6 in test/testme.json5
+
+    IPv6 endpoints are on by default so test/ipv6 has a server to talk to. Binding them is not
+    required to succeed: a host with no IPv6 loopback still runs the rest of the suite, and
+    test/ipv6 is skipped there by clearing ME_IPV6 in test/testme.json5. Build with -DTEST_IPV6=0
+    to leave the IPv6 listeners out of the binary entirely.
  */
+#ifndef TEST_IPV6
+    #define TEST_IPV6 1
+#endif
+
 #if TEST_IPV6
 #if ME_COM_SSL
     #define ME_GOAHEAD_LISTEN "http://127.0.0.1:18080, https://127.0.0.1:14443, http://[::1]:18090, https://[::1]:14453"
@@ -190,9 +199,19 @@ MAIN(goahead, int argc, char **argv, char **envp)
             }
         }
     } else {
+        /*
+            An IPv6 endpoint that will not bind is not fatal. Hosts without IPv6 loopback are
+            common in containers, and failing here would take down the whole suite rather than the
+            handful of tests that need IPv6. An IPv4 endpoint that will not bind is still fatal:
+            every other test depends on it.
+         */
         endpoints = sclone(ME_GOAHEAD_LISTEN);
         for (endpoint = stok(endpoints, ", \t", &tok); endpoint; endpoint = stok(NULL, ", \t,", &tok)) {
             if (websListen(endpoint) < 0) {
+                if (strchr(endpoint, '[') != NULL) {
+                    error("Warning: cannot listen on %s. Skipping - IPv6 tests will fail", endpoint);
+                    continue;
+                }
                 return -1;
             }
         }

@@ -3,7 +3,7 @@
  */
 
 import { Http, Path } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 let http: Http = new Http
@@ -27,16 +27,38 @@ if (http.status != 204) {
 }
 ttrue(http.status == 204)
 
+/*
+    Options and Trace.
+
+    optionsHandler answers both only when ME_GOAHEAD_STEALTH is off; with stealth on (the shipped
+    default) it refuses everything with 406. The Allow assertion below used to be commented out
+    because it can never hold in a stealth build - assert whichever contract the build actually
+    has, so the non-stealth path is covered rather than silently untested. TRACE echoing the
+    request is a cross-site-tracing surface and is worth asserting precisely when it is enabled.
+ */
+const stealth = thas('ME_GOAHEAD_STEALTH')
+
 //  Options
 http.connect("OPTIONS", HTTP + "/index.html")
 await http.wait()
-ttrue(http.status == 406)
-// ttrue(http.header("allow") == "DELETE,GET,HEAD,OPTIONS,POST,PUT")
+if (stealth) {
+    ttrue(http.status == 406)
+} else {
+    ttrue(http.status == 200)
+    const allow = http.header("allow")
+    ttrue(allow != null && allow.contains("GET") && allow.contains("OPTIONS"),
+        "OPTIONS did not advertise an Allow header: " + allow)
+}
 
-//  Trace - should be disabled
+//  Trace
 http.connect("TRACE", HTTP + "/index.html")
 await http.wait()
-ttrue(http.status == 406)
+if (stealth) {
+    ttrue(http.status == 406)
+} else {
+    ttrue(http.status == 200)
+    ttrue(http.response.contains("TRACE"), "TRACE did not echo the request line")
+}
 
 //  Post
 http.post(HTTP + "/index.html", "Some data")

@@ -57,6 +57,19 @@
             ME_GOAHEAD_JAVASCRIPT: '1',
             ME_GOAHEAD_UPLOAD: '1',
             ME_SSL: '1',
+            /*
+                IPv6 axis. The test server binds its IPv6 endpoints best-effort, so on a host with
+                no IPv6 loopback the rest of the suite still runs -- set this to 0 there and
+                test/ipv6 skips instead of failing.
+             */
+            ME_IPV6: '1',
+            /*
+                Stealth axis. With stealth on (the shipped default) OPTIONS and TRACE are refused
+                with 406. With it off they are answered - OPTIONS with an Allow header, TRACE by
+                echoing the request. Set this to 0 when building with ME_GOAHEAD_STEALTH=0 so
+                basic/methods.tst.ts asserts the answering behaviour instead of the refusal.
+             */
+            ME_GOAHEAD_STEALTH: '1',
         },
         windows: {
             PATH: '../build/bin;C:/Program Files/OpenSSL;${USERPROFILE}/vcpkg/installed/${ARCH}-windows/bin;${PATH}',
