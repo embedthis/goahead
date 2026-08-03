@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
         if (*argp != '-') {
             break;
         } else if (strcmp(argp, "--prefix") == 0 || strcmp(argp, "--strip") == 0) {
-            if (argind >= argc) usage();
+            if (argind + 1 >= argc) usage();
             strip = argv[++argind];
         }
     }

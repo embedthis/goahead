@@ -73,7 +73,7 @@ MAIN(goahead, int argc, char **argv, char **envp)
                 --auth and silently ignore the file; it now reports the option as unknown.
              */
         } else if (smatch(argp, "--auth") || smatch(argp, "-a")) {
-            if (argind >= argc) usage();
+            if (argind + 1 >= argc) usage();
             auth = argv[++argind];
 #endif
 
@@ -84,11 +84,11 @@ MAIN(goahead, int argc, char **argv, char **envp)
 
 #if ME_COM_SSL
         } else if (smatch(argp, "--cert")) {
-            if (argind >= argc) usage();
+            if (argind + 1 >= argc) usage();
             websSetSslCertFile(argv[++argind]);
 
         } else if (smatch(argp, "--key")) {
-            if (argind >= argc) usage();
+            if (argind + 1 >= argc) usage();
             websSetSslKeyFile(argv[++argind]);
 #endif
 
@@ -96,20 +96,21 @@ MAIN(goahead, int argc, char **argv, char **envp)
             websSetDebug(1);
 
         } else if (smatch(argp, "--home")) {
-            if (argind >= argc) usage();
+            if (argind + 1 >= argc) usage();
             home = argv[++argind];
             if (chdir(home) < 0) {
                 error("Cannot change directory to %s", home);
                 exit(-1);
             }
         } else if (smatch(argp, "--log") || smatch(argp, "-l")) {
-            if (argind >= argc) usage();
+            if (argind + 1 >= argc) usage();
             logSetPath(argv[++argind]);
 
         } else if (smatch(argp, "--verbose") || smatch(argp, "-v")) {
             logSetPath("stdout:2");
 
         } else if (smatch(argp, "--route") || smatch(argp, "-r")) {
+            if (argind + 1 >= argc) usage();
             route = argv[++argind];
 
         } else if (smatch(argp, "--version") || smatch(argp, "-V")) {
