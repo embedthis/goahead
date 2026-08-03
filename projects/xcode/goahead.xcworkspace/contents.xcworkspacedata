@@ -16,4 +16,7 @@
 	<FileRef
 		location = "group:gopass.xcodeproj">
 	</FileRef>
+	<FileRef
+		location = "group:webcomp.xcodeproj">
+	</FileRef>
 </Workspace>

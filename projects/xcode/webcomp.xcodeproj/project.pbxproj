@@ -1,0 +1,360 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		19A1999C4933688E2440A7DC /* webcomp.c in Sources */ = {isa = PBXBuildFile; fileRef = BFFA9E0462E8C4B6F20EA444 /* webcomp.c */; };
+		64775A6171020CD3EBE6D8A1 /* libgoahead.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8329498AA0437B66A99F89 /* libgoahead.dylib */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0453CEAF5F95222132EF6CEF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0C53847A1E7D612C526E4ABA /* goahead-lib.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = A43C62EB8F2888DDD70E512B;
+			remoteInfo = libgoahead.dylib;
+		};
+		568E4148B1CF94BA8529DF88 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0C53847A1E7D612C526E4ABA /* goahead-lib.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A23E0971C86439232F6B2FB1;
+			remoteInfo = libgoahead.dylib;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0C53847A1E7D612C526E4ABA /* libgoahead.dylib */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = goahead-lib.xcodeproj; path = "goahead-lib.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		AA4FDD164EA27AC860DAC356 /* webcomp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; name = webcomp; path = webcomp; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFFA9E0462E8C4B6F20EA444 /* webcomp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = webcomp.c; path = ../../src/utils/webcomp.c; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		6662B786B6764C3838F47DC6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64775A6171020CD3EBE6D8A1 /* libgoahead.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5FBA017203058AA41DD657B2 /* Embed Libraries */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+			);
+			name = "Embed Libraries";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXGroup section */
+		4B3CC20F6D086F41A9BD984F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB8329498AA0437B66A99F89 /* libgoahead.dylib */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9D968EAA920D05DCE0E0A4EA /* Projects */ = {
+			isa = PBXGroup;
+			children = (
+				0C53847A1E7D612C526E4ABA /* goahead-lib.xcodeproj */,
+				0C53847A1E7D612C526E4ABA /* goahead-lib.xcodeproj */,
+			);
+			name = Projects;
+			sourceTree = "<group>";
+		};
+		A6C936B49B3FADE6EA134CF4 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA4FDD164EA27AC860DAC356 /* webcomp */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BADFF9AD4DEB529F962047ED /* webcomp */ = {
+			isa = PBXGroup;
+			children = (
+				BFFA9E0462E8C4B6F20EA444 /* webcomp.c */,
+				A6C936B49B3FADE6EA134CF4 /* Products */,
+				9D968EAA920D05DCE0E0A4EA /* Projects */,
+			);
+			name = webcomp;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		83656A3C902219AE050C887C /* webcomp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 549DFFE5A4B19497272FC625 /* Build configuration list for PBXNativeTarget "webcomp" */;
+			buildPhases = (
+				D64A3826265DCCD8A8DBFE66 /* Resources */,
+				3FF7517D900AE62F128917BD /* Sources */,
+				6662B786B6764C3838F47DC6 /* Frameworks */,
+				5FBA017203058AA41DD657B2 /* Embed Libraries */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				38F4FF185AC0AC4A9775D558 /* PBXTargetDependency */,
+				38F4FF185AC0AC4A9775D558 /* PBXTargetDependency */,
+			);
+			name = webcomp;
+			productInstallPath = "$(HOME)/bin";
+			productName = webcomp;
+			productReference = AA4FDD164EA27AC860DAC356 /* webcomp */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		08FB7793FE84155DC02AAC07 /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = 1DEB928908733DD80010E9CD /* Build configuration list for PBXProject "webcomp" */;
+			compatibilityVersion = "Xcode 3.2";
+			hasScannedForEncodings = 1;
+			mainGroup = BADFF9AD4DEB529F962047ED /* webcomp */;
+			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 4B3CC20F6D086F41A9BD984F /* Products */;
+					ProjectRef = 0C53847A1E7D612C526E4ABA /* goahead-lib.xcodeproj */;
+				},
+				{
+					ProductGroup = 4B3CC20F6D086F41A9BD984F /* Products */;
+					ProjectRef = 0C53847A1E7D612C526E4ABA /* goahead-lib.xcodeproj */;
+				},
+			);
+			projectRoot = "";
+			targets = (
+				83656A3C902219AE050C887C /* webcomp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		AB8329498AA0437B66A99F89 /* libgoahead.dylib */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.dylib";
+			path = libgoahead.dylib;
+			remoteRef = 0453CEAF5F95222132EF6CEF /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D64A3826265DCCD8A8DBFE66 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3FF7517D900AE62F128917BD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				19A1999C4933688E2440A7DC /* webcomp.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		38F4FF185AC0AC4A9775D558 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = libgoahead.dylib;
+			targetProxy = 568E4148B1CF94BA8529DF88 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		3002C636D45563E8E68DAC76 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CONFIGURATION_BUILD_DIR = "$(SYMROOT)";
+				CONFIGURATION_TEMP_DIR = "$(OBJROOT)";
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"ME_VERSION=\\\"6.1.1\\\"",
+					"ME_COM_OPENSSL=1",
+					"ME_COM_MBEDTLS=0",
+					"ME_COM_SSL=1",
+					"ME_COM_MBEDTLS_PATH=\\\"/usr\\\"",
+					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@loader_path/.",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					../../build/bin,
+				);
+				OBJROOT = "../../build/obj/webcomp-macosx-release";
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_CFLAGS = (
+					"-Wno-sign-conversion",
+					"-Wno-unused-parameter",
+					"-Wno-unused-result",
+					"-Wshorten-64-to-32",
+					"-Wall",
+					"-Wno-unknown-warning-option",
+					"-fstack-protector",
+					"--param=ssp-buffer-size=4",
+					"-Wformat=2",
+					"-Wformat-security",
+					"-Werror=format-security",
+					"-Wsign-compare",
+				);
+				OTHER_LDFLAGS = (
+					"-ldl",
+					"-lpthread",
+					"-lm",
+					"-lpam",
+					"-Wl,-no_warn_duplicate_libraries",
+					"-Wl,-rpath,@executable_path/",
+					"-Wl,-rpath,@loader_path/",
+				);
+				SYMROOT = ../../build/bin;
+				USER_HEADER_SEARCH_PATHS = (
+					../../src,
+					../../src/osdep,
+					/opt/homebrew/include,
+				);
+				WARNING_CFLAGS = "-Wall -Wextra";
+			};
+			name = release;
+		};
+		35A8DC4B5BCF0BFDC2D6028B /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CONFIGURATION_BUILD_DIR = ../../build/bin;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_DYNAMIC_NO_PIC = NO;
+				INSTALL_PATH = /usr/local/bin;
+				PRODUCT_NAME = webcomp;
+			};
+			name = debug;
+		};
+		8A143605D2851A371723EC45 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CONFIGURATION_BUILD_DIR = ../../build/bin;
+				GCC_DYNAMIC_NO_PIC = NO;
+				INSTALL_PATH = /usr/local/bin;
+				PRODUCT_NAME = webcomp;
+			};
+			name = release;
+		};
+		AEB7BCFC5203462E6CD4133C /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CONFIGURATION_BUILD_DIR = "$(SYMROOT)";
+				CONFIGURATION_TEMP_DIR = "$(OBJROOT)";
+				COPY_PHASE_STRIP = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"ME_VERSION=\\\"6.1.1\\\"",
+					"ME_COM_OPENSSL=1",
+					"ME_COM_MBEDTLS=0",
+					"ME_COM_SSL=1",
+					"ME_COM_MBEDTLS_PATH=\\\"/usr\\\"",
+					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
+					"ME_DEBUG=1",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@loader_path/.",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					../../build/bin,
+				);
+				OBJROOT = "../../build/obj/webcomp-macosx-debug";
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"-Wno-sign-conversion",
+					"-Wno-unused-parameter",
+					"-Wno-unused-result",
+					"-Wshorten-64-to-32",
+					"-Wall",
+					"-Wno-unknown-warning-option",
+					"-fstack-protector",
+					"--param=ssp-buffer-size=4",
+					"-Wformat=2",
+					"-Wformat-security",
+					"-Werror=format-security",
+					"-Wsign-compare",
+				);
+				OTHER_LDFLAGS = (
+					"-ldl",
+					"-lpthread",
+					"-lm",
+					"-lpam",
+					"-g",
+					"-Wl,-no_warn_duplicate_libraries",
+					"-Wl,-rpath,@executable_path/",
+					"-Wl,-rpath,@loader_path/",
+				);
+				SYMROOT = ../../build/bin;
+				USER_HEADER_SEARCH_PATHS = (
+					../../src,
+					../../src/osdep,
+					/opt/homebrew/include,
+				);
+				WARNING_CFLAGS = "-Wall -Wextra";
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1DEB928908733DD80010E9CD /* Build configuration list for PBXProject "webcomp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AEB7BCFC5203462E6CD4133C /* debug */,
+				3002C636D45563E8E68DAC76 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		549DFFE5A4B19497272FC625 /* Build configuration list for PBXNativeTarget "webcomp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				35A8DC4B5BCF0BFDC2D6028B /* debug */,
+				8A143605D2851A371723EC45 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+};
+rootObject = 08FB7793FE84155DC02AAC07 /* Project object */;
+}

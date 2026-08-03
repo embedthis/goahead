@@ -20,7 +20,6 @@ endif
 
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/gopass
-INCLUDES += -I../../src -I../../src/osdep -I/opt/homebrew/include
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
@@ -44,7 +43,8 @@ ifeq ($(origin AR), default)
 endif
 RESCOMP = windres
 OBJDIR = ../../build/obj/gopass-macosx-debug
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_DEBUG=1
+DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_DEBUG=1
+INCLUDES += -I../../src -I../../src/osdep -I/opt/homebrew/include
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -g -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -g -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += ../../build/bin/libgoahead.dylib -ldl -lpthread -lm -lpam
@@ -63,12 +63,13 @@ ifeq ($(origin AR), default)
 endif
 RESCOMP = windres
 OBJDIR = ../../build/obj/gopass-linux-debug
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_DEBUG=1
+DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
+INCLUDES += -I../../src -I../../src/osdep -I/usr/include
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -fPIE
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -fPIE
 LIBS += ../../build/bin/libgoahead.so -lrt -ldl -lpthread -lm
 LDDEPS += ../../build/bin/libgoahead.so
-ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -Wl,-rpath,'$$ORIGIN' -g -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,--no-warn-execstack -pie
+ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -Wl,-rpath,'$$ORIGIN' -g -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,--no-warn-execstack -pie
 
 else ifeq ($(config),debug_freebsd)
 ifeq ($(origin CC), default)
@@ -82,7 +83,8 @@ ifeq ($(origin AR), default)
 endif
 RESCOMP = windres
 OBJDIR = ../../build/obj/gopass-freebsd-debug
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_DEBUG=1
+DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
+INCLUDES += -I../../src -I../../src/osdep -I/usr/include
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += ../../build/bin/libgoahead.so -ldl -lpthread -lm
@@ -101,12 +103,13 @@ ifeq ($(origin AR), default)
 endif
 RESCOMP = windres
 OBJDIR = ../../build/obj/gopass-macosx-release
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\"
+DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\"
+INCLUDES += -I../../src -I../../src/osdep -I/opt/homebrew/include
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += ../../build/bin/libgoahead.dylib -ldl -lpthread -lm -lpam
 LDDEPS += ../../build/bin/libgoahead.dylib
-ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -Wl,-rpath,'@loader_path/.' -s -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
+ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -Wl,-rpath,'@loader_path/.' -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
 
 else ifeq ($(config),release_linux)
 ifeq ($(origin CC), default)
@@ -120,12 +123,13 @@ ifeq ($(origin AR), default)
 endif
 RESCOMP = windres
 OBJDIR = ../../build/obj/gopass-linux-release
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\"
+DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\"
+INCLUDES += -I../../src -I../../src/osdep -I/usr/include
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -fPIE
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -fPIE
 LIBS += ../../build/bin/libgoahead.so -lrt -ldl -lpthread -lm
 LDDEPS += ../../build/bin/libgoahead.so
-ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -Wl,-rpath,'$$ORIGIN' -s -s -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,-z,noexecheap -Wl,--no-warn-execstack -pie
+ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -Wl,-rpath,'$$ORIGIN' -s -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,--no-warn-execstack -pie
 
 else ifeq ($(config),release_freebsd)
 ifeq ($(origin CC), default)
@@ -139,12 +143,13 @@ ifeq ($(origin AR), default)
 endif
 RESCOMP = windres
 OBJDIR = ../../build/obj/gopass-freebsd-release
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_COM_MBEDTLS_PATH=\"/usr\"
+DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\"
+INCLUDES += -I../../src -I../../src/osdep -I/usr/include
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
 LIBS += ../../build/bin/libgoahead.so -ldl -lpthread -lm
 LDDEPS += ../../build/bin/libgoahead.so
-ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -s -s
+ALL_LDFLAGS += $(LDFLAGS) -L../../build/bin -s
 
 endif
 

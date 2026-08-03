@@ -58,7 +58,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4100;4127;4133;4152;4244;4389;4456;4459;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ME_VERSION="6.1.1";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";ME_COM_MBEDTLS_PATH="/usr";ME_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ME_VERSION="6.1.1";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_MBEDTLS_PATH="/usr";ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";ME_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\src;..\..\src\osdep;C:\Program Files\OpenSSL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -81,7 +81,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4100;4127;4133;4152;4244;4389;4456;4459;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ME_VERSION="6.1.1";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";ME_COM_MBEDTLS_PATH="/usr";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ME_VERSION="6.1.1";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_MBEDTLS_PATH="/usr";ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\src;..\..\src\osdep;C:\Program Files\OpenSSL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>

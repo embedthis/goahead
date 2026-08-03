@@ -37,7 +37,8 @@ newoption {
 newoption {
     trigger     = "openssl-path",
     value       = "PATH",
-    description = "Path to OpenSSL installation (default: /opt/homebrew on macOS, /usr on Linux/FreeBSD)",
+    description = "Path to OpenSSL for every platform, overriding the per-platform defaults " ..
+                  "(/opt/homebrew on macOS, /usr on Linux/FreeBSD, C:/Program Files/OpenSSL on Windows)",
 }
 
 newoption {
@@ -46,18 +47,39 @@ newoption {
     description = "Path to MbedTLS installation",
 }
 
--- Detect target OS for platform-specific defaults
-local hostOS = os.host()
-local defaultOpensslPath
+--
+--  OpenSSL sits in a different place on each target, and these project files are generated once,
+--  committed, and shipped in the source distribution. Resolving a single path from os.host() at
+--  generation time would bake the generating machine's layout into every configuration, so a Linux
+--  build from the distribution would be handed the macOS Homebrew prefix and the /usr default for
+--  Linux would never reach a user. Resolve per target platform inside a filter instead, so each
+--  configuration carries its own path. An explicit --openssl-path overrides all of them, for an
+--  installation that is not in the usual place.
+--
+local opensslPaths = {
+    macosx  = "/opt/homebrew",
+    linux   = "/usr",
+    freebsd = "/usr",
+    windows = "C:/Program Files/OpenSSL",
+}
+
+--
+--  Iterate an ordered list, never pairs() over the table above: the generated files are committed
+--  and diffed, so the emission order has to be stable from run to run.
+--
+local platformList
 if isVS then
-    defaultOpensslPath = "C:/Program Files/OpenSSL"
-elseif hostOS == "macosx" then
-    defaultOpensslPath = "/opt/homebrew"
+    platformList = { "windows" }
+elseif isXcode then
+    platformList = { "macosx" }
 else
-    defaultOpensslPath = "/usr"
+    platformList = { "macosx", "linux", "freebsd" }
 end
 
-local opensslPath = _OPTIONS["openssl-path"] or defaultOpensslPath
+local function opensslPathFor(platform)
+    return _OPTIONS["openssl-path"] or opensslPaths[platform]
+end
+
 local mbedtlsPath = _OPTIONS["mbedtls-path"] or "/usr"
 local tlsProvider = _OPTIONS["tls"] or "openssl"
 
@@ -103,20 +125,30 @@ workspace "goahead"
             "ME_COM_OPENSSL=1",
             "ME_COM_MBEDTLS=0",
             "ME_COM_SSL=1",
-            'ME_COM_OPENSSL_PATH="' .. opensslPath .. '"',
             'ME_COM_MBEDTLS_PATH="' .. mbedtlsPath .. '"',
         }
-        includedirs { opensslPath .. "/include" }
     else
         defines {
             "ME_COM_OPENSSL=0",
             "ME_COM_MBEDTLS=1",
             "ME_COM_SSL=1",
-            'ME_COM_OPENSSL_PATH="' .. opensslPath .. '"',
             'ME_COM_MBEDTLS_PATH="' .. mbedtlsPath .. '"',
         }
         includedirs { mbedtlsPath .. "/include" }
     end
+
+    --
+    --  The OpenSSL prefix is per platform even when MbedTLS is the provider, because
+    --  ME_COM_OPENSSL_PATH is emitted either way.
+    --
+    for _, platform in ipairs(platformList) do
+        filter("platforms:" .. platform)
+            defines { 'ME_COM_OPENSSL_PATH="' .. opensslPathFor(platform) .. '"' }
+            if tlsProvider == "openssl" then
+                includedirs { opensslPathFor(platform) .. "/include" }
+            end
+    end
+    filter {}
 
     -----------------------------------------------------------------
     --  Debug / Release
@@ -132,11 +164,15 @@ workspace "goahead"
 
     filter {}
 
+    --
+    --  Release stripping comes from symbols "Off" above, which premake already renders as "-s" on
+    --  the toolchains where it means anything. Adding it here as well emitted "-s -s" on Linux and
+    --  FreeBSD, and on macOS emitted an "-s" that the linker has retired -- every release link
+    --  printed "ld: warning: -s is obsolete" and the binary was not stripped regardless.
+    --
     if not isVS then
         filter "configurations:debug"
             linkoptions { "-g" }
-        filter "configurations:release"
-            linkoptions { "-s" }
         filter {}
     end
 
@@ -202,11 +238,16 @@ workspace "goahead"
                 "-Wformat=2", "-Wformat-security", "-Werror=format-security",
                 "-Wsign-compare",
             }
+            --
+            --  "-z noexecheap" is not a GNU ld option. GNU ld accepts and ignores it with
+            --  "warning: -z noexecheap ignored" on every link, so it bought no hardening and only
+            --  noise. A non-executable heap comes from the kernel's NX handling on every Linux
+            --  target GoAhead supports; there is no linker flag to request it here.
+            --
             linkoptions {
                 "-Wl,-z,relro,-z,now",
                 "-Wl,--as-needed",
                 "-Wl,--no-copy-dt-needed-entries",
-                "-Wl,-z,noexecheap",
                 "-Wl,--no-warn-execstack",
             }
             links { "rt", "dl", "pthread", "m" }
@@ -273,31 +314,39 @@ project "goahead-lib"
         ROOT .. "/src/upload.c",
     }
 
-    -- TLS libraries for the shared library
-    filter "platforms:macosx or linux or freebsd"
-        if tlsProvider == "openssl" then
-            libdirs { opensslPath .. "/lib" }
-            links   { "ssl", "crypto" }
+    --
+    --  TLS libraries for the shared library. Per platform for the same reason as the include
+    --  paths above: the library prefix must follow the target, not the generating host.
+    --
+    for _, platform in ipairs(platformList) do
+        if platform == "windows" then
+            filter "platforms:windows"
+                links { "ws2_32", "advapi32", "user32", "kernel32", "oldnames", "shell32" }
+                if tlsProvider == "openssl" then
+                    local p = opensslPathFor("windows")
+                    libdirs {
+                        p .. "/lib",
+                        p .. "/lib/VC/x64/MTd",
+                        p .. "/lib/VC/x64/MT",
+                        p .. "/lib/VC/x64/MDd",
+                        p .. "/lib/VC/x64/MD",
+                    }
+                    links { "libssl", "libcrypto" }
+                else
+                    libdirs { mbedtlsPath .. "/lib", mbedtlsPath .. "/library" }
+                    links   { "mbedtls", "mbedcrypto", "mbedx509" }
+                end
         else
-            libdirs { mbedtlsPath .. "/lib", mbedtlsPath .. "/library" }
-            links   { "mbedtls", "mbedcrypto", "mbedx509" }
+            filter("platforms:" .. platform)
+                if tlsProvider == "openssl" then
+                    libdirs { opensslPathFor(platform) .. "/lib" }
+                    links   { "ssl", "crypto" }
+                else
+                    libdirs { mbedtlsPath .. "/lib", mbedtlsPath .. "/library" }
+                    links   { "mbedtls", "mbedcrypto", "mbedx509" }
+                end
         end
-
-    filter "platforms:windows"
-        links   { "ws2_32", "advapi32", "user32", "kernel32", "oldnames", "shell32" }
-        if tlsProvider == "openssl" then
-            libdirs {
-                opensslPath .. "/lib",
-                opensslPath .. "/lib/VC/x64/MTd",
-                opensslPath .. "/lib/VC/x64/MT",
-                opensslPath .. "/lib/VC/x64/MDd",
-                opensslPath .. "/lib/VC/x64/MD",
-            }
-            links   { "libssl", "libcrypto" }
-        else
-            libdirs { mbedtlsPath .. "/lib", mbedtlsPath .. "/library" }
-            links   { "mbedtls", "mbedcrypto", "mbedx509" }
-        end
+    end
     filter {}
 
 
@@ -346,6 +395,23 @@ project "gopass"
     libdirs    { ROOT .. "/build/bin" }
 
     files { ROOT .. "/src/utils/gopass.c" }
+
+    filter "platforms:windows"
+        links   { "ws2_32", "advapi32", "user32", "kernel32", "oldnames", "shell32" }
+    filter {}
+
+
+---------------------------------------------------------------------
+--  webcomp (compile web pages into C source for ROM builds)
+---------------------------------------------------------------------
+
+project "webcomp"
+    kind       "ConsoleApp"
+    links      { "goahead-lib" }
+    dependson  { "goahead-lib" }
+    libdirs    { ROOT .. "/build/bin" }
+
+    files { ROOT .. "/src/utils/webcomp.c" }
 
     filter "platforms:windows"
         links   { "ws2_32", "advapi32", "user32", "kernel32", "oldnames", "shell32" }

@@ -223,8 +223,8 @@
 					"ME_COM_OPENSSL=1",
 					"ME_COM_MBEDTLS=0",
 					"ME_COM_SSL=1",
-					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
 					"ME_COM_MBEDTLS_PATH=\\\"/usr\\\"",
+					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
@@ -256,7 +256,6 @@
 					"-lpthread",
 					"-lm",
 					"-lpam",
-					"-s",
 					"-Wl,-no_warn_duplicate_libraries",
 					"-Wl,-rpath,@executable_path/",
 					"-Wl,-rpath,@loader_path/",
@@ -285,8 +284,8 @@
 					"ME_COM_OPENSSL=1",
 					"ME_COM_MBEDTLS=0",
 					"ME_COM_SSL=1",
-					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
 					"ME_COM_MBEDTLS_PATH=\\\"/usr\\\"",
+					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
 					"ME_DEBUG=1",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;

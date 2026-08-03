@@ -23,6 +23,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gopass", "gopass.vcxproj", 
 		{12655BBA-7E1A-D4AF-070F-CE8673C3CAB3} = {12655BBA-7E1A-D4AF-070F-CE8673C3CAB3}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "webcomp", "webcomp.vcxproj", "{3274D0BE-9E53-4F5A-A76B-DA3013CAB5BB}"
+	ProjectSection(ProjectDependencies) = postProject
+		{12655BBA-7E1A-D4AF-070F-CE8673C3CAB3} = {12655BBA-7E1A-D4AF-070F-CE8673C3CAB3}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		debug|windows = debug|windows
@@ -49,6 +54,10 @@ Global
 		{D2133A00-BEB5-64D6-A770-782A93B1EB26}.debug|windows.Build.0 = debug windows|x64
 		{D2133A00-BEB5-64D6-A770-782A93B1EB26}.release|windows.ActiveCfg = release windows|x64
 		{D2133A00-BEB5-64D6-A770-782A93B1EB26}.release|windows.Build.0 = release windows|x64
+		{3274D0BE-9E53-4F5A-A76B-DA3013CAB5BB}.debug|windows.ActiveCfg = debug windows|x64
+		{3274D0BE-9E53-4F5A-A76B-DA3013CAB5BB}.debug|windows.Build.0 = debug windows|x64
+		{3274D0BE-9E53-4F5A-A76B-DA3013CAB5BB}.release|windows.ActiveCfg = release windows|x64
+		{3274D0BE-9E53-4F5A-A76B-DA3013CAB5BB}.release|windows.Build.0 = release windows|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

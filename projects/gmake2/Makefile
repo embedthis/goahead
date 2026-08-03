@@ -13,6 +13,7 @@ ifeq ($(config),debug_macosx)
   goahead_config = debug_macosx
   goahead_test_config = debug_macosx
   gopass_config = debug_macosx
+  webcomp_config = debug_macosx
   cgitest_config = debug_macosx
 
 else ifeq ($(config),debug_linux)
@@ -20,6 +21,7 @@ else ifeq ($(config),debug_linux)
   goahead_config = debug_linux
   goahead_test_config = debug_linux
   gopass_config = debug_linux
+  webcomp_config = debug_linux
   cgitest_config = debug_linux
 
 else ifeq ($(config),debug_freebsd)
@@ -27,6 +29,7 @@ else ifeq ($(config),debug_freebsd)
   goahead_config = debug_freebsd
   goahead_test_config = debug_freebsd
   gopass_config = debug_freebsd
+  webcomp_config = debug_freebsd
   cgitest_config = debug_freebsd
 
 else ifeq ($(config),release_macosx)
@@ -34,6 +37,7 @@ else ifeq ($(config),release_macosx)
   goahead_config = release_macosx
   goahead_test_config = release_macosx
   gopass_config = release_macosx
+  webcomp_config = release_macosx
   cgitest_config = release_macosx
 
 else ifeq ($(config),release_linux)
@@ -41,6 +45,7 @@ else ifeq ($(config),release_linux)
   goahead_config = release_linux
   goahead_test_config = release_linux
   gopass_config = release_linux
+  webcomp_config = release_linux
   cgitest_config = release_linux
 
 else ifeq ($(config),release_freebsd)
@@ -48,13 +53,14 @@ else ifeq ($(config),release_freebsd)
   goahead_config = release_freebsd
   goahead_test_config = release_freebsd
   gopass_config = release_freebsd
+  webcomp_config = release_freebsd
   cgitest_config = release_freebsd
 
 else
   $(error "invalid configuration $(config)")
 endif
 
-PROJECTS := goahead-lib goahead goahead-test gopass cgitest
+PROJECTS := goahead-lib goahead goahead-test gopass webcomp cgitest
 
 .PHONY: all clean help $(PROJECTS) 
 
@@ -80,6 +86,11 @@ ifneq (,$(gopass_config))
 	@${MAKE} --no-print-directory -C . -f gopass.make config=$(gopass_config)
 endif
 
+webcomp: goahead-lib
+ifneq (,$(webcomp_config))
+	@${MAKE} --no-print-directory -C . -f webcomp.make config=$(webcomp_config)
+endif
+
 cgitest: goahead-lib
 ifneq (,$(cgitest_config))
 	@${MAKE} --no-print-directory -C . -f cgitest.make config=$(cgitest_config)
@@ -90,6 +101,7 @@ clean:
 	@${MAKE} --no-print-directory -C . -f goahead.make clean
 	@${MAKE} --no-print-directory -C . -f goahead-test.make clean
 	@${MAKE} --no-print-directory -C . -f gopass.make clean
+	@${MAKE} --no-print-directory -C . -f webcomp.make clean
 	@${MAKE} --no-print-directory -C . -f cgitest.make clean
 
 help:
@@ -110,6 +122,7 @@ help:
 	@echo "   goahead"
 	@echo "   goahead-test"
 	@echo "   gopass"
+	@echo "   webcomp"
 	@echo "   cgitest"
 	@echo ""
 	@echo "For more information, see https://github.com/premake/premake-core/wiki"
