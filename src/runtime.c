@@ -178,7 +178,15 @@ char *embedthisGoAheadCopyright = EMBEDTHIS_GOAHEAD_COPYRIGHT;
 
 #if ME_GOAHEAD_LOGGING
 static char *logPath;               /* Log file name */
-static int  logFd;                  /* Log file handle */
+/*
+    Log file handle. Must start at -1, the same "not open" sentinel logClose() restores. Zero
+    would be file descriptor 0, and logHandler is bound to defaultLogHandler from process start,
+    so every message emitted before logOpen() -- notably the command line parsing errors in
+    goahead.c and test.c -- would be written into standard input rather than the log. That is
+    silent to an operator on a terminal, and on a device started from a supervisor or inetd it
+    injects log text into whatever pipe or socket occupies descriptor 0.
+ */
+static int  logFd = -1;             /* Log file handle */
 #endif
 
 /********************************** Forwards **********************************/
@@ -961,21 +969,27 @@ PUBLIC void valueFree(WebsValue *v)
 static void defaultLogHandler(int flags, cchar *buf)
 {
     char prefix[ME_GOAHEAD_LIMIT_STRING];
+    int  fd;
 
-    if (logFd >= 0) {
-        if (flags & WEBS_RAW_MSG) {
-            write(logFd, buf, (int) slen(buf));
-        } else {
-            fmt(prefix, sizeof(prefix), "%s: %d: ", ME_NAME, flags & WEBS_LEVEL_MASK);
-            write(logFd, prefix, (int) slen(prefix));
-            write(logFd, buf, (int) slen(buf));
-            write(logFd, "\n", 1);
+    /*
+        Before logOpen() and after logClose() there is no log to write to, but the messages still
+        matter: goahead.c and test.c report fatal command line errors and exit before the log is
+        ever configured. Fall back to stderr so those reach the operator instead of vanishing.
+     */
+    fd = (logFd >= 0) ? logFd : 2;
+
+    if (flags & WEBS_RAW_MSG) {
+        write(fd, buf, (int) slen(buf));
+    } else {
+        fmt(prefix, sizeof(prefix), "%s: %d: ", ME_NAME, flags & WEBS_LEVEL_MASK);
+        write(fd, prefix, (int) slen(prefix));
+        write(fd, buf, (int) slen(buf));
+        write(fd, "\n", 1);
 #if ME_WIN_LIKE || ME_UNIX_LIKE
-            if (flags & WEBS_ERROR_MSG && websGetBackground()) {
-                syslog(LOG_ERR, "%s", buf);
-            }
-#endif
+        if (flags & WEBS_ERROR_MSG && websGetBackground()) {
+            syslog(LOG_ERR, "%s", buf);
         }
+#endif
     }
 }
 
