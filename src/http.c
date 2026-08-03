@@ -2786,6 +2786,9 @@ static void checkTimeout(void *arg, int id)
 }
 
 
+/*
+    Seed the server's idea of its own address.
+ */
 static int setLocalHost(void)
 {
     struct in_addr intaddr;
@@ -2814,36 +2817,64 @@ static int setLocalHost(void)
             error("Cannot get host address for host %s: errno %d", host, errno);
             return -1;
         }
-        memcpy((char*) &intaddr, (char*) hp->h_addr[0], (size_t) hp->h_length);
-        ipaddr = inet_ntoa(intaddr);
-        websSetIpAddr(ipaddr);
-        websSetHost(ipaddr);
-    }
-#elif MACOSX
-    {
-        struct hostent *hp;
-        if ((hp = gethostbyname(host)) == NULL) {
-            if ((hp = gethostbyname(sfmt("%s.local", host))) == NULL) {
-                error("Cannot get host address for host %s: errno %d", host, errno);
-                return -1;
-            }
-        }
+        /*
+            h_addr is a compatibility macro for h_addr_list[0], so h_addr[0] would index into the
+            address bytes and use the first byte as a pointer.
+         */
         memcpy((char*) &intaddr, (char*) hp->h_addr_list[0], (size_t) hp->h_length);
         ipaddr = inet_ntoa(intaddr);
         websSetIpAddr(ipaddr);
         websSetHost(ipaddr);
     }
 #else
+    /*
+        Resolve with getaddrinfo rather than gethostbyname. gethostbyname is obsolete, is not
+        thread safe, and returns a hostent whose h_addr_list is not required to be suitably
+        aligned for a pointer load -- macOS in fact returns an unaligned one, which is undefined
+        behaviour to dereference and traps under UndefinedBehaviorSanitizer. socketInfo() in
+        socket.c already resolves this way.
+
+        If the host name is not resolvable, fall back to loopback. This address seeds GoAhead's
+        self identity for redirects and diagnostics; actual listening is still controlled by the
+        configured endpoints.
+     */
     {
-        struct hostent *hp;
-        if ((hp = gethostbyname(host)) == NULL) {
-            error("Cannot get host address for host %s: errno %d", host, errno);
-            return -1;
+        struct addrinfo hints, *res;
+        struct sockaddr_in *sa;
+        int             rc;
+
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+
+        res = 0;
+        rc = getaddrinfo(host, NULL, &hints, &res);
+#if MACOSX
+        if (rc != 0) {
+            /*
+                Bare hostnames are commonly absent from DNS on macOS while the mDNS ".local" form
+                resolves. sfmt allocates, so keep the name to free rather than passing it inline.
+             */
+            char *mdnsName = sfmt("%s.local", host);
+            rc = getaddrinfo(mdnsName, NULL, &hints, &res);
+            wfree(mdnsName);
         }
-        memcpy((char*) &intaddr, (char*) hp->h_addr_list[0], (size_t) hp->h_length);
+#endif
+        if (rc != 0 || res == NULL) {
+            error("Cannot get host address for host %s: %s - using 127.0.0.1", host, gai_strerror(rc));
+            if (res) {
+                freeaddrinfo(res);
+            }
+            websSetIpAddr("127.0.0.1");
+            websSetHost("127.0.0.1");
+            return 0;
+        }
+        sa = (struct sockaddr_in*) (void*) res->ai_addr;
+        intaddr = sa->sin_addr;
         ipaddr = inet_ntoa(intaddr);
         websSetIpAddr(ipaddr);
         websSetHost(ipaddr);
+        freeaddrinfo(res);
     }
 #endif
     return 0;
