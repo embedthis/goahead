@@ -1070,7 +1070,7 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
     assert(rel > 0);
 
     lval = 0;
-    if (isdigit((uchar) * lhs) && isdigit((uchar) * rhs)) {
+    if (isdigit((uchar) *lhs) && isdigit((uchar) *rhs)) {
         l = atoi(lhs);
         r = atoi(rhs);
         switch (rel) {
@@ -1085,7 +1085,7 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
             return -1;
         }
     } else {
-        if (!isdigit((uchar) * lhs)) {
+        if (!isdigit((uchar) *lhs)) {
             jsError(ep, "Conditional must be numeric: %s", lhs);
         } else {
             jsError(ep, "Conditional must be numeric: %s", rhs);
@@ -1115,14 +1115,14 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
      */
     numeric = 1;
     for (cp = lhs; *cp; cp++) {
-        if (!isdigit((uchar) * cp)) {
+        if (!isdigit((uchar) *cp)) {
             numeric = 0;
             break;
         }
     }
     if (numeric) {
         for (cp = rhs; *cp; cp++) {
-            if (!isdigit((uchar) * cp)) {
+            if (!isdigit((uchar) *cp)) {
                 numeric = 0;
                 break;
             }
@@ -2103,7 +2103,7 @@ static int getLexicalToken(Js *ep, int state)
                     break;
                 }
             }
-            if (!isalpha((uchar) * tokq->servp) && *tokq->servp != '$' && *tokq->servp != '_') {
+            if (!isalpha((uchar) *tokq->servp) && *tokq->servp != '$' && *tokq->servp != '_') {
                 jsError(ep, "Invalid identifier %s", tokq->servp);
                 return TOK_ERR;
             }

@@ -118,27 +118,27 @@ typedef struct Format {
 } Format;
 
 #define BPUT(fmt, c) \
-        do { \
-            /* Less one to allow room for the null */ \
-            if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
-                if (growBuf(fmt) > 0) { \
-                    *(fmt)->end++ = (c); \
-                } \
-            } else { \
+    do { \
+        /* Less one to allow room for the null */ \
+        if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
+            if (growBuf(fmt) > 0) { \
                 *(fmt)->end++ = (c); \
             } \
-        } while (0)
+        } else { \
+            *(fmt)->end++ = (c); \
+        } \
+    } while (0)
 
 #define BPUTNULL(fmt) \
-        do { \
-            if ((fmt)->end > (fmt)->endbuf) { \
-                if (growBuf(fmt) > 0) { \
-                    *(fmt)->end = '\0'; \
-                } \
-            } else { \
+    do { \
+        if ((fmt)->end > (fmt)->endbuf) { \
+            if (growBuf(fmt) > 0) { \
                 *(fmt)->end = '\0'; \
             } \
-        } while (0)
+        } else { \
+            *(fmt)->end = '\0'; \
+        } \
+    } while (0)
 
 /*
     The handle list stores the length of the list and the number of used handles in the first two words.  These are
@@ -655,7 +655,7 @@ static void outString(Format *fmt, char *str, ssize len)
         len = 4;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (ssize) * str;
+        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == '\0') {
@@ -695,7 +695,7 @@ static void outWideString(Format *fmt, wchar *str, ssize len)
         return;
     } else if (fmt->flags & SPRINTF_ALTERNATE) {
         str++;
-        len = (ssize) * str;
+        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == 0) {
@@ -1138,7 +1138,7 @@ PUBLIC char *slower(char *string)
     s = string;
     while (*s) {
         if (isupper(*s)) {
-            *s = (char) tolower((uchar) * s);
+            *s = (char) tolower((uchar) *s);
         }
         s++;
     }
@@ -1159,8 +1159,8 @@ PUBLIC char *supper(char *string)
     }
     s = string;
     while (*s) {
-        if (islower((uchar) * s)) {
-            *s = (char) toupper((uchar) * s);
+        if (islower((uchar) *s)) {
+            *s = (char) toupper((uchar) *s);
         }
         s++;
     }
@@ -2288,7 +2288,7 @@ uint hextoi(cchar *hexstring)
     if (*h == '0' && (*(h + 1) == 'x' || *(h + 1) == 'X')) {
         h += 2;
     }
-    while ((c = (uint) * h++) != 0) {
+    while ((c = (uint) *h++) != 0) {
         if (c >= '0' && c <= '9') {
             c -= '0';
         } else if (c >= 'a' && c <= 'f') {
@@ -2545,7 +2545,7 @@ PUBLIC int sncaselesscmp(cchar *s1, cchar *s2, ssize n)
         return 1;
     }
     for (rc = 0; n > 0 && *s1 && rc == 0; s1++, s2++, n--) {
-        rc = tolower((uchar) * s1) - tolower((uchar) * s2);
+        rc = tolower((uchar) *s1) - tolower((uchar) *s2);
     }
     if (rc) {
         return (rc > 0) ? 1 : -1;
@@ -2665,7 +2665,7 @@ PUBLIC int websParseArgs(char *args, char **argv, int maxArgc)
         Becomes:    ["showColors", "red", "light blue", "yellow white", "Cannot \"render\""]
      */
     for (argc = 0, src = args; src && *src != '\0' && argc < maxArgc; argc++) {
-        while (isspace((uchar) * src)) {
+        while (isspace((uchar) *src)) {
             src++;
         }
         if (*src == '\0') {

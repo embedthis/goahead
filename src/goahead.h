@@ -135,29 +135,29 @@
  */
 #ifndef ME_GOAHEAD_TEMP_DIR
     #if ME_WIN_LIKE
-        #define ME_GOAHEAD_TEMP_DIR          "\\Temp"
+        #define ME_GOAHEAD_TEMP_DIR  "\\Temp"
     #else
-        #define ME_GOAHEAD_TEMP_DIR          "/tmp"
+        #define ME_GOAHEAD_TEMP_DIR  "/tmp"
     #endif
 #endif
 #ifndef ME_GOAHEAD_UPLOAD
-    #define ME_GOAHEAD_UPLOAD                1
+    #define ME_GOAHEAD_UPLOAD        1
 #endif
 #ifndef ME_GOAHEAD_UPLOAD_DIR
-    #define ME_GOAHEAD_UPLOAD_DIR            "tmp"
+    #define ME_GOAHEAD_UPLOAD_DIR    "tmp"
 #endif
 #ifndef ME_GOAHEAD_XFRAME_HEADER
-    #define ME_GOAHEAD_XFRAME_HEADER         "SAMEORIGIN"
+    #define ME_GOAHEAD_XFRAME_HEADER "SAMEORIGIN"
 #endif
 
 /*
     GoAhead numeric limits
  */
 #ifndef ME_GOAHEAD_LIMIT_BUFFER
-    #define ME_GOAHEAD_LIMIT_BUFFER        1024
+    #define ME_GOAHEAD_LIMIT_BUFFER             1024
 #endif
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
-    #define ME_GOAHEAD_LIMIT_CGI_ARGS      4096
+    #define ME_GOAHEAD_LIMIT_CGI_ARGS           4096
 #endif
 /*
     Maximum concurrently accepted connections. The server is single threaded and multiplexes with
@@ -167,7 +167,7 @@
     availability for other clients, because a flood still occupies the slots it is granted.
  */
 #ifndef ME_GOAHEAD_LIMIT_CONNECTIONS
-    #define ME_GOAHEAD_LIMIT_CONNECTIONS   (FD_SETSIZE - 32)
+    #define ME_GOAHEAD_LIMIT_CONNECTIONS        (FD_SETSIZE - 32)
 #endif
 /*
     Maximum concurrently accepted connections from any one peer address. Unlike the total cap, this
@@ -180,55 +180,55 @@
     #define ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP 64
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILENAME
-    #define ME_GOAHEAD_LIMIT_FILENAME      256
+    #define ME_GOAHEAD_LIMIT_FILENAME           256
 #endif
 #ifndef ME_GOAHEAD_LIMIT_FILES
-    #define ME_GOAHEAD_LIMIT_FILES         0
+    #define ME_GOAHEAD_LIMIT_FILES              0
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADER
-    #define ME_GOAHEAD_LIMIT_HEADER        2048
+    #define ME_GOAHEAD_LIMIT_HEADER             2048
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADERS
-    #define ME_GOAHEAD_LIMIT_HEADERS       4096
+    #define ME_GOAHEAD_LIMIT_HEADERS            4096
 #endif
 #ifndef ME_GOAHEAD_LIMIT_NUM_HEADERS
-    #define ME_GOAHEAD_LIMIT_NUM_HEADERS   64
+    #define ME_GOAHEAD_LIMIT_NUM_HEADERS        64
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PARSE_TIMEOUT
-    #define ME_GOAHEAD_LIMIT_PARSE_TIMEOUT 5
+    #define ME_GOAHEAD_LIMIT_PARSE_TIMEOUT      5
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PASSWORD
-    #define ME_GOAHEAD_LIMIT_PASSWORD      32
+    #define ME_GOAHEAD_LIMIT_PASSWORD           32
 #endif
 #ifndef ME_GOAHEAD_LIMIT_POST
-    #define ME_GOAHEAD_LIMIT_POST          16384
+    #define ME_GOAHEAD_LIMIT_POST               16384
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PUT
-    #define ME_GOAHEAD_LIMIT_PUT           204800000
+    #define ME_GOAHEAD_LIMIT_PUT                204800000
 #endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_COUNT
-    #define ME_GOAHEAD_LIMIT_SESSION_COUNT 512
+    #define ME_GOAHEAD_LIMIT_SESSION_COUNT      512
 #endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_LIFE
-    #define ME_GOAHEAD_LIMIT_SESSION_LIFE  1800
+    #define ME_GOAHEAD_LIMIT_SESSION_LIFE       1800
 #endif
 #ifndef ME_GOAHEAD_LIMIT_STRING
-    #define ME_GOAHEAD_LIMIT_STRING        256
+    #define ME_GOAHEAD_LIMIT_STRING             256
 #endif
 #ifndef ME_GOAHEAD_LIMIT_TIMEOUT
-    #define ME_GOAHEAD_LIMIT_TIMEOUT       60
+    #define ME_GOAHEAD_LIMIT_TIMEOUT            60
 #endif
 #ifndef ME_GOAHEAD_LIMIT_UPLOAD
-    #define ME_GOAHEAD_LIMIT_UPLOAD        204800000
+    #define ME_GOAHEAD_LIMIT_UPLOAD             204800000
 #endif
 #ifndef ME_GOAHEAD_LIMIT_URI
-    #define ME_GOAHEAD_LIMIT_URI           2048
+    #define ME_GOAHEAD_LIMIT_URI                2048
 #endif
 
 /*
     Override osdep defaults
  */
-#define ME_MAX_IP                          64 /**< Maximum IP address size */
+#define ME_MAX_IP                               64 /**< Maximum IP address size */
 
 /************************************ Includes ********************************/
 
@@ -333,41 +333,41 @@ typedef struct stat WebsStat;
     Copyright. The software license requires that this not be modified or removed.
  */
 #define EMBEDTHIS_GOAHEAD_COPYRIGHT \
-        "Copyright (c) Embedthis Software Inc., 1993-2023. All Rights Reserved." \
-        "Copyright (c) GoAhead Software Inc., 2003. All Rights Reserved."
+    "Copyright (c) Embedthis Software Inc., 1993-2023. All Rights Reserved." \
+    "Copyright (c) GoAhead Software Inc., 2003. All Rights Reserved."
 
 /************************************* Main ***********************************/
 
 #if VXWORKS
     #define MAIN(name, _argc, _argv, _envp)  \
-            static int innerMain(int argc, char **argv, char **envp); \
-            int name(char *arg0, ...) { \
-                va_list args; \
-                char    *argp, *largv[ME_MAX_ARGC]; \
-                int     largc = 0; \
-                va_start(args, arg0); \
-                largv[largc++] = #name; \
-                if (arg0) { \
-                    largv[largc++] = arg0; \
-                } \
-                for (argp = va_arg(args, char*); argp && largc < ME_MAX_ARGC; argp = va_arg(args, char*)) { \
-                    largv[largc++] = argp; \
-                } \
-                return innerMain(largc, largv, NULL); \
+        static int innerMain(int argc, char **argv, char **envp); \
+        int name(char *arg0, ...) { \
+            va_list args; \
+            char    *argp, *largv[ME_MAX_ARGC]; \
+            int     largc = 0; \
+            va_start(args, arg0); \
+            largv[largc++] = #name; \
+            if (arg0) { \
+                largv[largc++] = arg0; \
             } \
-            static int innerMain(_argc, _argv, _envp)
+            for (argp = va_arg(args, char*); argp && largc < ME_MAX_ARGC; argp = va_arg(args, char*)) { \
+                largv[largc++] = argp; \
+            } \
+            return innerMain(largc, largv, NULL); \
+        } \
+        static int innerMain(_argc, _argv, _envp)
 #elif ME_WIN_LIKE
     #define MAIN(name, _argc, _argv, _envp)  \
-            APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *command, int junk2) { \
-                extern int main(); \
-                char *largv[ME_MAX_ARGC]; \
-                int  largc; \
-                largc = websParseArgs(command, &largv[1], ME_MAX_ARGC - 1); \
-                largv[0] = #name; \
-                websSetInst(inst); \
-                main(largc, largv, NULL); \
-            } \
-            int main(_argc, _argv, _envp)
+        APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *command, int junk2) { \
+            extern int main(); \
+            char *largv[ME_MAX_ARGC]; \
+            int  largc; \
+            largc = websParseArgs(command, &largv[1], ME_MAX_ARGC - 1); \
+            largv[0] = #name; \
+            websSetInst(inst); \
+            main(largc, largv, NULL); \
+        } \
+        int main(_argc, _argv, _envp)
 #else
     #define MAIN(name, _argc, _argv, _envp) int main(_argc, _argv, _envp)
 #endif
@@ -446,7 +446,7 @@ PUBLIC_DATA int logLevel;
 
 #if ME_GOAHEAD_TRACING && ME_GOAHEAD_LOGGING
     #if ME_COMPILER_HAS_MACRO_VARARGS
-      #define trace(l, ...) if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else {}
+      #define trace(l, ...) if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else { }
     #else
 PRINTF_ATTRIBUTE(2, 3) inline void trace(int level, PRINTF_FORMAT cchar *fmt, ...)
 {
@@ -462,12 +462,12 @@ PRINTF_ATTRIBUTE(2, 3) inline void trace(int level, PRINTF_FORMAT cchar *fmt, ..
 }
     #endif
 #else
-    #define trace(l, ...) if (1); else {}
+    #define trace(l, ...) if (1); else { }
 #endif
 
 #if ME_GOAHEAD_LOGGING
     #if ME_COMPILER_HAS_MACRO_VARARGS
-        #define logmsg(l, ...) if ((l) <= logLevel) { logmsgProc(l, __VA_ARGS__); } else {}
+        #define logmsg(l, ...) if ((l) <= logLevel) { logmsgProc(l, __VA_ARGS__); } else { }
     #else
 PRINTF_ATTRIBUTE(2, 3) inline void logmsg(int level, PRINTF_FORMAT cchar *fmt, ...)
 {
@@ -483,7 +483,7 @@ PRINTF_ATTRIBUTE(2, 3) inline void logmsg(int level, PRINTF_FORMAT cchar *fmt, .
 }
     #endif
 #else
-    #define logmsg(l, ...) if (1); else {}
+    #define logmsg(l, ...) if (1); else { }
 #endif
 
 
@@ -499,7 +499,7 @@ extern void assert(bool cond);
     #define assert(C) if (C); else assertError(WEBS_L, "%s", #C)
 PUBLIC void assertError(WEBS_ARGS_DEC, PRINTF_FORMAT char *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 #else
-    #define assert(C) if (1); else {}
+    #define assert(C) if (1); else { }
 #endif
 
 /**
@@ -596,14 +596,14 @@ PUBLIC void logmsgProc(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUT
 PUBLIC void traceProc(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 
 #else /*! ME_GOAHEAD_LOGGING */
-    #define assert(C)         if (1); else {}
-    #define error(l, ...)     if (1); else {}
-    #define trace(l, ...)     if (1); else {}
-    #define logOpen()         if (1); else {}
-    #define logClose()        if (1); else {}
+    #define assert(C)         if (1); else { }
+    #define error(l, ...)     if (1); else { }
+    #define trace(l, ...)     if (1); else { }
+    #define logOpen()         if (1); else { }
+    #define logClose()        if (1); else { }
     #define websGetLogLevel() 0
-    #define logmsg(l, ...)    if (1); else {}
-    #define logSetPath(p)     if (1); else {}
+    #define logmsg(l, ...)    if (1); else { }
+    #define logSetPath(p)     if (1); else { }
 #endif
 
 /*********************************** HTTP Codes *******************************/
@@ -4681,7 +4681,7 @@ PUBLIC int websSetSessionVar(Webs *wp, cchar *name, cchar *value);
     #define websSetDefaultDir     websSetDocuments
     #define websSetDefaultPage    websSetIndex
     #define websSetRequestLpath   websSetRequestFilename
-    #define websSetRequestWritten(wp, nbytes) if (1) { wp->written = nbytes; } else {}
+    #define websSetRequestWritten(wp, nbytes) if (1) { wp->written = nbytes; } else { }
     #define websTimeoutCancel     websCancelTimeout
     #define websWriteDataNonBlock websWriteRaw
 

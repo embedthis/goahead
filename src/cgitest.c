@@ -83,7 +83,7 @@ typedef int ssize_t;
  */
 #ifndef PRINTF_ATTRIBUTE
     #if (__GNUC__ >= 3) || defined(__clang__) || MACOSX
-        #define PRINTF_ATTRIBUTE(a1, a2) __attribute__ ((format (__printf__, a1, a2)))
+        #define PRINTF_ATTRIBUTE(a1, a2) __attribute__ ((format(__printf__, a1, a2)))
     #else
         #define PRINTF_ATTRIBUTE(a1, a2)
     #endif
@@ -607,8 +607,7 @@ static void printPost(char *buf, size_t len)
         if (len < (50 * 1000)) {
             printf("<H2>Post Data %d bytes found (data below)</H2>\r\n", (int) len);
             fflush(stdout);
-            if ((size_t) write(1, buf, (int) len) != len) {
-            }
+            if ((size_t) write(1, buf, (int) len) != len) { }
         } else {
             printf("<H2>Post Data %d bytes found</H2>\r\n", (int) len);
         }

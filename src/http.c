@@ -1540,8 +1540,7 @@ static bool filterChunkData(Webs *wp)
             }
             start = rxbuf->servp;
             bad = (start[0] != '\r' || start[1] != '\n');
-            for (cp = &start[2]; cp < rxbuf->endp && *cp != '\n'; cp++) {
-            }
+            for (cp = &start[2]; cp < rxbuf->endp && *cp != '\n'; cp++) { }
             if (*cp != '\n' && (cp - start) < 80) {
                 /* Insufficient data */
                 return 0;
@@ -2022,7 +2021,7 @@ PUBLIC char *websEscapeHtml(cchar *html)
         return sclone("");
     }
     for (len = 1, ip = html; *ip; ip++, len++) {
-        if (charMatch[(int) (uchar) * ip] & WEBS_ENCODE_HTML) {
+        if (charMatch[(int) (uchar) *ip] & WEBS_ENCODE_HTML) {
             len += 5;
         }
     }
@@ -2034,7 +2033,7 @@ PUBLIC char *websEscapeHtml(cchar *html)
      */
     op = result;
     while (*html != '\0') {
-        if (charMatch[(uchar) * html] & WEBS_ENCODE_HTML) {
+        if (charMatch[(uchar) *html] & WEBS_ENCODE_HTML) {
             if (*html == '&') {
                 strcpy(op, "&amp;");
                 op += 5;
@@ -2089,7 +2088,7 @@ PUBLIC char *websEscapeUri(cchar *uri)
         return sclone("");
     }
     for (len = 1, ip = uri; *ip; ip++, len++) {
-        if (charMatch[(uchar) * ip] & WEBS_ENCODE_URI) {
+        if (charMatch[(uchar) *ip] & WEBS_ENCODE_URI) {
             len += 2;
         }
     }
@@ -2653,7 +2652,7 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len)
              */
             ip++;
             for (i = 0, num = 0; i < 2; i++, ip++) {
-                c = tolower((uchar) * ip);
+                c = tolower((uchar) *ip);
                 if (c >= 'a' && c <= 'f') {
                     num = (num * 16) + 10 + c - 'a';
                 } else {
@@ -3553,8 +3552,7 @@ static char *getToken(Webs *wp, char *delim, int validation)
         Eat white space before token
      */
     if (validation != TOKEN_HEADER_VALUE && validation != TOKEN_HEADER_KEY) {
-        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) {
-        }
+        for (; token < (char*) buf->endp && (*token == ' ' || *token == '\t'); token++) { }
     }
 
     if (delim) {
@@ -3598,14 +3596,14 @@ static char *validateToken(char *token, char *endToken, int validation)
         if (token < endToken) {
             /* Trim white space */
             for (t = &token[slen(token) - 1]; t >= token; t--) {
-                if (isspace((uchar) * t)) {
+                if (isspace((uchar) *t)) {
                     *t = '\0';
                 } else {
                     break;
                 }
             }
         }
-        while (isspace((uchar) * token)) {
+        while (isspace((uchar) *token)) {
             token++;
         }
         for (t = token; *t; t++) {

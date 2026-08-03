@@ -907,18 +907,18 @@ static bool parseDigestDetails(Webs *wp)
     key = keyBuf = sclone(wp->authDetails);
 
     while (*key) {
-        while (*key && isspace((uchar) * key)) {
+        while (*key && isspace((uchar) *key)) {
             key++;
         }
         tok = key;
-        while (*tok && !isspace((uchar) * tok) && *tok != ',' && *tok != '=') {
+        while (*tok && !isspace((uchar) *tok) && *tok != ',' && *tok != '=') {
             tok++;
         }
         if (*tok) {
             *tok++ = '\0';
         }
 
-        while (isspace((uchar) * tok)) {
+        while (isspace((uchar) *tok)) {
             tok++;
         }
         seenComma = 0;
@@ -954,7 +954,7 @@ static bool parseDigestDetails(Webs *wp)
         /*
             user, response, oqaque, uri, realm, nonce, nc, cnonce, qop
          */
-        switch (tolower((uchar) * key)) {
+        switch (tolower((uchar) *key)) {
         case 'a':
             if (scaselesscmp(key, "algorithm") == 0) {
                 break;

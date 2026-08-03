@@ -741,8 +741,9 @@ PUBLIC int socketSetBlock(int sid, int on)
 PUBLIC int socketSetSendTimeout(int sid, int timeout)
 {
     WebsSocket *sp;
+
 #if ME_WIN_LIKE
-    DWORD      tv;
+    DWORD tv;
 #else
     struct timeval tv;
 #endif
@@ -987,11 +988,9 @@ PUBLIC void socketFree(int sid)
     socketRegisterInterest(sid, 0);
     if (sp->sock >= 0) {
         socketSetBlock(sid, 0);
-        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {
-        }
+        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) { }
         if (shutdown(sp->sock, SHUT_RDWR) >= 0) {
-            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) {
-            }
+            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) { }
         }
         closesocket(sp->sock);
     }
@@ -1395,7 +1394,7 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
             *pport = defaultPort;
 
         } else {
-            if (isdigit((uchar) * ip)) {
+            if (isdigit((uchar) *ip)) {
                 *pport = atoi(ip);
                 wfree(ip);
                 ip = 0;

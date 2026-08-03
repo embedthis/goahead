@@ -516,8 +516,7 @@ static int *getCipherSuite(char *ciphers, int *len)
     if (!ciphers || *ciphers == 0) {
         return 0;
     }
-    for (nciphers = 0, cp = mbedtls_ssl_list_ciphersuites(); cp && *cp; cp++, nciphers++) {
-    }
+    for (nciphers = 0, cp = mbedtls_ssl_list_ciphersuites(); cp && *cp; cp++, nciphers++) { }
     result = walloc((nciphers + 1) * sizeof(int));
 
     next = ciphers = sclone(ciphers);

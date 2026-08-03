@@ -1374,8 +1374,7 @@ static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, c
     /*
         Count the number of entries in argv
      */
-    for (argc = 0, p = argp; p != NULL && *p != NULL; p++, argc++) {
-    }
+    for (argc = 0, p = argp; p != NULL && *p != NULL; p++, argc++) { }
 
     /*
         Create a private environment and copy the envp strings to it.

@@ -58,24 +58,24 @@ static uchar PADDING[64] = {
  */
 
 #define FF(a, b, c, d, x, s, ac) { \
-            (a) += F((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += F((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 #define GG(a, b, c, d, x, s, ac) { \
-            (a) += G((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += G((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 #define HH(a, b, c, d, x, s, ac) { \
-            (a) += H((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += H((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 #define II(a, b, c, d, x, s, ac) { \
-            (a) += I((b), (c), (d)) + (x) + (uint) (ac); \
-            (a) = ROTATE_LEFT((a), (s)); \
-            (a) += (b); \
+        (a) += I((b), (c), (d)) + (x) + (uint) (ac); \
+        (a) = ROTATE_LEFT((a), (s)); \
+        (a) += (b); \
 }
 
 typedef struct {

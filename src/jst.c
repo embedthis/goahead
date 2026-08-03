@@ -83,7 +83,7 @@ static bool jstHandler(Webs *wp)
         authoritative Cache-Control rather than a second, weaker one here.
      */
     wp->flags |= WEBS_NO_CACHE;
-    websWriteHeaders(wp, (ssize) - 1, 0);
+    websWriteHeaders(wp, (ssize) -1, 0);
     websWriteHeader(wp, "Pragma", "no-cache");
     websWriteEndHeaders(wp);
 
@@ -252,7 +252,7 @@ static char *strtokcmp(char *s1, char *s2)
 
     s1 = skipWhite(s1);
     len = strlen(s2);
-    for (len = strlen(s2); len > 0 && (tolower((uchar) * s1) == tolower((uchar) * s2)); len--) {
+    for (len = strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
         if (*s2 == '\0') {
             return s1;
         }
@@ -273,7 +273,7 @@ static char *skipWhite(char *s)
     if (s == NULL) {
         return s;
     }
-    while (*s && isspace((uchar) * s)) {
+    while (*s && isspace((uchar) *s)) {
         s++;
     }
     return s;

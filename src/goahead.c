@@ -43,9 +43,11 @@ static void sigHandler(int signo);
 
 /*********************************** Code *************************************/
 
-MAIN(goahead, int argc, char **argv, char **envp) {
+MAIN(goahead, int argc, char **argv, char **envp)
+{
     char *argp, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
     int  argind;
+
 #if ME_GOAHEAD_AUTH
     char *auth;
 #endif
@@ -66,10 +68,10 @@ MAIN(goahead, int argc, char **argv, char **envp) {
             break;
 
 #if ME_GOAHEAD_AUTH
-        /*
-            Only offered when the build can act on it. A build with ME_GOAHEAD_AUTH=0 used to accept
-            --auth and silently ignore the file; it now reports the option as unknown.
-         */
+            /*
+                Only offered when the build can act on it. A build with ME_GOAHEAD_AUTH=0 used to accept
+                --auth and silently ignore the file; it now reports the option as unknown.
+             */
         } else if (smatch(argp, "--auth") || smatch(argp, "-a")) {
             if (argind >= argc) usage();
             auth = argv[++argind];

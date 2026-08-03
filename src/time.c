@@ -261,7 +261,7 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
     if (token == NULL || *token == NULL || **token == '\0') {
         return 0;
     }
-    if (isalpha((uchar) * *token)) {
+    if (isalpha((uchar) **token)) {
         *isAlpah = 1;
         cp = strchr(*token, sep);
         if (cp) {
@@ -388,7 +388,7 @@ PUBLIC int websParseDateTime(WebsTime *time, cchar *dateString, struct tm *defau
             }
             zoneOffset = negate * (hour * 60 + min);
 
-        } else if (isalpha((uchar) * token)) {
+        } else if (isalpha((uchar) *token)) {
             if ((tt = (TimeToken*) hashLookupSymbol(timeTokens, token)) != 0) {
                 kind = tt->type;
                 value = tt->value;
