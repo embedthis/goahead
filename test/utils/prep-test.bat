@@ -63,44 +63,31 @@ if defined HAS_WARNING (
     exit /b 1
 )
 
-REM Link ejscript package for tests
-echo Linking ejscript package for tests...
-if not exist "paks\ejs" (
-    echo WARNING: paks\ejs directory not found
-    exit /b 1
-)
-
-cd paks\ejs
-bun link --silent
-if %errorlevel% neq 0 (
-    echo WARNING: Failed to link ejscript from paks\ejs
-    cd ..\..
-    exit /b 1
-)
-cd ..\..
-
+REM
+REM   Install test dependencies. This mirrors test/utils/prep-test.sh: @embedthis/ejscript is a
+REM   normal versioned npm dependency declared in the top level package.json, and TestMe is linked
+REM   from the global install because the published @embedthis/testme does not expose the test API
+REM   at its package root. Tests under test\ find both by walking up to the top level node_modules.
+REM
+REM   Run from the top level - prep.sh invokes this after changing to the repository root.
+REM
 if not exist "test" (
     echo WARNING: test directory not found
     exit /b 1
 )
 
-cd test
+echo Installing test dependencies...
+bun install --silent
+if %errorlevel% neq 0 (
+    echo WARNING: Failed to install test dependencies
+    exit /b 1
+)
+
 bun link testme --silent
 if %errorlevel% neq 0 (
-    echo WARNING: Failed to link testme in test directory
-    cd ..
+    echo WARNING: Failed to link testme
     exit /b 1
 )
-cd ..
 
-cd test
-bun link ejscript --silent
-if %errorlevel% neq 0 (
-    echo WARNING: Failed to link ejscript in test directory
-    cd ..
-    exit /b 1
-)
-cd ..
-
-echo Successfully linked ejscript for tests
+echo Test dependencies ready
 exit /b 0
