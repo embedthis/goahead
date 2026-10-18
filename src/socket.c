@@ -8,6 +8,12 @@
 
 #include    "goahead.h"
 
+/*********************************** Defines **********************************/
+
+#define SOCKET_DRAIN_LIMIT (ME_GOAHEAD_LIMIT_BUFFER * 64)  /* Unread input discarded per drain */
+#define SOCKET_DRAIN_CHUNK 256                              /* Drain read size, small as it sits on the request stack */
+#define SOCKET_IP_MAX      128                              /* Numeric IPv4 or IPv6 address with scope */
+
 /************************************ Locals **********************************/
 
 PUBLIC WebsSocket **socketList;                   /* List of open sockets */
@@ -15,11 +21,19 @@ PUBLIC int        socketMax;                      /* Maximum size of socket */
 PUBLIC Socket     socketHighestFd = (Socket) -1;  /* Highest socket fd opened */
 PUBLIC int        socketOpenCount = 0;            /* Number of task using sockets */
 
-static int hasIPv6;                               /* System supports IPv6 */
+static int  hasIPv6;                              /* System supports IPv6 */
+static int  lingerCount;                          /* Sockets in a lingering close */
+static bool warnedNoSendTimeout;                  /* Warned once that send timeouts are unavailable */
+#if ME_UNIX_LIKE
+static int spareFd = -1;                          /* Held back to refuse a connection when no descriptor is free */
+#endif
 
 /***************************** Forward Declarations ***************************/
 
 static int ipv6(cchar *ip);
+static void lingerExpired(void *data, int id);
+static void lingerRead(int sid, int mask, void *data);
+static bool socketDrain(int sid);
 static void socketAccept(WebsSocket *sp);
 static void socketDoEvent(WebsSocket *sp);
 
@@ -48,6 +62,9 @@ PUBLIC int socketOpen(void)
     socketList = NULL;
     socketMax = 0;
     socketHighestFd = (Socket) -1;
+#if ME_UNIX_LIKE
+    spareFd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+#endif
     if ((fd = socket(AF_INET6, SOCK_STREAM, 0)) != -1) {
         hasIPv6 = 1;
         closesocket(fd);
@@ -63,12 +80,18 @@ PUBLIC void socketClose(void)
     int i;
 
     if (--socketOpenCount <= 0) {
-        for (i = socketMax; i >= 0; i--) {
+        for (i = socketMax - 1; i >= 0; i--) {
             if (socketList && socketList[i]) {
                 socketCloseConnection(i);
             }
         }
         socketOpenCount = 0;
+#if ME_UNIX_LIKE
+        if (spareFd >= 0) {
+            close(spareFd);
+            spareFd = -1;
+        }
+#endif
     }
 }
 
@@ -119,6 +142,7 @@ PUBLIC int socketListen(cchar *ip, int port, SocketAccept accept, int flags)
         Bind to the socket endpoint and the call listen() to start listening
      */
     if (socketInfo(sip, port, &family, &protocol, &addr, &addrlen) < 0) {
+        socketFree(sid);
         return -1;
     }
     if ((sp->sock = socket(family, SOCK_STREAM, protocol)) == SOCKET_ERROR) {
@@ -135,14 +159,6 @@ PUBLIC int socketListen(cchar *ip, int port, SocketAccept accept, int flags)
     if (setsockopt(sp->sock, SOL_SOCKET, SO_REUSEADDR, (char*) &enable, sizeof(enable)) != 0) {
         error("Cannot set reuseaddr, errno %d", errno);
     }
-#if defined(SO_REUSEPORT) && KEEP
-    /*
-        This permits multiple servers listening on the same endpoint
-     */
-    if (setsockopt(sp->sock, SOL_SOCKET, SO_REUSEPORT, (char*) &enable, sizeof(enable)) != 0) {
-        error("Cannot set reuseport, errno %d", errno);
-    }
-#endif
 #elif ME_WIN_LIKE && defined(SO_EXCLUSIVEADDRUSE)
     if (setsockopt(sp->sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char*) &enable, sizeof(enable)) != 0) {
         error("Cannot set exclusiveaddruse, errno %d", WSAGetLastError());
@@ -183,92 +199,6 @@ PUBLIC int socketListen(cchar *ip, int port, SocketAccept accept, int flags)
 }
 
 
-#if KEEP
-PUBLIC int socketConnect(char *ip, int port, int flags)
-{
-    WebsSocket              *sp;
-    struct sockaddr_storage addr;
-    socklen_t               addrlen;
-    int                     family, protocol, sid, rc;
-
-    if (port > SOCKET_PORT_MAX) {
-        return -1;
-    }
-    if ((sid = socketAlloc(ip, port, NULL, flags)) < 0) {
-        return -1;
-    }
-    sp = socketList[sid];
-    assert(sp);
-
-    if (socketInfo(ip, port, &family, &protocol, &addr, &addrlen) < 0) {
-        return -1;
-    }
-    if ((sp->sock = socket(AF_INET, SOCK_STREAM, 0)) == SOCKET_ERROR) {
-        socketFree(sid);
-        return -1;
-    }
-    socketHighestFd = max(socketHighestFd, sp->sock);
-
-#if ME_COMPILER_HAS_FCNTL
-    fcntl(sp->sock, F_SETFD, FD_CLOEXEC);
-#endif
-
-    /*
-        Connect to the remote server in blocking mode, then go into non-blocking mode if desired.
-     */
-    if (!(sp->flags & SOCKET_BLOCK)) {
-#if ME_WIN_LIKE
-        /*
-            Set to non-blocking for an async connect
-         */
-        int flag = 1;
-        if (ioctlsocket(sp->sock, FIONBIO, &flag) == SOCKET_ERROR) {
-            socketFree(sid);
-            return -1;
-        }
-        sp->flags |= SOCKET_ASYNC;
-#else
-        socketSetBlock(sid, 1);
-#endif
-    }
-    if ((rc = connect(sp->sock, (struct sockaddr*) &addr, sizeof(addr))) < 0 &&
-        (rc = tryAlternateConnect(sp->sock, (struct sockaddr*) &addr)) < 0) {
-#if ME_WIN_LIKE
-        if (socketGetError(sid) != EWOULDBLOCK) {
-            socketFree(sid);
-            return -1;
-        }
-#else
-        socketFree(sid);
-        return -1;
-
-#endif
-    }
-    socketSetBlock(sid, (flags & SOCKET_BLOCK));
-    return sid;
-}
-
-
-/*
-    If the connection failed, swap the first two bytes in the sockaddr structure.  This is a kludge due to a change in
-    VxWorks between versions 5.3 and 5.4, but we want the product to run on either.
- */
-static int tryAlternateConnect(int sock, struct sockaddr *sockaddr)
-{
-#if VXWORKS || TIDSP
-    char *ptr;
-
-    ptr = (char*) sockaddr;
-    *ptr = *(ptr + 1);
-    *(ptr + 1) = 0;
-    return connect(sock, sockaddr, sizeof(struct sockaddr));
-#else
-    return -1;
-#endif
-}
-#endif
-
-
 PUBLIC void socketCloseConnection(int sid)
 {
     WebsSocket *sp;
@@ -277,6 +207,79 @@ PUBLIC void socketCloseConnection(int sid)
         return;
     }
     socketFree(sid);
+}
+
+
+#ifndef SHUT_WR
+    #define SHUT_WR 1
+#endif
+
+PUBLIC void socketLinger(int sid, int timeout)
+{
+    WebsSocket *sp;
+
+    if ((sp = socketPtr(sid)) == NULL) {
+        return;
+    }
+    if (timeout <= 0 || sp->sock == (Socket) -1 || (sp->flags & (SOCKET_EOF | SOCKET_LISTENING)) ||
+        lingerCount >= ME_GOAHEAD_LIMIT_LINGER_CONNECTIONS || shutdown(sp->sock, SHUT_WR) < 0) {
+        socketFree(sid);
+        return;
+    }
+    socketSetBlock(sid, 0);
+    sp->flags |= SOCKET_LINGERING;
+    lingerCount++;
+    socketCreateHandler(sid, SOCKET_READABLE, lingerRead, NULL);
+    sp->lingerEvent = websStartEvent(timeout * 1000, lingerExpired, (void*) (ssize) sid);
+}
+
+
+/* Drain at most SOCKET_DRAIN_LIMIT bytes to bound event-loop work. Return false on EOF or hard error. */
+static bool socketDrain(int sid)
+{
+    WebsSocket *sp;
+    char       buf[SOCKET_DRAIN_CHUNK];
+    ssize      nbytes, total;
+    int        error;
+
+    sp = socketList[sid];
+    for (total = 0; (nbytes = recv(sp->sock, buf, sizeof(buf), 0)) > 0; ) {
+        total += nbytes;
+        if (total >= SOCKET_DRAIN_LIMIT) {
+            return 1;
+        }
+    }
+    if (nbytes < 0) {
+        error = socketGetError(sid);
+        if (error == EAGAIN || error == EWOULDBLOCK || error == EINTR) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+
+static void lingerRead(int sid, int mask, void *data)
+{
+    if (socketPtr(sid) == NULL || socketDrain(sid)) {
+        return;
+    }
+    socketFree(sid);
+}
+
+
+static void lingerExpired(void *data, int id)
+{
+    WebsSocket *sp;
+    int        sid;
+
+    websStopEvent(id);
+    sid = (int) (ssize) data;
+    if (sid < socketMax && (sp = socketList[sid]) != NULL && (sp->flags & SOCKET_LINGERING) && sp->lingerEvent == id) {
+        sp->lingerEvent = -1;
+        socketFree(sid);
+    }
 }
 
 
@@ -289,8 +292,8 @@ static void socketAccept(WebsSocket *sp)
     struct sockaddr         *addr;
     WebsSocket              *nsp;
     Socket                  newSock;
-    size_t                  len;
-    char                    ipbuf[1024];
+    Socklen                 len;
+    char                    ipbuf[SOCKET_IP_MAX];
     int                     port, nid;
 
     assert(sp);
@@ -298,9 +301,24 @@ static void socketAccept(WebsSocket *sp)
     /*
         Accept the connection and prevent inheriting by children (F_SETFD)
      */
+    memset(&addrStorage, 0, sizeof(addrStorage));
     len = sizeof(addrStorage);
     addr = (struct sockaddr*) &addrStorage;
-    if ((newSock = accept(sp->sock, addr, (Socklen*) &len)) == SOCKET_ERROR) {
+    if ((newSock = accept(sp->sock, addr, &len)) == SOCKET_ERROR) {
+#if ME_UNIX_LIKE
+        /*
+            Use the spare descriptor to accept and close a queued connection, avoiding a readable-listener spin on
+            descriptor exhaustion.
+         */
+        if ((errno == EMFILE || errno == ENFILE) && spareFd >= 0) {
+            close(spareFd);
+            if ((newSock = accept(sp->sock, addr, &len)) != SOCKET_ERROR) {
+                close(newSock);
+                trace(2, "Refused a connection: no file descriptors are free");
+            }
+            spareFd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+        }
+#endif
         return;
     }
 #if ME_COMPILER_HAS_FCNTL
@@ -339,7 +357,10 @@ static void socketAccept(WebsSocket *sp)
      */
     if (sp->accept != NULL) {
         /* Get the remote client address */
-        socketAddress(addr, (int) len, ipbuf, sizeof(ipbuf), &port);
+        if (socketAddress(addr, (int) len, ipbuf, sizeof(ipbuf), &port) < 0) {
+            socketFree(nid);
+            return;
+        }
         if ((sp->accept)(nid, ipbuf, port, sp->sid) < 0) {
             socketFree(nid);
         }
@@ -351,8 +372,9 @@ PUBLIC void socketRegisterInterest(int sid, int handlerMask)
 {
     WebsSocket *sp;
 
-    assert(socketPtr(sid));
-    sp = socketPtr(sid);
+    if ((sp = socketPtr(sid)) == NULL) {
+        return;
+    }
     sp->handlerMask = handlerMask;
     if (sp->flags & SOCKET_BUFFERED_READ) {
         sp->handlerMask |= SOCKET_READABLE;
@@ -412,12 +434,11 @@ PUBLIC int socketSelect(int sid, int timeout)
     WebsSocket     *sp;
     fd_set         readFds, writeFds, exceptFds;
     int            nEvents;
-    int            all, socketHighestFd;    /* Highest socket fd opened */
+    int            all;
 
     FD_ZERO(&readFds);
     FD_ZERO(&writeFds);
     FD_ZERO(&exceptFds);
-    socketHighestFd = -1;
 
     tv.tv_sec = (long) (timeout / 1000);
     tv.tv_usec = (DWORD) (timeout % 1000) * 1000;
@@ -469,9 +490,16 @@ PUBLIC int socketSelect(int sid, int timeout)
         return 0;
     }
     /*
-        Wait for the event or a timeout
+        Wait for the event or a timeout. Winsock ignores the descriptor count
      */
-    nEvents = select(socketHighestFd + 1, &readFds, &writeFds, &exceptFds, &tv);
+    nEvents = select(0, &readFds, &writeFds, &exceptFds, &tv);
+    if (nEvents < 0) {
+        //  A failed select leaves the sets undefined, so report only sockets due a reservice
+        FD_ZERO(&readFds);
+        FD_ZERO(&writeFds);
+        FD_ZERO(&exceptFds);
+        nEvents = 0;
+    }
 
     if (all) {
         sid = 0;
@@ -513,8 +541,8 @@ PUBLIC int socketSelect(int sid, int timeout)
 {
     WebsSocket     *sp;
     struct timeval tv;
-    fd_mask        *readFds, *writeFds, *exceptFds;
-    ssize          bit, index;
+    fd_mask        *readFds, *writeFds, *exceptFds, bit;
+    ssize          index;
     int            all, len, nwords, nEvents;
 
     /*
@@ -556,7 +584,7 @@ PUBLIC int socketSelect(int sid, int timeout)
             Initialize the ready masks and compute the mask offsets.
          */
         index = sp->sock / (NBBY * sizeof(fd_mask));
-        bit = ((ssize) 1) << (sp->sock % (NBBY * sizeof(fd_mask)));
+        bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
         /*
             Set the appropriate bit in the ready masks for the sp->sock.
          */
@@ -581,6 +609,13 @@ PUBLIC int socketSelect(int sid, int timeout)
         Wait for the event or a timeout
      */
     nEvents = select(socketHighestFd + 1, (fd_set*) readFds, (fd_set*) writeFds, (fd_set*) exceptFds, &tv);
+    if (nEvents < 0) {
+        //  A failed select, including EINTR, leaves the requested interests in the masks
+        memset(readFds, 0, len);
+        memset(writeFds, 0, len);
+        memset(exceptFds, 0, len);
+        nEvents = 0;
+    }
     if (all) {
         sid = 0;
     }
@@ -593,7 +628,7 @@ PUBLIC int socketSelect(int sid, int timeout)
             }
         }
         index = sp->sock / (NBBY * sizeof(fd_mask));
-        bit = ((ssize) 1) << (sp->sock % (NBBY * sizeof(fd_mask)));
+        bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
 
         if (sp->flags & SOCKET_RESERVICE) {
             if (sp->handlerMask & SOCKET_READABLE) {
@@ -763,6 +798,11 @@ PUBLIC int socketSetSendTimeout(int sid, int timeout)
         conditionals are required and callers can fall back to an unbounded wait.
      */
     if (setsockopt(sp->sock, SOL_SOCKET, SO_SNDTIMEO, (char*) &tv, sizeof(tv)) < 0) {
+        if (!warnedNoSendTimeout) {
+            warnedNoSendTimeout = 1;
+            error("Warning: this network stack has no send timeout (SO_SNDTIMEO). A client that stops reading "
+                  "a response can stall the server. Put it behind a proxy that buffers responses.");
+        }
         return -1;
     }
     return 0;
@@ -855,7 +895,7 @@ PUBLIC ssize socketWrite(int sid, void *buf, ssize bufsize)
 PUBLIC ssize socketRead(int sid, void *buf, ssize bufsize)
 {
     WebsSocket *sp;
-    ssize      bytes;
+    ssize      nbytes;
     int        errCode;
 
     assert(buf);
@@ -867,21 +907,21 @@ PUBLIC ssize socketRead(int sid, void *buf, ssize bufsize)
     if (sp->flags & SOCKET_EOF) {
         return -1;
     }
-    if ((bytes = recv(sp->sock, buf, (int) bufsize, 0)) < 0) {
+    if ((nbytes = recv(sp->sock, buf, (int) bufsize, 0)) < 0) {
         errCode = socketGetError(sid);
-        if (errCode == EAGAIN || errCode == EWOULDBLOCK) {
-            bytes = 0;
+        if (errCode == EINTR || errCode == EAGAIN || errCode == EWOULDBLOCK) {
+            nbytes = 0;
         } else {
             /* Conn reset or Some other error */
             sp->flags |= SOCKET_EOF;
-            bytes = -errCode;
+            nbytes = -errCode;
         }
 
-    } else if (bytes == 0) {
+    } else if (nbytes == 0) {
         sp->flags |= SOCKET_EOF;
-        bytes = -1;
+        nbytes = -1;
     }
-    return bytes;
+    return nbytes;
 }
 
 
@@ -955,6 +995,8 @@ PUBLIC int socketAlloc(cchar *ip, int port, SocketAccept accept, int flags)
     }
     sp = socketList[sid];
     sp->sid = sid;
+    //  No descriptor yet: zero is standard input, which freeing the socket would close
+    sp->sock = (Socket) -1;
     sp->accept = accept;
     sp->port = port;
     sp->fileHandle = -1;
@@ -973,7 +1015,6 @@ PUBLIC int socketAlloc(cchar *ip, int port, SocketAccept accept, int flags)
 PUBLIC void socketFree(int sid)
 {
     WebsSocket *sp;
-    char       buf[256];
     int        i;
 
     if ((sp = socketPtr(sid)) == NULL) {
@@ -985,12 +1026,16 @@ PUBLIC void socketFree(int sid)
         from the receive buffer, and finally close it.  If these steps are not all performed RESETs may be sent to the
         other end causing problems.
      */
+    if (sp->flags & SOCKET_LINGERING) {
+        websStopEvent(sp->lingerEvent);
+        lingerCount--;
+    }
     socketRegisterInterest(sid, 0);
     if (sp->sock >= 0) {
         socketSetBlock(sid, 0);
-        while (recv(sp->sock, buf, sizeof(buf), 0) > 0) { }
+        socketDrain(sid);
         if (shutdown(sp->sock, SHUT_RDWR) >= 0) {
-            while (recv(sp->sock, buf, sizeof(buf), 0) > 0) { }
+            socketDrain(sid);
         }
         closesocket(sp->sock);
     }
@@ -1163,7 +1208,7 @@ PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct so
         Try to sleuth the address to avoid duplicate address lookups. Then try IPv4 first then IPv6.
      */
     res = 0;
-    if (getaddrinfo(ip, portBuf, &hints, &res) != 0) {
+    if (getaddrinfo(ip, portBuf, &hints, &res) != 0 || res == NULL) {
         return -1;
     }
     /*
@@ -1210,23 +1255,24 @@ PUBLIC int socketInfo(char *ip, int port, int *family, int *protocol, struct soc
     if (sa.sin_addr.s_addr == INADDR_NONE) {
 #if VXWORKS
         /*
-            VxWorks only supports one interface and this code only supports IPv4
+            VxWorks supports IPv4 here; reject unresolved names instead of treating ERROR as an address.
          */
-        sa.sin_addr.s_addr = (ulong) hostGetByName((char*) ip);
-        if (sa.sin_addr.s_addr < 0) {
-            assert(0);
-            return 0;
+        int hostAddr;
+
+        if ((hostAddr = hostGetByName((char*) ip)) == ERROR) {
+            return -1;
         }
+        sa.sin_addr.s_addr = (ulong) hostAddr;
 #else
         struct hostent *hostent;
+        /*
+            Only IPv4 fits sockaddr_in.
+         */
         hostent = gethostbyname2(ip, AF_INET);
-        if (hostent == 0) {
-            hostent = gethostbyname2(ip, AF_INET6);
-            if (hostent == 0) {
-                return -1;
-            }
+        if (hostent == 0 || hostent->h_addrtype != AF_INET || hostent->h_length != (int) sizeof(sa.sin_addr)) {
+            return -1;
         }
-        memcpy((char*) &sa.sin_addr, (char*) hostent->h_addr_list[0], (ssize) hostent->h_length);
+        memcpy((char*) &sa.sin_addr, (char*) hostent->h_addr_list[0], sizeof(sa.sin_addr));
 #endif
     }
     memcpy((char*) addr, (char*) &sa, sizeof(sa));
@@ -1261,6 +1307,12 @@ PUBLIC int socketAddress(struct sockaddr *addr, int addrlen, char *ip, int ipLen
     }
 #endif
     if (getnameinfo(addr, addrlen, ip, ipLen, service, sizeof(service), NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN)) {
+        if (ip && ipLen > 0) {
+            *ip = '\0';
+        }
+        if (port) {
+            *port = 0;
+        }
         return -1;
     }
     if (port) {
@@ -1300,6 +1352,10 @@ static int ipv6(cchar *ip)
             Listening on just a bare port means IPv4 only.
          */
         return 0;
+    }
+    if (*ip == '[') {
+        //  A bracketed literal is IPv6 however few colons it holds, including the empty "[]"
+        return 1;
     }
     colons = 0;
     for (cp = (char*) ip; ((*cp != '\0') && (colons < 2)) ; cp++) {
@@ -1359,9 +1415,6 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
                 if ((cp = strchr(ip, ']')) != 0) {
                     *cp = '\0';
                 }
-                if (*ip == '\0') {
-                    ip = 0;
-                }
                 /* No port present, use callers default */
                 *pport = defaultPort;
             }
@@ -1385,7 +1438,7 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
             } else {
                 *pport = atoi(cp);
             }
-            if (*ip == '*' || *ip == '\0') {
+            if (*ip == '*') {
                 wfree(ip);
                 ip = 0;
             }
@@ -1403,6 +1456,13 @@ PUBLIC int socketParseAddress(cchar *address, char **pip, int *pport, int *secur
                 *pport = defaultPort;
             }
         }
+    }
+    /*
+        Empty address forms select all interfaces.
+     */
+    if (ip && *ip == '\0') {
+        wfree(ip);
+        ip = 0;
     }
     if (pip) {
         *pip = ip;
@@ -1436,7 +1496,7 @@ PUBLIC WebsSocket **socketGetList(void)
 }
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

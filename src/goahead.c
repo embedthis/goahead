@@ -4,13 +4,18 @@
     Usage: goahead [options] [documents] [IP][:port] ...
         Options:
         --auth authFile        # User and role configuration
-        --background           # Run as a Unix daemon (not MacOS)
+        --background           # Run as a Unix daemon (not MacOS). Keeps the working directory. Log with --log file
         --cert certFile        # Server SSL certificate (PEM)
         --debugger             # Run in debug mode
+        --group groupName      # Group to run as after listening
         --home directory       # Change to directory to run
         --key keyFile          # Server SSL private key (PEM)
         --log logFile:level    # Log to file file at verbosity level
+        --no-strict            # Only warn about an unsafe route table
+        --proxy addresses      # Trust X-Forwarded-Proto from these proxy addresses
         --route routeFile      # Route configuration file
+        --strict               # Refuse to start with an unsafe route table (default)
+        --user userName        # User to run as after listening
         --verbose              # Same as --log stdout:2
         --version              # Output version information
 
@@ -23,7 +28,7 @@
 
 /********************************* Defines ************************************/
 
-static int finished = 0;
+static volatile int finished = 0;
 
 /********************************* Forwards ***********************************/
 
@@ -45,19 +50,23 @@ static void sigHandler(int signo);
 
 MAIN(goahead, int argc, char **argv, char **envp)
 {
-    char *argp, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
+    char *argp, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec, *user, *group;
     int  argind;
 
 #if ME_GOAHEAD_AUTH
     char *auth;
 #endif
 
+    websHardenProcess();
+    initPlatform();
 #if WINDOWS
     if (windowsInit() < 0) {
         return 0;
     }
 #endif
     route = "route.txt";
+    user = ME_GOAHEAD_USER;
+    group = ME_GOAHEAD_GROUP;
 #if ME_GOAHEAD_AUTH
     auth = "auth.txt";
 #endif
@@ -69,8 +78,8 @@ MAIN(goahead, int argc, char **argv, char **envp)
 
 #if ME_GOAHEAD_AUTH
             /*
-                Only offered when the build can act on it. A build with ME_GOAHEAD_AUTH=0 used to accept
-                --auth and silently ignore the file; it now reports the option as unknown.
+                Only offered when the build can act on it. A build with ME_GOAHEAD_AUTH=0 reports the
+                option as unknown rather than accepting it and ignoring the file.
              */
         } else if (smatch(argp, "--auth") || smatch(argp, "-a")) {
             if (argind + 1 >= argc) usage();
@@ -80,6 +89,16 @@ MAIN(goahead, int argc, char **argv, char **envp)
 #if ME_UNIX_LIKE && !MACOSX
         } else if (smatch(argp, "--background") || smatch(argp, "-b")) {
             websSetBackground(1);
+#endif
+
+#if ME_UNIX_LIKE
+        } else if (smatch(argp, "--group")) {
+            if (argind + 1 >= argc) usage();
+            group = argv[++argind];
+
+        } else if (smatch(argp, "--user")) {
+            if (argind + 1 >= argc) usage();
+            user = argv[++argind];
 #endif
 
 #if ME_COM_SSL
@@ -109,6 +128,16 @@ MAIN(goahead, int argc, char **argv, char **envp)
         } else if (smatch(argp, "--verbose") || smatch(argp, "-v")) {
             logSetPath("stdout:2");
 
+        } else if (smatch(argp, "--proxy")) {
+            if (argind + 1 >= argc) usage();
+            websSetTrustedProxies(argv[++argind]);
+
+        } else if (smatch(argp, "--strict")) {
+            websSetStrict(1);
+
+        } else if (smatch(argp, "--no-strict")) {
+            websSetStrict(0);
+
         } else if (smatch(argp, "--route") || smatch(argp, "-r")) {
             if (argind + 1 >= argc) usage();
             route = argv[++argind];
@@ -130,7 +159,6 @@ MAIN(goahead, int argc, char **argv, char **envp)
     if (argc > argind) {
         documents = argv[argind++];
     }
-    initPlatform();
     if (websOpen(documents, route) < 0) {
         error("Cannot initialize server. Exiting.");
         return -1;
@@ -162,13 +190,6 @@ MAIN(goahead, int argc, char **argv, char **envp)
         }
         wfree(endpoints);
     }
-#if ME_ROM && KEEP
-    /*
-        If not using a route/auth config files, then manually create the routes like this:
-        If custom matching is required, use websSetRouteMatch. If authentication is required, use websSetRouteAuth.
-     */
-    websAddRoute("/", "file", 0);
-#endif
 #ifdef GOAHEAD_INIT
     /*
         Define your init function by configuring the build with DFLAGS=GOAHEAD_INIT=myInitFunction
@@ -181,12 +202,25 @@ MAIN(goahead, int argc, char **argv, char **envp)
         }
     }
 #endif
+    if (websDropPrivileges(user, group) < 0) {
+        error("Cannot change to the configured user and group. Exiting.");
+        return -1;
+    }
+#if ME_UNIX_LIKE
+    if (geteuid() == 0) {
+        error("Warning: running as root. Use --user and --group to run with less privilege after listening.");
+    }
+#endif
 #if ME_UNIX_LIKE && !MACOSX
     /*
         Service events till terminated
      */
     if (websGetBackground()) {
-        if (daemon(0, 0) < 0) {
+        if (smatch(logGetPath(), "stdout") || smatch(logGetPath(), "stderr")) {
+            error("--background discards log output to stdout or stderr; use --log file");
+        }
+        //  Keep the working directory: the documents and other relative paths resolve against it
+        if (daemon(1, 0) < 0) {
             error("Cannot run as daemon");
             return -1;
         }
@@ -206,7 +240,9 @@ static void logHeader(void)
 {
     char home[ME_GOAHEAD_LIMIT_STRING];
 
-    getcwd(home, sizeof(home));
+    if (getcwd(home, sizeof(home)) == 0) {
+        scopy(home, sizeof(home), "unknown");
+    }
     logmsg(2, "Configuration for %s", ME_TITLE);
     logmsg(2, "---------------------------------------------");
     logmsg(2, "Version:            %s", ME_VERSION);
@@ -235,12 +271,21 @@ static void usage(void)
             "    --cert certFile        # Server SSL certificate (PEM)\n"
 #endif
             "    --debugger             # Run in debug mode\n"
+#if ME_UNIX_LIKE
+            "    --group groupName      # Group to run as after listening\n"
+#endif
             "    --home directory       # Change to directory to run\n"
 #if ME_COM_SSL
             "    --key keyFile          # Server SSL private key (PEM)\n"
 #endif
             "    --log logFile:level    # Log to file file at verbosity level\n"
+            "    --no-strict            # Only warn about an unsafe route table\n"
+            "    --proxy addresses      # Trust X-Forwarded-Proto from these proxy addresses\n"
             "    --route routeFile      # Route configuration file\n"
+            "    --strict               # Refuse to start with an unsafe route table (default)\n"
+#if ME_UNIX_LIKE
+            "    --user userName        # User to run as after listening\n"
+#endif
             "    --verbose              # Same as --log stdout:2\n"
             "    --version              # Output version information\n\n",
             ME_TITLE, ME_NAME);
@@ -251,10 +296,15 @@ static void usage(void)
 static void initPlatform(void)
 {
 #if ME_UNIX_LIKE
-    signal(SIGTERM, sigHandler);
-    #ifdef SIGPIPE
-    signal(SIGPIPE, SIG_IGN);
-    #endif
+    struct sigaction act;
+
+    umask(027);
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = sigHandler;
+    sigemptyset(&act.sa_mask);
+    sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGTERM, &act, NULL);
 #elif ME_WIN_LIKE
     _fmode = _O_BINARY;
 #endif
@@ -383,7 +433,7 @@ static LRESULT CALLBACK websAboutProc(HWND hwndDlg, uint msg, uint wp, long lp)
 #endif
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

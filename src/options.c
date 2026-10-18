@@ -16,6 +16,10 @@
  */
 static bool optionsHandler(Webs *wp)
 {
+#if !ME_GOAHEAD_STEALTH
+    char *body;
+#endif
+
     assert(wp);
 
 #if !ME_GOAHEAD_STEALTH
@@ -28,10 +32,16 @@ static bool optionsHandler(Webs *wp)
         return 1;
 
     } else if (smatch(wp->method, "TRACE")) {
+        /*
+            Format first so Content-Length includes the whole echo.
+         */
+        body = sfmt("%s %s %s\r\n", wp->method, wp->url, wp->protoVersion);
         websSetStatus(wp, HTTP_CODE_OK);
-        websWriteHeaders(wp, 0, 0);
+        websWriteHeaders(wp, slen(body), 0);
+        websWriteHeader(wp, "Content-Type", "message/http");
         websWriteEndHeaders(wp);
-        websWrite(wp, "%s %s %s\r\n", wp->method, wp->url, wp->protoVersion);
+        websWriteBlock(wp, body, slen(body));
+        wfree(body);
         websDone(wp);
         return 1;
     }
@@ -49,7 +59,7 @@ PUBLIC int websOptionsOpen(void)
 
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

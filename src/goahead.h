@@ -11,34 +11,28 @@
 /********************************* Configuration ******************************/
 
 /*
-    ME_COM defaults -- must be before includes so dependent headers see them.
+    ME_COM defaults. Must be before includes so dependent headers see them.
  */
 #ifndef ME_NAME
-    #define ME_NAME          "goahead"
+    #define ME_NAME        "goahead"
 #endif
 #ifndef ME_TITLE
-    #define ME_TITLE         "Embedthis GoAhead"
+    #define ME_TITLE       "Embedthis GoAhead"
 #endif
 #ifndef ME_COM_GOAHEAD
-    #define ME_COM_GOAHEAD   1
+    #define ME_COM_GOAHEAD 1
 #endif
 #ifndef ME_COM_OSDEP
-    #define ME_COM_OSDEP     1
+    #define ME_COM_OSDEP   1
 #endif
 #ifndef ME_COM_SSL
-    #define ME_COM_SSL       1
+    #define ME_COM_SSL     1
 #endif
 #ifndef ME_COM_OPENSSL
-    #define ME_COM_OPENSSL   1
+    #define ME_COM_OPENSSL 1
 #endif
 #ifndef ME_COM_MBEDTLS
-    #define ME_COM_MBEDTLS   0
-#endif
-#ifndef ME_COM_MATRIXSSL
-    #define ME_COM_MATRIXSSL 0
-#endif
-#ifndef ME_COM_NANOSSL
-    #define ME_COM_NANOSSL   0
+    #define ME_COM_MBEDTLS 0
 #endif
 
 /*
@@ -50,7 +44,7 @@
     this value and package.json disagree, so the fallback cannot go stale.
  */
 #ifndef ME_VERSION
-    #define ME_VERSION             "6.1.1"
+    #define ME_VERSION             "6.2.0"
 #endif
 #ifndef ME_DEBUG
     #define ME_DEBUG               0
@@ -84,28 +78,73 @@
     #define ME_GOAHEAD_AUTH                  1
 #endif
 #ifndef ME_GOAHEAD_AUTH_STORE
+/*
+        Password store: "file" (auth.txt) or "pam". The store must be compiled in or the server refuses to start.
+        PAM cannot verify a Digest response, so do not use it with auth=digest routes.
+     */
     #define ME_GOAHEAD_AUTH_STORE            "file"
 #endif
 #ifndef ME_GOAHEAD_AUTO_LOGIN
+/*
+        Development only: bypass all route authentication. Requires logging to warn when enabled.
+     */
     #define ME_GOAHEAD_AUTO_LOGIN            0
 #endif
 #ifndef ME_GOAHEAD_CGI
+/*
+        VxWorks runs basename_cgientry modules as tasks sharing the server's address space and working directory.
+        Modules remain loaded while tasks run. The server owns stdio; envLib task hooks must free private environments
+        on taskDelete. Other platforms run CGI in the route directory.
+     */
     #define ME_GOAHEAD_CGI                   1
 #endif
+#ifndef ME_GOAHEAD_CGI_PRIORITY
+/*
+        VxWorks CGI task priority; 0 means one step lower than the server task. A CGI below the server can itself be
+        delayed by a busy server, so allow for that in watchdog and timeout settings.
+     */
+    #define ME_GOAHEAD_CGI_PRIORITY          0
+#endif
 #ifndef ME_GOAHEAD_CGI_VAR_PREFIX
+/*
+        Prefix exported request variables with CGI_; do not leave it empty. Export portable names only. Server-
+        variable collisions are refused, case-insensitively on Windows.
+     */
     #define ME_GOAHEAD_CGI_VAR_PREFIX        "CGI_"
 #endif
 #ifndef ME_GOAHEAD_CLIENT_CACHE
+/*
+        Extensions eligible for public caching for ME_GOAHEAD_CLIENT_CACHE_LIFESPAN seconds. Requires requester-
+        independent static GET/HEAD content or WEBS_CACHEABLE; other responses are no-store.
+     */
     #define ME_GOAHEAD_CLIENT_CACHE          "css,gif,ico,jpg,js,png"
+#endif
+#ifndef ME_GOAHEAD_CONTAIN_DOCUMENTS
+/*
+        On POSIX, refuse paths resolving outside the document root. Set to 0 to allow them.
+     */
+    #define ME_GOAHEAD_CONTAIN_DOCUMENTS     1
 #endif
 #ifndef ME_GOAHEAD_CLIENT_CACHE_LIFESPAN
     #define ME_GOAHEAD_CLIENT_CACHE_LIFESPAN 86400
+#endif
+#ifndef ME_GOAHEAD_DENY_HIDDEN
+/*
+        Refuse dotfiles except /.well-known/ and backup suffixes ~, .bak, .orig, .swp, .tmp. Set to 0 to allow them.
+     */
+    #define ME_GOAHEAD_DENY_HIDDEN           1
 #endif
 #ifndef ME_GOAHEAD_DIGEST
     #define ME_GOAHEAD_DIGEST                1
 #endif
 #ifndef ME_GOAHEAD_DOCUMENTS
     #define ME_GOAHEAD_DOCUMENTS             "web"
+#endif
+#ifndef ME_GOAHEAD_HSTS
+/*
+        HSTS value for HTTPS responses. Empty disables it; for example, max-age=31536000.
+     */
+    #define ME_GOAHEAD_HSTS                  ""
 #endif
 #ifndef ME_GOAHEAD_JAVASCRIPT
     #define ME_GOAHEAD_JAVASCRIPT            1
@@ -120,9 +159,14 @@
     #define ME_GOAHEAD_LOGFILE               "stderr:0"
 #endif
 #ifndef ME_GOAHEAD_NONCE_DURATION
-    #define ME_GOAHEAD_NONCE_DURATION        36000
+/*
+        Seconds a Digest authentication nonce stays valid. An expired nonce is refused with stale=TRUE, so clients
+        retry with a fresh one without prompting.
+     */
+    #define ME_GOAHEAD_NONCE_DURATION        300
 #endif
 #ifndef ME_GOAHEAD_PUT_DIR
+/* PUT staging directory, relative to the working directory. Must be outside served directories. */
     #define ME_GOAHEAD_PUT_DIR               "."
 #endif
 #ifndef ME_GOAHEAD_REALM
@@ -131,51 +175,84 @@
 #ifndef ME_GOAHEAD_REPLACE_MALLOC
     #define ME_GOAHEAD_REPLACE_MALLOC        0
 #endif
+#ifndef ME_GOAHEAD_RESPONSE_HEADERS
+/*
+        Default response headers, one Name: value per line. Empty disables them. Avoid duplicate built-in headers.
+     */
+    #define ME_GOAHEAD_RESPONSE_HEADERS      ""
+#endif
+#ifndef ME_GOAHEAD_SECURE_ONLY
+/*
+        Redirect HTTP to HTTPS before routing. Requires TLS (ME_COM_SSL). Do not enable behind a
+        TLS-terminating proxy.
+     */
+    #define ME_GOAHEAD_SECURE_ONLY           0
+#endif
+#if ME_GOAHEAD_SECURE_ONLY && !ME_COM_SSL
+    #error "ME_GOAHEAD_SECURE_ONLY requires TLS (ME_COM_SSL)"
+#endif
 #ifndef ME_GOAHEAD_STEALTH
-    #define ME_GOAHEAD_STEALTH               1
+/*
+        When 1, omit the Server response header and disable the OPTIONS and TRACE handler. Set to 0 only when
+        those are needed.
+     */
+    #define ME_GOAHEAD_STEALTH 1
 #endif
 /*
-    Directory for temporary files holding live request data: CGI stdin/stdout, the auth file rewrite and
-    the default upload staging area. It MUST NOT be inside any route's documents directory or the data
-    is served to any client that can name the file. Platforms without a temporary directory convention
-    must define this to a writable location outside the served tree. Never defaults to the current
-    directory: the CGI handler runs with the working directory set to the route's documents directory.
+    Temporary request data must stay outside served directories. Windows uses GetTempPath when empty;
+    other platforms must configure a writable temporary directory. See websGetTempDir.
  */
 #ifndef ME_GOAHEAD_TEMP_DIR
-    #if ME_WIN_LIKE
-        #define ME_GOAHEAD_TEMP_DIR  "\\Temp"
+    #if WINCE
+        #define ME_GOAHEAD_TEMP_DIR "\\Temp"
+    #elif ME_WIN_LIKE
+        #define ME_GOAHEAD_TEMP_DIR ""
     #else
-        #define ME_GOAHEAD_TEMP_DIR  "/tmp"
+        #define ME_GOAHEAD_TEMP_DIR "/tmp"
     #endif
 #endif
+#ifndef ME_GOAHEAD_TRUSTED_PROXIES
+/*
+        Comma separated IP addresses of reverse proxies whose X-Forwarded-Proto is trusted. Empty trusts none.
+        See websSetTrustedProxies.
+     */
+    #define ME_GOAHEAD_TRUSTED_PROXIES ""
+#endif
 #ifndef ME_GOAHEAD_UPLOAD
-    #define ME_GOAHEAD_UPLOAD        1
+    #define ME_GOAHEAD_UPLOAD          1
 #endif
 #ifndef ME_GOAHEAD_UPLOAD_DIR
-    #define ME_GOAHEAD_UPLOAD_DIR    "tmp"
+/*
+        Directory where multipart upload files are staged, relative to the server's working directory. It must not
+        be inside a served directory. Staged files are removed when the request ends.
+     */
+    #define ME_GOAHEAD_UPLOAD_DIR      "tmp"
 #endif
 #ifndef ME_GOAHEAD_XFRAME_HEADER
-    #define ME_GOAHEAD_XFRAME_HEADER "SAMEORIGIN"
+/*
+        Value of the X-Frame-Options response header, which limits framing by other sites. Set to "" to omit it.
+     */
+    #define ME_GOAHEAD_XFRAME_HEADER   "SAMEORIGIN"
 #endif
 
 /*
     GoAhead numeric limits
  */
 #ifndef ME_GOAHEAD_LIMIT_BUFFER
-    #define ME_GOAHEAD_LIMIT_BUFFER             1024
+    #define ME_GOAHEAD_LIMIT_BUFFER      1024
 #endif
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
-    #define ME_GOAHEAD_LIMIT_CGI_ARGS           4096
+    #define ME_GOAHEAD_LIMIT_CGI_ARGS    4096
 #endif
 /*
-    Maximum concurrently accepted connections. The server is single threaded and multiplexes with
-    select, so FD_SETSIZE descriptors is its entire serving capacity - reaching that ceiling is the
-    outage, not a margin. Default below it so listeners, CGI staging files, log files and TLS always
-    have descriptors available. Note this bounds resource consumption; it does not by itself preserve
-    availability for other clients, because a flood still occupies the slots it is granted.
+    Maximum accepted connections, below FD_SETSIZE to reserve descriptors for other uses. websOpen also caps it at
+    RLIMIT_NOFILE minus 64 on POSIX. This bounds resources but cannot prevent connection floods.
  */
 #ifndef ME_GOAHEAD_LIMIT_CONNECTIONS
-    #define ME_GOAHEAD_LIMIT_CONNECTIONS        (FD_SETSIZE - 32)
+    #define ME_GOAHEAD_LIMIT_CONNECTIONS (FD_SETSIZE > 40 ? FD_SETSIZE - 32 : 8)
+#endif
+#if ME_GOAHEAD_LIMIT_CONNECTIONS <= 0
+    #error "ME_GOAHEAD_LIMIT_CONNECTIONS must be positive"
 #endif
 /*
     Maximum concurrently accepted connections from any one peer address. Unlike the total cap, this
@@ -193,41 +270,135 @@
 #ifndef ME_GOAHEAD_LIMIT_FILES
     #define ME_GOAHEAD_LIMIT_FILES              0
 #endif
+/*
+    Cap field width and numeric precision. String precision remains an input-length bound.
+ */
+#ifndef ME_GOAHEAD_LIMIT_FORMAT_FIELD
+    #define ME_GOAHEAD_LIMIT_FORMAT_FIELD       8192
+#endif
 #ifndef ME_GOAHEAD_LIMIT_HEADER
     #define ME_GOAHEAD_LIMIT_HEADER             2048
 #endif
 #ifndef ME_GOAHEAD_LIMIT_HEADERS
     #define ME_GOAHEAD_LIMIT_HEADERS            4096
 #endif
+/*
+    Seconds a closed connection goes on reading and discarding input, so the peer can read the final response
+    before unread input resets the connection.
+ */
+#ifndef ME_GOAHEAD_LIMIT_LINGER
+    #define ME_GOAHEAD_LIMIT_LINGER             2
+#endif
+/*
+    Maximum lingering connections, counted separately from active connections. Close immediately above this limit.
+ */
+#ifndef ME_GOAHEAD_LIMIT_LINGER_CONNECTIONS
+    #define ME_GOAHEAD_LIMIT_LINGER_CONNECTIONS (FD_SETSIZE > 40 ? 16 : 4)
+#endif
+/*
+    Maximum log bytes before rotating to path.old. Keep one backup; zero disables rotation.
+    stdout and stderr are unlimited.
+ */
+#ifndef ME_GOAHEAD_LIMIT_LOG_SIZE
+    #define ME_GOAHEAD_LIMIT_LOG_SIZE           (1024 * 1024)
+#endif
 #ifndef ME_GOAHEAD_LIMIT_NUM_HEADERS
     #define ME_GOAHEAD_LIMIT_NUM_HEADERS        64
+#endif
+#ifndef ME_GOAHEAD_LIMIT_PARAMS
+/*
+        Maximum parameters in a query or form body, and parts in a multipart upload body
+     */
+    #define ME_GOAHEAD_LIMIT_PARAMS             512
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PARSE_TIMEOUT
     #define ME_GOAHEAD_LIMIT_PARSE_TIMEOUT      5
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PASSWORD
+/*
+        Maximum plaintext password length in characters. Longer passwords are rejected at login and by gopass.
+     */
     #define ME_GOAHEAD_LIMIT_PASSWORD           32
 #endif
 #ifndef ME_GOAHEAD_LIMIT_POST
     #define ME_GOAHEAD_LIMIT_POST               16384
 #endif
 #ifndef ME_GOAHEAD_LIMIT_PUT
+/*
+        Maximum size in bytes of a PUT request body (default about 200 MB). Size it to the device's storage.
+     */
     #define ME_GOAHEAD_LIMIT_PUT                204800000
 #endif
+/*
+    Total request arrival deadline in seconds, independent of idle timeout. Zero disables it.
+ */
+#ifndef ME_GOAHEAD_LIMIT_REQUEST_TIMEOUT
+    #define ME_GOAHEAD_LIMIT_REQUEST_TIMEOUT    300
+#endif
+#ifndef ME_GOAHEAD_LIMIT_NONCES
+/*
+        Maximum Digest nonces whose counts are retained to refuse replays. When full, the oldest nonces are evicted
+        and refused as stale from then on.
+     */
+    #define ME_GOAHEAD_LIMIT_NONCES             512
+#endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_COUNT
+/*
+        Maximum sessions in the session table. Size it to at least the number of accounts times
+        ME_GOAHEAD_LIMIT_SESSION_USER.
+     */
     #define ME_GOAHEAD_LIMIT_SESSION_COUNT      512
 #endif
+#ifndef ME_GOAHEAD_LIMIT_SESSION_USER
+/*
+        Maximum sessions one account may hold. A login beyond it retires the account's least recently used session.
+        Zero means no per-account limit.
+     */
+    #define ME_GOAHEAD_LIMIT_SESSION_USER       8
+#endif
 #ifndef ME_GOAHEAD_LIMIT_SESSION_LIFE
+/*
+        Seconds a session may stay idle before it expires. Each request that uses the session renews it.
+     */
     #define ME_GOAHEAD_LIMIT_SESSION_LIFE       1800
+#endif
+/*
+    Bound parser work per outermost jsEval call and bytes in a concatenated script result.
+    Nested evaluations share the work budget. Native callbacks must bound their own work.
+ */
+#ifndef ME_GOAHEAD_LIMIT_SCRIPT_STEPS
+    #define ME_GOAHEAD_LIMIT_SCRIPT_STEPS       1000000
+#endif
+/*
+    Maximum template nesting. Each level uses about 300 bytes of C stack on 64-bit builds.
+ */
+#ifndef ME_GOAHEAD_LIMIT_SCRIPT_RECURSE
+    #define ME_GOAHEAD_LIMIT_SCRIPT_RECURSE     100
+#endif
+#ifndef ME_GOAHEAD_LIMIT_SCRIPT_RESULT
+    #define ME_GOAHEAD_LIMIT_SCRIPT_RESULT      (64 * 1024)
 #endif
 #ifndef ME_GOAHEAD_LIMIT_STRING
     #define ME_GOAHEAD_LIMIT_STRING             256
 #endif
+/*
+    Idle timeout and total blocking-response-write deadline in seconds.
+ */
 #ifndef ME_GOAHEAD_LIMIT_TIMEOUT
     #define ME_GOAHEAD_LIMIT_TIMEOUT            60
 #endif
 #ifndef ME_GOAHEAD_LIMIT_UPLOAD
+/*
+        Maximum size in bytes of each uploaded file (default about 200 MB). Size it to the device's storage.
+     */
     #define ME_GOAHEAD_LIMIT_UPLOAD             204800000
+#endif
+#ifndef ME_GOAHEAD_LIMIT_UPLOAD_FILES
+/*
+        Maximum files per multipart request, staged until request end. ME_GOAHEAD_LIMIT_PARAMS also bounds total
+        parts.
+     */
+    #define ME_GOAHEAD_LIMIT_UPLOAD_FILES       16
 #endif
 #ifndef ME_GOAHEAD_LIMIT_URI
     #define ME_GOAHEAD_LIMIT_URI                2048
@@ -237,6 +408,14 @@
     Override osdep defaults
  */
 #define ME_MAX_IP                               64 /**< Maximum IP address size */
+
+/*
+    socketSelect sizes its masks for the highest descriptor, which may exceed FD_SETSIZE. macOS select() refuses
+    such descriptors unless this precedes the system headers.
+ */
+#if defined(__APPLE__) && !defined(_DARWIN_UNLIMITED_SELECT)
+    #define _DARWIN_UNLIMITED_SELECT            1
+#endif
 
 /************************************ Includes ********************************/
 
@@ -249,6 +428,9 @@
 #ifndef O_NOFOLLOW
     #define O_NOFOLLOW 0
 #endif
+#ifndef O_CLOEXEC
+    #define O_CLOEXEC  0
+#endif
 
 /************************************ Defaults ********************************/
 
@@ -256,30 +438,40 @@
 extern "C" {
 #endif
 
-#if (ME_COM_MBEDTLS + ME_COM_MATRIXSSL + ME_COM_NANOSSL + ME_COM_OPENSSL) > 1
+#if ME_COM_MATRIXSSL || ME_COM_NANOSSL
+    #error "MatrixSSL and NanoSSL are not supported"
+#endif
+#if ME_COM_OPENSSL && ME_COM_MBEDTLS
     #error "Cannot have more than one SSL provider configured"
+#endif
+#if ME_COM_SSL && !ME_COM_OPENSSL && !ME_COM_MBEDTLS
+    #error "ME_COM_SSL requires ME_COM_OPENSSL or ME_COM_MBEDTLS"
 #endif
 
 #ifndef ME_GOAHEAD_LOGGING
-    #define ME_GOAHEAD_LOGGING   1              /**< Default for logging is "on" */
+    #define ME_GOAHEAD_LOGGING 1                /**< Default for logging is "on" */
+#endif
+#if ME_GOAHEAD_AUTO_LOGIN && !ME_GOAHEAD_LOGGING
+    #error "ME_GOAHEAD_AUTO_LOGIN requires ME_GOAHEAD_LOGGING to warn that it serves routes without credentials"
 #endif
 #ifndef ME_GOAHEAD_TRACING
-    #define ME_GOAHEAD_TRACING   1              /**< Default for tracing "on" */
+    #define ME_GOAHEAD_TRACING      1           /**< Default for tracing "on" */
+#endif
+#ifndef ME_GOAHEAD_ASSERT_ABORT
+    #define ME_GOAHEAD_ASSERT_ABORT 0           /**< Abort on a failed assert in a debug build */
 #endif
 #ifndef ME_GOAHEAD_DEBUG
     #if ME_DEBUG
-        #define ME_GOAHEAD_DEBUG 1              /**< Debug logging on in debug builds by default */
+        #define ME_GOAHEAD_DEBUG    1           /**< Debug logging on in debug builds by default */
     #else
-        #define ME_GOAHEAD_DEBUG 0
+        #define ME_GOAHEAD_DEBUG    0
     #endif
 #endif
 
 /*
-    Set to 1 when the target file system is case-insensitive (Windows/NTFS, macOS/APFS, vfat).
-    When set, security-gating path comparisons fold ASCII case so that a case-variant URI cannot
-    select a different route than the file the kernel will subsequently open. Override in me.h for
-    a case-insensitive mount on an otherwise case-sensitive host (a FAT or SMB document root under
-    Linux), or clear it for a case-sensitive mount on macOS.
+    Set for a case-insensitive document filesystem. Security comparisons fold ASCII case and reject Unicode mappings
+    to ASCII. Override in me.h when the document mount differs from the host default, such as FAT, exFAT or SMB on
+    Linux. When 0, startup checks each served directory and reports one whose file system ignores case.
  */
 #ifndef ME_GOAHEAD_CASE_INSENSITIVE_FS
     #if ME_WIN_LIKE || MACOSX
@@ -287,6 +479,22 @@ extern "C" {
     #else
         #define ME_GOAHEAD_CASE_INSENSITIVE_FS 0
     #endif
+#endif
+/*
+    Refuse at startup a route table in which an authenticated route can be bypassed. Set to 0 to only warn.
+    Also controlled by websSetStrict, --strict and --no-strict.
+ */
+#ifndef ME_GOAHEAD_STRICT
+    #define ME_GOAHEAD_STRICT 1
+#endif
+/*
+    Post-startup user/group. Empty keeps the current account; --user and --group override these.
+ */
+#ifndef ME_GOAHEAD_USER
+    #define ME_GOAHEAD_USER   ""
+#endif
+#ifndef ME_GOAHEAD_GROUP
+    #define ME_GOAHEAD_GROUP  ""
 #endif
 #if ECOS
     #if ME_GOAHEAD_CGI
@@ -341,7 +549,7 @@ typedef struct stat WebsStat;
     Copyright. The software license requires that this not be modified or removed.
  */
 #define EMBEDTHIS_GOAHEAD_COPYRIGHT \
-    "Copyright (c) Embedthis Software Inc., 1993-2023. All Rights Reserved." \
+    "Copyright (c) Embedthis Pty Ltd., 1993-2023. All Rights Reserved." \
     "Copyright (c) GoAhead Software Inc., 2003. All Rights Reserved."
 
 /************************************* Main ***********************************/
@@ -366,14 +574,14 @@ typedef struct stat WebsStat;
         static int innerMain(_argc, _argv, _envp)
 #elif ME_WIN_LIKE
     #define MAIN(name, _argc, _argv, _envp)  \
-        APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *command, int junk2) { \
-            extern int main(); \
+        int main(_argc, _argv, _envp); \
+        int APIENTRY WinMain(HINSTANCE inst, HINSTANCE junk, char *command, int junk2) { \
             char *largv[ME_MAX_ARGC]; \
             int  largc; \
             largc = websParseArgs(command, &largv[1], ME_MAX_ARGC - 1); \
             largv[0] = #name; \
             websSetInst(inst); \
-            main(largc, largv, NULL); \
+            return main(largc, largv, NULL); \
         } \
         int main(_argc, _argv, _envp)
 #else
@@ -422,6 +630,16 @@ PUBLIC HINSTANCE websGetInst();
                                                                   clients */
 #define WEBS_MAX_PASSWORD_BUFFER ((WEBS_MAX_PASSWORD * 3) + 3) /**< Buffer size for "username:realm:password" passed to
                                                                   crypt primitives */
+#define WEBS_CRYPT_BLOWFISH      "BF1"                         /**< Legacy Blowfish password hash prefix. Keys the
+                                                                  schedule with the caller's string verbatim */
+#define WEBS_CRYPT_BLOWFISH2     "BF2"                         /**< Current Blowfish password hash prefix. Keys the
+                                                                  schedule with a fixed-width digest of the caller's
+                                                                  string */
+#define WEBS_BLOWFISH_KEY_WINDOW 72                            /**< Key bytes the Blowfish schedule consumes. Material
+                                                                  beyond this has no effect on the hash */
+#define WEBS_BLOWFISH_MIN_BUDGET 8                             /**< Password characters a legacy BF1 hash must still fit
+                                                                  inside the key window before it is trusted without
+                                                                  comment */
 
 /************************************* Error **********************************/
 #if ME_GOAHEAD_LOGGING
@@ -453,43 +671,13 @@ PUBLIC_DATA int logLevel;
 #define WEBS_TRACE_MSG  0x400           /**< Originated from trace */
 
 #if ME_GOAHEAD_TRACING && ME_GOAHEAD_LOGGING
-    #if ME_COMPILER_HAS_MACRO_VARARGS
-      #define trace(l, ...) if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else { }
-    #else
-PRINTF_ATTRIBUTE(2, 3) inline void trace(int level, PRINTF_FORMAT cchar *fmt, ...)
-{
-    WebsLogHandler logHandler = logGetHandler();
-
-    if ((level & WEBS_LEVEL_MASK) <= logLevel && logHandler) {
-        va_list args; va_start(args, fmt);
-        char    *message = sfmtv((char*) fmt, args);
-        logHandler(level | WEBS_TRACE_MSG, message);
-        wfree(message);
-        va_end(args);
-    }
-}
-    #endif
+    #define trace(l, ...)  if (((l) & WEBS_LEVEL_MASK) <= websGetLogLevel()) { traceProc(l, __VA_ARGS__); } else { }
 #else
-    #define trace(l, ...) if (1); else { }
+    #define trace(l, ...)  if (1); else { }
 #endif
 
 #if ME_GOAHEAD_LOGGING
-    #if ME_COMPILER_HAS_MACRO_VARARGS
-        #define logmsg(l, ...) if ((l) <= logLevel) { logmsgProc(l, __VA_ARGS__); } else { }
-    #else
-PRINTF_ATTRIBUTE(2, 3) inline void logmsg(int level, PRINTF_FORMAT cchar *fmt, ...)
-{
-    WebsLogHandler logHandler = logGetHandler();
-
-    if ((level & WEBS_LEVEL_MASK) <= logLevel && logHandler) {
-        va_list args; va_start(args, fmt);
-        char    *message = sfmtv((char*) fmt, args);
-        logHandler(level | WEBS_TRACE_MSG, message);
-        wfree(message);
-        va_end(args);
-    }
-}
-    #endif
+    #define logmsg(l, ...) if ((l) <= logLevel) { logmsgProc(l, __VA_ARGS__); } else { }
 #else
     #define logmsg(l, ...) if (1); else { }
 #endif
@@ -498,22 +686,25 @@ PRINTF_ATTRIBUTE(2, 3) inline void logmsg(int level, PRINTF_FORMAT cchar *fmt, .
 #if DOXYGEN
 #undef assert
 /**
-    Assure that an assert condition is true
+    Report a condition that should be true
+    @description Debug builds log false conditions and abort if ME_GOAHEAD_ASSERT_ABORT is enabled.
+        Other builds do nothing. Validate request data with explicit checks.
     @param cond Boolean result of a conditional test
     @stability Stable
  */
 extern void assert(bool cond);
+#elif ME_GOAHEAD_DEBUG && ME_GOAHEAD_ASSERT_ABORT
+    #define assert(C) do { if (!(C)) { assertError(WEBS_L, "%s", #C); abort(); } } while (0)
 #elif ME_GOAHEAD_DEBUG
-    #define assert(C) if (C); else assertError(WEBS_L, "%s", #C)
+    #define assert(C) do { if (!(C)) { assertError(WEBS_L, "%s", #C); } } while (0)
 #else
     #define assert(C) if (1); else { }
 #endif
 
 /*
     Declared unconditionally. runtime.c defines assertError in every configuration, so guarding the
-    prototype with ME_GOAHEAD_DEBUG left a release build compiling an exported function with no
-    prior declaration: the format attribute never applied, its format string went unchecked despite
-    the build enabling -Wformat=2, and the definition drew -Wformat-nonliteral.
+    prototype with ME_GOAHEAD_DEBUG would leave a release build compiling an exported function with
+    no prior declaration and no format attribute applied.
  */
 PUBLIC void assertError(WEBS_ARGS_DEC, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
 
@@ -535,7 +726,7 @@ PUBLIC void error(PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(1, 2);
 
 /**
     Open the log logging module
-    @return Zero if successful
+    @return Zero if successful, or -1 if the log file cannot be opened
     @internal
  */
 PUBLIC int logOpen(void);
@@ -576,7 +767,18 @@ PUBLIC int websGetLogLevel(void);
 PUBLIC void websSetLogLevel(int level);
 
 /**
+    Get the log target
+    @return The log file name, or "stdout" or "stderr", without the level suffix. NULL before the log target is set.
+    @stability Evolving
+ */
+PUBLIC cchar *logGetPath(void);
+
+/**
     Set the filename to save logging output
+    @description The path is a file name, "stdout" or "stderr", optionally followed by ":N" to set the log level. A log
+        file is created mode 0640, is appended to rather than truncated, and is never opened through a symlink; logOpen
+        fails if it cannot be opened. When it reaches ME_GOAHEAD_LIMIT_LOG_SIZE it is renamed to path.old, replacing
+        any previous one.
     @param path Filename path to use
     @stability Stable
  */
@@ -619,6 +821,57 @@ PUBLIC void traceProc(int level, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE
     #define websGetLogLevel() 0
     #define logmsg(l, ...)    if (1); else { }
     #define logSetPath(p)     if (1); else { }
+    #define logGetPath()      NULL
+#endif
+
+#if !ME_ROM
+/**
+    Log file with a size limit
+    @description A log file that is rotated to path.old when it reaches ME_GOAHEAD_LIMIT_LOG_SIZE. Initialize it to
+        { NULL, -1, 0 } before websStartLogFile.
+    @internal
+ */
+typedef struct WebsLogFile {
+    char *path;                         /**< Log file path. Owned by the log file */
+    int fd;                             /**< Open descriptor or -1 */
+    ssize size;                         /**< Bytes written to the current file */
+} WebsLogFile;
+
+/**
+    Open a log file for appending
+    @description Opens the file mode 0640, appending, without truncating it, never following a symlink at the path and
+        not inheriting the descriptor into child processes. This is the only way GoAhead opens its error and access
+        logs.
+    @param path Log file name
+    @return The file descriptor, or -1 if the file cannot be opened (for example if the path is a symlink)
+    @internal
+ */
+PUBLIC int websOpenLogFile(cchar *path);
+
+/**
+    Open a log file for writing through websWriteLogFile
+    @param log Log file to open. Any file it already has open is closed.
+    @param path Log file name
+    @return Zero if successful, otherwise -1
+    @internal
+ */
+PUBLIC int websStartLogFile(WebsLogFile *log, cchar *path);
+
+/**
+    Append to a log file, rotating it first if the write would pass ME_GOAHEAD_LIMIT_LOG_SIZE
+    @param log Log file opened with websStartLogFile
+    @param buf Data to append
+    @param len Length of data
+    @internal
+ */
+PUBLIC void websWriteLogFile(WebsLogFile *log, cchar *buf, ssize len);
+
+/**
+    Close a log file
+    @param log Log file to close
+    @internal
+ */
+PUBLIC void websCloseLogFile(WebsLogFile *log);
 #endif
 
 /*********************************** HTTP Codes *******************************/
@@ -712,10 +965,14 @@ typedef enum WebsType {
 } WebsType;
 
 /**
-    System native time type. This is the time in seconds.
-    This may be 32 or 64 bits and may be signed or unsigned on some systems.
+    Time in seconds since the epoch. This is always a signed 64 bit value, independent of the platform time_t, so
+    expiry arithmetic does not wrap in 2038 on targets with a 32 bit time_t. Obtain the current time with
+    websTime(). Pass it to a system call that needs a time_t only after clamping it to the range of time_t.
+    @description On targets where time_t is narrower than 64 bits, the size of WebsTime, and so the layout of Webs,
+    WebsSession, WebsFileInfo and the out-parameter of websParseDateTime and websParseHttpDate, differs from releases
+    that defined WebsTime as time_t. Source that uses WebsTime is unaffected but must be recompiled.
  */
-typedef time_t WebsTime;
+typedef int64 WebsTime;
 
 /**
     Value union to store primitive value types
@@ -798,30 +1055,10 @@ PUBLIC void valueFree(WebsValue *value);
 /************************************* Ringq **********************************/
 /**
     Dynamic buffer (ring queue) for efficient I/O operations
-    @description WebsBuf provides a highly efficient ring buffer implementation optimized for I/O operations
-        and dynamic string handling. It allows maximum memory utilization by reusing buffer space and
-        minimizing memory allocations. The buffer automatically grows as needed and supports both
-        queue-like operations and string building.
-
-        Key Features:
-        - Ring buffer architecture for efficient memory usage
-        - Automatic growth when more space is needed
-        - Support for both binary data and string operations
-        - Efficient data compaction and reset operations
-        - Printf-style formatted output support
-
-        Buffer Layout:
-        The buffer maintains four key pointers:
-        - buf: Start of allocated buffer memory
-        - servp: Points to first unconsumed data byte (read position)
-        - endp: Points to next free location for new data (write position)
-        - endbuf: Points to one byte past end of allocated buffer
-
-        When servp == endp, the buffer is empty. The buffer can hold at most (buflen - 1) bytes
-        to distinguish between empty and full states.
-
-    @warning This structure exposes internal pointers for performance. Handle with care and prefer
-        using the provided APIs over direct field access.
+    @description A growing ring buffer for binary data and strings. It holds at most buflen - 1 bytes;
+        servp == endp means empty. Data may wrap: use bufStart for a contiguous string or
+        bufGetBlkMax for the contiguous length.
+    @warning Prefer buffer APIs over direct pointer access.
     @see bufCreate bufFree bufPut bufGetc bufGetBlk bufLen bufStart
     @stability Stable
  */
@@ -832,7 +1069,7 @@ typedef struct WebsBuf {
     char *endbuf;               /**< Pointer to end of buffer */
     ssize buflen;               /**< Length of ring queue */
     ssize maxsize;              /**< Maximum size */
-    int increment;              /**< Growth increment */
+    ssize increment;            /**< Growth increment */
 } WebsBuf;
 
 /**
@@ -868,22 +1105,15 @@ PUBLIC void bufCompact(WebsBuf *bp);
 
 /**
     Create and initialize a buffer
-    @description Initializes a WebsBuf structure for dynamic buffer operations. The buffer will
-        automatically grow as needed up to the specified maximum size. Growth occurs in increments
-        that double each time to minimize frequent reallocations.
-
-        WebsBuf provides efficient ring buffer functionality ideal for:
-        - HTTP request/response buffering
-        - Dynamic string building
-        - I/O buffering and queuing
-        - Memory-efficient data streaming
+    @description Grow up to maxsize, doubling the growth increment each time.
     @param bp Pointer to an allocated WebsBuf structure to initialize
     @param increment Initial increment size for buffer growth (bytes). Must be > 0.
-    @param maxsize Maximum size the buffer can grow to (bytes). Use -1 for unlimited growth.
+    @param maxsize Maximum size the buffer can grow to (bytes). Use -1 for unlimited growth. Any other
+        negative value is refused.
     @return Zero if successful, -1 on error (invalid parameters or memory allocation failure)
         @stability Stable
  */
-PUBLIC int bufCreate(WebsBuf *bp, int increment, int maxsize);
+PUBLIC int bufCreate(WebsBuf *bp, ssize increment, ssize maxsize);
 
 /**
     Flush all data in the buffer and reset the pointers.
@@ -1006,7 +1236,9 @@ PUBLIC void bufReset(WebsBuf *bp);
 PUBLIC ssize bufRoom(WebsBuf *bp);
 
 /**
-    Get a reference to the start of buffer data
+    Get the buffer data as a contiguous string
+    @description Move wrapped data to the front and null-terminate it. Moving data invalidates earlier
+        pointers into the buffer.
     @param bp Buffer reference
     @return A string pointer.
         @stability Stable
@@ -1069,10 +1301,11 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags);
 /**
     Allocate a block of the requested size
     @param size Memory size required
-    @return A reference to the allocated block
+    @return A reference to the allocated block. Never NULL for a non-zero size: an allocation failure calls the
+        memory notifier and aborts.
         @stability Stable
  */
-PUBLIC void *walloc(ssize size);
+PUBLIC void *walloc(ssize size) ME_MALLOC_ATTRIBUTE ME_ALLOC_SIZE(1);
 
 /**
     Free an allocated block of memory
@@ -1099,13 +1332,14 @@ PUBLIC void wfree(void *blk);
 /**
     Reallocate a block of memory and grow its size
     @description If the new size is larger than the existing block, a new block will be allocated and the old data
-        will be copied to the new block.
+        will be copied to the new block. If the block cannot be grown, the memory notifier is called and the process
+        aborts.
     @param blk Original block reference
     @param newsize Size of the new block.
-    @return Reference to the new memory block
+    @return Reference to the new memory block. Never NULL for a non-zero size.
         @stability Stable
  */
-PUBLIC void *wrealloc(void *blk, ssize newsize);
+PUBLIC void *wrealloc(void *blk, ssize newsize) ME_ALLOC_SIZE(2);
 
 /**
     Duplicate memory
@@ -1113,14 +1347,16 @@ PUBLIC void *wrealloc(void *blk, ssize newsize);
     @param usize Size to allocate
     @return Reference to the new memory block
  */
-PUBLIC void *wdup(cvoid *ptr, ssize usize);
+PUBLIC void *wdup(cvoid *ptr, ssize usize) ME_MALLOC_ATTRIBUTE ME_ALLOC_SIZE(2);
 
 typedef void (*WebsMemNotifier)(ssize size);
 
 /**
     Define a global memory allocation notifier.
     @description The notifier is called if any memory allocation fails. It is called with the requested allocation size
-        as its only parameter.
+        as its only parameter. It is for reporting the failure, such as logging or a last write, and must not return:
+        GoAhead does not check allocation results, so if the notifier returns, the library aborts the process. With no
+        notifier installed, a message is written to stderr before the abort.
     @param cback Callback function to invoke for allocation failures.
         @stability Stable
  */
@@ -1160,9 +1396,16 @@ typedef struct WebsKey {
     struct WebsKey *forw;                   /* Pointer to next hash list */
     WebsValue name;                         /* Name of symbol */
     WebsValue content;                      /* Value of symbol */
-    int arg;                                /* Parameter value */
+    int arg;                                /* Parameter value. For request variables: WEBS_VAR_QUERY or WEBS_VAR_BODY */
     int bucket;                             /* Bucket index */
 } WebsKey;
+
+/*
+    Where a request variable came from, in WebsKey.arg. Zero is a variable the server set. A variable given in both
+    the query and the body is marked as from the query.
+ */
+#define WEBS_VAR_QUERY 1                    /**< Request variable from the query string */
+#define WEBS_VAR_BODY  2                    /**< Request variable from the request body */
 
 /**
     Hash table ID returned by hashCreate
@@ -1255,6 +1498,7 @@ PUBLIC WebsKey *hashNext(WebsHash id, WebsKey *last);
 #define SOCKET_BUFFERED_READ  0x200     /**< Message pending on this socket */
 #define SOCKET_BUFFERED_WRITE 0x400     /**< Message pending on this socket */
 #define SOCKET_NODELAY        0x800     /**< Disable Nagle algorithm */
+#define SOCKET_LINGERING      0x1000    /**< Closed, reading and discarding input until the peer closes */
 
 #define SOCKET_PORT_MAX       0xffff    /**< Max Port size */
 
@@ -1344,6 +1588,7 @@ typedef struct WebsSocket {
     int error;                          /**< Last error */
     int secure;                         /**< Socket is using SSL */
     int handshakes;                     /**< Number of renegotiations */
+    int lingerEvent;                    /**< Event that ends a lingering close */
 } WebsSocket;
 
 
@@ -1390,6 +1635,19 @@ PUBLIC void socketClose(void);
         @stability Stable
  */
 PUBLIC void socketCloseConnection(int sid);
+
+/**
+    Close a socket connection after the peer has read what was written
+    @description Send a FIN after the written data, then read and discard input until the peer closes or the
+        timeout expires, and then close the socket. Closing with unread input sends a reset, and a peer that
+        receives one may discard the final response it has not yet read. Does not block: the socket is serviced
+        by the event loop. A socket that has seen end of file, or that cannot be shut down, is closed at once, as
+        is any socket while ME_GOAHEAD_LIMIT_LINGER_CONNECTIONS others are lingering.
+    @param sid Socket ID handle returned from socketAccept.
+    @param timeout Seconds to wait for the peer to close. Zero closes at once.
+        @stability Evolving
+ */
+PUBLIC void socketLinger(int sid, int timeout);
 
 /**
     Connect to a server and create a new socket
@@ -1767,12 +2025,12 @@ PUBLIC bool scaselessmatch(cchar *s1, cchar *s2);
 
 /**
     Clone a string
-    @description Copy a string into a newly allocated block.
+    @description Copy a string into a newly allocated block. Never returns NULL: an allocation failure aborts.
     @param str Pointer to the block to duplicate.
     @return Returns a newly allocated string.
         @stability Stable
  */
-PUBLIC char *sclone(cchar *str);
+PUBLIC char *sclone(cchar *str) ME_MALLOC_ATTRIBUTE;
 
 /**
     Clone a substring.
@@ -1783,7 +2041,7 @@ PUBLIC char *sclone(cchar *str);
     @return Returns a newly allocated string.
         @stability Stable
  */
-PUBLIC char *snclone(cchar *str, ssize len);
+PUBLIC char *snclone(cchar *str, ssize len) ME_MALLOC_ATTRIBUTE;
 
 /**
     Compare strings.
@@ -1823,7 +2081,7 @@ PUBLIC ssize scopy(char *dest, ssize destMax, cchar *src);
         format specifies. This is a secure replacement for sprintf, it can handle null arguments without crashes.
     @param format Printf style format string
     @param ... Variable arguments for the format string
-    @return Returns a newly allocated string
+    @return Returns a newly allocated string. Never NULL: an allocation failure aborts.
         @stability Stable
  */
 PUBLIC char *sfmt(PRINTF_FORMAT cchar *format, ...) PRINTF_ATTRIBUTE(1, 2);
@@ -2029,16 +2287,34 @@ struct Webs;
  */
 typedef struct WebsUpload {
     char *filename;                 /**< Local (temp) name of the file */
-    char *clientFilename;           /**< Client side name of the file */
+    /**
+        Client side name of the file, exactly as the client sent it. It is empty if the client selected no file.
+        Otherwise it is one name: no separators, no leading or trailing dot, and on Windows no reserved device
+        name. A request with any other filename is refused with 400. Applications should still not use it as a
+        storage path.
+     */
+    char *clientFilename;
     char *contentType;              /**< Content type */
     ssize size;                     /**< Uploaded file size */
 } WebsUpload;
 
 /**
     Open the file upload filter
+    @description A multipart upload defines these request variables, set by the server: UPLOAD_DIR, and for each file
+        part named NAME, FILE_CLIENT_FILENAME_NAME, FILE_CONTENT_TYPE_NAME, FILE_FILENAME_NAME and FILE_SIZE_NAME.
+        A query parameter or form field cannot set, replace or extend a variable in this namespace, so these hold
+        only server values. websLookupUpload is the authoritative description of an uploaded file.
         @stability Stable
  */
 PUBLIC void websUploadOpen(void);
+
+/**
+    Test if a name is in the upload variable namespace that websUploadOpen describes
+    @param name Variable name
+    @return True for UPLOAD_DIR and names beginning with a FILE_ upload variable prefix
+        @internal
+ */
+PUBLIC bool websIsUploadVar(cchar *name);
 
 /**
     Get the hash of uploaded files for the request
@@ -2116,7 +2392,15 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
     @{
  */
 #define WEBS_VARS_ADDED      0x4000          /**< Query string and form variables have been parsed and added */
-#define WEBS_NO_CACHE        0x10000         /**< Response is dynamic and must never be cached */
+#define WEBS_JST_HEADERS     0x20000         /**< JST headers wait for the first body write */
+#define WEBS_NO_CACHE        0x10000         /**< Response must never be cached, even if WEBS_CACHEABLE is set */
+#define WEBS_ABSOLUTE_TARGET 0x40000         /**< Request target was absolute-form and supplied the authority */
+#define WEBS_TYPE_WRITTEN    0x80000         /**< A Content-Type header has been written for this response */
+#define WEBS_AUTHENTICATED   0x100000        /**< The request's credentials have been verified */
+#define WEBS_NONCE_STALE     0x200000        /**< The request's Digest nonce was authentic but has expired */
+#define WEBS_CACHEABLE       0x400000        /**< Requester-independent content eligible for public caching. Application handlers must opt in explicitly. */
+#define WEBS_HTTPS           0x800000        /**< Client scheme is HTTPS, from TLS or a trusted proxy. Use for client-scheme decisions. */
+#define WEBS_PROXIED         0x1000000       /**< A trusted proxy supplied the request's scheme */
 #if ME_GOAHEAD_LEGACY
 #define WEBS_LOCAL           0x8000          /**< Request originated from the local system (legacy) */
 #endif
@@ -2148,6 +2432,7 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
  */
 #define WEBS_SESSION          "-goahead-session-"
 #define WEBS_SESSION_USERNAME "_:USERNAME:_" /* Username variable */
+#define WEBS_SESSION_AUTHTYPE "_:AUTHTYPE:_" /* Protocol that authenticated the session username */
 
 /*
     WebsDone flags
@@ -2200,6 +2485,7 @@ typedef struct Webs {
     ssize lastRead;                     /**< Number of bytes last read from the socket */
     int rxPrologue;                     /**< Count of blank-line bytes stripped before the request line */
     WebsTime started;                   /**< When the first byte of the current request arrived. 0 if none yet */
+    WebsTime flushDeadline;             /**< When blocking writes of the current response must be done. 0 if none yet */
     bool eof;                           /**< If at the end of the request content */
 
     char txChunkPrefix[16];             /**< Transmit chunk prefix */
@@ -2218,6 +2504,7 @@ typedef struct Webs {
     char *ext;                          /**< Path extension */
     char *filename;                     /**< Document path name */
     char *host;                         /**< Requested host */
+    char *ifNoneMatch;                  /**< If-None-Match entity tags; repeated fields joined */
     char *method;                       /**< HTTP request method */
     char *password;                     /**< Authorization password */
     char *path;                         /**< Path name without query. This is decoded. */
@@ -2230,19 +2517,20 @@ typedef struct Webs {
     char *url;                          /**< Full request url. This is not decoded. */
     char *userAgent;                    /**< User agent (browser) */
     char *username;                     /**< Authorization username */
+    cchar *authReason;                  /**< Why authentication was refused, for the log. Not owned */
     int sid;                            /**< Socket id (handler) */
     int listenSid;                      /**< Listen Socket id */
     int port;                           /**< Request port number */
     int state;                          /**< Current state */
-    int flags;                          /**< Current flags -- see above */
+    int flags;                          /**< Current flags, see above */
     int code;                           /**< Response status code */
     int routeCount;                     /**< Route count limiter */
     ssize rxLen;                        /**< Rx body length. -1 until known: set from Content-Length, or from the
                                              decoded total once a chunked body completes */
     ssize rxRemaining;                  /**< Remaining content to read from client */
     ssize rxBytes;                      /**< Cumulative decoded request body bytes received (chunked framing) */
-    ssize txRemaining;                  /**< Remaining content to write */
-    ssize txLen;                        /**< Tx content length header value */
+    Offset txRemaining;                 /**< Remaining content to write */
+    Offset txLen;                       /**< Tx content length header value */
     int wid;                            /**< Index into webs */
 #if ME_GOAHEAD_CGI
     char *cgiStdin;                     /**< Filename for CGI program input */
@@ -2261,6 +2549,7 @@ typedef struct Webs {
 
     WebsHash responseCookies;           /**< Outgoing cookies */
     struct WebsSession *session;        /**< Session record */
+    struct WebsSession *retiredSession; /**< Session this request destroyed, freed when the request ends */
     struct WebsRoute *route;            /**< Request route */
     struct WebsUser *user;              /**< User auth record */
     WebsWriteProc writeData;            /**< Handler write I/O event callback. Used by fileHandler */
@@ -2269,6 +2558,7 @@ typedef struct Webs {
     char *cnonce;                       /**< check nonce */
     char *digestUri;                    /**< URI found in digest header */
     char *nonce;                        /**< opaque-to-client string sent by server */
+    WebsTime nonceTime;                 /**< Time the request's Digest nonce was issued */
     char *nc;                           /**< nonce count */
     char *opaque;                       /**< opaque value passed from server */
     char *qop;                          /**< quality operator */
@@ -2278,7 +2568,10 @@ typedef struct Webs {
     WebsHash files;                     /**< Uploaded files */
     char *boundary;                     /**< Mime boundary (static) */
     ssize boundaryLen;                  /**< Boundary length */
+    ssize boundaryScan;                 /**< Offset in the input where the next boundary scan resumes */
     int uploadState;                    /**< Current file upload state */
+    int uploadParts;                    /**< Parts in the upload body so far */
+    int uploadFiles;                    /**< Files staged for the upload body so far */
     WebsUpload *currentFile;            /**< Current file context */
     char *clientFilename;               /**< Current file filename */
     char *uploadTmp;                    /**< Current temp filename for upload data */
@@ -2289,6 +2582,7 @@ typedef struct Webs {
 
 #if ME_GOAHEAD_LEGACY
     #define WEBS_LEGACY_HANDLER 0x1     /* Using legacy calling sequence */
+typedef int (*WebsLegacyHandlerProc)(Webs *wp, char *prefix, char *dir, int flags);
 #endif
 
 
@@ -2316,6 +2610,9 @@ typedef struct WebsHandler {
     WebsHandlerProc match;                  /**< Handler match callback */
     WebsHandlerProc service;                /**< Handler service callback */
     WebsHandlerClose close;                 /**< Handler close callback  */
+#if ME_GOAHEAD_LEGACY
+    WebsLegacyHandlerProc legacy;           /**< Legacy service callback, used instead of service */
+#endif
     int flags;                              /**< Handler control flags */
 } WebsHandler;
 
@@ -2363,9 +2660,10 @@ typedef struct WebsMime {
         @stability Stable
  */
 typedef struct WebsFileInfo {
-    ulong size;                             /**< File length */
+    Offset size;                            /**< File length */
     int isDir;                              /**< Set if directory */
-    WebsTime mtime;                         /**< Modified time */
+    WebsTime mtime;                         /**< Modified time. Zero if unknown */
+    uint64 hash;                            /**< Content hash of a ROM page, used for its ETag. Zero for disk files */
 } WebsFileInfo;
 
 /**
@@ -2376,7 +2674,8 @@ typedef struct WebsRomIndex {
     char *path;                             /**< Web page URL path */
     uchar *page;                            /**< Web page data */
     int size;                               /**< Size of web page in bytes */
-    Offset pos;                             /**< Current read position */
+    WebsTime mtime;                         /**< Modified time of the page's source file. Zero if unknown */
+    uint64 hash;                            /**< 64-bit FNV-1a hash of the page, so its ETag changes with its content */
 } WebsRomIndex;
 
 #if ME_ROM
@@ -2469,7 +2768,7 @@ PUBLIC bool cgiHandler(Webs *wp);
         Exposed for unit testing the gate logic on non-Windows hosts.
     @param cgiPath Server-resolved path to the CGI program.
     @return True if the path is `.exe`-suffixed; false on NULL, too-short input, or other suffix.
-    @stability Internal
+    @internal
  */
 PUBLIC bool isCgiExeOnWindows(cchar *cgiPath);
 
@@ -2477,32 +2776,36 @@ PUBLIC bool isCgiExeOnWindows(cchar *cgiPath);
     Emit one CRT-correctly-quoted argv element into the destination buffer.
     @description Implements the Microsoft-documented `CommandLineToArgvW` quoting rules.
         NULL or empty `arg` emits `""` (two double-quote bytes) so the CRT recovers a zero-length
-        argv element rather than nothing. Strings containing no space, tab, or double-quote pass
+        argv element rather than nothing. Strings containing no ASCII whitespace or double-quote pass
         through verbatim. Otherwise the string is wrapped in double-quotes, embedded quotes are
         escaped by doubling preceding backslash runs and prepending a backslash to the quote
         (the `2N+1` rule), and trailing backslash runs that abut the closing quote are doubled
-        (the `2N` rule). Destination buffer must hold at least `2 * slen(arg) + 3` bytes.
+        (the `2N` rule). At most `destMax` bytes are written; `2 * slen(arg) + 3` always suffices.
         Exposed for unit testing the quoting algorithm on non-Windows hosts.
-    @param dp Destination buffer; caller-allocated; must be large enough per the worst-case formula.
+    @param dp Destination buffer. NULL returns 0 with no write.
+    @param destMax Size of the destination buffer in bytes.
     @param arg The argv element to quote. May be NULL or empty.
-    @return Bytes written to `dp`. Does not null-terminate.
-    @stability Internal
+    @return Bytes written to `dp`, or -1 if the quoted element does not fit in `destMax` bytes. Does not
+        null-terminate.
+    @internal
  */
-PUBLIC ssize appendWinArg(char *dp, cchar *arg);
+PUBLIC ssize appendWinArg(char *dp, ssize destMax, cchar *arg);
 
 /**
     Build a Windows `lpCommandLine` string from a NULL-terminated argv array.
     @description Walks `argp`, calls `appendWinArg` per element, separates elements with a
         single space, and null-terminates `out`. NULL `argp` or NULL `out` returns 0 with no
-        write. Caller is responsible for pre-allocating `out` to the worst-case size, computed
-        as the sum of `2 * slen(argp[i]) + 3` per element plus one separator per gap plus one
-        null terminator. Exposed for unit testing the cmdLine builder on non-Windows hosts.
-    @param argp NULL-terminated argv array. NULL `argp[i]` is treated as an empty argv element.
-    @param out Caller-allocated buffer of sufficient worst-case size.
-    @return Total bytes written excluding the null terminator.
-    @stability Internal
+        write. At most `outMax` bytes are written, the terminator included. The sum of
+        `2 * slen(argp[i]) + 3` per element plus one separator per gap plus one terminator always
+        suffices. Exposed for unit testing the cmdLine builder on non-Windows hosts.
+    @param argp NULL-terminated argv array. The walk ends at the first NULL element.
+    @param out Caller-allocated output buffer.
+    @param outMax Size of the output buffer in bytes.
+    @return Total bytes written excluding the null terminator, or -1 if the command line does not fit.
+        On failure `out` holds an empty string.
+    @internal
  */
-PUBLIC ssize buildWinCmdLine(char **argp, char *out);
+PUBLIC ssize buildWinCmdLine(char **argp, char *out, ssize outMax);
 
 #endif /* ME_GOAHEAD_CGI */
 
@@ -2561,10 +2864,13 @@ PUBLIC char *websDecode64Block(char *str, ssize *len, int flags);
 
 /**
     Decode a URL expanding %NN encoding
-    @description Supports insitu decoding. i.e. Input and output buffers may be the same.
+    @description Decodes application/x-www-form-urlencoded data: '+' is a space and a complete %NN
+        escape is decoded. An incomplete or non-hex escape, and %00, are copied unchanged, so the result
+        never contains a NUL. Supports insitu decoding. i.e. Input and output buffers may be the same.
     @param decoded Buffer to hold the decoded URL
     @param input Input URL or buffer to decode
-    @param len Length of the decoded buffer.
+    @param len Size of the decoded buffer, including the terminating null. The result is truncated to
+        fit. Set to -1 to decode in place, where the buffer is the input.
         @stability Stable
  */
 
@@ -2575,10 +2881,15 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len);
     @description Registers a custom handler to process specific types of HTTP requests. Handlers are
         responsible for generating responses to HTTP requests. GoAhead comes with built-in handlers for
         static files, CGI, and actions, but you can create custom handlers for specialized processing.
-        Handlers are matched against requests in the order they were registered.
+        A handler is bound to routes by name (handler= in route.txt or websAddRoute) and is only offered
+        requests that select one of those routes. Routes are tried in table order; the route's protocol,
+        method and extension selectors, then its authentication and abilities, are checked before the
+        handler's match procedure runs.
     @param name Unique name for the handler (e.g., "myHandler", "apiHandler")
-    @param match Handler callback match procedure. This function is called to determine if this handler
-        should process the current request. Return true to accept the request, false to pass to next handler.
+    @param match Handler callback match procedure. Called after the route's authentication and abilities have
+        passed, to decide whether this handler serves the request. Return true to accept it. Return false to
+        resume route selection at the next route in the table, which is checked with its own authentication,
+        so it may have none. May be NULL to accept every request on the route.
         Signature: bool match(Webs *wp)
     @param service Handler callback service procedure. This function is called to generate the response
         for requests accepted by the match function. This is where you implement your custom logic.
@@ -2624,6 +2935,8 @@ PUBLIC char *websEncode64Block(char *str, ssize len);
 
 /**
     Escape unsafe characters in a string
+    @description Encodes the characters HTML gives meaning to, so the result can be written into a page as text.
+        Use it for any value from the request that a handler writes into HTML. A null string yields an empty one.
     @param str String to escape
     @return An allocated block containing the escaped string. Caller must free.
         @stability Stable
@@ -2637,6 +2950,32 @@ PUBLIC char *websEscapeHtml(cchar *str);
         @stability Stable
  */
 PUBLIC char *websEscapeUri(cchar *str);
+
+/**
+    Escape a string for a quoted JavaScript string literal
+    @description Writes every ASCII byte other than letters, digits, space and the characters , . _ - as \\u00HH, and
+        U+2028 and U+2029 as \\u2028 and \\u2029. Other UTF-8 bytes pass through. The result is safe inside a single or
+        double quoted JavaScript string in a script block or a quoted on* attribute: it holds no raw quote,
+        backslash, angle bracket, ampersand, slash or line terminator. It is not safe outside a quoted string. A null string
+        yields an empty one.
+    @param str String to escape
+    @return An allocated block containing the escaped string. Caller must free.
+        @stability Evolving
+ */
+PUBLIC char *websEscapeJs(cchar *str);
+
+/**
+    Escape control characters in a string as \\xHH
+    @description Escapes every byte below 0x20, and 0x7F, so request data written to a log cannot start a new
+        line, overwrite a line or send terminal escapes. All log messages pass through this before the log handler.
+        A null string yields an empty one.
+    @param str String to escape
+    @param keep Control characters to leave as they are. May be null.
+    @param escape Further characters to escape. May be null.
+    @return An allocated block containing the escaped string. Caller must free.
+        @stability Evolving
+ */
+PUBLIC char *websEscapeControl(cchar *str, cchar *keep, cchar *escape);
 
 /**
     Complete a request with an error response
@@ -2737,6 +3076,18 @@ PUBLIC int websGetDebug(void);
         @stability Stable
  */
 PUBLIC cchar *websGetDir(Webs *wp);
+
+/**
+    Get the absolute form of a path
+    @description A relative path is resolved against the current working directory, which is where every
+        relative configuration directory is resolved at runtime. Backslashes are folded to '/', "." and ".."
+        segments and repeated separators are removed lexically (symlinks are not resolved), and any trailing
+        separator is removed, so two directory names can be compared as strings.
+    @param path Path to resolve
+    @return Allocated absolute path. Caller must free.
+        @stability Evolving
+ */
+PUBLIC char *websAbsolutePath(cchar *path);
 
 /**
     Get the GoAhead base documents directory
@@ -2916,7 +3267,8 @@ PUBLIC cchar *websGetUsername(Webs *wp);
         - Custom variables set by handlers
 
         Variable names are case-sensitive. HTTP headers are converted to uppercase with
-        hyphens replaced by underscores and prefixed with "HTTP_".
+        hyphens replaced by underscores and prefixed with "HTTP_". A header whose name has a character other than
+        a letter, digit or hyphen has no variable, so no header can create or join the variable of another.
     @param wp Webs request object representing the current HTTP request
     @param name Variable name to retrieve. Common examples:
         - "name", "email" (form fields)
@@ -2926,6 +3278,8 @@ PUBLIC cchar *websGetUsername(Webs *wp);
     @param defaultValue Default value to return if the variable is not defined.
         Can be NULL if you want to detect missing variables.
     @return Variable value string, or defaultValue if not found. Caller should not free the returned string.
+        A name beginning with "HTTP_" returns only a header value: a query parameter or form field can neither
+        create nor change such a variable, nor any other variable the server set, such as the upload variables.
     @see websSetVar websTestVar websSetFormVars websSetQueryVars
         @stability Stable
  */
@@ -2943,6 +3297,10 @@ PUBLIC cchar *websGetVar(Webs *wp, cchar *name, cchar *defaultValue);
         - "[::1]:8080" - IPv6 loopback with port
         - "[::]:8080" - All IPv6 interfaces on port 8080
         - "192.168.1.100:80" - Specific IPv4 interface
+        A secure endpoint, prefixed with "https://", is refused unless sslOpen loaded a certificate and key.
+        The first call audits the complete route table with websCheckRoutes and websCheckTempDirs, so load every
+        route and auth file and add every route before it. It fails if strict mode refuses the table or a staging
+        directory is inside a served directory.
     @return Positive integer holding a Socket ID handle if successful, otherwise -1 on error.
         The socket ID can be used with other socket APIs for management.
     @see websOpen websServer socketClose socketFree
@@ -2967,6 +3325,29 @@ PUBLIC char *websMD5(cchar *str);
         @stability Stable
  */
 PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix);
+
+/**
+    Get a request target in origin form
+    @description The path and query of the target as the client sent it, still encoded. An absolute-form
+        target loses its scheme and authority; an origin-form target is returned as is.
+    @param url Request target
+    @return A reference into url. Caller must not free.
+        @stability Evolving
+ */
+PUBLIC cchar *websOriginForm(cchar *url);
+
+/**
+    Parse a Content-Type header value
+    @description Parses a media type and its parameters (RFC 9110 8.3). With a null param, returns the media type:
+        the text before the first ";", trimmed of white space and lower-cased, for comparison by equality. Otherwise
+        returns the value of the named parameter, matched case-insensitively, as a token or a quoted-string with the
+        quotes and quoted-pair backslashes removed.
+    @param contentType Content-Type header value
+    @param param Parameter name, or null for the media type
+    @return Allocated string, or null if the parameter is absent or the parameter list is malformed. Caller must free.
+        @internal
+ */
+PUBLIC char *websParseContentType(cchar *contentType, cchar *param);
 
 /**
     Normalize a URI path
@@ -3005,6 +3386,14 @@ PUBLIC int websRuntimeOpen(void);
     @description This initializes the GoAhead web server subsystem and prepares it to handle HTTP requests.
         This function must be called before any other GoAhead APIs. It initializes internal data structures,
         sets up the document root directory, and optionally loads routing configuration.
+        The server need not be able to resolve its own host name. If it cannot, it logs an error and
+        names itself 127.0.0.1 in redirects and the CGI SERVER_NAME variable.
+        On POSIX systems, if descriptors 0-2 are closed when websOpen is called, it opens them on /dev/null so
+        that no socket or file can take them and receive log output written to stderr. An application that opens
+        files or sockets before websOpen with stdio closed must reserve these descriptors itself.
+        On POSIX systems, if SIGPIPE is at its default disposition, websOpen ignores it so that a write to a peer
+        that has closed fails with EPIPE rather than killing the process, and websClose restores the default. An
+        application that installs its own SIGPIPE handler before websOpen keeps it.
     @param documents Optional web documents directory path. This becomes the document root where web files
         are served from. If set to NULL, the build-time default ME_GOAHEAD_DOCUMENTS value is used.
         The directory should contain your web content (HTML, CSS, JS, images, etc.).
@@ -3023,6 +3412,19 @@ PUBLIC int websOpen(cchar *documents, cchar *routes);
         @internal
  */
 PUBLIC void websOsClose(void);
+
+/**
+    Restrict the process-wide DLL search path.
+    @description On Windows, limits the loader to the system and application directories and removes the current
+        directory from the search order, so that a library planted in a writable working or document directory
+        cannot be loaded by name. Call it first thing in main, before any library is loaded at run time. It is not
+        called from websOpen because it changes the loader policy of the whole process, which belongs to the
+        embedding application. The goahead and goahead-test programs call it. It does nothing on other platforms.
+        On Windows 7 the restriction requires update KB2533623; without it a warning is logged and only the
+        current directory is removed from the search order.
+    @stability Evolving
+ */
+PUBLIC void websHardenProcess(void);
 
 /**
     Open the O/S dependent code.
@@ -3063,6 +3465,33 @@ PUBLIC void websPageClose(Webs *wp);
         @stability Stable
  */
 PUBLIC int websPageIsDirectory(Webs *wp);
+
+/**
+    Test if the request's file may be served, created or deleted
+    @description Refuses a file naming a Windows reserved device, as websIsReservedDevice does. Refuses a hidden or
+        backup file when ME_GOAHEAD_DENY_HIDDEN is set: a URL path segment beginning with ".", other than a leading
+        /.well-known/, or any path segment, file or directory, ending in "~", ".bak", ".orig", ".swp" or ".tmp".
+        Then requires the file to resolve inside its document root, as websPageContained does.
+        websPageOpen, websPageStat and websPageIsDirectory refuse a file this rejects, and the file handler refuses
+        to PUT or DELETE one.
+    @param wp Webs request object
+    @return True if the file may be served
+        @stability Evolving
+ */
+PUBLIC bool websPageAllowed(Webs *wp);
+
+/**
+    Test if the request's file resolves inside its document root
+    @description The file is resolved with its symbolic links followed and compared with the resolved root: the
+        route's directory, or the documents directory. A file not yet created is judged by the directory it would
+        be created in. A root that cannot be resolved, or a file or directory that cannot be resolved for any reason
+        other than not existing, is refused. websPageAllowed applies it. Always true when
+        ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, and on systems without realpath.
+    @param wp Webs request object
+    @return True if the file is inside the document root, or neither the file nor its directory exists.
+        @stability Evolving
+ */
+PUBLIC bool websPageContained(Webs *wp);
 
 /**
     Open a web page document for a request
@@ -3129,7 +3558,9 @@ PUBLIC void websPump(Webs *wp);
         custom handler. Actions are ideal for form processing, AJAX endpoints, and simple dynamic content.
     @param name URI path suffix. This suffix is added to "/action" to form the bound URI path.
         For example, if name is "login", the action will be accessible at "/action/login".
-        The name should not include leading slashes.
+        The name should not include leading slashes. An action is run only through a route that names it as the
+        second segment of its prefix, such as "/action/login", or, when no route names it, through any action route
+        whose prefix names no action, such as "/action". So protect an action by naming it in an authenticated route.
     @param fun Callback function pointer. The function signature must be: void action(Webs *wp).
         The function receives the request object and should generate a response using websWrite()
         and complete the request with websDone().
@@ -3138,6 +3569,17 @@ PUBLIC void websPump(Webs *wp);
         @stability Stable
  */
 PUBLIC int websDefineAction(cchar *name, void *fun);
+
+/**
+    Define an action that is always called with the WebsAction signature
+    @description Used for the built-in actions, which keep the WebsAction signature in a ME_GOAHEAD_LEGACY build
+        where websDefineAction registers the legacy WebsProc signature.
+    @param name URI path suffix, as for websDefineAction.
+    @param fun Callback function.
+    @return Zero if successful, otherwise -1 on error.
+    @internal
+ */
+PUBLIC int websDefineNativeAction(cchar *name, WebsAction fun);
 
 /**
     Read data from an open file
@@ -3169,7 +3611,9 @@ PUBLIC char *websReadWholeFile(cchar *path);
         The function automatically calls websDone() to complete the response, so no additional
         content should be written after calling this function.
     @param wp Webs request object representing the current HTTP request
-    @param url Target URL to redirect the client to. Can be absolute (http://...) or relative (/path)
+    @param url Target URL to redirect the client to. Can be absolute (http://...) or relative (/path).
+        A relative URL is qualified with the host set by websSetHostUrl, or else with the address of the
+        interface that accepted the connection.
         @stability Stable
  */
 PUBLIC void websRedirect(Webs *wp, cchar *url);
@@ -3200,9 +3644,15 @@ PUBLIC void websResponse(Webs *wp, int status, cchar *msg);
 /**
     Rewrite a request
     @description Handlers may choose to not process a request but rather rewrite requests and then reroute.
+        Call this from a handler's match or service callback and then return false. The new path is validated
+        and normalized as a request target is, and the request is routed again from the first route, so it is
+        authenticated and authorized by the route its new path selects. A query in the URL replaces the request
+        query, and the request variables parsed from the old query and a form body are parsed again. A URL without
+        a query keeps the original query.
     @param wp Webs request object
     @param url New request URL.
-    @return Zero if successful, otherwise -1.
+    @return Zero if successful, otherwise -1 if the URL cannot be parsed or its path is invalid. The request is
+        unchanged on failure.
         @stability Stable
  */
 PUBLIC int websRewriteRequest(Webs *wp, cchar *url);
@@ -3231,6 +3681,18 @@ PUBLIC void websFsClose(void);
 PUBLIC Offset websSeekFile(int fd, Offset offset, int origin);
 
 /**
+    Test if a path names a Windows reserved device
+    @description Windows resolves CON, PRN, AUX, NUL, CONIN$, CONOUT$, COM1-9 and LPT1-9, with or without an
+        extension or stream name, to a device in every directory. A path is refused if any segment names one,
+        ignoring case and trailing spaces and dots. websPageAllowed applies it, so websOpenFile and websStatFile
+        do not: a handler passing them a path of its own must call this first. Always false on other platforms.
+    @param path Filename path
+    @return True if a segment of the path names a reserved device
+        @stability Evolving
+ */
+PUBLIC bool websIsReservedDevice(cchar *path);
+
+/**
     Get file status for a file
     @param path Filename path
     @param sbuf File information structure to modify with file status
@@ -3238,6 +3700,17 @@ PUBLIC Offset websSeekFile(int fd, Offset offset, int origin);
         @stability Stable
  */
 PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf);
+
+/**
+    Get file status for an open file
+    @description Read metadata from the open descriptor so the response describes the file being sent.
+    @param fd Open file descriptor returned by websOpenFile
+    @param sbuf File information structure to modify with file status
+    @return Zero if successful, otherwise -1.
+    @ingroup Webs
+    @stability Evolving
+ */
+PUBLIC int websStatOpenFile(int fd, WebsFileInfo *sbuf);
 
 /**
     One line embedding API.
@@ -3248,6 +3721,7 @@ PUBLIC int websStatFile(cchar *path, WebsFileInfo *sbuf);
         - Start listening on the specified endpoint
         - Set the document root directory
     This function is ideal for simple embedded applications that need a quick web server setup.
+    It calls websOpen, which reserves closed stdio descriptors and ignores SIGPIPE when it is at its default.
     @param endpoint IP:PORT address on which to listen. Format examples:
         - "127.0.0.1:8080" (IPv4)
         - "[::1]:8080" (IPv6)
@@ -3266,14 +3740,25 @@ PUBLIC int websServer(cchar *endpoint, cchar *documents);
     @description This is the main event loop for GoAhead. It will wait for socket events and service
         incoming HTTP requests until the finished flag is set to true. This function blocks and should
         be called from your main thread after starting the web server. The function will return when
- * finished is set to a non-zero value.
-    @param finished Pointer to an integer flag. When set to non-zero, the event loop will exit.
-        Note: Setting finished will not automatically wake up the service routine if it's waiting
-        for events. The routine will check this flag during the next I/O event or timeout.
+        finished is set to a non-zero value.
+    @param finished Pointer to an integer flag. When set to non-zero, the event loop will exit. The flag is not
+        reset: the caller initializes it, and if it is already set the function returns at once. A signal handler
+        may set it. A handler installed without SA_RESTART interrupts the wait, so the loop exits promptly.
+        Otherwise the routine checks the flag after the next I/O event or timeout.
+    @remarks Provision at least 16 KiB of stack for the task or thread that calls this routine, plus 0.3 KiB for each
+        level of ME_GOAHEAD_LIMIT_SCRIPT_RECURSE when ME_GOAHEAD_JAVASCRIPT is enabled. With the default limit of 100
+        that is 48 KiB. GoAhead runs every request on that stack and does not guard against exhausting it, which
+        matters on RTOS and no-MMU targets where a task stack is a few KiB and has no guard page. Lower the recursion
+        limit to fit a smaller stack. The deepest request path is a TLS connection running a template nested to the
+        recursion limit. Measured on a 64-bit Linux build, about 12 KiB of stack is the fixed part, which includes the
+        TLS library, and a template at the default limit raises the total to about 24 KiB. The test suite passes with
+        the server limited to 24 KiB and fails at 16 KiB, so the figures above are twice the measurement to allow for
+        compilers that use larger frames. No function in the library keeps a frame over 2 KiB, which the test suite
+        checks. CGI programs run in their own process or task and do not use this stack.
     @see websServer websOpen websClose
         @stability Stable
  */
-PUBLIC void websServiceEvents(int *finished);
+PUBLIC void websServiceEvents(volatile int *finished);
 
 /**
     Set the background processing flag
@@ -3293,6 +3778,23 @@ PUBLIC void websServiceEvents(int *finished);
         @internal
  */
 PUBLIC void websSetBackground(int on);
+
+/**
+    Run as a less privileged user and group
+    @description Call once the server has listened on its endpoints and opened its log, certificate and
+        configuration files, and before it serves requests. Supplementary groups are replaced by the user's group
+        memberships, or by the group alone when no user is given, then the group and user are changed. The change is
+        verified to be complete and irreversible.
+        When the process is not running as root, nothing is changed and the call succeeds only if the process
+        already runs as the requested user and group. Unix-like systems only: elsewhere a request to change fails.
+    @param user User name to run as. NULL or empty keeps the current user.
+    @param group Group name to run as. NULL or empty uses the user's primary group, or keeps the current group when
+        no user is given.
+    @return Zero if the process runs as the requested user and group. Otherwise a negative value, and the process
+        must not go on to serve requests.
+    @stability Evolving
+ */
+PUBLIC int websDropPrivileges(cchar *user, cchar *group);
 
 /**
     Define a background write I/O event callback
@@ -3324,11 +3826,16 @@ PUBLIC void websSetBackgroundWriter(Webs *wp, WebsWriteProc proc);
 
 /**
     Define a cookie to include in the response
+    @description The cookie is not set, and an error is logged, if the name is not an RFC 6265 token
+        or the value, path or domain contains a character RFC 6265 does not permit there: control
+        characters, white space, and for the value and domain also double quote, comma, semicolon and
+        backslash.
     @param wp Webs request object
     @param name Cookie name
     @param value Cookie value
-    @param path URI path prefix applicable for this cookie
-    @param domain Domain applicable for this cookie
+    @param path URI path prefix applicable for this cookie. Set to null for "/".
+    @param domain Domain applicable for this cookie. Set to null for a host-only cookie, which the
+        client returns only to the host that set it.
     @param lifespan Cookie lifespan in seconds
     @param flags Set to WEBS_COOKIE_SECURE for https only. Set to WEBS_COOKIE_HTTP for http only.
         Otherwise the cookie applies to both http and https requests. Or in WEBS_COOKIE_SAME_LAX for SameSite=Lax
@@ -3372,7 +3879,9 @@ PUBLIC void websSetPostLimit(ssize limit);
     Override the runtime concurrent-connection cap.
     @description Replaces the compile-time ME_GOAHEAD_LIMIT_CONNECTIONS default with a runtime-chosen
         value. Pass 0 (or a negative value) to restore the compile-time default. A connection accepted
-        beyond the cap is closed immediately, before any request is read from it.
+        beyond the cap is closed immediately, before any request is read from it. On POSIX, websOpen lowers a
+        cap set before it to fit the process descriptor limit less a reserve of 64; a cap set after websOpen
+        is used as given.
     @param limit Maximum concurrently accepted connections.
     @see websGetConnectionCount
     @stability Prototype
@@ -3389,6 +3898,16 @@ PUBLIC void websSetConnectionLimit(int limit);
     @stability Prototype
  */
 PUBLIC int websGetConnectionCount(void);
+
+/**
+    Get the number of live sessions.
+    @description Counts sessions currently in the session store and therefore counted against
+        ME_GOAHEAD_LIMIT_SESSION_COUNT. Intended for monitoring and for tests that need to assert the
+        cap and its accounting directly rather than inferring them from timing.
+    @return The number of live sessions.
+    @stability Prototype
+ */
+PUBLIC int websGetSessionCount(void);
 
 /**
     Override the runtime per-peer connection cap.
@@ -3435,7 +3954,15 @@ PUBLIC void websSetDocuments(cchar *dir);
         - REMOTE_ADDR, REMOTE_HOST
         - SCRIPT_NAME, PATH_INFO
 
-        This function is automatically called by the CGI handler before executing CGI scripts.
+        AUTH_TYPE and REMOTE_USER are set only for a request authenticated on its route, and AUTH_TYPE names the
+        protocol that authenticated it. CONTENT_LENGTH is the declared body length; for a CGI program the CGI
+        handler replaces it with the number of bytes delivered on stdin, which is zero when an upload route parsed
+        the body into files.
+
+        This function is automatically called by the CGI handler before executing CGI scripts. The CGI handler
+        exports request variables under ME_GOAHEAD_CGI_VAR_PREFIX, and only those whose names are portable
+        environment names, so the environment holds one entry per name. On Windows, where environment names are
+        case-insensitive, names are compared case-insensitively.
     @param wp Webs request object representing the current HTTP request
     @see websSetFormVars websSetQueryVars
         @stability Stable
@@ -3447,9 +3974,11 @@ PUBLIC void websSetEnv(Webs *wp);
     @description This creates request variables if the request is a POST form (has a Content-Type of
         application/x-www-form-urlencoded). The POST body data is consumed from the input buffer.
     @param wp Webs request object
+    @return Zero if successful, otherwise -1 if the body has more than ME_GOAHEAD_LIMIT_PARAMS parameters,
+        in which case no variables are created from it
         @stability Stable
  */
-PUBLIC void websSetFormVars(Webs *wp);
+PUBLIC int websSetFormVars(Webs *wp);
 
 /**
     Define the host name for the server
@@ -3491,6 +4020,55 @@ PUBLIC void websSetHost(cchar *host);
 PUBLIC void websSetIpAddr(cchar *ipaddr);
 
 /**
+    Define the canonical host for redirects
+    @description Sets the host, with an optional port, that websRedirect uses to qualify a relative or
+        scheme-switching redirect target, and that CGI programs receive as SERVER_URL. Set it when clients
+        reach the server by a name or address other than its interface address, such as through NAT or a
+        reverse proxy. If not set, redirects name the address of the interface that accepted the connection.
+    @param url Host and optional port. Examples: "www.example.com", "www.example.com:8080", "[2001:db8::1]:8443"
+    @see websRedirect websGetServerUrl
+        @stability Evolving
+ */
+PUBLIC void websSetHostUrl(cchar *url);
+
+/**
+    Define the reverse proxies whose forwarded scheme is trusted
+    @description A request from one of these peer addresses takes its scheme from the right-most value of its
+        X-Forwarded-Proto header: "https" means the client reached the proxy over HTTPS, "http" that it did not.
+        That scheme decides the session cookie's secure attribute, Strict-Transport-Security, the scheme of
+        redirects, protocol= route matching, REQUEST_TRANSPORT, ME_GOAHEAD_SECURE_ONLY and the cross-site origin
+        check, through the WEBS_HTTPS request flag. A trusted proxy is also exempt from
+        ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP, which cannot see the clients behind it. Forwarded headers from any
+        other peer are ignored. The proxy must overwrite, not append to, X-Forwarded-Proto, and preserve Host, or
+        set websSetHostUrl. The default is ME_GOAHEAD_TRUSTED_PROXIES, which trusts none.
+    @param addresses Comma or space separated IP addresses, such as "127.0.0.1, ::1". Null or empty trusts none.
+    @see websSetHostUrl
+        @stability Evolving
+ */
+PUBLIC void websSetTrustedProxies(cchar *addresses);
+
+/**
+    Test if a request comes from the server's own site
+    @description Compares the Origin header with the client's scheme (see WEBS_HTTPS) and the host set by
+        websSetHostUrl, or else the request's Host. When Origin is absent, a Sec-Fetch-Site header other than
+        "same-origin" or "none" marks the request as cross-site. A request with neither header, from a non-browser
+        client, is treated as same-site. Only header values count, never query or form variables.
+        websRouteRequest applies it to every request other than GET and HEAD, unless the route has cross-site=allow.
+    @param wp Webs request object
+    @return True unless the request comes from another site
+        @stability Evolving
+ */
+PUBLIC bool websSameOrigin(Webs *wp);
+
+/**
+    Test if a peer address is a trusted proxy
+    @param ipaddr Peer IP address
+    @return True if websSetTrustedProxies named the address
+        @stability Evolving
+ */
+PUBLIC bool websIsTrustedProxy(cchar *ipaddr);
+
+/**
     Set the default index document filename
     @description Sets the default document that will be served when a client requests a directory
         (URL ending with "/"). This is commonly used to serve a default page like "index.html"
@@ -3523,10 +4101,12 @@ PUBLIC void websSetIndex(cchar *filename);
         Query variables are automatically URL-decoded, so "%20" becomes a space character, etc.
         This function is typically called automatically during request processing.
     @param wp Webs request object representing the current HTTP request
+    @return Zero if successful, otherwise -1 if the query has more than ME_GOAHEAD_LIMIT_PARAMS
+        parameters, in which case no variables are created from it
     @see websSetFormVars websGetVar websSetVar
         @stability Stable
  */
-PUBLIC void websSetQueryVars(Webs *wp);
+PUBLIC int websSetQueryVars(Webs *wp);
 
 /**
     Set the response HTTP status code
@@ -3573,7 +4153,7 @@ PUBLIC void websSetStatus(Webs *wp, int status);
     @see websWrite websWriteBlock websFlush
         @stability Stable
  */
-PUBLIC void websSetTxLength(Webs *wp, ssize length);
+PUBLIC void websSetTxLength(Webs *wp, Offset length);
 
 /**
     Set a request variable to a formatted string value
@@ -3610,6 +4190,21 @@ PUBLIC WebsKey *websSetVarFmt(Webs *wp, cchar *name, PRINTF_FORMAT cchar *fmt, .
 PUBLIC WebsKey *websSetVar(Webs *wp, cchar *name, cchar *value);
 
 /**
+    Set a request variable from a client parameter
+    @description Used for query parameters, form fields and multipart text fields. A repeated name joins the
+        earlier value with a space. A reserved name (the "HTTP_" header prefix and the upload variables) and a name
+        the server already set (a variable with an arg of zero) are refused, so a parameter never creates, replaces
+        or extends a header or server variable.
+    @param wp Webs request object
+    @param name Variable name
+    @param value Variable value
+    @param origin WEBS_VAR_QUERY or WEBS_VAR_BODY
+    @return The variable, or NULL if the name is refused
+        @internal
+ */
+PUBLIC WebsKey *websSetRequestVar(Webs *wp, cchar *name, cchar *value, int origin);
+
+/**
     Test if  a request variable is defined
     @param wp Webs request object
     @param name Variable name
@@ -3625,14 +4220,25 @@ PUBLIC bool websTestVar(Webs *wp, cchar *name);
         and the caller must unlink it and free the returned name when done. The directory must be outside
         every route's documents directory: temporary files hold live request data and are served to any
         client that can name them.
-    @param dir Directory to hold the temp file. Defaults to ME_GOAHEAD_TEMP_DIR (usually /tmp), or the
-        TEMP environment variable on Windows.
+    @param dir Directory to hold the temp file. Defaults to websGetTempDir.
     @param prefix Filename prefix
     @return An allocated filename string, or NULL if the file could not be created. Callers must fail the
         request rather than proceed with a NULL name.
         @stability Stable
  */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix);
+
+/**
+    Get the directory that holds temporary files
+    @description The directory is resolved once, on first use, to an absolute path: ME_GOAHEAD_TEMP_DIR when it is
+        not empty (usually /tmp), otherwise on Windows the system temporary directory from GetTempPath, which
+        honours the TMP and TEMP environment variables. It is used for CGI stdin and stdout, the authorization
+        file rewrite and, when ME_GOAHEAD_UPLOAD_DIR is empty, upload staging. websCheckTempDirs audits this
+        directory and requires it to exist.
+    @return The absolute directory path without a trailing separator. Do not free.
+        @stability Evolving
+ */
+PUBLIC cchar *websGetTempDir(void);
 
 /**
     Open the date/time parsing module
@@ -3672,6 +4278,38 @@ PUBLIC void websTimeClose(void);
         @stability Stable
  */
 PUBLIC int websParseDateTime(WebsTime *time, cchar *date, struct tm *defaults);
+
+/**
+    Parse an HTTP date
+    @description Parse a date in one of the three formats RFC 9110 permits on the wire, all of which are GMT:
+    \n\n
+        IMF-fixdate: Sun, 06 Nov 1994 08:49:37 GMT
+    \n\n
+        Obsolete RFC 850: Sunday, 06-Nov-94 08:49:37 GMT
+    \n\n
+        Obsolete asctime: Sun Nov  6 08:49:37 1994
+    \n\n
+    Anything else is rejected. Use this rather than websParseDateTime for a date received from a client. Unlike
+    websParseDateTime, which is deliberately tolerant and always yields some date, this reports failure so the caller
+    can ignore an invalid value as RFC 9110 requires.
+    @param time Reference to a WebsTime value which is set only when the date parses
+    @param date Date string to parse
+    @return Zero if successful, otherwise -1 with *time untouched
+    @ingroup Webs
+    @stability Evolving
+ */
+PUBLIC int websParseHttpDate(WebsTime *time, cchar *date);
+
+/**
+    Get the current time
+    @description Return the wall-clock time as 64 bit seconds since the epoch, independent of the platform time_t.
+    All session, Digest nonce, timeout and event arithmetic uses this one clock.
+    @return The time in seconds, or -1 if the platform clock fails or cannot represent the current time. Callers that
+    enforce an expiry must treat -1 as expired and refuse.
+    @ingroup Webs
+    @stability Evolving
+ */
+PUBLIC WebsTime websTime(void);
 
 /**
     Parse a URL into its components
@@ -3740,15 +4378,34 @@ PUBLIC bool websStatusHasNoBody(int code);
     Write a set of standard response headers
     @param wp Webs request object
     @param contentLength Value for the Content-Length header which describes the length of the response body
+        Set to -1 for an unknown length, which is sent chunked on HTTP/1.1. A HEAD response keeps the framing the
+        GET would have; a 1xx, 204 or 304 response is sent with no length and no chunked framing.
     @param redirect Value for the Location header which redirects the client to a new URL.
         @see websSetStatus
     @stability Stable
  */
-PUBLIC void websWriteHeaders(Webs *wp, ssize contentLength, cchar *redirect);
+PUBLIC void websWriteHeaders(Webs *wp, Offset contentLength, cchar *redirect);
+
+/**
+    Add a header to every response
+    @description The header is sent after the standard headers on every response the server writes, including errors
+        and redirects. Use it for browser security policies such as Content-Security-Policy, Referrer-Policy and
+        Permissions-Policy. Adding a header already added replaces its value. Headers GoAhead sends itself, such as
+        X-Frame-Options (ME_GOAHEAD_XFRAME_HEADER) and Strict-Transport-Security (ME_GOAHEAD_HSTS), are configured by
+        their own settings: adding one here sends it twice. The ME_GOAHEAD_RESPONSE_HEADERS build setting adds headers
+        when websOpen is called, so call this after websOpen to change them.
+    @param key Header name
+    @param value Header value. NULL removes the header.
+    @stability Evolving
+ */
+PUBLIC void websAddResponseHeader(cchar *key, cchar *value);
 
 /**
     Signify the end of the response headers
-    @description This call concludes the response headers and writes a blank line to the response.
+    @description This call concludes the response headers and writes a blank line to the response. If no
+        Content-Type header has been written, it first writes the default: text/html for an error page, else the
+        type of the request's extension, else application/octet-stream when the response has a body. A handler that
+        sets its own type writes it with websWriteHeader between websWriteHeaders and this call.
     @param wp Webs request object
         @stability Stable
  */
@@ -3759,14 +4416,35 @@ PUBLIC void websWriteEndHeaders(Webs *wp);
     @description This routine writes a response header. It should be invoked after calling websWriteHeaders
         to write the standard headers and before websWriteEndHeaders.
         This routine differs from websWrite in that it traces header values to the log.
+        The name and value are validated before anything is written and the line is written whole. A name that
+        is not a token, or a value holding a control character other than tab, writes nothing and returns -1.
     @param wp Webs request object
-    @param key Header key value
-    @param fmt Header value format string.
+    @param key Header key value. If null, the formatted value is written as a line of its own, such as the status
+        line.
+    @param fmt Header value format string. If null, the header is written with an empty value.
     @param ... Arguments to the format string.
     @return Zero if successful, otherwise -1.
         @stability Stable
  */
 PUBLIC int websWriteHeader(Webs *wp, cchar *key, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(3, 4);
+
+/**
+    Test if a string is a valid response header name
+    @description A header name must be an RFC 9110 token, less "%".
+    @param key Header name
+    @return True if websWriteHeader would accept the name
+    @internal
+ */
+PUBLIC bool websValidHeaderName(cchar *key);
+
+/**
+    Test if a string is a valid response header value
+    @description A header value must not contain a control character other than tab.
+    @param value Header value
+    @return True if websWriteHeader would accept the value
+    @internal
+ */
+PUBLIC bool websValidHeaderValue(cchar *value);
 
 /**
     Write formatted data to the response
@@ -3798,6 +4476,8 @@ PUBLIC ssize websWriteFile(int fd, cchar *buf, ssize size);
     Write a block of data to the response
     @description The data is buffered and will be sent to the client when the buffer is full or websFlush is
         called. This routine will never return "short", it will always write all the data unless there are errors.
+        Body bytes for a HEAD response, or a 1xx, 204 or 304 response, are discarded and reported written, as is the
+        output of websWrite, which calls this routine.
     @param wp Webs request object
     @param buf Buffer of data to write
     @param size Length of buf
@@ -3859,11 +4539,14 @@ PUBLIC bool websProcessCgiData(Webs *wp);
 PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block);
 
 /**
-    Encrypt a password using the Blowfish algorithm
+    Encrypt a password using the legacy WEBS_CRYPT_BLOWFISH construction.
+    @description This keys the Blowfish schedule with "salt:password" verbatim. The schedule consumes only
+        WEBS_BLOWFISH_KEY_WINDOW bytes, so material beyond that has no effect on the result. Retained so hashes
+        already deployed keep verifying; use websMakePassword to create new hashes.
     @param password User's password to encrypt
     @param salt Salt text to add to password. Helps to make each user's password unique.
     @param rounds Number of times to encrypt. More times, makes the routine slower and passwords harder to crack.
-    @return The encrypted password.
+    @return The encrypted password. Caller must free. Returns null if the password is too long.
         @stability Stable
  */
 PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds);
@@ -3878,16 +4561,23 @@ PUBLIC char *websMakeSalt(ssize size);
 
 /**
     Make a password hash for a plain-text password using the Blowfish algorithm.
+    @description New hashes are written in the WEBS_CRYPT_BLOWFISH2 format, which keys the Blowfish schedule with a
+        fixed-width digest of the password so that no length of input can push password material outside
+        WEBS_BLOWFISH_KEY_WINDOW.
     @param password User's password to encrypt
     @param saltLength Length of salt text to add to password. Helps to make each user's password unique.
     @param rounds Number of times to encrypt. More times, makes the routine slower and passwords harder to crack.
-    @return The encrypted password. Caller must free.
+    @return The encrypted password. Caller must free. Returns null if the password is too long, the salt cannot be
+        generated, or the requested salt length would not leave room for the digest.
         @stability Stable
  */
 PUBLIC char *websMakePassword(cchar *password, int saltLength, int rounds);
 
 /**
     Check a plain-text password against the defined hashed password.
+    @description Verification uses the construction named by the stored hash. A legacy WEBS_CRYPT_BLOWFISH hash whose
+        key material reaches WEBS_BLOWFISH_KEY_WINDOW is refused, because such a hash was stored without depending on
+        the whole of the password it claims to check.
     @param plainTextPassword User's plain-text-password to check
     @param passwordHash Required password in hashed format previously computed by websMakePassword.
     @return True if the password is correct.
@@ -3930,6 +4620,16 @@ PUBLIC int websDefineJst(cchar *name, WebsJstProc fn);
 
 /**
     Open the Javascript module.
+    @description Defines the template builtins: write(...) writes its arguments raw; writeHtml(...) writes them
+        HTML-escaped; escape(value) returns value HTML-escaped; escapeJs(value) returns it escaped for a JavaScript
+        string literal and escapeUri(value) returns it encoded as a URI, keeping the URI's own delimiters.
+        Any value from the request written into a page must go through the escaper for its context:
+        writeHtml or escape for HTML text and quoted attribute values; escapeJs inside a quoted JavaScript string in
+        a script block or a quoted on* attribute; escapeUri then writeHtml for a URL in a quoted attribute, after
+        checking that its scheme is one you allow. Always quote attribute values. Never write request data into an
+        unquoted attribute, a script outside a string, or a style.
+        Conditions in if, for, && and || are numeric: an empty value is false, a number is true when it is not
+        zero and any other value is an error.
     @return Zero if successful, otherwise -1.
         @stability Stable
  */
@@ -3937,6 +4637,8 @@ PUBLIC int websJstOpen(void);
 
 /**
     Write data to the response
+    @description Implements the template write(...) builtin. Arguments are written raw, separated by a space: use
+        writeHtml(...) for any value from the request.
     @param jid Javascript ID handle
     @param wp Webs request object
     @param argc Count of arguments
@@ -3954,55 +4656,111 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv);
     Default SSL settings
  */
 #ifndef ME_GOAHEAD_SSL_AUTHORITY
-    #define ME_GOAHEAD_SSL_AUTHORITY     ""
+    #define ME_GOAHEAD_SSL_AUTHORITY   ""
 #endif
 #ifndef ME_GOAHEAD_SSL_CACHE
-    #define ME_GOAHEAD_SSL_CACHE         512
+    #define ME_GOAHEAD_SSL_CACHE       512
 #endif
 #ifndef ME_GOAHEAD_SSL_CERTIFICATE
-    #define ME_GOAHEAD_SSL_CERTIFICATE   ""
+    #define ME_GOAHEAD_SSL_CERTIFICATE ""
 #endif
+/*
+    Default cipher list, in IANA names, used when ME_GOAHEAD_SSL_CIPHERS is empty. Both backends use it.
+    Modelled on the Mozilla server-side TLS recommendations. TLS 1.3 suites come first. For TLS 1.2 only forward
+    secret ECDHE suites are offered, AES256-GCM is preferred over its 128 bit variant and ChaCha20 on the
+    assumption of AES instructions, DHE is omitted as it is slow, and SHA1 MACs give way to SHA384 and SHA256.
+    ECDSA certificates with P256 are recommended, and RSA signatures are accepted for ECDSA certificates.
+ */
+#define ME_GOAHEAD_SSL_DEFAULT_CIPHERS \
+    "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:" \
+    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:" \
+    "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:" \
+    "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384:TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384:" \
+    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256:TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
+
 #ifndef ME_GOAHEAD_SSL_CIPHERS
+/*
+        Colon separated cipher list, empty for the default list ME_GOAHEAD_SSL_DEFAULT_CIPHERS. IANA names such
+        as TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 work on both backends, and OpenSSL also accepts its own names.
+        TLS 1.2 never uses static RSA, anonymous, null, export, DES, 3DES, RC4 or MD5 ciphers whatever the list
+        says: both backends drop them, and a list left with no cipher fails sslOpen.
+     */
     #define ME_GOAHEAD_SSL_CIPHERS       ""
 #endif
 #ifndef ME_GOAHEAD_SSL_KEY
+/*
+        PEM file of the server's private key. The key must be unencrypted: protect it with file permissions.
+        An encrypted key fails sslOpen.
+     */
     #define ME_GOAHEAD_SSL_KEY           ""
 #endif
 #ifndef ME_GOAHEAD_SSL_LOG_LEVEL
+/*
+        GoAhead log level from which MbedTLS debug output is traced. MbedTLS only: OpenSSL has no debug
+        trace to enable.
+     */
     #define ME_GOAHEAD_SSL_LOG_LEVEL     4
 #endif
-#ifndef ME_GOAHEAD_SSL_RENEGOTIATE
-    #define ME_GOAHEAD_SSL_RENEGOTIATE   1
-#endif
 #ifndef ME_GOAHEAD_SSL_REVOKE
+/*
+        PEM file of certificate revocation lists. Revocation is checked for every certificate in a
+        client's chain, so the file must hold a CRL from every CA in the chain: a CA without one fails
+        verification.
+     */
     #define ME_GOAHEAD_SSL_REVOKE        ""
 #endif
 #ifndef ME_GOAHEAD_SSL_TICKET
+/*
+        Resume sessions with tickets. Ignored when ME_GOAHEAD_SSL_VERIFY_PEER is on: a resumed session is
+        not verified again, so with client certificates required no session is resumed.
+     */
     #define ME_GOAHEAD_SSL_TICKET        1
 #endif
 #ifndef ME_GOAHEAD_SSL_TIMEOUT
+/*
+        Lifetime of a resumable session, in seconds
+     */
     #define ME_GOAHEAD_SSL_TIMEOUT       86400
 #endif
-#ifndef ME_GOAHEAD_SSL_VERIFY
-    #define ME_GOAHEAD_SSL_VERIFY        0
+#ifndef ME_GOAHEAD_SSL_VERIFY_DEPTH
+/*
+        Longest client certificate chain accepted, counted in certificates above the client's own
+     */
+    #define ME_GOAHEAD_SSL_VERIFY_DEPTH  10
 #endif
 #ifndef ME_GOAHEAD_SSL_VERIFY_ISSUER
+/*
+        Verify that a client certificate was issued by ME_GOAHEAD_SSL_AUTHORITY. Applies when
+        ME_GOAHEAD_SSL_VERIFY_PEER is on. When 0, any client certificate is accepted, including self-signed,
+        unknown-issuer and forged-issuer certificates, and revocation is not checked for them: the certificate
+        proves only that the client holds its private key and authenticates nothing. Expired, not-yet-valid
+        and malformed certificates and over-depth chains are still refused. ME_GOAHEAD_SSL_AUTHORITY and
+        ME_GOAHEAD_SSL_REVOKE take effect only when this is 1, and websOpen warns when they are set without it.
+     */
     #define ME_GOAHEAD_SSL_VERIFY_ISSUER 0
 #endif
-#ifndef ME_GOAHEAD_SSL_NO_V1_1
-    #define ME_GOAHEAD_SSL_NO_V1_1       1
-#endif
+/*
+    Protocol versions. TLS 1.1 and earlier are never offered, and renegotiation is always refused, on both
+    backends.
+ */
 #ifndef ME_GOAHEAD_SSL_NO_V1_2
     #define ME_GOAHEAD_SSL_NO_V1_2       1
 #endif
 #ifndef ME_GOAHEAD_SSL_NO_V1_3
     #define ME_GOAHEAD_SSL_NO_V1_3       0
 #endif
+#if ME_GOAHEAD_SSL_NO_V1_2 && ME_GOAHEAD_SSL_NO_V1_3
+    #error "ME_GOAHEAD_SSL_NO_V1_2 and ME_GOAHEAD_SSL_NO_V1_3 disable every TLS version"
+#endif
 #ifndef ME_GOAHEAD_SSL_HANDSHAKES
-    #define ME_GOAHEAD_SSL_HANDSHAKES    3
+/*
+        Most handshakes a connection may make. OpenSSL only, for versions that cannot refuse renegotiation
+        outright. MbedTLS never renegotiates.
+     */
+    #define ME_GOAHEAD_SSL_HANDSHAKES  3
 #endif
 #ifndef ME_GOAHEAD_SSL_VERIFY_PEER
-    #define ME_GOAHEAD_SSL_VERIFY_PEER   0
+    #define ME_GOAHEAD_SSL_VERIFY_PEER 0
 #endif
 
 
@@ -4018,6 +4776,14 @@ PUBLIC int sslOpen(void);
         @stability Stable
  */
 PUBLIC void sslClose(void);
+
+/**
+    Test whether a server certificate and private key are loaded
+    @description websListen refuses a secure endpoint without them.
+    @return True if sslOpen loaded both a certificate and its private key.
+        @stability Prototype
+ */
+PUBLIC bool sslHasCertificate(void);
 
 /**
     Override the server SSL certificate path at runtime.
@@ -4039,6 +4805,8 @@ PUBLIC void websSetSslKeyFile(cchar *path);
 
 /**
     Free a ssl connection associated with a request
+    @description Sends a TLS close_notify alert to the peer first, unless the handshake did not finish or the
+        connection has failed or seen end of file.
     @param wp Webs request object
         @stability Stable
  */
@@ -4064,7 +4832,9 @@ PUBLIC int sslUpgrade(Webs *wp);
 PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len);
 
 /**
-    WRite data to a secure socket
+    Write data to a secure socket
+    @description The write fails, and the connection is marked closed, if the TLS handshake has not completed.
+        A write never continues the handshake.
     @param wp Webs request object
     @param buf Buffer from which to write data
     @param len Size of buf
@@ -4114,9 +4884,35 @@ typedef struct WebsRoute {
     WebsHash methods;                       /**< Supported HTTP methods */
     WebsAskLogin askLogin;                  /**< Route path prefix */
     WebsParseAuth parseAuth;                /**< Parse authentication details callback*/
-    WebsVerify verify;                      /**< Verify password callback */
-    int flags;                              /**< Route control flags */
+    WebsVerify verify;                      /**< Verify password callback. Zero uses the password store verifier */
+    int flags;                              /**< Route control flags: WEBS_ROUTE_UPLOAD, WEBS_ROUTE_CROSS_SITE */
 } WebsRoute;
+
+/**
+    Route flag: the route accepts multipart/form-data uploads
+    @description A multipart request is parsed as an upload only when the route selected for it has this flag, set
+        by upload=true in the route file. Selection runs the route's authentication first, so an upload is parsed
+        only after the request is authorized. A CGI route without the flag passes the multipart body to the program
+        unparsed, and any other route refuses it with 415.
+ */
+#define WEBS_ROUTE_UPLOAD     0x100
+
+/**
+    Route flag: the route accepts state-changing requests from another site
+    @description Set by cross-site=allow in the route file. Without it, websRouteRequest refuses with 403 any request
+        other than GET and HEAD whose Origin, or Sec-Fetch-Site when Origin is absent, names another site. Use it
+        only for a route that must accept a form post from another origin, such as an identity provider callback.
+        Every route the request matches is checked, so no earlier route that matches it may lack the flag. On a
+        login route it removes login CSRF protection.
+ */
+#define WEBS_ROUTE_CROSS_SITE 0x200
+
+/**
+    Route flag: the route was removed while requests still held it
+    @description Set by #websRemoveRoute on a route that an in-flight request is using. The route is no longer
+        selectable and is freed when its last request ends.
+ */
+#define WEBS_ROUTE_REMOVED    0x400
 
 /**
     Add a route to the routing tables
@@ -4137,24 +4933,68 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos);
         denied, so any spelling the file system folds to a protected name - ASCII case, Unicode normalization,
         Unicode case, Win32 trailing dot or space - misses the strict route and is served by the permissive one.
         Rejecting the shadowing configuration closes every such folding axis at once because the check never
-        reasons about folding.
-        This routine is called automatically by websOpen() after the route configuration file is loaded. Embedded
-        applications that add routes programmatically should call it again once their routes are defined.
-    @return The number of problems found. Zero means the route table declares a sound authentication boundary.
+        reasons about folding. Also warn for each authenticated route that an earlier unauthenticated route serving
+        content claims the requests of, such as a catch-all placed first, and for each unauthenticated route that
+        runs every action, template or CGI program under its prefix and comes before an authenticated route
+        covering it, since both take those requests before they can be protected. Also warn for each later
+        unauthenticated route nested under an authenticated route's prefix that accepts a method, protocol or
+        extension the authenticated route declines, since those requests reach it without credentials. HEAD
+        follows GET in methods=. A handler=continue gate serves nothing, so its dir= does not narrow what it
+        protects.
+        When ME_GOAHEAD_CASE_INSENSITIVE_FS is 0, also report the documents directory and each route dir= whose
+        file system ignores letter case, since a request spelled in another case then misses its route and the
+        same file is served by a broader one. A build with ME_GOAHEAD_AUTH=0 cannot authenticate, so it warns that
+        every route is served to unauthenticated clients, naming the first route that runs code or accepts writes,
+        and counts no authentication problem.
+        This routine is called automatically by the first websListen(), after every configuration file is loaded
+        and before the server accepts a request. Routes added after the first websListen() are not checked.
+    @return The number of problems found. Zero means no route can be bypassed. A table with no authenticated route
+        is warned about but not counted, as it has no authentication boundary to bypass.
     @stability Evolving
  */
 PUBLIC int websCheckRoutes(void);
 
 /**
+    Test if an action route runs the named action
+    @description A route whose prefix names an action in its second segment, such as "/action/login", runs only that
+        action. A route whose prefix names none, such as "/action", runs only the actions that no action route names.
+        The action handler declines any other action, so the request goes on to the routes after it.
+    @param route Action route
+    @param name Action name
+    @return True if the route runs the action
+    @internal
+ */
+PUBLIC bool websRouteServesAction(WebsRoute *route, cchar *name);
+
+/**
+    Set strict mode
+    @description In strict mode the first websListen refuses to start the server when websCheckRoutes reports a
+        problem with the route table, instead of only warning. The table is checked then, once every route file and
+        programmatically added route is in place. The default is ME_GOAHEAD_STRICT, which is on unless the build sets
+        it to 0. Call this before the first websListen.
+    @param on True to refuse an unsafe route table
+    @stability Evolving
+ */
+PUBLIC void websSetStrict(bool on);
+
+/**
+    Test whether strict mode is on
+    @return True if the first websListen refuses an unsafe route table. See websSetStrict.
+    @stability Evolving
+ */
+PUBLIC bool websGetStrict(void);
+
+/**
     Audit the temporary directories against the served directories
-    @description Verify that no directory used to stage request data - ME_GOAHEAD_TEMP_DIR for CGI stdin and
-        stdout, ME_GOAHEAD_UPLOAD_DIR for upload staging, ME_GOAHEAD_PUT_DIR for PUT staging - names a
-        route's documents directory or a location inside one. A temporary file inside a served directory is
+    @description Verify that no directory used to stage request data - the resolved temporary directory
+        (websGetTempDir) for CGI stdin and stdout and for upload staging when ME_GOAHEAD_UPLOAD_DIR is empty,
+        ME_GOAHEAD_UPLOAD_DIR for upload staging, ME_GOAHEAD_PUT_DIR for PUT staging - names a
+        route's documents directory or a location inside one. The temporary directory must also exist and be a
+        directory. A temporary file inside a served directory is
         fetchable over HTTP, so one client's in-flight request body or CGI response is readable by another.
         Emits an error naming the setting for each such directory.
-        This routine is called automatically by websOpen() after the route configuration file is loaded, and
-        websOpen() refuses to start the server if it reports a problem. Embedded applications that add routes
-        programmatically should call it again once their routes are defined.
+        This routine is called automatically by the first websListen(), after every configuration file is loaded,
+        and websListen() refuses to start the server if it reports a problem.
     @return The number of problems found. Zero means no request data is staged inside a served directory.
     @stability Evolving
  */
@@ -4187,6 +5027,17 @@ PUBLIC void websCloseRoute(void);
 PUBLIC int websLoad(cchar *path);
 
 /**
+    Test if a request method is known
+    @description Methods are case-sensitive. The known methods are GET, HEAD, POST, PUT, DELETE, OPTIONS and TRACE,
+        and every method a route names in methods=. A request for any other method, including a different spelling
+        such as "head", is refused with 501 before its headers are read.
+    @param method Request method
+    @return True if the method is known.
+        @stability Evolving
+ */
+PUBLIC bool websKnownMethod(cchar *method);
+
+/**
     Open the routing module
         @stability Stable
  */
@@ -4194,6 +5045,8 @@ PUBLIC int websOpenRoute(void);
 
 /**
     Remove a route from the routing tables
+    @description The route is unlinked at once, so no new request selects it. A request already routed to it
+        finishes on that route, which is freed when the last such request ends.
     @param uri Matching URI prefix
     @return Zero if successful, otherwise -1.
         @stability Stable
@@ -4201,10 +5054,29 @@ PUBLIC int websOpenRoute(void);
 PUBLIC int websRemoveRoute(cchar *uri);
 
 /**
+    Free removed routes that no request holds
+    @description Called when a request ends. Frees each route retired by #websRemoveRoute that has no holders.
+        @internal
+ */
+PUBLIC void websReapRoutes(void);
+
+/**
+    Count the open requests whose selected route is a given route
+    @param route Route to count holders of
+    @return The number of requests with wp->route equal to route
+        @internal
+ */
+PUBLIC int websRouteHolders(WebsRoute *route);
+
+/**
     Route a request
-    @description This routine will select a matching route and will invoke the selected route handler to service
-        the request. In the process, authentication and request rewriting may take place.
-        This routine is called internally by the request pipeline.
+    @description Selects the route for the request. Routes are tried in table order; for each route whose prefix
+        and selectors match, the route's authentication and abilities are checked and then its handler's match
+        procedure is called. A route without a methods selector serves only GET, HEAD and POST, but its
+        authentication and abilities are checked for every method. On a refusal or when no route matches, this
+        routine writes the error response. It does not service the request: websRunRequest runs the selected
+        handler. A handler match procedure may rewrite the request. This routine is called internally by the
+        request pipeline.
     @param wp Webs request object
         @stability Stable
  */
@@ -4225,10 +5097,14 @@ PUBLIC bool websRunRequest(Webs *wp);
     Configure a route by adding matching criteria
     @param route Route to modify
     @param dir Set the route documents directory filename
-    @param protocol Set the matching HTTP protocol (http or https)
-    @param methods Hash of permissible HTTP methods. (GET, HEAD, POST, PUT)
-    @param extensions Hash of permissible URI filename extensions.
-    @param abilities Required user abilities. If abilities are required, the user must be authenticated.
+    @param protocol Set the matching HTTP protocol: "http" or "https". Any other value is an error.
+    @param methods Hash of permissible HTTP methods in upper case (GET, HEAD, POST, PUT). A method holding a lower-case
+        letter never matches and is an error.
+    @param extensions Hash of permissible URI filename extensions in lower case without the leading dot ("jst"). An
+        extension holding an upper-case letter or a leading dot never matches and is an error.
+    @param abilities Required user abilities. If abilities are required, the user must be authenticated. A key
+        holding "|" separated abilities is satisfied by any one of them. An empty set is no requirement: it is freed
+        and the route has none.
         Requiring abilities in a build configured with ME_GOAHEAD_AUTH=0 is an error: that build compiles
         out the authorization gate and could only record the requirement, never enforce it.
     @param redirects Set of applicable response redirections when completing the request.
@@ -4298,17 +5174,15 @@ PUBLIC WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles);
 
 /**
     Authenticate a user for the current request
-    @description Performs user authentication based on the requirements of the selected request route.
-        The authentication process includes:
-        - Checking if the route requires authentication
-        - Validating credentials (Basic, Digest, or Form authentication)
-        - Verifying user roles and permissions
-        - Setting authentication state for the request
-
-        If authentication fails, appropriate HTTP status codes are set (401 Unauthorized).
-        For routes that don't require authentication, this function returns true immediately.
+    @description Authenticates the request using the authentication type of the selected route (Basic, Digest
+        or Form). It checks credentials only: the route's abilities are checked separately, with websCan, by
+        websRouteRequest. A request with an unsafe method whose Origin names another site is refused with 403.
+        On failure this routine writes the response itself: 403, 401 with a challenge, or the route's login
+        redirect. It returns true at once when no route is selected, the route has no authentication type, or
+        the server is built with ME_GOAHEAD_AUTO_LOGIN.
     @param wp Webs request object representing the current HTTP request
-    @return True if authentication is not required or user is authenticated successfully, false otherwise
+    @return True if authentication is not required or the user is authenticated, false if the request was
+        refused and a response written
         @stability Stable
  */
 PUBLIC bool websAuthenticate(Webs *wp);
@@ -4316,7 +5190,8 @@ PUBLIC bool websAuthenticate(Webs *wp);
 /**
     Test if a user possesses the required ability
     @param wp Webs request object
-    @param ability Set of required abilities.
+    @param ability Set of required abilities. Each key is required; a key holding "|" separated abilities is
+        satisfied by any one of them.
     @return True if the user has the required ability.
         @stability Stable
  */
@@ -4334,9 +5209,21 @@ PUBLIC void websCloseAuth(void);
  */
 PUBLIC void websComputeAllUserAbilities(void);
 
+#if ME_GOAHEAD_DIGEST
 /**
-    Set the password store verify callback
-    @return verify WebsVerify callback function
+    Record a Digest request's nonce count once the request is authorized
+    @description A later request presenting the same nonce must use a higher count. Called by websRouteRequest
+        after a route's authentication and abilities checks pass, so a refused request records nothing. A no-op
+        unless the request was authenticated by Digest.
+    @param wp Webs request object
+    @internal
+ */
+PUBLIC void websAcceptDigestCount(Webs *wp);
+#endif
+
+/**
+    Get the password store verify callback
+    @return verify WebsVerify callback function, or null before websOpenAuth when none has been set
         @stability Stable
  */
 PUBLIC WebsVerify websGetPasswordStoreVerify(void);
@@ -4357,17 +5244,39 @@ PUBLIC WebsHash websGetUsers(void);
 
 /**
     Login a user by verifying the login credentials.
-    @description This may be called by handlers to manually authenticate a user.
-    @param wp Webs request object
+    @description This may be called by handlers to manually authenticate a user, using the password verifier of
+        the selected route. On success the session is rotated: a new session ID is issued, the previous session
+        and its variables are discarded, and the new session records the username with form authentication.
+        Values returned earlier in the request by websGetSessionVar remain valid until the request ends.
+    @param wp Webs request object. A route must be selected.
     @param username User name
-    @param password User password (encrypted)
-    @return True if the user can be authenticated.
+    @param password User password in plain text
+    @return True if the user can be authenticated and a session was created.
         @stability Stable
  */
 PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password);
 
+#if ME_GOAHEAD_LOGGING
+/**
+    Log an authentication outcome
+    @description Writes one line naming the outcome, the claimed user name (truncated, and escaped like all log
+        output), the client address, the route and the authentication scheme. Failures and form logins and logouts
+        are logged at level 0. Per-request Basic and Digest successes are logged at level 2. The line is written by
+        logmsg, so it survives ME_GOAHEAD_TRACING=0; ME_GOAHEAD_LOGGING=0 removes it.
+    @param wp Webs request object
+    @param level Log level of the line
+    @param outcome Short outcome such as "failed", "refused" or "succeeded"
+    @param reason Why, or null
+    @internal
+ */
+PUBLIC void websLogAuth(Webs *wp, int level, cchar *outcome, cchar *reason);
+#else
+    #define websLogAuth(wp, level, outcome, reason) if (1); else { }
+#endif
+
 /**
     Logout a user and remove the user login session.
+    @description Values returned earlier in the request by websGetSessionVar remain valid until the request ends.
     @param wp Webs request object
     @return True if successful.
         @stability Stable
@@ -4392,11 +5301,22 @@ PUBLIC int websRemoveRole(cchar *role);
 
 /**
     Remove a user from the system
+    @description A request that authenticated as the user drops its reference, so a later check for it finds no
+        such user and is refused.
     @param name User name
     @return Zero if successful, otherwise -1
         @stability Stable
  */
 PUBLIC int websRemoveUser(cchar *name);
+
+/**
+    Drop every request's reference to a user record
+    @description A request resolves its user once and keeps the record. websRemoveUser calls this before freeing the
+        record, so no request is left holding it. The next check looks the name up again.
+    @param user User record about to be freed
+    @internal
+ */
+PUBLIC void websReleaseUser(struct WebsUser *user);
 
 /**
     Open the authentication module
@@ -4410,6 +5330,9 @@ PUBLIC int websOpenAuth(int minimal);
 
 /**
     Set the password store verify callback
+    @description The verifier applies at once to every route that has not set its own verify callback, including
+        routes already loaded. It may be called before or after websOpen: one set before is kept in place of the
+        ME_GOAHEAD_AUTH_STORE default.
     @param verify WebsVerify callback function
         @stability Stable
  */
@@ -4471,14 +5394,18 @@ typedef struct WebsSession {
     int retired;                            /**< Session removed from the session store, awaiting its last holder */
     WebsTime expires;                       /**< When the session expires */
     WebsHash cache;                         /**< Cache of session variables */
+    int64 used;                             /**< Order of the session's last use, for least recently used eviction */
 } WebsSession;
 
 /**
-    Test if a user possesses the required ability
+    Allocate a session and add it to the session store
+    @description The session counts toward ME_GOAHEAD_LIMIT_SESSION_COUNT from the moment it is stored
+        until it is destroyed or expires.
     @param wp Webs request object
     @param id Session ID to use. Set to null to allocate a new session ID.
     @param lifespan Lifespan of the session in seconds.
-    @return Allocated session object
+    @return Allocated session object, or zero if the session limit is reached or the session cannot be
+        created
         @stability Stable
  */
 PUBLIC WebsSession *websAllocSession(Webs *wp, cchar *id, int lifespan);
@@ -4497,7 +5424,9 @@ PUBLIC WebsSession *websCreateSession(Webs *wp);
 
 /**
     Destroy the webs session object
-    @description Useful to be called as part of the user logout process
+    @description Useful to be called as part of the user logout process. The session is removed at once, so no
+        later request can use it, but this request holds it until it ends: values returned earlier in the request by
+        websGetSessionVar remain valid until then.
     @param wp Webs request object
         @stability Stable
  */
@@ -4505,14 +5434,17 @@ PUBLIC void websDestroySession(Webs *wp);
 
 /**
     Get the session ID
+    @description Returns an allocated copy on every path, whether the session is already resolved on
+        the request or the id is parsed from the request cookie.
     @param wp Webs request object
-    @return The session ID if session state storage is defined for this request. Caller must free.
+    @return The session ID if session state storage is defined for this request, else null. Caller must free.
         @stability Stable
  */
 PUBLIC char *websGetSessionID(Webs *wp);
 
 /**
     Get the session state object for the current request
+    @description A session presented after its expiry is destroyed and treated as absent.
     @param wp Webs request object
     @param create Set to true to create a new session if one does not already exist.
     @return Session object
@@ -4524,6 +5456,10 @@ PUBLIC WebsSession *websGetSession(Webs *wp, int create);
     Get a session variable
     @description This does not create a session. If the request has no session, the default value is
         returned. Use websSetSessionVar or websCreateSession to establish a session.
+        The value is owned by the session. It remains valid until the request ends, including across
+        websLoginUser, websLogoutUser, websRotateSession, websCreateSession and websDestroySession, but not
+        across websSetSessionVar or websRemoveSessionVar of the same name, nor across a second rotation or
+        destruction of the session in the same request. Clone it to keep it longer.
     @param wp Webs request object
     @param name Session variable name
     @param defaultValue Default value to return if the variable does not exist
@@ -4545,7 +5481,8 @@ PUBLIC void websRemoveSessionVar(Webs *wp, cchar *name);
     Rotate the session id at a privilege transition
     @description Destroys the session bound to the request and creates a new session with a fresh,
         server-generated id, issuing a new session cookie. Session variables held by the old session
-        are discarded: they were established while the request was unauthenticated.
+        are discarded: they were established while the request was unauthenticated. Values returned earlier in
+        the request by websGetSessionVar remain valid until the request ends.
         Call this whenever a request transitions from unauthenticated to authenticated. Do not use
         websGetSession(wp, 1) for that purpose: it returns the session named by the client's cookie
         if that session is live, which stores the authenticated identity in a session the client
@@ -4557,6 +5494,19 @@ PUBLIC void websRemoveSessionVar(Webs *wp, cchar *name);
         @stability Evolving
  */
 PUBLIC WebsSession *websRotateSession(Webs *wp);
+
+/**
+    Bind an authenticated user to a new session
+    @description Rotates the session as websRotateSession does and records wp->username and the authentication
+        protocol in it. When the user already holds ME_GOAHEAD_LIMIT_SESSION_USER sessions, the least recently used
+        of them are retired first, so one account cannot fill the session table and lock other users out.
+    @param wp Webs request object, with wp->username set to the authenticated user
+    @param authType Authentication protocol: "basic", "digest" or "form"
+    @return The new session, or zero if a session cannot be created
+    @see websRotateSession websLoginUser websAuthenticate
+        @internal
+ */
+PUBLIC WebsSession *websLoginSession(Webs *wp, cchar *authType);
 
 /**
     Set a session variable name value
@@ -4578,10 +5528,8 @@ PUBLIC int websSetSessionVar(Webs *wp, cchar *name, cchar *value);
 
 /************************************ Legacy **********************************/
 /*
-    Legacy mappings for pre GoAhead 3.X applications
-    This is a list of the name changes from GoAhead 2.X to GoAhead 3.x
-    To maximize forward compatibility, It is best to not use ME_GOAHEAD_LEGACY except as
-    a transitional compilation aid.
+    Compatibility mappings for pre-3.x applications. Legacy action callbacks receive only the URL query; use
+    websGetVar for form variables.
  */
 #if ME_GOAHEAD_LEGACY
     #define B_L                0
@@ -4734,7 +5682,6 @@ typedef Webs websType;
 typedef WebsBuf ringq_t;
 typedef WebsError websErrorType;
 typedef WebsProc WebsFormProc;
-typedef int (*WebsLegacyHandlerProc)(Webs *wp, char *prefix, char *dir, int flags);
 typedef SocketHandler socketHandler_t;
 typedef SocketAccept socketAccept_t;
 typedef WebsType vtype_t;
@@ -4769,7 +5716,7 @@ typedef WebsRomIndex websRomIndexType;
 #endif /* _h_GOAHEAD */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

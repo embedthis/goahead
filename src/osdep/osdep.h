@@ -26,6 +26,14 @@
 #ifndef ME_ROM
     #define ME_ROM 0                    /**< Build for execute from ROM */
 #endif
+/*
+    Always defined, so that code may test it as a value and not only in a preprocessor condition.
+    Release configurations define nothing at all, which made "ME_DEBUG ? a : b" an undeclared
+    identifier and broke every release build.
+ */
+#ifndef ME_DEBUG
+    #define ME_DEBUG 0                  /**< Build with debug symbols and assertions */
+#endif
 
 /**
     @section CPU Architecture Detection
@@ -208,14 +216,14 @@
     #define ME_CPU_ARCH ME_CPU_ITANIUM
     #define CPU_ENDIAN ME_LITTLE_ENDIAN
 
-#elif defined(__mips__)
-    #define ME_CPU "mips"
-    #define ME_CPU_ARCH ME_CPU_MIPS
-    #define CPU_ENDIAN ME_BIG_ENDIAN
-
 #elif defined(__mips64)
     #define ME_CPU "mips64"
     #define ME_CPU_ARCH ME_CPU_MIPS64
+    #define CPU_ENDIAN ME_BIG_ENDIAN
+
+#elif defined(__mips__)
+    #define ME_CPU "mips"
+    #define ME_CPU_ARCH ME_CPU_MIPS
     #define CPU_ENDIAN ME_BIG_ENDIAN
 
 #elif defined(__ppc64__) || defined(__powerpc64__)
@@ -260,6 +268,17 @@
     #define CPU_ENDIAN ME_LITTLE_ENDIAN
 #else
     #error "Cannot determine CPU type in osdep.h"
+#endif
+
+/* Prefer compiler-reported byte order for bi-endian CPUs. */
+#if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && defined(__ORDER_LITTLE_ENDIAN__)
+    #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        #undef CPU_ENDIAN
+        #define CPU_ENDIAN ME_BIG_ENDIAN
+    #elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        #undef CPU_ENDIAN
+        #define CPU_ENDIAN ME_LITTLE_ENDIAN
+    #endif
 #endif
 
 /*
@@ -887,21 +906,23 @@
 
 /**
     @section Word Size Detection
-
-    Automatic detection of the target platform's word size (32-bit or 64-bit) based on compiler-defined
-    preprocessor symbols. This sets ME_64 and ME_WORDSIZE macros used throughout the codebase for
-    size-dependent operations and pointer arithmetic.
-*/
-#if __WORDSIZE == 64 || __amd64 || __x86_64 || __x86_64__ || _WIN64 || __mips64 || __arch64__ || __arm64__ || __aarch64__
+    Set ME_64 and ME_WORDSIZE from pointer width, including ILP32 ABIs on 64-bit CPUs. Prefer __SIZEOF_POINTER__,
+    then architecture and data-model macros.
+ */
+#if (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8) || \
+        (!defined(__SIZEOF_POINTER__) && !defined(__ILP32__) && !defined(_ILP32) && \
+        ((defined(__WORDSIZE) && __WORDSIZE == 64) || defined(_WIN64) || defined(__LP64__) || defined(_LP64) || \
+        defined(__amd64) || defined(__x86_64) || defined(__x86_64__) || defined(__mips64) || defined(__arch64__) || \
+        defined(__arm64__) || defined(__aarch64__)))
     /**
         64-bit platform indicator.
-        @description Set to 1 on 64-bit platforms, 0 on 32-bit platforms.
+        @description Set to 1 when pointers are 64 bits wide, 0 when they are 32 bits wide.
         @stability Stable
     */
     #define ME_64 1
     /**
         Platform word size in bits.
-        @description Set to 64 on 64-bit platforms, 32 on 32-bit platforms.
+        @description Set to 64 on platforms with 64-bit pointers, 32 on platforms with 32-bit pointers.
         @stability Stable
     */
     #define ME_WORDSIZE 64
@@ -1001,9 +1022,19 @@
     #define _GNU_SOURCE 1
     #define __USE_XOPEN 1
     #if !ME_64
+        /*
+            Enable 64-bit off_t before system headers unless explicitly configured. Bionic below API 24 retains its
+            default; _TIME_BITS=64 also requires this setting.
+         */
         #define _LARGEFILE64_SOURCE 1
-        #ifdef __USE_FILE_OFFSET64
+        #if !defined(_FILE_OFFSET_BITS) && !(defined(__ANDROID__) && __ANDROID_API__ < 24)
             #define _FILE_OFFSET_BITS 64
+        #endif
+        /*
+            Request 64-bit time_t and off_t unless overridden. Older libcs ignore _TIME_BITS; 32-bit Bionic lacks 64-bit time_t.
+         */
+        #if !defined(_TIME_BITS) && defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64 && !defined(__ANDROID__)
+            #define _TIME_BITS 64
         #endif
     #endif
 #endif
@@ -1029,7 +1060,7 @@
     #include    <windows.h>
     #include    <shlobj.h>
     #include    <malloc.h>
-    #if _MSC_VER >= 1800
+    #if _MSC_VER >= 1800 || __STDC_VERSION__ >= 199901L
         #include    <stdbool.h>
     #endif
     #if ME_DEBUG
@@ -1286,8 +1317,7 @@
                 compatibility with systems lacking native bool support. Should be used with true/false constants.
                 @stability Stable
              */
-            #if !WINDOWS || ((_MSC_VER < 1800) && !defined(bool))
-                /* Bool introduced via stdbool in VS 2015 */
+            #if !defined(__bool_true_false_are_defined) && !defined(bool) && !(__STDC_VERSION__ >= 202311L)
                 typedef char bool;
             #endif
         #endif
@@ -1368,7 +1398,7 @@
         @description Guaranteed 8-bit signed integer (-128 to 127) for precise byte-level operations.
         @stability Stable
      */
-    typedef char int8;
+    typedef signed char int8;
 #endif
 
 #ifndef HAS_UINT8
@@ -1709,10 +1739,16 @@ typedef int64 Ticks;
 
 #if ME_WIN_LIKE
     /*
-        Use PUBLIC on function declarations and definitions (*.c and *.h).
+        Use PUBLIC on declarations and definitions. DLL consumers define ME_DLL_IMPORT for correct function
+        addresses and data access.
      */
-    #define PUBLIC      __declspec(dllexport)
-    #define PUBLIC_DATA __declspec(dllexport)
+    #if ME_DLL_IMPORT
+        #define PUBLIC      __declspec(dllimport)
+        #define PUBLIC_DATA __declspec(dllimport)
+    #else
+        #define PUBLIC      __declspec(dllexport)
+        #define PUBLIC_DATA __declspec(dllexport)
+    #endif
     #define PRIVATE     static
 #else
     #define PUBLIC
@@ -1755,11 +1791,8 @@ typedef int64 Ticks;
 */
 
 /*
-    A printf-style declaration needs both of the macros below: PRINTF_ATTRIBUTE after the parameter
-    list for GCC and Clang, and PRINTF_FORMAT before the format parameter for MSVC. The two
-    compilers take the same information in different syntactic positions, so neither macro alone
-    checks every toolchain. Omitting either one silently disables format checking for that
-    declaration on that toolchain.
+    Use PRINTF_ATTRIBUTE after the parameter list for GCC/Clang and PRINTF_FORMAT before the format argument for
+    MSVC. Both are required for cross-toolchain checks.
  */
 #ifndef PRINTF_ATTRIBUTE
     #if (((__GNUC__ >= 3) || defined(__clang__)) && !DOXYGEN) || MACOSX
@@ -1794,6 +1827,67 @@ typedef int64 Ticks;
         #define PRINTF_FORMAT _Printf_format_string_
     #else
         #define PRINTF_FORMAT
+    #endif
+#endif
+
+#ifndef ME_MALLOC_ATTRIBUTE
+    #if (__GNUC__ >= 4) || defined(__clang__)
+        /**
+            Allocator return attribute.
+            @description Place after the declaration of a function that returns a newly allocated block that does
+            not alias any other pointer. Lets GCC and Clang assume the result does not alias existing memory and
+            improves the optimizer's alias and leak analysis. Expands to nothing on other compilers.
+            @stability Evolving
+         */
+        #define ME_MALLOC_ATTRIBUTE __attribute__((malloc))
+    #else
+        #define ME_MALLOC_ATTRIBUTE
+    #endif
+#endif
+
+#ifndef ME_ALLOC_SIZE
+    #if (__GNUC__ >= 4) || defined(__clang__)
+        /**
+            Allocator size attribute.
+            @description Place after the declaration of an allocator to name the parameter that gives the size in
+            bytes of the returned block. Lets GCC and Clang compute the object size of the result, so that
+            _FORTIFY_SOURCE and -Wstringop-overflow diagnose copies that overrun an allocation. Expands to nothing
+            on other compilers.
+            @param n 1-based index of the size parameter
+            @stability Evolving
+         */
+        #define ME_ALLOC_SIZE(n) __attribute__((alloc_size(n)))
+    #else
+        #define ME_ALLOC_SIZE(n)
+    #endif
+#endif
+
+#ifndef ME_NO_SANITIZE_WRAP
+    #if defined(__clang__) && defined(__has_attribute)
+        /*
+            The unsigned-shift-base sanitizer group needs clang 12. Apple numbers its clang releases differently,
+            and Apple clang 13 is the first based on LLVM 12.
+         */
+        #if defined(__apple_build_version__)
+            #define ME_HAS_SANITIZE_WRAP (__clang_major__ >= 13)
+        #else
+            #define ME_HAS_SANITIZE_WRAP (__clang_major__ >= 12)
+        #endif
+        #if ME_HAS_SANITIZE_WRAP && __has_attribute(no_sanitize)
+            /**
+                Intentional unsigned wraparound attribute.
+                @description Place on a function that depends on unsigned arithmetic wrapping modulo 2^N, such as
+                a hash or checksum, so that clang's unsigned-integer-overflow and unsigned-shift-base sanitizers do
+                not report it. Expands to nothing on GCC, which has no such sanitizers, and on older Clang.
+                @stability Evolving
+             */
+            #define ME_NO_SANITIZE_WRAP __attribute__((no_sanitize("unsigned-integer-overflow", "unsigned-shift-base")))
+        #else
+            #define ME_NO_SANITIZE_WRAP
+        #endif
+        #undef ME_HAS_SANITIZE_WRAP
+    #else
+        #define ME_NO_SANITIZE_WRAP
     #endif
 #endif
 
@@ -1953,10 +2047,15 @@ typedef int64 Ticks;
         /**
             Maximum filename length for desktop/server systems.
             @description Generous filename size limit for desktop and server environments where
-            memory is less constrained and longer filenames are common.
+            memory is less constrained and longer filenames are common. On Windows it is 280, which holds a
+            MAX_PATH (260) path with the 8 character extended-length UNC prefix and headroom for a separator.
             @stability Stable
         */
-        #define ME_MAX_FNAME        256
+        #if ME_WIN_LIKE
+            #define ME_MAX_FNAME    280
+        #else
+            #define ME_MAX_FNAME    256
+        #endif
     #endif
     #ifndef ME_MAX_PATH
         /**
@@ -2144,7 +2243,10 @@ typedef int64 Ticks;
     #define MSG_NOSIGNAL    0
     #define FILE_BINARY     "b"
     #define FILE_TEXT       "t"
-    #define O_CLOEXEC       0
+    //  The CRT spelling of close-on-exec: the descriptor is not inherited by child processes
+    #ifndef O_CLOEXEC
+        #define O_CLOEXEC   _O_NOINHERIT
+    #endif
 
     /*
         Error codes
@@ -2220,24 +2322,34 @@ typedef int64 Ticks;
     #define chdir       _chdir
     #define chmod       _chmod
     #define close       _close
+    #define dup         _dup
+    #define dup2        _dup2
     #define fileno      _fileno
-    #define fstat       _fstat
+    #define fstat       _fstat64
+    #define fsync       _commit
     #define getcwd      _getcwd
     #define getpid      _getpid
     #define gettimezone _gettimezone
-    #define lseek       _lseek
+    #define lseek       _lseeki64
     //  SECURITY Acceptable: - the omode parameter is ignored on Windows
     #define mkdir(a,b)  _mkdir(a)
     #define open        _open
     #define putenv      _putenv
     #define read        _read
+    //  SECURITY Acceptable: - the overwrite parameter is ignored on Windows; _putenv_s always sets
+    #define setenv(n, v, o) _putenv_s(n, v)
+    #define unsetenv(n)     _putenv_s(n, "")
     #define rmdir(a)    _rmdir(a)
-    #define stat        _stat
+    #define stat        _stat64
     #define strdup      _strdup
     #define tempnam     _tempnam
     #define umask       _umask
     #define unlink      _unlink
     #define write       _write
+
+    /* Map Windows file APIs and off_t to 64-bit CRT variants, including struct stat via _stat64. */
+    #undef off_t
+    #define off_t       int64
     PUBLIC void         sleep(int secs);
     #endif
     #endif

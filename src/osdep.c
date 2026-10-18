@@ -12,13 +12,30 @@
 
 #if ME_WIN_LIKE
 static HINSTANCE appInstance;
-PUBLIC void syslog(int priority, char *fmt, ...);
+PUBLIC void syslog(int priority, char *format, ...);
 #endif
+
+/*
+    The resolved staging directory, computed on first use
+ */
+static char *tempDir;
 
 /************************************* Code ***********************************/
 
 PUBLIC int websOsOpen(void)
 {
+#if ME_UNIX_LIKE
+    int fd;
+
+    /*
+        Reserve closed descriptors 0-2 with inheritable /dev/null so logs cannot reach sockets and CGI inherits safe
+        stdio.
+     */
+    while ((fd = open("/dev/null", O_RDWR)) >= 0 && fd <= 2) { }
+    if (fd > 2) {
+        close(fd);
+    }
+#endif
 #if SOLARIS
     openlog(ME_NAME, LOG_LOCAL0);
 #elif ME_UNIX_LIKE
@@ -33,36 +50,94 @@ PUBLIC int websOsOpen(void)
 }
 
 
+/*
+    Restrict DLL searches to system and application directories.
+ */
+PUBLIC void websHardenProcess(void)
+{
+#if ME_WIN_LIKE && !WINCE
+    typedef BOOL (WINAPI *SetDefaultDllDirectoriesProc)(DWORD flags);
+    SetDefaultDllDirectoriesProc setDefaultDllDirectories;
+    HMODULE                      kernel;
+
+    #ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
+        #define LOAD_LIBRARY_SEARCH_APPLICATION_DIR 0x200
+    #endif
+    #ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+        #define LOAD_LIBRARY_SEARCH_SYSTEM32        0x800
+    #endif
+
+    /* An empty directory removes the current directory from the legacy search order */
+    if (!SetDllDirectoryA("")) {
+        error("Cannot remove the current directory from the DLL search path");
+    }
+    /*
+        Resolve at runtime for older headers and Windows 7 systems without KB2533623.
+     */
+    kernel = GetModuleHandleA("kernel32.dll");
+    setDefaultDllDirectories = kernel ?
+                               (SetDefaultDllDirectoriesProc) (void*) GetProcAddress(kernel,
+                                                                                     "SetDefaultDllDirectories") : NULL;
+    if (setDefaultDllDirectories == NULL) {
+        error("Cannot restrict the DLL search path: SetDefaultDllDirectories is not available");
+    } else if (!setDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR)) {
+        error("Cannot restrict the DLL search path");
+    }
+#endif
+}
+
+
 PUBLIC void websOsClose(void)
 {
+    wfreeset(tempDir);
 #if ME_UNIX_LIKE
     closelog();
 #endif
 }
 
 
+PUBLIC cchar *websGetTempDir(void)
+{
+    cchar *dir;
+
+#if ME_WIN_LIKE && !WINCE
+    char  buf[MAX_PATH + 1];
+    DWORD len;
+#endif
+
+    if (!tempDir) {
+        dir = ME_GOAHEAD_TEMP_DIR;
+#if ME_WIN_LIKE && !WINCE
+        if (*dir == '\0') {
+            len = GetTempPathA((DWORD) sizeof(buf), buf);
+            if (len > 0 && len < sizeof(buf)) {
+                dir = buf;
+            }
+        }
+#endif
+        tempDir = websAbsolutePath(dir);
+    }
+    return tempDir;
+}
+
+
 /*
     Create a temporary file and return its allocated path name.
 
-    The file is created here, empty and private, before the name is returned. Two properties matter and
-    both are security properties. The name carries 64 bits from the system CSPRNG, so a client cannot
-    predict where another request's data is staged. The create is exclusive and refuses a symlink, so a
-    local attacker can neither pre-create the path to read what lands there nor aim it at a file the
-    server may not write. The caller opens the returned path, and must unlink the file and free the
-    name when done.
-
-    A counter was used previously. It started at zero, reset on restart, and named a file that nothing
-    created, so the path of the next request's CGI output was known to everyone and belonged to whoever
-    made it first.
+    The file is created here, empty and private, before the name is returned. The name carries 64 bits
+    from the system CSPRNG so a client cannot predict where another request's data is staged, and the
+    create is exclusive and refuses a symlink so a local attacker can neither pre-create the path nor
+    aim it at a file the server may not write. The caller opens the returned path, and must unlink the
+    file and free the name when done.
 
     Returns NULL if no temporary file could be created. Callers must fail the request rather than
     proceed with an unnamed staging file.
  */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
 {
-    cchar *hex = "0123456789abcdef";
-    uchar bytes[8];
-    char  name[sizeof(bytes) * 2 + 1], *path;
+    cchar *hexDigits = "0123456789abcdef";
+    uchar randomBytes[8];
+    char  name[sizeof(randomBytes) * 2 + 1], *path;
     char  sep;
     int   fd, i, tries;
 
@@ -70,31 +145,26 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
     sep = '\\';
 #elif ME_WIN_LIKE
     sep = '\\';
-    if (!dir || *dir == '\0') {
-        dir = getenv("TEMP");
-    }
 #else
     sep = '/';
 #endif
     /*
-        Must never fall back to the current directory. The CGI handler runs the request with the working
-        directory set to the route's documents directory, so a relative default stages request data
-        inside the served tree where any client can fetch it.
+        Never fall back to the working directory; it may expose staged request data.
      */
     if (!dir || *dir == '\0') {
-        dir = ME_GOAHEAD_TEMP_DIR;
+        dir = websGetTempDir();
     }
     if (!prefix) {
         prefix = "tmp";
     }
     for (tries = 0; tries < 8; tries++) {
-        if (websGetRandomBytes((char*) bytes, sizeof(bytes), 0) < 0) {
+        if (websGetRandomBytes((char*) randomBytes, sizeof(randomBytes), 0) < 0) {
             error("Cannot read random bytes for a temp file name");
             return 0;
         }
-        for (i = 0; i < (int) sizeof(bytes); i++) {
-            name[i * 2] = hex[bytes[i] >> 4];
-            name[i * 2 + 1] = hex[bytes[i] & 0xf];
+        for (i = 0; i < (int) sizeof(randomBytes); i++) {
+            name[i * 2] = hexDigits[randomBytes[i] >> 4];
+            name[i * 2 + 1] = hexDigits[randomBytes[i] & 0xf];
         }
         name[sizeof(name) - 1] = '\0';
         path = sfmt("%s%c%s-%s.tmp", dir, sep, prefix, name);
@@ -190,7 +260,7 @@ HINSTANCE websGetInst()
 }
 
 
-PUBLIC void syslog(int priority, char *fmt, ...)
+PUBLIC void syslog(int priority, char *format, ...)
 {
     va_list    args;
     HKEY       hkey;
@@ -201,13 +271,12 @@ PUBLIC void syslog(int priority, char *fmt, ...)
     int        type;
     static int once = 0;
 
-    va_start(args, fmt);
-    buf = sfmtv(fmt, args);
+    va_start(args, format);
+    buf = sfmtv(format, args);
     va_end(args);
 
-    cp = &buf[slen(buf) - 1];
-    while (*cp == '\n' && cp > buf) {
-        *cp-- = '\0';
+    for (cp = &buf[slen(buf)]; cp > buf && cp[-1] == '\n'; cp--) {
+        cp[-1] = '\0';
     }
     type = EVENTLOG_ERROR_TYPE;
     lines[0] = buf;
@@ -219,6 +288,7 @@ PUBLIC void syslog(int priority, char *fmt, ...)
         /*  Initialize the registry */
         once = 1;
         hkey = 0;
+        fmt(logName, sizeof(logName), "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\%s", ME_NAME);
 
         if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, logName, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &hkey, &exists) ==
             ERROR_SUCCESS) {
@@ -304,15 +374,6 @@ struct hostent * gethostbyname(char *name)
 }
 
 
-ulong hostGetByName(char *name)
-{
-    struct _hostent *ent;
-
-    ent = gethostbyname(name);
-    return ent->h_addr[0];
-}
-
-
 int gethostname(char *host, int bufSize)
 {
     return DNSGetHostname(host, bufSize);
@@ -333,7 +394,7 @@ int select(int maxfds, fd_set *readFds, fd_set *writeFds, fd_set *exceptFds, str
 #endif /* TIDSP */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

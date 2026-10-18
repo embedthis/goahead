@@ -185,21 +185,25 @@ static int leapYear(int year)
 }
 
 
-static int daysSinceEpoch(int year)
+static int64 daysSinceEpoch(int year)
 {
-    int days;
+    int64 count;
 
-    days = 365 * (year - 1970);
-    days += ((year - 1) / 4) - (1970 / 4);
-    days -= ((year - 1) / 100) - (1970 / 100);
-    days += ((year - 1) / 400) - (1970 / 400);
-    return days;
+    count = ((int64) 365) * (year - 1970);
+    count += ((year - 1) / 4) - (1970 / 4);
+    count -= ((year - 1) / 100) - (1970 / 100);
+    count += ((year - 1) / 400) - (1970 / 400);
+    return count;
 }
 
 
+/*
+    Convert validated fields to 64-bit WebsTime; validation bounds intermediate arithmetic.
+ */
 static WebsTime makeTime(struct tm *tp)
 {
-    int days, year, month;
+    int64 dayCount, seconds;
+    int   year, month;
 
     year = tp->tm_year + 1900 + tp->tm_mon / 12;
     month = tp->tm_mon % 12;
@@ -207,10 +211,11 @@ static WebsTime makeTime(struct tm *tp)
         month += 12;
         --year;
     }
-    days = daysSinceEpoch(year);
-    days += leapYear(year) ? leapMonthStart[month] : normalMonthStart[month];
-    days += tp->tm_mday - 1;
-    return (days * SEC_PER_DAY) + ((((((tp->tm_hour * 60)) + tp->tm_min) * 60) + tp->tm_sec));
+    dayCount = daysSinceEpoch(year);
+    dayCount += leapYear(year) ? leapMonthStart[month] : normalMonthStart[month];
+    dayCount += tp->tm_mday - 1;
+    seconds = dayCount * SEC_PER_DAY + (((int64) tp->tm_hour * 60) + tp->tm_min) * 60 + tp->tm_sec;
+    return (WebsTime) seconds;
 }
 
 
@@ -277,6 +282,156 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
         *token += 1;
     }
     return num;
+}
+
+
+static int getDigits(cchar **cpp, int count, int *value)
+{
+    cchar *cp;
+    int   i, v;
+
+    cp = *cpp;
+    v = 0;
+    for (i = 0; i < count; i++) {
+        if (!isdigit((uchar) cp[i])) {
+            return -1;
+        }
+        v = (v * 10) + (cp[i] - '0');
+    }
+    *value = v;
+    *cpp = &cp[count];
+    return 0;
+}
+
+
+static int getMonthIndex(cchar **cpp)
+{
+    int i;
+
+    for (i = 0; months[i].name; i++) {
+        if (sncaselesscmp(*cpp, months[i].name, 3) == 0) {
+            *cpp += 3;
+            return months[i].value - 1;
+        }
+    }
+    return -1;
+}
+
+
+static int getTimeOfDay(cchar **cpp, int *hour, int *min, int *sec)
+{
+    if (getDigits(cpp, 2, hour) < 0 || *(*cpp)++ != ':') {
+        return -1;
+    }
+    if (getDigits(cpp, 2, min) < 0 || *(*cpp)++ != ':') {
+        return -1;
+    }
+    return getDigits(cpp, 2, sec);
+}
+
+
+PUBLIC WebsTime websTime(void)
+{
+    time_t now;
+
+    now = time(0);
+    if (now == (time_t) -1 || (WebsTime) now < 0) {
+        return -1;
+    }
+    return (WebsTime) now;
+}
+
+
+PUBLIC int websParseHttpDate(WebsTime *time, cchar *dateString)
+{
+    struct tm tm;
+    cchar     *cp;
+    int       mon, mday, year, hour, min, sec, sep, alpha;
+
+    if (time == NULL || dateString == NULL) {
+        return -1;
+    }
+    cp = dateString;
+    for (alpha = 0; isalpha((uchar) cp[alpha]); alpha++) { }
+    if (alpha < 3) {
+        return -1;
+    }
+    cp += alpha;
+
+    if (*cp == ',') {
+        /*
+            Parse IMF-fixdate or RFC 850, distinguished by the day separator.
+         */
+        if (*++cp != ' ') {
+            return -1;
+        }
+        cp++;
+        if (getDigits(&cp, 2, &mday) < 0) {
+            return -1;
+        }
+        sep = *cp;
+        if (sep != ' ' && sep != '-') {
+            return -1;
+        }
+        cp++;
+        if ((mon = getMonthIndex(&cp)) < 0 || *cp++ != sep) {
+            return -1;
+        }
+        if (sep == ' ') {
+            if (getDigits(&cp, 4, &year) < 0) {
+                return -1;
+            }
+        } else {
+            if (getDigits(&cp, 2, &year) < 0) {
+                return -1;
+            }
+            year += (year < 70) ? 2000 : 1900;
+        }
+        if (*cp++ != ' ' || getTimeOfDay(&cp, &hour, &min, &sec) < 0 || *cp++ != ' ') {
+            return -1;
+        }
+        if (!smatch(cp, "GMT") && !smatch(cp, "UTC")) {
+            return -1;
+        }
+
+    } else if (*cp == ' ') {
+        /*
+            Parse asctime with a space-padded day and implied GMT.
+         */
+        cp++;
+        if ((mon = getMonthIndex(&cp)) < 0 || *cp++ != ' ') {
+            return -1;
+        }
+        if (*cp == ' ') {
+            cp++;
+            if (getDigits(&cp, 1, &mday) < 0) {
+                return -1;
+            }
+        } else if (getDigits(&cp, 2, &mday) < 0) {
+            return -1;
+        }
+        if (*cp++ != ' ' || getTimeOfDay(&cp, &hour, &min, &sec) < 0 || *cp++ != ' ') {
+            return -1;
+        }
+        if (getDigits(&cp, 4, &year) < 0 || *cp != '\0') {
+            return -1;
+        }
+
+    } else {
+        return -1;
+    }
+    if (year < 1970 || mday < 1 || mday > 31 || hour > 23 || min > 59 || sec > 60) {
+        return -1;
+    }
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = year - 1900;
+    tm.tm_mon = mon;
+    tm.tm_mday = mday;
+    tm.tm_hour = hour;
+    tm.tm_min = min;
+    tm.tm_sec = sec;
+    *time = makeTime(&tm);
+    return 0;
 }
 
 
@@ -385,6 +540,13 @@ PUBLIC int websParseDateTime(WebsTime *time, cchar *dateString, struct tm *defau
                 hour = atoi(token);
                 min = hour % 100;
                 hour /= 100;
+            }
+            /*
+                Bound the offset before scaling. The digits are attacker supplied and reach this
+                via an unbounded atoi, so an out-of-range zone is discarded rather than scaled.
+             */
+            if (hour < -24 || hour > 24 || min < -59 || min > 59) {
+                hour = min = 0;
             }
             zoneOffset = negate * (hour * 60 + min);
 
@@ -531,22 +693,30 @@ static void validateTime(struct tm *tp, struct tm *defaults)
         tp->tm_sec = -1;
     }
     if (tp->tm_min > 59) {
-        tp->tm_sec = -1;
+        tp->tm_min = -1;
     }
     if (tp->tm_hour > 23) {
-        tp->tm_sec = -1;
+        tp->tm_hour = -1;
     }
     if (tp->tm_mday > 31) {
-        tp->tm_sec = -1;
+        tp->tm_mday = -1;
     }
     if (tp->tm_mon > 11) {
-        tp->tm_sec = -1;
+        tp->tm_mon = -1;
     }
     if (tp->tm_wday > 6) {
-        tp->tm_sec = -1;
+        tp->tm_wday = -1;
     }
     if (tp->tm_yday > 366) {
-        tp->tm_sec = -1;
+        tp->tm_yday = -1;
+    }
+
+    /*
+        Bound the year to 0-9999 so the calendar arithmetic in makeTime cannot overflow. A year
+        outside that range is treated as unset and filled from the defaults below.
+     */
+    if (tp->tm_year != -MAXINT && (tp->tm_year < -1900 || tp->tm_year > 8099)) {
+        tp->tm_year = -MAXINT;
     }
 
 #if UNUSED
@@ -628,7 +798,7 @@ static void validateTime(struct tm *tp, struct tm *defaults)
 
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

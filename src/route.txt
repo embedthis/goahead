@@ -3,13 +3,21 @@
 #
 #   Schema
 #       route uri=URI protocol=PROTOCOL methods=METHODS handler=HANDLER redirect=STATUS@URI \
-#           extensions=EXTENSIONS abilities=ABILITIES
+#           extensions=EXTENSIONS auth=AUTH abilities=ABILITIES dir=DIR upload=true cross-site=allow
 #
 #   Routes may require authentication and that users possess certain abilities.
-#   The abilities, extensions, methods and redirect keywords use comma separated tokens to express a set of
-#       required options, or use "|" separated tokens for a set of alternative options. This implements AND/OR.
+#   The abilities keyword lists abilities separated by commas, all of which are required, or by "|", any one of
+#       which is enough: abilities=view,edit requires both, abilities=view|edit requires either. abilities=none is
+#       no requirement. The extensions, methods and redirect keywords list the accepted values separated by commas
+#       or "|", which mean the same.
 #   The protocol keyword may be set to http or https. The redirect status may be "*" to match all HTTP status codes.
+#   Write methods in upper case (GET) and extensions in lower case without the dot (jst). A selector in any other
+#   spelling never matches, so it is refused when the file is loaded. On a CGI route, extensions= restricts
+#   which programs may run.
 #   Multiple redirect fields are permissible.
+#   A request other than GET or HEAD whose Origin names another site is refused with 403 on every route.
+#   cross-site=allow accepts such requests on one route, for example an identity provider's form post. On a
+#   login route it removes login CSRF protection.
 #
 #   Examples:
 #
@@ -22,35 +30,73 @@
 #       route uri=/action/logout methods=POST handler=action redirect=200@/pub/login.html
 #       route uri=/ auth=form handler=continue redirect=401@/pub/login.html
 #
-#   Sample basic or digest authentication for user "joshua"
-#       route uri=/auth/basic/ auth=basic abilities=manage
-#       route uri=/auth/digest/ auth=digest abilities=manage
+#   Sample basic or digest authentication for a directory. A protected directory is served from its own dir=,
+#   outside the documents directory, so a request spelled to miss its route, by letter case or a Unicode fold,
+#   finds nothing to serve at the routes after it. The URI is appended to dir=, so these serve the files under
+#   ./private/auth/basic/ and ./private/auth/digest/. These routes use the file handler, which refuses a .jst or
+#   .asp template with 404 rather than serve its source. To run templates there, add
+#   route uri=/auth/basic/ extensions=jst,asp handler=jst dir=private (with the same auth=) ahead of it.
+#       route uri=/auth/basic/ auth=basic abilities=manage dir=private
+#       route uri=/auth/digest/ auth=digest abilities=manage dir=private
 #
-#   Eanable the PUT or DELETE methods (only) for the ME_GOAHEAD_PUT_DIR directory
+#   Enable the PUT and DELETE methods (only) for this route. A PUT writes into the route's documents. The body is
+#   staged in ME_GOAHEAD_PUT_DIR, which must be outside the documents.
 #       route uri=/put/ methods=PUT|DELETE
 #
-#   Standard routes
+#   Authentication
 #
-# route uri=/cgi-bin dir=cgi-bin handler=cgi
-
-route uri=/action handler=action
-
-route uri=/jst extensions=jst handler=jst
-
-# route uri=/ methods=OPTIONS|TRACE handler=options
-# route uri=/goform handler=action
-
-#
-#   SECURITY WARNING: this catch-all route has no auth= or abilities= and so serves every other URI to
-#   unauthenticated clients. It is suitable for demo content only. Routes are matched in order, so with no
-#   authenticated route ahead of it, any route near-miss is served rather than denied. For a real deployment,
-#   protect content by placing authenticated routes BEFORE this route, and restrict or remove it. For example:
+#   Put authenticated routes here, above the standard routes below. Routes are matched in order, so an
+#   authenticated route placed after the action, template or CGI route does not protect it: those requests
+#   are served before they reach it. A login gate for the whole site uses handler=continue on uri=/, so a
+#   request is authenticated here and then goes on to the route that serves it, and a template is still run
+#   rather than served as source. A continue gate serves nothing, so its dir= changes nothing: protect a
+#   directory with an authenticated route that serves it from its own dir=, as in the examples above. A route
+#   here that serves requests itself, such as the public /pub/ area below, serves static files only: it uses the
+#   file handler, which refuses a template with 404 rather than serve its source.
+#   For example, to require a form login for all but the login page, and accept multipart/form-data file
+#   uploads to the upload action once logged in:
 #
 #       route uri=/pub/
 #       route uri=/action/login methods=POST handler=action redirect=200@/ redirect=401@/pub/login.html
 #       route uri=/action/logout methods=POST handler=action redirect=200@/pub/login.html
 #       route uri=/ auth=form handler=continue redirect=401@/pub/login.html
+#       route uri=/action/upload methods=POST upload=true handler=action
 #
-#   The server logs a warning at startup while no authenticated route is configured.
+#   The upload route follows the login gate, which authenticates the request first. Other routes refuse
+#   uploads with 415, except CGI routes, which pass the body to the program unparsed. upload=true on a CGI
+#   route parses the body instead: the program receives FILE_* variables and an empty stdin.
 #
+#   An action runs only through a route that names it, such as /action/upload above, or, when no route names
+#   it, through the /action route below. To protect one action, name it in an authenticated route.
+#
+#   A route without methods= serves only GET, HEAD and POST, but its auth= and abilities= apply to every
+#   method, so a gate also authenticates PUT and DELETE before a later route on its prefix serves them. HEAD
+#   follows GET: a route listing GET also accepts HEAD. A gate with methods=, protocol= or extensions= covers
+#   only the requests those match, so the server refuses a later unauthenticated route under the gate's prefix
+#   that accepts any other request.
+#
+#   The server warns at startup while no authenticated route is configured. It refuses to start when a
+#   route before or after an authenticated route can serve its requests, and when an action, template or CGI route
+#   comes before an authenticated route that covers it. Start with --no-strict to only warn.
+#
+
+#
+#   Standard routes
+#
+#   A route prefix is matched literally. End it with "/" to match a directory and nothing beside
+#   it: "/cgi-bin" would also match "/cgi-bin.bak/". Programs are run from the directory the prefix
+#   names, under the server's working directory: here ./cgi-bin.
+#
+# route uri=/cgi-bin/ handler=cgi
+
+# Actions default to POST unless methods are specified.
+route uri=/action handler=action
+
+# Match template extensions across the document root so no template falls through as static source.
+route uri=/ extensions=jst,asp handler=jst
+
+# route uri=/ methods=OPTIONS|TRACE handler=options
+# route uri=/goform handler=action
+
+# This unauthenticated catch-all is for demo content. Add authenticated routes above it; restrict or remove it for deployment.
 route uri=/

@@ -10,8 +10,9 @@
     values on the first call to walloc(). Note that this code is not designed for multi-threading purposes and it
     depends on newly declared variables being initialized to zero.
 
-    You should ALWAYS configure a memory notifier and abort the process or perform other recover incase of
-    memory exhaustion. You must set WEBS_DEFAULT_MEM to be sufficient memory for your needs.
+    An allocation failure calls the memory notifier and then aborts the process, so callers never receive NULL. The
+    notifier may report the failure but cannot recover from it. You must set WEBS_DEFAULT_MEM to be sufficient memory
+    for your needs.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -23,17 +24,28 @@
 
 static WebsMemNotifier memNotifier;
 
-/*
-    The memory allocator should ALWAYS be configured as GoAhead does not check every memory allocation.
- */
 PUBLIC void websSetMemNotifier(WebsMemNotifier cback)
 {
     memNotifier = cback;
 }
 
+
 static void defaultMemNotifier(ssize size)
 {
-    fprintf(stderr, "Cannot allocate required block of %lld bytes, terminating.", (long long) size);
+    fprintf(stderr, "Cannot allocate required block of %lld bytes, terminating.\n", (long long) size);
+}
+
+
+/*
+    Abort after notifying: callers rely on walloc never returning NULL.
+ */
+static void memFailure(ssize size)
+{
+    if (memNotifier) {
+        (memNotifier) (size);
+    } else {
+        defaultMemNotifier(size);
+    }
     abort();
 }
 
@@ -58,6 +70,8 @@ static int       controlFlags = WEBS_USE_MALLOC;        /* Default to auto-mallo
 static int       wopenCount = 0;                        /* Num tasks using walloc */
 
 static int wallocGetSize(ssize size, int *q);
+
+#define WEBS_MAX_BLOCK (1 << 30)
 
 #endif /* ME_GOAHEAD_REPLACE_MALLOC */
 
@@ -101,9 +115,6 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
     memset(qhead, 0, sizeof(qhead));
 
 #endif /* ME_GOAHEAD_REPLACE_MALLOC */
-    if (!memNotifier) {
-        websSetMemNotifier(defaultMemNotifier);
-    }
     return 0;
 }
 
@@ -132,11 +143,17 @@ PUBLIC void *walloc(ssize size)
         Call wopenAlloc with default values if the application has not yet done so
      */
     if (freeBuf == NULL) {
-        if (wopenAlloc(NULL, WEBS_DEFAULT_MEM, 0) < 0) {
+        if (wopenAlloc(NULL, WEBS_DEFAULT_MEM, WEBS_USE_MALLOC) < 0) {
+            memFailure(WEBS_DEFAULT_MEM);
             return NULL;
         }
     }
     if (size < 0) {
+        memFailure(size);
+        return NULL;
+    }
+    if (size > WEBS_MAX_BLOCK) {
+        memFailure(size);
         return NULL;
     }
     memSize = wallocGetSize(size, &q);
@@ -149,15 +166,11 @@ PUBLIC void *walloc(ssize size)
             memSize = ROUNDUP4(memSize);
             bp = (WebsAlloc*) malloc(memSize);
             if (bp == NULL) {
-                if (memNotifier) {
-                    (memNotifier) (memSize);
-                }
+                memFailure(memSize);
                 return NULL;
             }
         } else {
-            if (memNotifier) {
-                (memNotifier) (memSize);
-            }
+            memFailure(memSize);
             return NULL;
         }
         /*
@@ -191,18 +204,14 @@ PUBLIC void *walloc(ssize size)
              */
             memSize = ROUNDUP4(memSize);
             if ((bp = (WebsAlloc*) malloc(memSize)) == NULL) {
-                if (memNotifier) {
-                    (memNotifier) (memSize);
-                }
+                memFailure(memSize);
                 return NULL;
             }
             bp->u.size = memSize - sizeof(WebsAlloc);
             bp->flags = WEBS_MALLOCED;
 
         } else {
-            if (memNotifier) {
-                (memNotifier) (memSize);
-            }
+            memFailure(memSize);
             return NULL;
         }
     }
@@ -243,8 +252,7 @@ PUBLIC void wfree(void *mp)
 
 
 /*
-    Reallocate a block. Allow NULL pointers and just do a malloc. Note: if the realloc fails, we return NULL and the
-    previous buffer is preserved.
+    Reallocate; NULL allocates a new block. Failure aborts.
  */
 PUBLIC void *wrealloc(void *mp, ssize newsize)
 {
@@ -302,10 +310,8 @@ PUBLIC void *walloc(ssize num)
 {
     void *mem;
 
-    if ((mem = malloc(num)) == 0) {
-        if (memNotifier) {
-            (memNotifier) (num);
-        }
+    if ((mem = malloc(num)) == 0 && num != 0) {
+        memFailure(num);
     }
     return mem;
 }
@@ -321,16 +327,12 @@ PUBLIC void wfree(void *mem)
 
 PUBLIC void *wrealloc(void *mem, ssize num)
 {
-    void *old;
+    void *grown;
 
-    old = mem;
-    if ((mem = realloc(mem, num)) == 0) {
-        if (memNotifier) {
-            (memNotifier) (num);
-        }
-        free(old);
+    if ((grown = realloc(mem, num)) == 0 && num != 0) {
+        memFailure(num);
     }
-    return mem;
+    return grown;
 }
 #endif /* ME_GOAHEAD_REPLACE_MALLOC */
 
@@ -346,7 +348,7 @@ PUBLIC void *wdup(cvoid *ptr, ssize usize)
 }
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

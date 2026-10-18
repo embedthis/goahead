@@ -10,6 +10,7 @@
         --connections-per-ip n # Per-peer connection cap (test harness)
         --debugger             # Disable timeouts to enable debugging
         --duration secs        # Exit after the given number of seconds
+        --features             # List the feature flags this build was compiled with
         --home directory       # Change to directory to run
         --key keyFile          # Server SSL private key (PEM)
         --log logFile:level    # Log to file file at verbosity level
@@ -27,7 +28,7 @@
 
 /********************************* Defines ************************************/
 
-static int finished = 0;
+static volatile int finished = 0;
 
 #undef ME_GOAHEAD_LISTEN
 /*
@@ -61,9 +62,17 @@ static int finished = 0;
 
 static void initPlatform(void);
 static void logHeader(void);
+static void printFeatures(void);
 static void usage(void);
+static void sanitizerCanary(cchar *kind);
+
+#if ME_GOAHEAD_LOGGING
+static void strictLog(int flags, cchar *msg);
+static WebsLogHandler defaultLog;
+#endif
 
 static bool testHandler(Webs *wp);
+static bool serviceRewriteHandler(Webs *wp);
 #if ME_GOAHEAD_CGI
 static bool blacklistHandler(Webs *wp);
 #endif
@@ -73,8 +82,14 @@ static int bigTest(int eid, Webs *wp, int argc, char **argv);
 #endif
 static void actionTest(Webs *wp);
 static void sessionTest(Webs *wp);
+static void sessionsTest(Webs *wp);
+static void doubleTest(Webs *wp);
 static void showTest(Webs *wp);
 static void connectionsTest(Webs *wp);
+static void hostTest(Webs *wp);
+#if ME_GOAHEAD_AUTH
+static void verifierTest(Webs *wp);
+#endif
 #if ME_GOAHEAD_UPLOAD && !ME_ROM
 static void uploadTest(Webs *wp);
 #endif
@@ -90,9 +105,12 @@ static void exitProc(void *data, int id);
 
 MAIN(goahead, int argc, char **argv, char **envp)
 {
-    char *argp, *auth, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
-    int  argind, duration;
+    WebsRoute *probe;
+    WebsHash  methods;
+    char      *argp, *auth, *home, *documents, *endpoints, *endpoint, *route, *tok, *lspec;
+    int       argind, duration;
 
+    websHardenProcess();
     route = "route.txt";
     auth = "auth.txt";
     duration = 0;
@@ -146,6 +164,10 @@ MAIN(goahead, int argc, char **argv, char **envp)
             if (argind + 1 >= argc) usage();
             duration = atoi(argv[++argind]);
 
+        } else if (smatch(argp, "--features")) {
+            printFeatures();
+            exit(0);
+
         } else if (smatch(argp, "--home")) {
             if (argind + 1 >= argc) usage();
             home = argv[++argind];
@@ -160,9 +182,17 @@ MAIN(goahead, int argc, char **argv, char **envp)
         } else if (smatch(argp, "--verbose") || smatch(argp, "-v")) {
             logSetPath("stdout:2");
 
+        } else if (smatch(argp, "--proxy")) {
+            if (argind + 1 >= argc) usage();
+            websSetTrustedProxies(argv[++argind]);
+
         } else if (smatch(argp, "--route") || smatch(argp, "-r")) {
             if (argind + 1 >= argc) usage();
             route = argv[++argind];
+
+        } else if (smatch(argp, "--sanitizer-canary")) {
+            if (argind + 1 >= argc) usage();
+            sanitizerCanary(argv[++argind]);
 
         } else if (smatch(argp, "--version") || smatch(argp, "-V")) {
             printf("%s\n", ME_VERSION);
@@ -182,15 +212,25 @@ MAIN(goahead, int argc, char **argv, char **envp)
         documents = argv[argind++];
     }
     initPlatform();
+    /* Allow overlapping test routes so request-time path defenses can be exercised. */
+    websSetStrict(0);
     if (websOpen(documents, route) < 0) {
         error("Cannot initialize server. Exiting.");
         return -1;
     }
+#if ME_GOAHEAD_LOGGING
+    defaultLog = logSetHandler(strictLog);
+#endif
     logHeader();
+#if ME_GOAHEAD_AUTH
     if (websLoad(auth) < 0) {
         error("Cannot load %s", auth);
         return -1;
     }
+#else
+    /* A build without authentication has no users or roles to load */
+    (void) auth;
+#endif
     if (argind < argc) {
         while (argind < argc) {
             endpoint = argv[argind++];
@@ -220,6 +260,13 @@ MAIN(goahead, int argc, char **argv, char **envp)
 
     websDefineHandler("test", testHandler, 0, 0, 0);
     websAddRoute("/test", "test", 0);
+    websDefineHandler("serviceRewrite", 0, serviceRewriteHandler, 0, 0);
+    if ((probe = websAddRoute("/svcrewrite/", "serviceRewrite", 0)) != 0) {
+        methods = hashCreate(-1);
+        hashEnter(methods, "GET", valueInteger(0), 0);
+        hashEnter(methods, "DELETE", valueInteger(0), 0);
+        websSetRouteMatch(probe, 0, 0, methods, -1, -1, -1);
+    }
 #if ME_GOAHEAD_CGI
     /*
         Route /blacklist-test through a handler that injects PATH/IFS/etc into
@@ -238,8 +285,15 @@ MAIN(goahead, int argc, char **argv, char **envp)
 #endif
     websDefineAction("test", actionTest);
     websDefineAction("sessionTest", sessionTest);
+    websDefineAction("authSessionTest", sessionTest);
+    websDefineAction("sessions", sessionsTest);
+    websDefineAction("doubleTest", doubleTest);
     websDefineAction("showTest", showTest);
     websDefineAction("connections", connectionsTest);
+    websDefineAction("hostTest", hostTest);
+#if ME_GOAHEAD_AUTH
+    websDefineAction("verifierTest", verifierTest);
+#endif
 #if ME_GOAHEAD_UPLOAD && !ME_ROM
     websDefineAction("uploadTest", uploadTest);
 #endif
@@ -249,7 +303,7 @@ MAIN(goahead, int argc, char **argv, char **envp)
         Service events till terminated
      */
     if (websGetBackground()) {
-        if (daemon(0, 0) < 0) {
+        if (daemon(1, 0) < 0) {
             error("Cannot run as daemon");
             return -1;
         }
@@ -260,7 +314,7 @@ MAIN(goahead, int argc, char **argv, char **envp)
         websStartEvent(duration * 1000, (WebsEventProc) exitProc, 0);
     }
     websServiceEvents(&finished);
-    logmsg(1, "Instructed to exit\n");
+    logmsg(1, "Instructed to exit");
     websClose();
     return 0;
 }
@@ -277,7 +331,9 @@ static void logHeader(void)
 {
     char home[ME_GOAHEAD_LIMIT_STRING];
 
-    getcwd(home, sizeof(home));
+    if (getcwd(home, sizeof(home)) == 0) {
+        scopy(home, sizeof(home), "unknown");
+    }
     logmsg(2, "Configuration for %s", ME_TITLE);
     logmsg(2, "---------------------------------------------");
     logmsg(2, "Version:            %s", ME_VERSION);
@@ -289,6 +345,20 @@ static void logHeader(void)
     logmsg(2, "Documents:          %s", websGetDocuments());
     logmsg(2, "---------------------------------------------");
 }
+
+
+#if ME_GOAHEAD_LOGGING
+/*
+    Abort failed assertions so the test fails.
+ */
+static void strictLog(int flags, cchar *msg)
+{
+    defaultLog(flags, msg);
+    if (flags & WEBS_ASSERT_MSG) {
+        abort();
+    }
+}
+#endif
 
 
 static void usage(void)
@@ -306,12 +376,15 @@ static void usage(void)
             "    --connections count    # Concurrent connection cap (test harness)\n"
             "    --connections-per-ip n # Per-peer connection cap (test harness)\n"
             "    --debugger             # Run in debug mode\n"
+            "    --features             # List the feature flags this build was compiled with\n"
             "    --home directory       # Change to directory to run\n"
 #if ME_COM_SSL
             "    --key keyFile          # Server SSL private key (PEM)\n"
 #endif
             "    --log logFile:level    # Log to file file at verbosity level\n"
+            "    --proxy addresses      # Trust X-Forwarded-Proto from these proxy addresses\n"
             "    --route routeFile      # Route configuration file\n"
+            "    --sanitizer-canary kind # Trigger a sanitizer report: heap or signed (test harness)\n"
             "    --verbose              # Same as --log stderr:2\n"
             "    --version              # Output version information\n\n",
             ME_TITLE, ME_NAME);
@@ -319,15 +392,61 @@ static void usage(void)
 }
 
 
+/*
+    The feature flags the test suite adapts to, as NAME=VALUE lines. test/utils/features.sh turns them into the
+    test environment and the header the C tests compile with, so both match this build.
+ */
+static void printFeatures(void)
+{
+    printf("ME_GOAHEAD_AUTH=%d\n", ME_GOAHEAD_AUTH);
+    printf("ME_GOAHEAD_CGI=%d\n", ME_GOAHEAD_CGI);
+    printf("ME_GOAHEAD_DIGEST=%d\n", ME_GOAHEAD_DIGEST);
+    printf("ME_GOAHEAD_JAVASCRIPT=%d\n", ME_GOAHEAD_JAVASCRIPT);
+    printf("ME_GOAHEAD_LOGGING=%d\n", ME_GOAHEAD_LOGGING);
+    printf("ME_GOAHEAD_REPLACE_MALLOC=%d\n", ME_GOAHEAD_REPLACE_MALLOC);
+    printf("ME_GOAHEAD_STEALTH=%d\n", ME_GOAHEAD_STEALTH);
+    printf("ME_GOAHEAD_TRACING=%d\n", ME_GOAHEAD_TRACING);
+    printf("ME_GOAHEAD_UPLOAD=%d\n", ME_GOAHEAD_UPLOAD);
+}
+
+
+/*
+    Provoke a defect a sanitizer must report, then exit 0. Reaching the exit proves the build is not instrumented.
+ */
+static void sanitizerCanary(cchar *kind)
+{
+    char           *buf;
+    volatile ssize offset;
+    volatile int   value;
+
+    if (smatch(kind, "heap")) {
+        buf = walloc(8);
+        offset = 8;
+        buf[offset] = 1;
+        wfree(buf);
+
+    } else if (smatch(kind, "signed")) {
+        value = INT_MAX;
+        value = value + 1;
+
+    } else {
+        usage();
+    }
+    exit(0);
+}
+
+
 void initPlatform(void)
 {
 #if ME_UNIX_LIKE
-    signal(SIGINT, sigHandler);
-    signal(SIGTERM, sigHandler);
-    signal(SIGKILL, sigHandler);
-    #ifdef SIGPIPE
-    signal(SIGPIPE, SIG_IGN);
-    #endif
+    struct sigaction act;
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = sigHandler;
+    sigemptyset(&act.sa_mask);
+    sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGTERM, &act, NULL);
 #elif ME_WIN_LIKE
     _fmode = _O_BINARY;
 #endif
@@ -348,10 +467,39 @@ static void sigHandler(int signo)
  */
 static bool testHandler(Webs *wp)
 {
+    cchar *target;
+
     if (smatch(wp->path, "/")) {
         websRewriteRequest(wp, "/home.html");
         /* Fall through */
     }
+    /*
+        Read the raw query before route selection parses variables.
+        Restrict the rewrite probe to its own path to avoid rewriting twice.
+     */
+    if (sstarts(wp->path, "/test/") && wp->query && sstarts(wp->query, "rewrite=")) {
+        target = &wp->query[8];
+        if (*target && websRewriteRequest(wp, target) < 0) {
+            websError(wp, HTTP_CODE_BAD_REQUEST, "Cannot rewrite to the requested target");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+
+static bool serviceRewriteHandler(Webs *wp)
+{
+    char *target;
+
+    target = sclone(websGetVar(wp, "rewrite", ""));
+    if (!*target || websRewriteRequest(wp, target) < 0) {
+        websError(wp, HTTP_CODE_BAD_REQUEST, "Cannot rewrite to the requested target");
+        wfree(target);
+        return 1;
+    }
+    wfree(target);
     return 0;
 }
 
@@ -369,6 +517,18 @@ static bool blacklistHandler(Webs *wp)
     websSetVar(wp, "IFS", "X");
     websSetVar(wp, "BASH_ENV", "/tmp/evil");
     websSetVar(wp, "LD_PRELOAD", "/tmp/evil.so");
+    websSetVar(wp, "NODE_PATH", "/tmp/evil-node");
+    websSetVar(wp, "PHPRC", "/tmp/evil-php");
+    websSetVar(wp, "PHP_INI_SCAN_DIR", "/tmp/evil-php-ini");
+    websSetVar(wp, "GEM_HOME", "/tmp/evil-gem");
+    websSetVar(wp, "LUA_PATH", "/tmp/evil-lua/?.lua");
+    websSetVar(wp, "GLIBC_TUNABLES", "glibc.malloc.check=evil");
+    /*
+        A name carrying its own '=' composes a second assignment in "name=value", and a value
+        beginning with "() {" is a bash function definition. Neither may reach the child.
+     */
+    websSetVar(wp, "SMUGGLED=SMUGGLE_TARGET", "/tmp/evil-smuggled");
+    websSetVar(wp, "SHELLSHOCK_PROBE", "() { :; }; echo shellshock-executed");
     websSetVar(wp, "BLACKLIST_SENTINEL", "ok");
     websRewriteRequest(wp, "/cgi-bin/cgitest");
     return 0;
@@ -383,12 +543,18 @@ static bool blacklistHandler(Webs *wp)
 static int aspTest(int eid, Webs *wp, int argc, char **argv)
 {
     char *name, *address;
+    int  rc;
 
     if (jsArgs(argc, argv, "%s %s", &name, &address) < 2) {
         websError(wp, 400, "Insufficient args\n");
         return -1;
     }
-    return (int) websWrite(wp, "Name: %s, Address %s", name, address);
+    name = websEscapeHtml(name);
+    address = websEscapeHtml(address);
+    rc = (int) websWrite(wp, "Name: %s, Address %s", name, address);
+    wfree(name);
+    wfree(address);
+    return rc;
 }
 
 
@@ -401,6 +567,7 @@ static int bigTest(int eid, Webs *wp, int argc, char **argv)
 
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
     websWriteEndHeaders(wp);
     websWrite(wp, "<html>\n");
     for (i = 0; i < 800; i++) {
@@ -418,14 +585,17 @@ static int bigTest(int eid, Webs *wp, int argc, char **argv)
  */
 static void actionTest(Webs *wp)
 {
-    cchar *name, *address;
+    char *name, *address;
 
-    name = websGetVar(wp, "name", NULL);
-    address = websGetVar(wp, "address", NULL);
+    name = websEscapeHtml(websGetVar(wp, "name", NULL));
+    address = websEscapeHtml(websGetVar(wp, "address", NULL));
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
     websWriteEndHeaders(wp);
     websWrite(wp, "<html><body><h2>name: %s, address: %s</h2></body></html>\n", name, address);
+    wfree(name);
+    wfree(address);
     websFlush(wp, 0);
     websDone(wp);
 }
@@ -433,18 +603,71 @@ static void actionTest(Webs *wp)
 
 static void sessionTest(Webs *wp)
 {
-    cchar *number;
+    cchar *number, *referrer;
+    char  *safe;
 
     if (scaselessmatch(wp->method, "POST")) {
         number = websGetVar(wp, "number", 0);
         websSetSessionVar(wp, "number", number);
+        /*
+            Set a request-supplied post-login redirect for validation tests.
+         */
+        if ((referrer = websGetVar(wp, "referrer", 0)) != 0) {
+            websSetSessionVar(wp, "referrer", referrer);
+        }
+        /*
+            Destroy a session already held during routing to test concurrent retirement.
+         */
+        if (websGetVar(wp, "destroy", 0)) {
+            websDestroySession(wp);
+        }
     } else {
         number = websGetSessionVar(wp, "number", 0);
     }
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
     websWriteEndHeaders(wp);
-    websWrite(wp, "<html><body><p>Number %s</p></body></html>\n", number);
+    safe = websEscapeHtml(number);
+    websWrite(wp, "<html><body><p>Number %s</p></body></html>\n", number ? safe : "null");
+    wfree(safe);
+    websDone(wp);
+}
+
+
+/*
+    Attempt repeated responses; only the first may reach the wire.
+ */
+static void doubleTest(Webs *wp)
+{
+    cchar *body = "<html><body><p>FIRSTRESPONSE</p></body></html>\n";
+
+    websSetStatus(wp, 200);
+    websWriteHeaders(wp, (ssize) slen(body), 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
+    websWriteEndHeaders(wp);
+    websWriteBlock(wp, (char*) body, slen(body));
+    websDone(wp);
+
+    websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "second response attempt");
+    websResponse(wp, 200, "SECONDRESPONSE");
+    websRedirect(wp, "/secondredirect.html");
+}
+
+
+/*
+    Expose session count for accounting tests.
+ */
+static void sessionsTest(Webs *wp)
+{
+    char body[64];
+
+    fmt(body, sizeof(body), "sessions=%d\n", websGetSessionCount());
+    websSetStatus(wp, 200);
+    websWriteHeaders(wp, (ssize) slen(body), 0);
+    websWriteHeader(wp, "Content-Type", "text/plain");
+    websWriteEndHeaders(wp);
+    websWriteBlock(wp, body, slen(body));
     websDone(wp);
 }
 
@@ -477,16 +700,67 @@ static void connectionsTest(Webs *wp)
 }
 
 
+/*
+    Expose the selected request authority.
+ */
+static void hostTest(Webs *wp)
+{
+    websSetStatus(wp, 200);
+    websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/plain");
+    websWriteEndHeaders(wp);
+    websWrite(wp, "host=%s\n", websGetHost(wp));
+    websDone(wp);
+}
+
+
+#if ME_GOAHEAD_AUTH
+static bool refuseAll(Webs *wp)
+{
+    return 0;
+}
+
+
+
+static void verifierTest(Webs *wp)
+{
+    static WebsVerify saved;
+
+    if (smatch(websGetVar(wp, "refuse", ""), "1")) {
+        if (!saved) {
+            saved = websGetPasswordStoreVerify();
+        }
+        websSetPasswordStoreVerify(refuseAll);
+    } else if (saved) {
+        websSetPasswordStoreVerify(saved);
+        saved = 0;
+    }
+    websSetStatus(wp, 200);
+    websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/plain");
+    websWriteEndHeaders(wp);
+    websWrite(wp, "refusing=%d\n", websGetPasswordStoreVerify() == refuseAll);
+    websDone(wp);
+}
+#endif
+
+
 static void showTest(Webs *wp)
 {
     WebsKey *s;
+    char    *name, *value;
 
     websSetStatus(wp, 200);
     websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
     websWriteEndHeaders(wp);
     websWrite(wp, "<html><body><pre>\n");
     for (s = hashFirst(wp->vars); s; s = hashNext(wp->vars, s)) {
-        websWrite(wp, "%s=%s\n", s->name.value.string, s->content.value.string);
+        name = websEscapeHtml(s->name.value.string);
+        value = websEscapeHtml(s->content.value.string);
+        websWrite(wp, "%s=%s\n", name, value);
+        wfree(name);
+        wfree(value);
     }
     websWrite(wp, "</pre></body></html>\n");
     websDone(wp);
@@ -515,7 +789,7 @@ static void uploadTest(Webs *wp)
             websWrite(wp, "FILENAME=%s\r\n", up->filename);
             websWrite(wp, "CLIENT=%s\r\n", up->clientFilename);
             websWrite(wp, "TYPE=%s\r\n", up->contentType);
-            websWrite(wp, "SIZE=%d\r\n", (int) up->size);
+            websWrite(wp, "SIZE=%zd\r\n", up->size);
 
             upfile = sfmt("%s/tmp/%s", websGetDocuments(), up->clientFilename);
             if (rename(up->filename, upfile) < 0) {
@@ -551,7 +825,7 @@ static int legacyTest(Webs *wp, char *prefix, char *dir, int flags)
 #endif
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

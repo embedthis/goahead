@@ -30,7 +30,7 @@ typedef struct Callback {
 #define CLASS_STAR      4               /* [*]              Width supplied by arg */
 #define CLASS_DIGIT     5               /* [1-9]            Field widths */
 #define CLASS_DOT       6               /* [.]              Introduce precision */
-#define CLASS_BITS      7               /* [hlL]            Length bits */
+#define CLASS_BITS      7               /* [hlLz]           Length bits */
 #define CLASS_TYPE      8               /* [cdefgiopsSuxX]  Type specifiers ('n' excluded) */
 
 #define STATE_NORMAL    0               /* Normal chars in format string */
@@ -86,7 +86,7 @@ PUBLIC char classMap[] = {
     /*  50   p     q     r     s     t     u     v     w */
     8,    0,    0,    8,    0,    8,    0,    8,
     /*  57   x     y     z  */
-    8,    0,    0,
+    8,    0,    7,
 };
 
 /*
@@ -117,15 +117,19 @@ typedef struct Format {
     int len;
 } Format;
 
+/*
+    Evaluate the character once even when the buffer is full, preserving pointer and vararg advancement.
+ */
 #define BPUT(fmt, c) \
     do { \
+        char bputChar = (char) (c); \
         /* Less one to allow room for the null */ \
         if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
             if (growBuf(fmt) > 0) { \
-                *(fmt)->end++ = (c); \
+                *(fmt)->end++ = bputChar; \
             } \
         } else { \
-            *(fmt)->end++ = (c); \
+            *(fmt)->end++ = bputChar; \
         } \
     } while (0)
 
@@ -161,7 +165,7 @@ typedef struct HashTable {  /* Symbol table descriptor */
     #define LOG_ERR 0
 #endif
 #if ME_WIN_LIKE
-PUBLIC void syslog(int priority, char *fmt, ...);
+PUBLIC void syslog(int priority, char *format, ...);
 #endif
 
 PUBLIC int logLevel;                /* Log verbosity level */
@@ -179,20 +183,19 @@ char *embedthisGoAheadCopyright = EMBEDTHIS_GOAHEAD_COPYRIGHT;
 #if ME_GOAHEAD_LOGGING
 static char *logPath;               /* Log file name */
 /*
-    Log file handle. Must start at -1, the same "not open" sentinel logClose() restores. Zero
-    would be file descriptor 0, and logHandler is bound to defaultLogHandler from process start,
-    so every message emitted before logOpen() -- notably the command line parsing errors in
-    goahead.c and test.c -- would be written into standard input rather than the log. That is
-    silent to an operator on a terminal, and on a device started from a supervisor or inetd it
-    injects log text into whatever pipe or socket occupies descriptor 0.
+    Must start at -1, the same "not open" sentinel logClose() restores. Zero is descriptor 0, so any
+    message emitted before logOpen() would be written into standard input rather than the log.
  */
-static int  logFd = -1;             /* Log file handle */
+static int logFd = -1;              /* Standard output or error log descriptor */
+#if !ME_ROM
+static WebsLogFile logFile = { NULL, -1, 0 };   /* Log file target */
+#endif
 #endif
 
 /********************************** Forwards **********************************/
 
 static int calcPrime(int size);
-static int getBinBlockSize(int size);
+static ssize getBinBlockSize(ssize size);
 static int hashIndex(HashTable *tp, cchar *name);
 static WebsKey *hash(HashTable *tp, cchar *name);
 
@@ -203,6 +206,7 @@ static WebsLogHandler logHandler = defaultLogHandler;
 
 static int  getState(char c, int state);
 static int  growBuf(Format *fmt);
+static int  parseField(cchar **spec, char c);
 static char *sprintfCore(char *buf, ssize maxsize, cchar *fmt, va_list arg);
 static void outNum(Format *fmt, char *prefix, uint64 val);
 static void outString(Format *fmt, char *str, ssize len);
@@ -242,6 +246,18 @@ static void callEvent(int id)
 
 
 /*
+    Schedule relative to epoch on clock failure so the event runs once the clock recovers.
+ */
+static WebsTime eventDue(int delay)
+{
+    WebsTime now;
+
+    now = websTime();
+    return ((delay + 500) / 1000) + (now < 0 ? 0 : now);
+}
+
+
+/*
     Schedule an event in delay milliseconds time. We will use 1 second granularity for webServer.
  */
 PUBLIC int websStartEvent(int delay, WebsEventProc proc, void *arg)
@@ -260,7 +276,7 @@ PUBLIC int websStartEvent(int delay, WebsEventProc proc, void *arg)
     /*
         Round the delay up to seconds.
      */
-    s->at = ((delay + 500) / 1000) + time(0);
+    s->at = eventDue(delay);
     return id;
 }
 
@@ -272,7 +288,7 @@ PUBLIC void websRestartEvent(int id, int delay)
     if (callbacks == NULL || id == -1 || id >= callbackMax || (s = callbacks[id]) == NULL) {
         return;
     }
-    s->at = ((delay + 500) / 1000) + time(0);
+    s->at = eventDue(delay);
 }
 
 
@@ -295,7 +311,10 @@ int websRunEvents(void)
     int      i, delay, nextEvent;
 
     nextEvent = (MAXINT / 1000);
-    now = time(0);
+    if ((now = websTime()) < 0) {
+        /* No event can be timed without a clock. Poll until it returns */
+        return 1000;
+    }
 
     for (i = 0; i < callbackMax; i++) {
         if ((s = callbacks[i]) != NULL) {
@@ -359,6 +378,27 @@ PUBLIC char *sfmtv(cchar *fmt, va_list arg)
 {
     assert(fmt);
     return sprintfCore(NULL, -1, fmt, arg);
+}
+
+
+/*
+    Parse width or precision with saturation at INT_MAX; leave spec after the digits.
+ */
+static int parseField(cchar **spec, char c)
+{
+    cchar *cp;
+    int   value;
+
+    value = 0;
+    for (cp = *spec; isdigit((uchar) c); c = *cp++) {
+        if (value > (INT_MAX - (c - '0')) / 10) {
+            value = INT_MAX;
+        } else {
+            value = value * 10 + (c - '0');
+        }
+    }
+    *spec = cp - 1;
+    return value;
 }
 
 
@@ -457,16 +497,13 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
             if (c == '*') {
                 fmt.width = va_arg(args, int);
                 if (fmt.width < 0) {
-                    fmt.width = -fmt.width;
+                    fmt.width = (fmt.width == INT_MIN) ? INT_MAX : -fmt.width;
                     fmt.flags |= SPRINTF_LEFT;
                 }
             } else {
-                while (isdigit((uchar) c)) {
-                    fmt.width = fmt.width * 10 + (c - '0');
-                    c = *spec++;
-                }
-                spec--;
+                fmt.width = parseField(&spec, c);
             }
+            fmt.width = min(fmt.width, ME_GOAHEAD_LIMIT_FORMAT_FIELD);
             break;
 
         case STATE_DOT:
@@ -477,11 +514,7 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
             if (c == '*') {
                 fmt.precision = va_arg(args, int);
             } else {
-                while (isdigit((uchar) c)) {
-                    fmt.precision = fmt.precision * 10 + (c - '0');
-                    c = *spec++;
-                }
-                spec--;
+                fmt.precision = parseField(&spec, c);
             }
             break;
 
@@ -492,11 +525,24 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                 break;
 
             case 'l':
-                fmt.flags |= SPRINTF_LONG;
+                if (fmt.flags & SPRINTF_LONG) {
+                    //  "ll" is long long: 64 bits on every platform
+                    fmt.flags &= ~SPRINTF_LONG;
+                    fmt.flags |= SPRINTF_INT64;
+                } else {
+                    fmt.flags |= SPRINTF_LONG;
+                }
                 break;
 
             case 'h':
                 fmt.flags |= SPRINTF_SHORT;
+                break;
+
+            case 'z':
+                //  ssize and size_t: 64 bits on 64-bit systems, else the size of an int
+#if ME_64
+                fmt.flags |= SPRINTF_INT64;
+#endif
                 break;
             }
             break;
@@ -518,37 +564,17 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
 
             case 'S':
                 /* Safe string */
-#if ME_CHAR_LEN > 1 && KEEP
-                if (fmt.flags & SPRINTF_LONG) {
-                    //  UNICODE - not right wchar
-                    safe = websEscapeHtml(va_arg(args, wchar*));
-                    outWideString(&fmt, safe, -1);
-                    wfree(safe);
-                } else
-#endif
-                {
-                    safe = websEscapeHtml(va_arg(args, char*));
-                    outString(&fmt, safe, -1);
-                    wfree(safe);
-                }
+                safe = websEscapeHtml(va_arg(args, char*));
+                outString(&fmt, safe, -1);
+                wfree(safe);
                 break;
 
             case 'w':
-                /* Wide string of wchar characters (Same as %ls"). Null terminated. */
-#if ME_CHAR_LEN > 1 && KEEP
-                outWideString(&fmt, va_arg(args, wchar*), -1);
-                break;
-#else
-                /* Fall through */
-#endif
+            /* Wide string of wchar characters (Same as %ls"). Null terminated. */
+            /* Fall through */
 
             case 's':
                 /* Standard string */
-#if ME_CHAR_LEN > 1 && KEEP
-                if (fmt.flags & SPRINTF_LONG) {
-                    outWideString(&fmt, va_arg(args, wchar*), -1);
-                } else
-#endif
                 outString(&fmt, va_arg(args, char*), -1);
                 break;
 
@@ -658,12 +684,12 @@ static void outString(Format *fmt, char *str, ssize len)
     char  *cp;
     ssize i;
 
+    /*
+        Ignore # for strings.
+     */
     if (str == NULL) {
         str = "null";
         len = 4;
-    } else if (fmt->flags & SPRINTF_ALTERNATE) {
-        str++;
-        len = (ssize) *str;
     } else if (fmt->precision >= 0) {
         for (cp = str, len = 0; len < fmt->precision; len++) {
             if (*cp++ == '\0') {
@@ -687,47 +713,6 @@ static void outString(Format *fmt, char *str, ssize len)
         }
     }
 }
-
-
-#if ME_CHAR_LEN > 1 && KEEP
-static void outWideString(Format *fmt, wchar *str, ssize len)
-{
-    wchar *cp;
-    int   i;
-
-    if (str == 0) {
-        BPUT(fmt, (char) 'n');
-        BPUT(fmt, (char) 'u');
-        BPUT(fmt, (char) 'l');
-        BPUT(fmt, (char) 'l');
-        return;
-    } else if (fmt->flags & SPRINTF_ALTERNATE) {
-        str++;
-        len = (ssize) *str;
-    } else if (fmt->precision >= 0) {
-        for (cp = str, len = 0; len < fmt->precision; len++) {
-            if (*cp++ == 0) {
-                break;
-            }
-        }
-    } else if (len < 0) {
-        for (cp = str, len = 0; *cp++ == 0; len++);
-    }
-    if (!(fmt->flags & SPRINTF_LEFT)) {
-        for (i = len; i < fmt->width; i++) {
-            BPUT(fmt, (char) ' ');
-        }
-    }
-    for (i = 0; i < len && *str; i++) {
-        BPUT(fmt, *str++);
-    }
-    if (fmt->flags & SPRINTF_LEFT) {
-        for (i = len; i < fmt->width; i++) {
-            BPUT(fmt, (char) ' ');
-        }
-    }
-}
-#endif
 
 
 static void outNum(Format *fmt, char *prefix, uint64 value)
@@ -757,14 +742,14 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
             } else {
                 letter += '0';
             }
-            *--cp = letter;
+            *--cp = (char) letter;
             value /= fmt->radix;
         } while (value > 0);
 
     } else if (fmt->flags & SPRINTF_COMMA) {
         i = 1;
         do {
-            *--cp = '0' + (int) (value % fmt->radix);
+            *--cp = (char) ('0' + (int) (value % fmt->radix));
             value /= fmt->radix;
             if ((i++ % 3) == 0 && value > 0) {
                 *--cp = ',';
@@ -772,7 +757,7 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
         } while (value > 0);
     } else {
         do {
-            *--cp = '0' + (int) (value % fmt->radix);
+            *--cp = (char) ('0' + (int) (value % fmt->radix));
             value /= fmt->radix;
         } while (value > 0);
     }
@@ -783,7 +768,7 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
     if (prefix != 0) {
         fill -= (int) slen(prefix);
     }
-    leadingZeros = (fmt->precision > len) ? fmt->precision - len : 0;
+    leadingZeros = (fmt->precision > len) ? min(fmt->precision, ME_GOAHEAD_LIMIT_FORMAT_FIELD) - len : 0;
     fill -= leadingZeros;
 
     if (!(fmt->flags & SPRINTF_LEFT)) {
@@ -815,20 +800,23 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
 #if ME_FLOAT
 static void outFloat(Format *fmt, char specChar, double value)
 {
-    char result[ME_GOAHEAD_LIMIT_STRING], *cp;
-    int  c, fill, i, len, index;
+    char result[ME_GOAHEAD_LIMIT_STRING], *cp, c;
+    int  fill, i, len, index, precision;
 
+    // Apply width later so snprintf padding cannot crowd out the number.
     result[0] = '\0';
+    len = 0;
+    precision = min(fmt->precision, ME_GOAHEAD_LIMIT_FORMAT_FIELD);
     if (specChar == 'f') {
-        snprintf(result, sizeof(result), "%.*f", fmt->precision, value);
+        len = snprintf(result, sizeof(result), "%.*f", precision, value);
 
     } else if (specChar == 'g') {
-        snprintf(result, sizeof(result), "%*.*g", fmt->width, fmt->precision, value);
+        len = snprintf(result, sizeof(result), "%.*g", precision, value);
 
     } else if (specChar == 'e') {
-        snprintf(result, sizeof(result), "%*.*e", fmt->width, fmt->precision, value);
+        len = snprintf(result, sizeof(result), "%.*e", precision, value);
     }
-    len = (int) slen(result);
+    len = (len < 0) ? 0 : min(len, (int) sizeof(result) - 1);
     fill = fmt->width - len;
     if (fmt->flags & SPRINTF_COMMA) {
         if (((len - 1) / 3) > 0) {
@@ -847,7 +835,7 @@ static void outFloat(Format *fmt, char specChar, double value)
         }
     }
     index = len;
-    for (cp = result; *cp; cp++) {
+    for (cp = result; cp < &result[len]; cp++) {
         BPUT(fmt, *cp);
         if (fmt->flags & SPRINTF_COMMA) {
             if ((--index % 3) == 0 && index > 0) {
@@ -964,33 +952,142 @@ PUBLIC void valueFree(WebsValue *v)
     v->allocated = 0;
 }
 
+#if !ME_ROM
+/*
+    Append binary log data without following symlinks or inheriting the descriptor into CGI.
+ */
+PUBLIC int websOpenLogFile(cchar *path)
+{
+    int fd;
+
+    if ((fd = open(path, O_CREAT | O_APPEND | O_WRONLY | O_BINARY | O_NOFOLLOW | O_CLOEXEC, 0640)) >= 0) {
+        /* Some platforms don't implement O_APPEND (VXWORKS) */
+        lseek(fd, 0, SEEK_END);
+    }
+    return fd;
+}
+
+
+PUBLIC int websStartLogFile(WebsLogFile *log, cchar *path)
+{
+    websCloseLogFile(log);
+    if ((log->fd = websOpenLogFile(path)) < 0) {
+        return -1;
+    }
+    log->path = sclone(path);
+    log->size = (ssize) lseek(log->fd, 0, SEEK_END);
+    return 0;
+}
+
+
+
+static void rotateLogFile(WebsLogFile *log)
+{
+    char *old;
+
+    close(log->fd);
+    log->fd = -1;
+    old = sfmt("%s.old", log->path);
+#if ME_WIN_LIKE
+    unlink(old);
+#endif
+    if (rename(log->path, old) != 0) {
+        unlink(log->path);
+    }
+    wfree(old);
+    log->fd = websOpenLogFile(log->path);
+    log->size = 0;
+}
+
+
+PUBLIC void websWriteLogFile(WebsLogFile *log, cchar *buf, ssize len)
+{
+    ssize written;
+
+    if (log->fd < 0) {
+        return;
+    }
+    if (ME_GOAHEAD_LIMIT_LOG_SIZE > 0 && log->size > 0 && log->size + len > ME_GOAHEAD_LIMIT_LOG_SIZE) {
+        rotateLogFile(log);
+        if (log->fd < 0) {
+            return;
+        }
+    }
+    /* A write that fails has nowhere to be reported, so it is dropped. */
+    while (len > 0 && (written = write(log->fd, buf, (int) len)) > 0) {
+        buf += written;
+        len -= written;
+        log->size += written;
+    }
+}
+
+
+PUBLIC void websCloseLogFile(WebsLogFile *log)
+{
+    if (log->fd >= 0) {
+        close(log->fd);
+    }
+    log->fd = -1;
+    log->size = 0;
+    wfreeset(log->path);
+}
+#endif
+
 
 #if ME_GOAHEAD_LOGGING
+/*
+    Write a whole buffer to the log. A write that fails has nowhere to be reported, so it is dropped.
+ */
+static void logWrite(int fd, cchar *buf, ssize len)
+{
+    ssize written;
+
+    while (len > 0 && (written = write(fd, buf, (int) len)) > 0) {
+        buf += written;
+        len -= written;
+    }
+}
+
+
 static void defaultLogHandler(int flags, cchar *buf)
 {
-    char prefix[ME_GOAHEAD_LIMIT_STRING];
-    int  fd;
-
-    /*
-        Before logOpen() and after logClose() there is no log to write to, but the messages still
-        matter: goahead.c and test.c report fatal command line errors and exit before the log is
-        ever configured. Fall back to stderr so those reach the operator instead of vanishing.
-     */
-    fd = (logFd >= 0) ? logFd : 2;
+    char *line;
 
     if (flags & WEBS_RAW_MSG) {
-        write(fd, buf, (int) slen(buf));
+        line = sclone(buf);
     } else {
-        fmt(prefix, sizeof(prefix), "%s: %d: ", ME_NAME, flags & WEBS_LEVEL_MASK);
-        write(fd, prefix, (int) slen(prefix));
-        write(fd, buf, (int) slen(buf));
-        write(fd, "\n", 1);
-#if ME_WIN_LIKE || ME_UNIX_LIKE
-        if (flags & WEBS_ERROR_MSG && websGetBackground()) {
-            syslog(LOG_ERR, "%s", buf);
-        }
-#endif
+        line = sfmt("%s: %d: %s\n", ME_NAME, flags & WEBS_LEVEL_MASK, buf);
     }
+#if !ME_ROM
+    if (logFile.fd >= 0) {
+        websWriteLogFile(&logFile, line, slen(line));
+    } else
+#endif
+    {
+        /*
+            Before logOpen() and after logClose() there is no log to write to, but the messages still
+            matter: goahead.c and test.c report fatal command line errors and exit before the log is
+            ever configured. Fall back to stderr so those reach the operator instead of vanishing.
+         */
+        logWrite((logFd >= 0) ? logFd : 2, line, slen(line));
+    }
+    wfree(line);
+#if ME_WIN_LIKE || ME_UNIX_LIKE
+    if ((flags & WEBS_ERROR_MSG) && !(flags & WEBS_RAW_MSG) && websGetBackground()) {
+        syslog(LOG_ERR, "%s", buf);
+    }
+#endif
+}
+
+
+/* Escape request-controlled log bytes in every handler. Raw messages retain newlines, CRs and tabs. */
+static void logOutput(int flags, cchar *message)
+{
+    char *escaped;
+
+    escaped = websEscapeControl(message, (flags & WEBS_RAW_MSG) ? "\n\r\t" : NULL, NULL);
+    logHandler(flags, escaped);
+    wfree(escaped);
 }
 
 
@@ -1005,7 +1102,7 @@ PUBLIC void error(cchar *fmt, ...)
     va_start(args, fmt);
     message = sfmtv(fmt, args);
     va_end(args);
-    logHandler(WEBS_ERROR_MSG, message);
+    logOutput(WEBS_ERROR_MSG, message);
     wfree(message);
 }
 
@@ -1018,11 +1115,11 @@ PUBLIC void assertError(WEBS_ARGS_DEC, cchar *fmt, ...)
     va_start(args, fmt);
     fmtBuf = sfmtv(fmt, args);
 
-    message = sfmt("Assertion %s, failed at %s %d\n", fmtBuf, WEBS_ARGS);
+    message = sfmt("Assertion %s, failed at %s %d", fmtBuf, WEBS_ARGS);
     va_end(args);
     wfree(fmtBuf);
     if (logHandler) {
-        logHandler(WEBS_ASSERT_MSG, message);
+        logOutput(WEBS_ASSERT_MSG, message);
     }
     wfree(message);
 }
@@ -1036,7 +1133,7 @@ PUBLIC void logmsgProc(int level, cchar *fmt, ...)
     if ((level & WEBS_LEVEL_MASK) <= logLevel && logHandler) {
         va_start(args, fmt);
         message = sfmtv(fmt, args);
-        logHandler(level | WEBS_LOG_MSG, message);
+        logOutput(level | WEBS_LOG_MSG, message);
         wfree(message);
         va_end(args);
     }
@@ -1051,7 +1148,7 @@ PUBLIC void traceProc(int level, cchar *fmt, ...)
     if ((level & WEBS_LEVEL_MASK) <= logLevel && logHandler) {
         va_start(args, fmt);
         message = sfmtv(fmt, args);
-        logHandler(level | WEBS_TRACE_MSG, message);
+        logOutput(level | WEBS_TRACE_MSG, message);
         wfree(message);
         va_end(args);
     }
@@ -1097,16 +1194,18 @@ PUBLIC int logOpen(void)
         /* Default from the ME_GOAHEAD_LOGFILE define in goahead.h */
         logSetPath(ME_GOAHEAD_LOGFILE);
     }
+#if !ME_ROM
+    websCloseLogFile(&logFile);
+#endif
     if (smatch(logPath, "stdout")) {
         logFd = 1;
     } else if (smatch(logPath, "stderr")) {
         logFd = 2;
 #if !ME_ROM
     } else {
-        if ((logFd = open(logPath, O_CREAT | O_TRUNC | O_APPEND | O_WRONLY, 0666)) < 0) {
+        if (websStartLogFile(&logFile, logPath) < 0) {
             return -1;
         }
-        lseek(logFd, 0, SEEK_END);
 #endif
     }
     logSetHandler(logHandler);
@@ -1117,11 +1216,14 @@ PUBLIC int logOpen(void)
 PUBLIC void logClose(void)
 {
 #if !ME_ROM
-    if (logFd > 2) {
-        close(logFd);
-        logFd = -1;
-    }
+    websCloseLogFile(&logFile);
 #endif
+}
+
+
+PUBLIC cchar *logGetPath(void)
+{
+    return logPath;
 }
 
 
@@ -1142,36 +1244,36 @@ PUBLIC void logSetPath(cchar *path)
 /*
     Convert a string to lower case
  */
-PUBLIC char *slower(char *string)
+PUBLIC char *slower(char *str)
 {
     char *s;
 
-    if (string == NULL) {
+    if (str == NULL) {
         return NULL;
     }
-    s = string;
+    s = str;
     while (*s) {
-        if (isupper(*s)) {
+        if (isupper((uchar) *s)) {
             *s = (char) tolower((uchar) *s);
         }
         s++;
     }
     *s = '\0';
-    return string;
+    return str;
 }
 
 
 /*
     Convert a string to upper case
  */
-PUBLIC char *supper(char *string)
+PUBLIC char *supper(char *str)
 {
     char *s;
 
-    if (string == NULL) {
+    if (str == NULL) {
         return NULL;
     }
-    s = string;
+    s = str;
     while (*s) {
         if (islower((uchar) *s)) {
             *s = (char) toupper((uchar) *s);
@@ -1179,15 +1281,16 @@ PUBLIC char *supper(char *string)
         s++;
     }
     *s = '\0';
-    return string;
+    return str;
 }
 
 
 PUBLIC char *itosbuf(char *buf, ssize size, int64 value, int radix)
 {
-    char *cp, *end;
-    char digits[] = "0123456789ABCDEF";
-    int  negative;
+    char   *cp, *end;
+    char   digits[] = "0123456789ABCDEF";
+    uint64 uvalue;
+    int    negative;
 
     if ((radix != 10 && radix != 16) || size < 2) {
         return 0;
@@ -1196,16 +1299,20 @@ PUBLIC char *itosbuf(char *buf, ssize size, int64 value, int radix)
     *--cp = '\0';
 
     if (value < 0) {
+        /*
+            Use an unsigned magnitude to handle INT64_MIN without overflow.
+         */
+        uvalue = (uint64) (-(value + 1)) + 1;
         negative = 1;
-        value = -value;
         size--;
     } else {
+        uvalue = (uint64) value;
         negative = 0;
     }
     do {
-        *--cp = digits[value % radix];
-        value /= radix;
-    } while (value > 0 && cp > buf);
+        *--cp = digits[uvalue % (uint64) radix];
+        uvalue /= (uint64) radix;
+    } while (uvalue > 0 && cp > buf);
 
     if (negative) {
         if (cp <= buf) {
@@ -1358,12 +1465,18 @@ PUBLIC int wallocObject(void *listArg, int *max, int size)
        -1 to
     imply no upper limit. The buffer for the buf is always *  dynamically allocated. Set maxsize
  */
-PUBLIC int bufCreate(WebsBuf *bp, int initSize, int maxsize)
+PUBLIC int bufCreate(WebsBuf *bp, ssize initSize, ssize maxsize)
 {
-    int increment;
+    ssize increment;
 
     assert(bp);
 
+    /*
+        Only -1 means unlimited; reject other negative limits.
+     */
+    if (maxsize < -1) {
+        return -1;
+    }
     if (initSize <= 0) {
         initSize = ME_GOAHEAD_LIMIT_BUFFER;
     }
@@ -1426,11 +1539,26 @@ PUBLIC ssize bufLen(WebsBuf *bp)
 
 
 /*
-    Return the reference to the start of data in the buffer
+    Move wrapped ring data to the front before NUL-terminating. One byte is reserved for the terminator.
  */
 PUBLIC char *bufStart(WebsBuf *bp)
 {
+    char  *data;
+    ssize len, head;
+
     assert(bp);
+    if (bp->buf && bp->servp > bp->endp) {
+        len = bufLen(bp);
+        head = bp->endbuf - bp->servp;
+        data = walloc(len);
+        memcpy(data, bp->servp, head);
+        memcpy(&data[head], bp->buf, len - head);
+        memcpy(bp->buf, data, len);
+        wfree(data);
+        bp->servp = bp->buf;
+        bp->endp = bp->buf + len;
+    }
+    bufAddNull(bp);
     return bp->servp;
 }
 
@@ -1524,6 +1652,7 @@ PUBLIC ssize bufPut(WebsBuf *bp, cchar *fmt, ...)
     va_end(ap);
 
     rc = bufPutBlk(bp, str, strlen(str) * sizeof(char));
+    wfree(str);
     if (rc) {
         *((char*) bp->endp) = (char) '\0';
     }
@@ -1558,9 +1687,12 @@ PUBLIC void bufAddNull(WebsBuf *bp)
     assert(bp);
     assert(bp->buflen == (bp->endbuf - bp->buf));
 
+    /*
+        The ring keeps one byte free, so endp is always inside the buffer and the terminator fits even if the
+        buffer cannot grow.
+     */
     if (bufRoom(bp) < (int) sizeof(char)) {
         bufGrow(bp, 0);
-        return;
     }
     *((char*) bp->endp) = (char) '\0';
 }
@@ -1871,9 +2003,11 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
         }
         room = bp->increment;
         /*
-            Double the increment so the next grow will line up with walloc'ed memory
+            Double growth increments only while below the limit.
          */
-        bp->increment = getBinBlockSize(2 * bp->increment);
+        if (bp->maxsize < 0 || bp->increment < bp->maxsize) {
+            bp->increment = getBinBlockSize(2 * bp->increment);
+        }
     }
     len = bufLen(bp);
     if ((newbuf = walloc(bp->buflen + room)) == NULL) {
@@ -1887,6 +2021,7 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
     bp->endbuf = &bp->buf[bp->buflen];
     bp->servp = newbuf;
     bp->endp = &newbuf[len];
+    bufAddNull(bp);
     return 1;
 }
 
@@ -1895,7 +2030,7 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
     Find the smallest binary memory size that "size" will fit into.  This makes the buf and bufGrow routines much
     more efficient. The walloc routine likes powers of 2 minus 1.
  */
-static int  getBinBlockSize(int size)
+static ssize getBinBlockSize(ssize size)
 {
     int q;
 
@@ -1903,7 +2038,7 @@ static int  getBinBlockSize(int size)
     for (q = 0; size; size >>= 1) {
         q++;
     }
-    return 1 << (WEBS_SHIFT + q);
+    return ((ssize) 1) << (WEBS_SHIFT + q);
 }
 
 
@@ -2101,6 +2236,12 @@ WebsKey *hashEnter(WebsHash sd, cchar *name, WebsValue v, int arg)
 
     assert(name);
     assert(0 <= sd && sd < symMax);
+    /*
+        Reject null or empty names before hashIndex dereferences them.
+     */
+    if (name == NULL || *name == '\0') {
+        return NULL;
+    }
     tp = sym[sd];
     assert(tp);
 
@@ -2229,7 +2370,7 @@ static WebsKey *hash(HashTable *tp, cchar *name)
     Compute the hash function and return an index into the hash table We use a basic additive function that is then made
     modulo the size of the table.
  */
-static int hashIndex(HashTable *tp, cchar *name)
+static ME_NO_SANITIZE_WRAP int hashIndex(HashTable *tp, cchar *name)
 {
     uint sum;
     int  i;
@@ -2238,11 +2379,14 @@ static int hashIndex(HashTable *tp, cchar *name)
     /*
         Add in each character shifted up progressively by 7 bits. The shift amount is rounded so as to not shift too
         far. It thus cycles with each new cycle placing character shifted up by one bit.
+
+        Promote via uchar: a signed char with the high bit set sign-extends to a negative int, and shifting a
+        negative value left is undefined. The cast is a no-op below 0x80, so ASCII keys keep their bucket.
      */
     i = 0;
     sum = 0;
     while (*name) {
-        sum += (((int) *name++) << i);
+        sum += (((int) (uchar) *name++) << i);
         i = (i + 7) % (BITS(int) - BITSPERBYTE);
     }
     return sum % tp->size;
@@ -2499,20 +2643,6 @@ PUBLIC ssize sncopy(char *dest, ssize destMax, cchar *src, ssize count)
 }
 
 
-#if KEEP
-/*
-    Return the length of a string limited by a given length
- */
-PUBLIC ssize strnlen(cchar *s, ssize n)
-{
-    ssize len;
-
-    len = strlen(s);
-    return min(len, n);
-}
-#endif
-
-
 /*
     Case sensitive string comparison. Limited by length
  */
@@ -2744,7 +2874,7 @@ PUBLIC int fmtAlloc(char **sp, int n, cchar *format, ...)
 #endif
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */
