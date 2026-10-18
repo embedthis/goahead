@@ -1,0 +1,3 @@
+goahead-test: 1: Instructed to exit
+socket.c:120:9: runtime error: index 64 out of bounds for type 'WebsSocket *[64]'
+    #0 0x0001 in socketClose socket.c:120

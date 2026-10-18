@@ -19,7 +19,7 @@
  */
 
 import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, tskip, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:18080'
 const httpUri = new Uri(HTTP)
@@ -43,55 +43,59 @@ function status(response: string): number {
     return match ? parseInt(match[1]) : 0
 }
 
-/*
-    joshua:pass1 - the only test user holding the "manage" ability.
- */
-const JOSHUA = 'am9zaHVhOnBhc3Mx'
+if (!thas('ME_GOAHEAD_AUTH') || !thas('ME_GOAHEAD_UPLOAD')) {
+    tskip('Authentication or upload is not enabled')
+} else {
+    /*
+        joshua:pass1 - the only test user holding the "manage" ability.
+     */
+    const JOSHUA = 'am9zaHVhOnBhc3Mx'
 
-/*
-    The destructive case. An anonymous DELETE is refused by the ability check on the second route.
-    Before the fix the 401 was written and the file handler ran anyway, unlinking the file. The
-    status alone does not prove the fix - the file must still be there afterwards.
- */
-let response = await request('PUT', '/reroute/canary.html')
-response = await request('DELETE', '/reroute/canary.html')
-ttrue(status(response) == 401)
+    /*
+        The destructive case. An anonymous DELETE is refused by the ability check on the second route.
+        Before the fix the 401 was written and the file handler ran anyway, unlinking the file. The
+        status alone does not prove the fix - the file must still be there afterwards.
+     */
+    let response = await request('PUT', '/reroute/canary.html')
+    response = await request('DELETE', '/reroute/canary.html')
+    ttrue(status(response) == 401)
 
-/*
-    Confirm the resource was not removed by the refused request. A GET by an authorized user is the
-    only way to observe the server's view of the file, so use that rather than the local filesystem.
- */
-response = await request('GET', '/reroute/secret.html', JOSHUA)
-ttrue(status(response) == 200)
-ttrue(response.contains('REROUTE-PROTECTED-BODY'))
+    /*
+        Confirm the resource was not removed by the refused request. A GET by an authorized user is the
+        only way to observe the server's view of the file, so use that rather than the local filesystem.
+     */
+    response = await request('GET', '/reroute/secret.html', JOSHUA)
+    ttrue(status(response) == 200)
+    ttrue(response.contains('REROUTE-PROTECTED-BODY'))
 
-/*
-    The disclosure case. Anonymous GET must be refused and must not carry the protected body.
- */
-response = await request('GET', '/reroute/secret.html')
-ttrue(status(response) == 401)
-ttrue(!response.contains('REROUTE-PROTECTED-BODY'))
+    /*
+        The disclosure case. Anonymous GET must be refused and must not carry the protected body.
+     */
+    response = await request('GET', '/reroute/secret.html')
+    ttrue(status(response) == 401)
+    ttrue(!response.contains('REROUTE-PROTECTED-BODY'))
 
-/*
-    A second anonymous DELETE must still be refused - the first refusal must not have left the
-    request in a state that lets a retry through.
- */
-response = await request('DELETE', '/reroute/secret.html')
-ttrue(status(response) == 401)
+    /*
+        A second anonymous DELETE must still be refused - the first refusal must not have left the
+        request in a state that lets a retry through.
+     */
+    response = await request('DELETE', '/reroute/secret.html')
+    ttrue(status(response) == 401)
 
-response = await request('GET', '/reroute/secret.html', JOSHUA)
-ttrue(status(response) == 200)
-ttrue(response.contains('REROUTE-PROTECTED-BODY'))
+    response = await request('GET', '/reroute/secret.html', JOSHUA)
+    ttrue(status(response) == 200)
+    ttrue(response.contains('REROUTE-PROTECTED-BODY'))
 
-/*
-    Authorized requests through the same reroute path must still work, so the fix must not have
-    turned the reroute into a blanket denial.
- */
-response = await request('GET', '/reroute/secret.html', JOSHUA)
-ttrue(status(response) == 200)
+    /*
+        Authorized requests through the same reroute path must still work, so the fix must not have
+        turned the reroute into a blanket denial.
+     */
+    response = await request('GET', '/reroute/secret.html', JOSHUA)
+    ttrue(status(response) == 200)
 
-/*
-    Ordinary routing outside the reroute prefix is unaffected.
- */
-response = await request('GET', '/index.html')
-ttrue(status(response) == 200)
+    /*
+        Ordinary routing outside the reroute prefix is unaffected.
+     */
+    response = await request('GET', '/index.html')
+    ttrue(status(response) == 200)
+}

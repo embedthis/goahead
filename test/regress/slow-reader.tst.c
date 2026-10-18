@@ -1,30 +1,10 @@
 /*
     slow-reader.tst.c - Regression: a client that stops reading must not freeze the server forever.
-
-    websWriteBlock flushes the output buffer with a blocking send whenever the buffer fills, so every
-    dynamic response (JST, CGI, error bodies, headers) writes from inside the handler. Without a send
-    timeout, a peer that stops reading blocks send() in the kernel and, because GoAhead is single
-    threaded, freezes websServiceEvents with it. Nothing recovers the server until the peer reads or
-    the TCP stack errors.
-
-    websFlush now bounds the blocking flush: SO_SNDTIMEO limits each send and a whole-flush deadline
-    of ME_GOAHEAD_LIMIT_TIMEOUT limits the retry loop, after which the peer is treated as a connection
-    error and dropped. The stall is bounded, not eliminated - a handler cannot yield mid-response in a
-    server without fibers - so this test asserts recovery within the bound, not concurrency.
-
-    Two suites:
-      A) integrity - a slow but reading client receives the same bytes as a fast client. A send that
-         reports failure after the stack has queued data would resend those bytes and corrupt the body.
-      B) recovery - a client that never reads is dropped, and a second client is served, within the
-         flush deadline. Before the fix the second client never completed.
-
-    Both suites request huge.jst, which is larger than the kernel socket buffers on either side. A
-    response that fits in those buffers never reaches the blocking path and tests nothing. Suite B
-    deliberately runs for up to ME_GOAHEAD_LIMIT_TIMEOUT seconds - that bound is what is under test.
  */
 
 #include "testme.h"
 #include "goahead.h"
+#include "http-client-fixture.h"
 
 #if ME_GOAHEAD_JAVASCRIPT
 
@@ -38,110 +18,9 @@
 #define BIG_URL         "/huge.jst"
 
 /*
-    Length argument for send and recv. Winsock declares it int and POSIX declares it size_t, so an
-    explicit cast is needed either way: without it MSVC warns C4267 and gcc warns -Wsign-conversion.
- */
-#if ME_WIN_LIKE
-    #define IOLEN(len)  ((int) (len))
-#else
-    #define IOLEN(len)  ((size_t) (len))
-#endif
-
-/*
     Keep scratch off the stack. The Windows CI runner gives a test exe a 1 MB stack.
  */
 static char readBuf[64 * 1024];
-
-/******************************* Socket helpers *******************************/
-
-static void napMsec(int msec)
-{
-#if ME_WIN_LIKE
-    Sleep((DWORD) msec);
-#else
-    struct timespec ts;
-    ts.tv_sec = msec / 1000;
-    ts.tv_nsec = (msec % 1000) * 1000000;
-    nanosleep(&ts, NULL);
-#endif
-}
-
-
-/*
-    Return the HTTP port of the test server. TM_HTTP is of the form http://127.0.0.1:18080.
- */
-static int serverPort(void)
-{
-    cchar *http, *colon;
-
-    http = tget("TM_HTTP", "http://127.0.0.1:18080");
-    if ((colon = strrchr(http, ':')) != 0) {
-        return atoi(&colon[1]);
-    }
-    return 18080;
-}
-
-
-/*
-    Connect to the test server. If rcvbuf is non-zero, shrink the receive buffer before connecting so
-    the server cannot park the response in the client's kernel buffers. Returns SOCKET_ERROR on failure.
- */
-static Socket openConn(int rcvbuf, int timeout)
-{
-    struct sockaddr_in addr;
-    Socket             sock;
-
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == SOCKET_ERROR) {
-        return SOCKET_ERROR;
-    }
-    if (rcvbuf) {
-        setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*) &rcvbuf, sizeof(rcvbuf));
-    }
-    if (timeout) {
-#if ME_WIN_LIKE
-        DWORD tv = (DWORD) (timeout * 1000);
-#else
-        struct timeval tv;
-        tv.tv_sec = timeout;
-        tv.tv_usec = 0;
-#endif
-        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*) &tv, sizeof(tv));
-    }
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons((ushort) serverPort());
-    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) == SOCKET_ERROR) {
-        closesocket(sock);
-        return SOCKET_ERROR;
-    }
-    return sock;
-}
-
-
-static void closeConn(Socket sock)
-{
-    if (sock != SOCKET_ERROR) {
-        closesocket(sock);
-    }
-}
-
-
-/*
-    Send a request. HTTP/1.0 suppresses chunked encoding, so the body arrives without chunk framing
-    whose boundaries would otherwise vary with flush timing and defeat a byte comparison.
- */
-static int sendRequest(Socket sock, cchar *url, cchar *protocol)
-{
-    char  request[512];
-    ssize len;
-
-    fmt(request, sizeof(request), "GET %s %s\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n", url, protocol);
-    len = (ssize) slen(request);
-    return send(sock, request, IOLEN(len), 0) == len ? 0 : -1;
-}
-
 
 /*
     Read the whole response, accumulating a length and an FNV-1a hash so multi-megabyte bodies can be
@@ -281,6 +160,57 @@ static void testStalledPeerIsBounded(void)
 }
 
 
+/******************************** Suite C: trickle ****************************/
+
+#define TRICKLE_PAUSE   5
+
+/*
+    Drain the receive buffer periodically to let individual flushes finish, then check the whole-response deadline.
+ */
+static void testTricklingPeerIsBounded(void)
+{
+    WebsTime start, elapsed, lastRead;
+    ssize    nbytes;
+    Socket   trickler, victim;
+
+    if ((trickler = openConn(TINY_RCVBUF, 1)) == SOCKET_ERROR) {
+        tfail("Cannot connect to test server");
+        return;
+    }
+    ttrue(sendRequest(trickler, BIG_URL, "HTTP/1.1") == 0, "Cannot send request");
+    napMsec(500);
+    start = lastRead = time(0);
+
+    if ((victim = openConn(0, 1)) == SOCKET_ERROR) {
+        tfail("Cannot connect to test server");
+        closeConn(trickler);
+        return;
+    }
+    if (sendRequest(victim, "/index.html", "HTTP/1.1") < 0) {
+        tfail("Cannot send request");
+        closeConn(victim);
+        closeConn(trickler);
+        return;
+    }
+    nbytes = -1;
+    while ((elapsed = time(0) - start) <= STALL_LIMIT) {
+        if (time(0) - lastRead >= TRICKLE_PAUSE) {
+            recv(trickler, readBuf, IOLEN(sizeof(readBuf)), 0);
+            lastRead = time(0);
+        }
+        if ((nbytes = recv(victim, readBuf, IOLEN(sizeof(readBuf)), 0)) >= 0) {
+            break;
+        }
+    }
+    closeConn(victim);
+    closeConn(trickler);
+
+    tgtz(nbytes, 0, "Server did not serve the second client while a trickling client held it");
+    tinfo("Second client served after %d secs (bound %d)", (int) elapsed, STALL_LIMIT);
+    ttrue(elapsed <= STALL_LIMIT, "Recovery took %d secs, over the %d sec bound", (int) elapsed, STALL_LIMIT);
+}
+
+
 int main(int argc, char **argv)
 {
     /*
@@ -293,6 +223,7 @@ int main(int argc, char **argv)
     }
     testSlowReaderIntegrity();
     testStalledPeerIsBounded();
+    testTricklingPeerIsBounded();
     socketClose();
     return 0;
 }

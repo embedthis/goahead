@@ -26,7 +26,7 @@
  */
 
 import { Config } from '@embedthis/ejscript'
-import { teq, tskip, ttrue } from '@embedthis/testme'
+import { teq, tget, tskip, ttrue } from '@embedthis/testme'
 import { spawn } from 'node:child_process'
 import { connect } from 'node:net'
 import { join } from 'node:path'
@@ -43,6 +43,8 @@ const PORT = 18082
 const V4 = '127.0.0.1'
 const V6 = '::1'
 const TESTDIR = join(import.meta.dir, '..')
+//  The route table assembled for this build's feature set
+const ROUTES = String(tget('TM_ROUTES'))
 const SERVER = join(TESTDIR, '..', 'build', 'bin', 'goahead-test')
 
 if (Config.OS == 'windows' || Config.OS == 'win32') {
@@ -106,7 +108,7 @@ await new Promise<void>((resolve) => {
 })
 
 let server = spawn(SERVER,
-    ['--connections', String(TOTAL), '--connections-per-ip', String(PER_IP),
+    ['--connections', String(TOTAL), '--connections-per-ip', String(PER_IP), '--route', ROUTES,
      'web', `${V4}:${PORT}`, `[${V6}]:${PORT}`],
     {cwd: TESTDIR, stdio: 'ignore'})
 server.on('error', (e) => { ttrue(false, 'cannot spawn ' + SERVER + ': ' + e) })

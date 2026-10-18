@@ -1,0 +1,8 @@
+goahead-test: 1: Instructed to exit
+=================================================================
+==4242==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000011 at pc 0x0001 bp 0x0002 sp 0x0003
+READ of size 1 at 0x602000000011 thread T0
+    #0 0x0001 in websClose http.c:400
+    #1 0x0002 in main test.c:290
+SUMMARY: AddressSanitizer: heap-buffer-overflow http.c:400 in websClose
+==4242==ABORTING

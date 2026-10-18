@@ -1,18 +1,4 @@
-/*
-    file-type-gate.tst - Only regular files may be opened and served
-
-    The static path used to perform one type check (websPageIsDirectory) and then hand the path to a
-    blocking open(). open() on a FIFO with no writer blocks in the kernel, and GoAhead has a single
-    event loop, so the call stalled the whole server: no crash, no log entry and no timeout, because
-    the timeout machinery is driven by the loop that is now stuck. On Windows the reserved device
-    names resolve in any directory, so an unauthenticated GET /CON reached the same open().
-
-    websOpenFile now opens with O_NONBLOCK, requires S_ISREG of the descriptor, and on Windows
-    refuses a reserved device name before the open. Every non-regular target answers 404 and the
-    server stays responsive.
-
-    The FIFO fixture web/fifo.txt is created by prep.sh on non-Windows hosts.
-*/
+/* Only regular files may be opened and served */
 
 import { Socket, ByteArray, Config, Uri } from '@embedthis/ejscript'
 import { tget, ttrue } from '@embedthis/testme'
@@ -58,7 +44,15 @@ if (Config.OS != 'windows' && Config.OS != 'win32') {
  */
 for (let uri of ['/CON', '/con.txt', '/nul', '/AUX', '/COM1', '/lpt1.html', '/tmp/con']) {
     response = await rawGet(uri)
-    ttrue(status(response) == 404)
+    ttrue(status(response) == 404, `${uri} must be refused as not found, got ${status(response)}`)
+}
+
+/*
+    Reject device stream paths before opening; test the device check separately.
+ */
+for (let uri of ['/CON::$DATA', '/con:x', '/prn:', '/nul.txt:s', '/tmp/aux::$DATA']) {
+    response = await rawGet(uri)
+    ttrue(status(response) == 400, `${uri} must be refused as non-canonical, got ${status(response)}`)
 }
 
 /*

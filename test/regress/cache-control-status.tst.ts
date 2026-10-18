@@ -17,7 +17,7 @@
  */
 
 import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:18080'
 const httpUri = new Uri(HTTP)
@@ -101,29 +101,33 @@ function isNoStore(response: string): boolean {
  */
 const JOSHUA = 'am9zaHVhOnBhc3Mx'
 
-/*
-    The reported defect. An anonymous request for a protected .js asset is challenged with a 401.
-    That challenge is what a shared cache would store under the URL, so it must never be public and
-    must carry no-store.
- */
-let response = await request('/auth/basic/admin/secret.js')
-ttrue(status(response) == 401)
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
-ttrue(cacheControls(response).length == 1)
-ttrue(response.contains('Vary:'))
+let response: string
 
-/*
-    The same URL fetched with valid credentials returns 200, but the body is authorization-dependent
-    and must not be stored by a shared cache either - the mirror-image poisoning, where a cached
-    authenticated body is served to a client holding no credentials.
- */
-response = await request('/auth/basic/admin/secret.js', JOSHUA)
-ttrue(status(response) == 200)
-ttrue(response.contains('CACHING-PROTECTED-ASSET'))
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
-ttrue(cacheControls(response).length == 1)
+if (thas('ME_GOAHEAD_AUTH')) {
+    /*
+        The reported defect. An anonymous request for a protected .js asset is challenged with a 401.
+        That challenge is what a shared cache would store under the URL, so it must never be public and
+        must carry no-store.
+     */
+    response = await request('/auth/basic/admin/secret.js')
+    ttrue(status(response) == 401)
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
+    ttrue(cacheControls(response).length == 1)
+    ttrue(response.contains('Vary:'))
+
+    /*
+        The same URL fetched with valid credentials returns 200, but the body is authorization-dependent
+        and must not be stored by a shared cache either - the mirror-image poisoning, where a cached
+        authenticated body is served to a client holding no credentials.
+     */
+    response = await request('/auth/basic/admin/secret.js', JOSHUA)
+    ttrue(status(response) == 200)
+    ttrue(response.contains('CACHING-PROTECTED-ASSET'))
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
+    ttrue(cacheControls(response).length == 1)
+}
 
 /*
     A 404 for a listed extension was public too. An error response says nothing durable about the
@@ -164,27 +168,31 @@ response = await request('/caching/public.js', null, 'If-Modified-Since: Mon, 01
 ttrue(status(response) == 304)
 ttrue(!isNoStore(response))
 
-/*
-    A dynamic response must never be public even when its URL carries a listed extension, and must
-    carry exactly one Cache-Control - the CGI and JST handlers used to append a second, weaker
-    "no-cache" of their own after websWriteHeaders had already emitted "public, max-age".
- */
-response = await request('/test.jst')
-ttrue(status(response) == 200)
-ttrue(!isPublic(response))
-ttrue(cacheControls(response).length == 1)
+if (thas('ME_GOAHEAD_JAVASCRIPT')) {
+    /*
+        A dynamic response must never be public even when its URL carries a listed extension, and must
+        carry exactly one Cache-Control - the CGI and JST handlers used to append a second, weaker
+        "no-cache" of their own after websWriteHeaders had already emitted "public, max-age".
+     */
+    response = await request('/test.jst')
+    ttrue(status(response) == 200)
+    ttrue(!isPublic(response))
+    ttrue(cacheControls(response).length == 1)
+}
 
-/*
-    A CGI response is dynamic and must carry the single no-store, private header. The CGI handler
-    used to append a "Cache-Control: no-cache" of its own after websWriteHeaders had already written
-    one, so a CGI URL ending in a listed extension was served both "public, max-age=86400" and
-    "no-cache" and the cache picked whichever it preferred.
- */
-response = await request('/cgi-bin/cgitest')
-ttrue(status(response) == 200)
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
-ttrue(cacheControls(response).length == 1)
+if (thas('ME_GOAHEAD_CGI')) {
+    /*
+        A CGI response is dynamic and must carry the single no-store, private header. The CGI handler
+        used to append a "Cache-Control: no-cache" of its own after websWriteHeaders had already written
+        one, so a CGI URL ending in a listed extension was served both "public, max-age=86400" and
+        "no-cache" and the cache picked whichever it preferred.
+     */
+    response = await request('/cgi-bin/cgitest')
+    ttrue(status(response) == 200)
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
+    ttrue(cacheControls(response).length == 1)
+}
 
 /*
     Ordinary static content on an extension that is not in ME_GOAHEAD_CLIENT_CACHE must be left
@@ -195,47 +203,49 @@ response = await request('/index.html')
 ttrue(status(response) == 200)
 ttrue(cacheControls(response).length == 0)
 
-/*
-    Form login. The response sets a session cookie, so it must not be public and must carry exactly
-    one Cache-Control - the Set-Cookie loop used to emit one no-cache="set-cookie" per cookie, and a
-    further header if the extension matched. The Set-Cookie itself must survive the rewrite.
- */
-response = await postForm('/action/login', 'username=joshua&password=pass1')
-ttrue(status(response) == 302)
-let setCookie = header(response, 'Set-Cookie')
-ttrue(setCookie != null && setCookie.contains('-goahead-session-='))
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
-ttrue(cacheControls(response).length == 1)
+if (thas('ME_GOAHEAD_AUTH')) {
+    /*
+        Form login. The response sets a session cookie, so it must not be public and must carry exactly
+        one Cache-Control - the Set-Cookie loop used to emit one no-cache="set-cookie" per cookie, and a
+        further header if the extension matched. The Set-Cookie itself must survive the rewrite.
+     */
+    response = await postForm('/action/login', 'username=joshua&password=pass1')
+    ttrue(status(response) == 302)
+    let setCookie = header(response, 'Set-Cookie')
+    ttrue(setCookie != null && setCookie.contains('-goahead-session-='))
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
+    ttrue(cacheControls(response).length == 1)
 
-/*
-    The session-authenticated fetch. This is the case the status gate alone does not catch: form auth
-    sets no Authorization header, so wp->authType is empty and only wp->username marks the response
-    as authorization-dependent. /auth/form/session.js is a 200 on a listed extension with no
-    Set-Cookie in the response, so testing wp->authType alone would publish a session-protected asset
-    to every shared cache for the lifespan.
- */
-let cookie = setCookie.split(';')[0]
-response = await request('/auth/form/session.js', null, 'Cookie: ' + cookie + '\r\n')
-ttrue(status(response) == 200)
-ttrue(response.contains('CACHING-SESSION-ASSET'))
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
+    /*
+        The session-authenticated fetch. This is the case the status gate alone does not catch: form auth
+        sets no Authorization header, so wp->authType is empty and only wp->username marks the response
+        as authorization-dependent. /auth/form/session.js is a 200 on a listed extension with no
+        Set-Cookie in the response, so testing wp->authType alone would publish a session-protected asset
+        to every shared cache for the lifespan.
+     */
+    let cookie = setCookie.split(';')[0]
+    response = await request('/auth/form/session.js', null, 'Cookie: ' + cookie + '\r\n')
+    ttrue(status(response) == 200)
+    ttrue(response.contains('CACHING-SESSION-ASSET'))
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
 
-/*
-    The same asset without the session cookie is redirected to the login form. A redirect is not a
-    durable answer for the URL either, so it must not be public.
- */
-response = await request('/auth/form/session.js')
-ttrue(status(response) == 302)
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
+    /*
+        The same asset without the session cookie is redirected to the login form. A redirect is not a
+        durable answer for the URL either, so it must not be public.
+     */
+    response = await request('/auth/form/session.js')
+    ttrue(status(response) == 302)
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
 
-/*
-    Digest is the other credential-bearing scheme. Its challenge must be gated identically to Basic -
-    the gate keys off wp->authType and wp->code, not off the scheme.
- */
-response = await request('/auth/digest/admin/')
-ttrue(status(response) == 401)
-ttrue(!isPublic(response))
-ttrue(isNoStore(response))
+    /*
+        Digest is the other credential-bearing scheme. Its challenge must be gated identically to Basic -
+        the gate keys off wp->authType and wp->code, not off the scheme.
+     */
+    response = await request('/auth/digest/admin/')
+    ttrue(status(response) == 401)
+    ttrue(!isPublic(response))
+    ttrue(isNoStore(response))
+}

@@ -13,7 +13,7 @@
  */
 
 import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, tskip, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:8080'
 const httpUri = new Uri(HTTP)
@@ -33,46 +33,50 @@ function status(response: string): number {
     return match ? parseInt(match[1]) : 0
 }
 
-/*
-    Baseline: the exact-case spelling is protected, and ordinary routing still works.
- */
-let response = await rawGet('/auth/basic/basic.html')
-ttrue(status(response) == 401)
+if (!thas('ME_GOAHEAD_AUTH')) {
+    tskip('Authentication is not enabled')
+} else {
+    /*
+        Baseline: the exact-case spelling is protected, and ordinary routing still works.
+     */
+    let response = await rawGet('/auth/basic/basic.html')
+    ttrue(status(response) == 401)
 
-response = await rawGet('/index.html')
-ttrue(status(response) == 200)
+    response = await rawGet('/index.html')
+    ttrue(status(response) == 200)
 
-/*
-    Case variants of a Basic-auth route. 401 where the file system folds, 404 where it does not.
- */
-for (let uri of ['/AUTH/BASIC/basic.html', '/Auth/Basic/basic.html', '/auth/BASIC/basic.html']) {
-    response = await rawGet(uri)
+    /*
+        Case variants of a Basic-auth route. 401 where the file system folds, 404 where it does not.
+     */
+    for (let uri of ['/AUTH/BASIC/basic.html', '/Auth/Basic/basic.html', '/auth/BASIC/basic.html']) {
+        response = await rawGet(uri)
+        ttrue(status(response) == 401 || status(response) == 404)
+        ttrue(!response.contains('Hello basic world'))
+    }
+
+    /*
+        Case variant of an abilities-gated route. "view" is not enough for /auth/basic/admin/.
+     */
+    response = await rawGet('/AUTH/BASIC/ADMIN/index.html')
     ttrue(status(response) == 401 || status(response) == 404)
-    ttrue(!response.contains('Hello basic world'))
+
+    /*
+        Case variant of the TLS-enforcing route. Must redirect to https, never serve cleartext.
+     */
+    response = await rawGet('/SECURE/index.html')
+    ttrue(status(response) == 302 || status(response) == 404)
+    ttrue(!response.contains('Hello secure world'))
+
+    /*
+        Case variant of the form-login route. Must redirect to the login page, never serve content.
+     */
+    response = await rawGet('/AUTH/FORM/index.html')
+    ttrue(status(response) != 200)
+
+    /*
+        Negative case: the fold must not be over-broad. /auth/basicX/ is a different prefix, so it
+        falls through to the catch-all and 404s on the missing file rather than demanding credentials.
+     */
+    response = await rawGet('/auth/basicX/basic.html')
+    ttrue(status(response) == 404)
 }
-
-/*
-    Case variant of an abilities-gated route. "view" is not enough for /auth/basic/admin/.
- */
-response = await rawGet('/AUTH/BASIC/ADMIN/index.html')
-ttrue(status(response) == 401 || status(response) == 404)
-
-/*
-    Case variant of the TLS-enforcing route. Must redirect to https, never serve cleartext.
- */
-response = await rawGet('/SECURE/index.html')
-ttrue(status(response) == 302 || status(response) == 404)
-ttrue(!response.contains('Hello secure world'))
-
-/*
-    Case variant of the form-login route. Must redirect to the login page, never serve content.
- */
-response = await rawGet('/AUTH/FORM/index.html')
-ttrue(status(response) != 200)
-
-/*
-    Negative case: the fold must not be over-broad. /auth/basicX/ is a different prefix, so it
-    falls through to the catch-all and 404s on the missing file rather than demanding credentials.
- */
-response = await rawGet('/auth/basicX/basic.html')
-ttrue(status(response) == 404)

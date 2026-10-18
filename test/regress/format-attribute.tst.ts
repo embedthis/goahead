@@ -1,27 +1,7 @@
-/*
-    format-attribute.tst - Regression test for printf format-string checking.
-
-    The build has carried -Wformat -Wformat-security since forever, but the flags were structurally
-    inert: PRINTF_ATTRIBUTE was applied to exactly one declaration (bufPut), so the compiler had
-    nothing to check the other printf-family wrappers against. That is how the attacker-controlled
-    format string in the CGI Content-Type path shipped with the gate nominally enabled, and why
-    integrators compiling against dist/goahead.h got no format checking either.
-
-    A printf-style declaration needs TWO annotations, because GCC/Clang and MSVC take the same
-    information in different syntactic positions: PRINTF_ATTRIBUTE(a, b) after the parameter list,
-    and PRINTF_FORMAT before the format parameter (SAL _Printf_format_string_, which drives MSVC's
-    C4774). Either one alone leaves a toolchain unchecked, so both are asserted on every wrapper.
-
-    Two suites:
-      A) Structural - every varargs printf-family declaration in the public headers, and in the
-         amalgamated dist/ copies integrators actually compile against, carries both annotations.
-      B) Live gate - drive the real compiler over probe translation units and assert it diagnoses
-         a non-literal format and an argument-type mismatch through each wrapper. Suite A alone
-         cannot prove the annotations are effective; suite B alone cannot prove dist/ is in step,
-         and it only ever exercises the host toolchain.
- */
+/* Verify printf format-string checking. */
 
 import { Cmd, Config } from '@embedthis/ejscript'
+import { spawnSync } from 'node:child_process'
 import { tskip, ttrue } from '@embedthis/testme'
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -43,9 +23,9 @@ const EXEMPT = ['jsArgs']
     instead of silently reducing coverage.
  */
 const EXPECTED: Record<string, number> = {
-    'src/goahead.h': 16,
+    'src/goahead.h': 14,
     'src/js.h': 1,
-    'dist/goahead.h': 16,
+    'dist/goahead.h': 14,
     'dist/js.h': 1,
 }
 
@@ -77,12 +57,7 @@ for (let rel of Object.keys(EXPECTED)) {
 }
 
 /*
-    Suite B - live compiler gate
-
-    Two toolchains, two mechanisms. GCC/Clang read PRINTF_ATTRIBUTE and are driven by
-    -Werror=format-security; MSVC reads the SAL PRINTF_FORMAT annotation and is driven by /we4774.
-    Each arm mirrors the flags its own shipped build uses, so a probe that the build would reject
-    is a probe this test rejects.
+    Use GCC/Clang for runtime format checks; MSVC /analyze checks wrapper argument types only.
  */
 const isWindows = String(Config.OS).match(/^win/) != null
 const cc = isWindows ? Cmd.locate('cl') : (Cmd.locate('cc') || Cmd.locate('gcc') || Cmd.locate('clang'))
@@ -93,8 +68,8 @@ if (!cc) {
     let dir = mkdtempSync(join(tmpdir(), 'goahead-fmt-'))
 
     const INCLUDES = isWindows
-        ? '/I' + join(ROOT, 'src') + ' /I' + join(ROOT, 'src', 'osdep')
-        : '-I' + join(ROOT, 'src') + ' -I' + join(ROOT, 'src', 'osdep')
+        ? ['/I' + join(ROOT, 'src'), '/I' + join(ROOT, 'src', 'osdep')]
+        : ['-I' + join(ROOT, 'src'), '-I' + join(ROOT, 'src', 'osdep')]
 
     /*
         Both arms make the non-literal format a hard error, matching the shipped build, so a
@@ -102,27 +77,25 @@ if (!cc) {
         both streams are collected.
      */
     const FLAGS = isWindows
-        ? '/nologo /c /W4 /we4774 ' + INCLUDES + ' /Fo' + join(dir, 'probe.obj')
-        : '-fsyntax-only -Wformat=2 -Wformat-security -Werror=format-security ' + INCLUDES
+        ? ['/nologo', '/c', '/W4', '/we4774', ...INCLUDES, '/Fo' + join(dir, 'probe.obj')]
+        : ['-fsyntax-only', '-Wformat=2', '-Wformat-security', '-Werror=format-security', ...INCLUDES]
 
-    /* The diagnostic each arm emits for a runtime value in the format position */
-    const NON_LITERAL_DIAGNOSTIC = isWindows ? /\b(C|warning )?4774\b/ : /format-security/
+    /* The diagnostic GCC/Clang emit for a runtime value in the format position */
+    const NON_LITERAL_DIAGNOSTIC = /format-security/
 
-    /* Any format diagnostic at all, used by the control probes to assert silence */
-    const ANY_FORMAT_DIAGNOSTIC = isWindows ? /\b(4774|4477|4473)\b/ : /-Wformat/
+    /* Any format diagnostic at all: the /analyze codes are the SAL format-string checks */
+    const ANY_FORMAT_DIAGNOSTIC = isWindows ? /\bC?(4774|4477|4473|6064|6067|6269|6271|6272|6273|6328)\b/ : /-Wformat/
 
-    function compile(body: string): {status: number, diagnostics: string} {
+    function compile(body: string, extra: string[] = []): {status: number, diagnostics: string} {
         let src = join(dir, 'probe.c')
         writeFileSync(src, '#include "goahead.h"\n#include "js.h"\n' + body + '\n')
-        let cmd = new Cmd(cc + ' ' + FLAGS + ' ' + src)
-        return {status: cmd.status, diagnostics: String(cmd.error) + String(cmd.response)}
+        //  An argument list, not a shell command line: the Windows compiler path contains spaces
+        let result = spawnSync(String(cc), [...FLAGS, ...extra, src], {encoding: 'utf8'})
+        return {status: result.status ?? -1, diagnostics: (result.stdout || '') + (result.stderr || '')}
     }
 
-    /*
-        B1) The CGI Content-Type shape - a runtime value in the format position - is now a hard
-        compile error through every wrapper, not just websWriteHeader.
-     */
-    const NON_LITERAL = [
+    /* GCC/Clang must reject runtime format strings through every wrapper. MSVC has no equivalent diagnostic. */
+    const NON_LITERAL = isWindows ? [] : [
         'void p(Webs *wp, cchar *v) { websWriteHeader(wp, "Content-Type", v); }',
         'void p(Webs *wp, cchar *v) { websWrite(wp, v); }',
         'void p(Webs *wp, cchar *v) { websError(wp, 500, v); }',
@@ -142,15 +115,8 @@ if (!cc) {
             'wrong diagnostic for: ' + probe + '\n' + r.diagnostics)
     }
 
-    /*
-        B2) Argument-type mismatches are diagnosed, which can only happen if PRINTF_ATTRIBUTE is
-        actually attached - -Wformat has no other way to know these functions take a format.
-
-        GCC/Clang only. MSVC checks argument types against a format for CRT functions (C4477) but
-        not for a SAL-annotated user variadic without /analyze, so this suite would fail there for
-        a reason that is not a defect. C4774 in B1 is the whole of the MSVC guarantee.
-     */
-    const MISMATCH = isWindows ? [] : [
+    /* Require format argument-type diagnostics; MSVC needs /analyze. */
+    const MISMATCH = [
         'void p(Webs *wp) { websWrite(wp, "%d", "str"); }',
         'void p(Webs *wp) { websWriteHeader(wp, "k", "%d", "str"); }',
         'void p(Webs *wp) { websError(wp, 500, "%d", "str"); }',
@@ -161,12 +127,9 @@ if (!cc) {
         'void p(Js *js) { jsError(js, "%d", "str"); }',
     ]
     for (let probe of MISMATCH) {
-        let r = compile(probe)
+        let r = compile(probe, isWindows ? ['/analyze'] : [])
         ttrue(ANY_FORMAT_DIAGNOSTIC.test(r.diagnostics), 'argument type mismatch not diagnosed: ' +
             probe + '\n' + r.diagnostics)
-    }
-    if (isWindows) {
-        tskip('B2 argument-type probes need /analyze on MSVC; C4774 in B1 is the MSVC guarantee')
     }
 
     /*

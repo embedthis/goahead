@@ -175,7 +175,7 @@ static void suiteC_absolute(void)
 
 static void suiteD_checkTempDirs(void)
 {
-    char *saved;
+    char *saved, *path;
 
     tinfo("\n--- Suite D: a staging directory inside the documents directory is refused ---\n");
 
@@ -185,19 +185,23 @@ static void suiteD_checkTempDirs(void)
         The documents directory is the staging directory. This is the shape of the VxWorks defect and
         of any hand configuration that serves the temp directory, and websOpen must not start.
      */
-    websSetDocuments(ME_GOAHEAD_TEMP_DIR);
+    websSetDocuments(websGetTempDir());
     ttrue(websCheckTempDirs() > 0, "D1 staging inside the documents directory must be reported");
 
     /*
         A neighbour that merely shares a prefix is not inside it. Without this the check would refuse
         sound configurations, and a check that cries wolf gets configured away.
      */
-    websSetDocuments(ME_GOAHEAD_TEMP_DIR "dir");
+    path = sfmt("%sdir", websGetTempDir());
+    websSetDocuments(path);
     ttrue(websCheckTempDirs() == 0, "D2 a directory that only shares a prefix must be accepted");
+    wfree(path);
 
-    websSetDocuments(ME_GOAHEAD_TEMP_DIR "/served");
+    path = sfmt("%s/served", websGetTempDir());
+    websSetDocuments(path);
     ttrue(websCheckTempDirs() == 0, "D3 a documents directory inside the staging directory is not "
           "the reported case - the staging file is still outside the served tree");
+    wfree(path);
 
     if (saved) {
         websSetDocuments(saved);

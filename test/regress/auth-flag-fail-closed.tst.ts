@@ -1,57 +1,16 @@
 /*
     auth-flag-fail-closed.tst - Regression test for the ME_GOAHEAD_AUTH=0 fail-open and its siblings.
-
-    ME_GOAHEAD_AUTH=0 compiles out the enforcement branch in websRouteRequest, but websLoad kept
-    parsing auth= and abilities= and installing them on the route. The route table therefore
-    described an access control policy that nothing consulted: every protected route was served
-    anonymously, with no warning at any log level, while the configuration still read as if
-    authentication were in force. An operator who wrote auth=basic and got the resource served
-    without credentials is strictly worse off than one whose server declined to start, so the
-    configuration is now refused at load time.
-
-    The same rule governs the settings around it, and each was silently degrading in its own way:
-    a password store that is not compiled in, an unknown or uncompilable auth= type, auto-login, and
-    a --auth option offered by a build that ignores the file.
-
-    These are build-flag defects, so they cannot be reproduced against the shipped test server -
-    that binary is built at the defaults. Each suite therefore builds a small program against the
-    amalgamated dist/goaheadLib.c at the flag setting under test and runs it. Driving dist/ rather
-    than src/ also proves the amalgamation integrators compile against carries the fix.
-
-    Six suites:
-      A) ME_GOAHEAD_AUTH=0 refuses every directive that describes access control - auth=,
-         abilities=, user and role - and still accepts a route table that asks for none of them.
-      B) ME_GOAHEAD_AUTH=1 accepts all of those, so suite A is detecting the build flag rather
-         than a program that cannot load a route file at all. It also rejects an unknown auth type,
-         which used to be reduced silently to the form-authentication behaviour.
-      C) The same rule one flag down: ME_GOAHEAD_DIGEST=0 refuses auth=digest rather than
-         accepting a route that can never issue a digest challenge.
-      D) A password store that is not compiled in is refused rather than silently replaced by the
-         file store, which holds a different set of secrets than the operator configured.
-      E) ME_GOAHEAD_AUTO_LOGIN warns at the default log level. The warning is the whole of that
-         fix, so it is asserted rather than assumed - including that the default build stays quiet.
-      F) The --auth option is offered only by a build that can act on it.
-
-    Suites A-E drive the library through websOpen, the path the server itself takes. Suite F builds
-    the shipped main program, because the option surface it tests lives in argument parsing.
  */
 
-import { Cmd, Config } from '@embedthis/ejscript'
+import { Cmd } from '@embedthis/ejscript'
 import { tskip, ttrue } from '@embedthis/testme'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-
-const ROOT = join(import.meta.dir, '..', '..')
+import { cc, compile, isWindows, ROOT } from '../utils/amalgamation'
 
 /*
-    The driver loads a route table exactly as the server does - websOpen calls websLoad - and
-    reports whether the load was accepted. Anything that reaches websServiceEvents is irrelevant
-    here; the question is only whether the server would have started.
-
-    The "api" mode instead reaches websSetRouteMatch through the public API. websLoad is not the
-    only way a route acquires an ability requirement, and the API is the path an integrator who
-    builds routes in C actually takes, so the choke point is proven from both sides.
+    Check configuration loading, startup route auditing, and public-API route construction independently.
  */
 const DRIVER = `
 #include "goahead.h"
@@ -73,10 +32,12 @@ int main(int argc, char **argv)
 {
     int rc;
 
+    // The tables below put a protected route ahead of the catch-all, which strict mode refuses
+    websSetStrict(0);
     if (websOpen(argv[2], argc > 3 ? argv[3] : 0) < 0) {
         return 1;
     }
-    rc = smatch(argv[1], "api") ? apiProbe() : 0;
+    rc = smatch(argv[1], "api") ? apiProbe() : smatch(argv[1], "check") ? -websCheckRoutes() : 0;
     websClose();
     return rc < 0 ? 1 : 0;
 }
@@ -119,15 +80,8 @@ const AUTH_PROBES: Probe[] = [
         reject: true},
 ]
 
-const isWindows = String(Config.OS).match(/^win/) != null
-const cc = isWindows ? null : (Cmd.locate('cc') || Cmd.locate('gcc') || Cmd.locate('clang'))
-
 if (isWindows) {
-    /*
-        The MSVC arm would have to relink the whole amalgamation against ws2_32, advapi32 and the
-        rest of the platform import libraries for a property of the C preprocessor that does not
-        vary by toolchain. The POSIX arm is the guarantee.
-     */
+
     tskip('Rebuilding the amalgamation is a POSIX-only arm of this test')
 } else if (!cc) {
     tskip('No C compiler on PATH to rebuild the amalgamation at ME_GOAHEAD_AUTH=0')
@@ -136,25 +90,14 @@ if (isWindows) {
     let web = join(dir, 'web')
     mkdirSync(web)
     writeFileSync(join(dir, 'driver.c'), DRIVER)
-
-    /*
-        SSL and PAM are compiled out: these suites exercise configuration, and linking a TLS stack or
-        the PAM library here would make the test depend on what the host happens to have installed.
-        PAM being absent is also what suite D needs. ME_VERSION is normally supplied by the generated
-        me.h, which the amalgamation does not carry.
-     */
-    const COMMON = '-I' + join(ROOT, 'src') + ' -I' + join(ROOT, 'src', 'osdep') +
-        ' -DME_COM_SSL=0 -DME_COM_OPENSSL=0 -DME_COM_MBEDTLS=0 -DME_COMPILER_HAS_PAM=0' +
-        ' -DME_VERSION=\\"test\\"'
-
-    const LIB = join(ROOT, 'dist', 'goaheadLib.c')
+    //  The amalgamation is built without PAM, which is what suite D needs
 
     /*
         Build one program per flag setting. Returns the executable path, or null if the build failed.
      */
     function build(label: string, defines: string, main: string): string | null {
         let exe = join(dir, 'probe-' + label)
-        let cmd = new Cmd(cc + ' -o ' + exe + ' ' + defines + ' ' + COMMON + ' ' + main + ' ' + LIB)
+        let cmd = compile(exe, defines, main)
         if (cmd.status != 0) {
             ttrue(false, 'Cannot build the ' + label + ' probe:\n' + String(cmd.error))
             return null
@@ -166,14 +109,20 @@ if (isWindows) {
         return build(label, defines, join(dir, 'driver.c'))
     }
 
+
+    function buildFails(label: string, defines: string): string | null {
+        let cmd = compile(join(dir, 'probe-' + label), defines, join(dir, 'driver.c'))
+        return cmd.status != 0 ? String(cmd.error) + String(cmd.response) : null
+    }
+
     /*
         Run a driver over a route table and report whether the load was accepted. The driver runs
         with the temporary directory as its working directory because the route file path, the
         documents directory and the default staging directories are all resolved relative to it.
      */
-    function load(exe: string, routes: string): {accepted: boolean, output: string} {
+    function load(exe: string, routes: string, mode = 'load'): {accepted: boolean, output: string} {
         writeFileSync(join(dir, 'route.txt'), routes)
-        let cmd = new Cmd(exe + ' load web route.txt', {dir: dir})
+        let cmd = new Cmd(exe + ' ' + mode + ' web route.txt', {dir: dir})
         return {accepted: cmd.status == 0, output: String(cmd.error) + String(cmd.response)}
     }
 
@@ -208,6 +157,15 @@ if (isWindows) {
             'websSetRouteMatch, not only one parsed from a route file:\n' + String(api.error))
         ttrue(/ME_GOAHEAD_AUTH/.test(String(api.error) + String(api.response)),
             'The websSetRouteMatch refusal must name ME_GOAHEAD_AUTH:\n' + String(api.error))
+
+
+        let r = load(noauth, 'route uri=/cgi-bin/ handler=cgi\n' + BASE_ROUTES, 'check')
+        ttrue(r.accepted, 'ME_GOAHEAD_AUTH=0 must warn about, not refuse, a table that runs code:\n' + r.output)
+        ttrue(/ME_GOAHEAD_AUTH=0[^\n]*unauthenticated[^\n]*"\/cgi-bin\/" \(handler=cgi\)/.test(r.output),
+            'ME_GOAHEAD_AUTH=0 must warn that every route is unauthenticated, naming the CGI route:\n' + r.output)
+        r = load(noauth, BASE_ROUTES, 'check')
+        ttrue(r.accepted && /ME_GOAHEAD_AUTH=0[^\n]*unauthenticated clients\./.test(r.output),
+            'ME_GOAHEAD_AUTH=0 must warn that a static table is served to unauthenticated clients:\n' + r.output)
     }
 
     /*
@@ -267,6 +225,14 @@ if (isWindows) {
             'not a configuration error:\n' + r.output)
         ttrue(/ME_GOAHEAD_AUTO_LOGIN/.test(r.output), 'ME_GOAHEAD_AUTO_LOGIN=1 must warn at the default ' +
             'log level, naming the setting:\n' + r.output)
+    }
+
+    let silent = buildFails('autologin-nolog', '-DME_GOAHEAD_AUTO_LOGIN=1 -DME_GOAHEAD_LOGGING=0')
+    ttrue(silent != null, 'ME_GOAHEAD_AUTO_LOGIN=1 with ME_GOAHEAD_LOGGING=0 must not compile, because ' +
+        'it would serve protected routes without credentials and without a warning')
+    if (silent != null) {
+        ttrue(/ME_GOAHEAD_AUTO_LOGIN/.test(silent) && /ME_GOAHEAD_LOGGING/.test(silent),
+            'The compile error must name ME_GOAHEAD_AUTO_LOGIN and ME_GOAHEAD_LOGGING:\n' + silent)
     }
     if (dflt) {
         /* Control - the default build must not cry wolf */

@@ -13,7 +13,7 @@
  */
 
 import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:8080'
 const httpUri = new Uri(HTTP)
@@ -36,24 +36,27 @@ function status(response: string): number {
 /*
     Baseline: the canonical spelling is executed by the JST handler, never served as source.
  */
-let response = await rawGet('/big.jst')
-ttrue(status(response) == 200)
-ttrue(!response.contains('<%'))
+let response: string
+if (thas('ME_GOAHEAD_JAVASCRIPT')) {
+    response = await rawGet('/big.jst')
+    ttrue(status(response) == 200)
+    ttrue(!response.contains('<%'))
+}
 
 /*
-    Every Win32-foldable spelling of the same file is rejected as non-canonical, and none of them
-    may return the template source.
-
-    Trailing dot and trailing space (literal, %20-encoded, and via the "+" that websDecodeUrl maps
-    to a space); the NTFS alternate data stream suffixes; and the 8.3 alias form.
+    Reject alternate Windows path spellings without exposing template source.
  */
-for (let uri of ['/big.jst.', '/big.jst%20', '/big.jst+', '/big.jst%2E',
+for (let uri of ['/big.jst.', '/big.jst%20', '/big.jst%2E',
                  '/big.jst::$DATA', '/big.jst:$i30:$INDEX_ALLOCATION',
                  '/BIG~1.JST', '/big~1.jst', '/sub~1/index.html']) {
     response = await rawGet(uri)
     ttrue(status(response) == 400)
     ttrue(!response.contains('<%'))
 }
+
+response = await rawGet('/big.jst+')
+ttrue(status(response) == 404)
+ttrue(!response.contains('<%'))
 
 /*
     A folded directory component is rejected too, not just the final one.

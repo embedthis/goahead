@@ -22,9 +22,10 @@
     filesystem, so this axis is skipped there rather than writing 4 GiB to a CI runner.
  */
 
-import { Socket, ByteArray, Uri, Config } from '@embedthis/ejscript'
+import { Uri, Config } from '@embedthis/ejscript'
 import { teq, ttrue, tskip, tget } from '@embedthis/testme'
 import { closeSync, openSync, ftruncateSync, rmSync } from 'node:fs'
+import { connect } from 'node:net'
 import { join } from 'node:path'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:18080'
@@ -37,21 +38,23 @@ if (Config.OS == 'windows' || Config.OS == 'win32') {
 const DOCS = join(import.meta.dir, '..', 'web')
 
 /*
-    Speak raw TCP. An HTTP client library reports a parsed length, which is exactly the value under
-    test - the assertion has to be on the bytes on the wire.
+    Inspect raw header bytes. Stop after headers to avoid reading the large file body.
  */
-async function exchange(payload: string): Promise<string> {
-    let s = new Socket
-    s.connect(httpUri.host + ':' + httpUri.port)
-    await s.write(payload)
-    let response = new ByteArray(65536, true)
-    try {
-        while ((await s.read(response, -1)) != null) {}
-    } catch {
-        /* Read timeout: treat as end of exchange. */
-    }
-    s.close()
-    return response.toString()
+function exchange(payload: string, headersOnly: boolean = false): Promise<string> {
+    return new Promise((resolve) => {
+        let response = ''
+        let s = connect(Number(httpUri.port), httpUri.host, () => s.write(payload))
+        s.setEncoding('latin1')
+        s.setTimeout(10000, () => s.destroy())
+        s.on('data', (data: string) => {
+            response += data
+            if (headersOnly && response.includes('\r\n\r\n')) {
+                s.destroy()
+            }
+        })
+        s.on('error', () => s.destroy())
+        s.on('close', () => resolve(response))
+    })
 }
 
 function contentLength(raw: string): string {
@@ -88,7 +91,7 @@ try {
             conversion anywhere on that path is still visible.
          */
         raw = await exchange(`GET /${c.name} HTTP/1.1\r\nHost: localhost\r\n` +
-            `Range: bytes=0-9\r\nConnection: close\r\n\r\n`)
+            `Range: bytes=0-9\r\nConnection: close\r\n\r\n`, true)
         ttrue(!contentLength(raw).startsWith('-'),
             `a ranged GET of a ${c.size}-byte file must not declare a negative length`)
         ttrue(!raw.includes(`/${c.size % 4294967296}\r\n`) || raw.includes(`/${c.size}`),

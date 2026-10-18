@@ -54,3 +54,8 @@ http.get(HTTP + '/index.html')
 await http.wait()
 ttrue(http.status == 200, 'server unhealthy after malformed request targets')
 http.close()
+
+/* Absolute HTTP targets without a path resolve to the root, while malformed targets above stay rejected. */
+r = await exchange('GET http://localhost HTTP/1.0\r\n\r\n')
+tcontains(r, '302 Redirect')
+tcontains(r, '/index.html')

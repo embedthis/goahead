@@ -12,7 +12,7 @@
  */
 
 import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, tskip, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:8080'
 const httpUri = new Uri(HTTP)
@@ -32,45 +32,49 @@ function status(response: string): number {
     return match ? parseInt(match[1]) : 0
 }
 
-/*
-    Baseline: the NFC spelling matches the protected route and demands credentials.
- */
-let response = await rawGet('/caf%C3%A9/x.txt')
-ttrue(status(response) == 401)
-ttrue(!response.contains('cafe-secret'))
+if (!thas('ME_GOAHEAD_AUTH')) {
+    tskip('Authentication is not enabled')
+} else {
+    /*
+        Baseline: the NFC spelling matches the protected route and demands credentials.
+     */
+    let response = await rawGet('/caf%C3%A9/x.txt')
+    ttrue(status(response) == 401)
+    ttrue(!response.contains('cafe-secret'))
 
-/*
-    The NFD spelling of the same name is rejected as non-canonical. It must never reach the
-    catch-all route, and must never disclose the document.
- */
-response = await rawGet('/cafe%CC%81/x.txt')
-ttrue(status(response) == 400)
-ttrue(!response.contains('cafe-secret'))
-
-/*
-    A combining mark anywhere in the path is rejected, in any of the composable ranges: Latin
-    (U+0301), Hebrew (U+05B0), Arabic (U+064E), kana voicing (U+3099) and Hangul jamo (U+1100).
- */
-for (let uri of ['/cafe%CC%81.html', '/a%D6%B0/index.html', '/a%D9%8E/index.html',
-                 '/a%E3%82%99.html', '/%E1%84%80/index.html']) {
-    response = await rawGet(uri)
+    /*
+        The NFD spelling of the same name is rejected as non-canonical. It must never reach the
+        catch-all route, and must never disclose the document.
+     */
+    response = await rawGet('/cafe%CC%81/x.txt')
     ttrue(status(response) == 400)
+    ttrue(!response.contains('cafe-secret'))
+
+    /*
+        A combining mark anywhere in the path is rejected, in any of the composable ranges: Latin
+        (U+0301), Hebrew (U+05B0), Arabic (U+064E), kana voicing (U+3099) and Hangul jamo (U+1100).
+     */
+    for (let uri of ['/cafe%CC%81.html', '/a%D6%B0/index.html', '/a%D9%8E/index.html',
+                     '/a%E3%82%99.html', '/%E1%84%80/index.html']) {
+        response = await rawGet(uri)
+        ttrue(status(response) == 400)
+    }
+
+    /*
+        Malformed UTF-8 has no single interpretation, so it has no canonical form either.
+     */
+    for (let uri of ['/%C3/index.html', '/%80%80/index.html', '/caf%C3%A9%CC/x.txt']) {
+        response = await rawGet(uri)
+        ttrue(status(response) == 400)
+    }
+
+    /*
+        Negative case: a precomposed non-ASCII path is still valid. It must route normally rather than
+        be rejected, so the rejection is not simply "no non-ASCII allowed".
+     */
+    response = await rawGet('/caf%C3%A9/missing.txt')
+    ttrue(status(response) == 401)
+
+    response = await rawGet('/index.html')
+    ttrue(status(response) == 200)
 }
-
-/*
-    Malformed UTF-8 has no single interpretation, so it has no canonical form either.
- */
-for (let uri of ['/%C3/index.html', '/%80%80/index.html', '/caf%C3%A9%CC/x.txt']) {
-    response = await rawGet(uri)
-    ttrue(status(response) == 400)
-}
-
-/*
-    Negative case: a precomposed non-ASCII path is still valid. It must route normally rather than
-    be rejected, so the rejection is not simply "no non-ASCII allowed".
- */
-response = await rawGet('/caf%C3%A9/missing.txt')
-ttrue(status(response) == 401)
-
-response = await rawGet('/index.html')
-ttrue(status(response) == 200)

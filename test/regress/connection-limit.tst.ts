@@ -33,7 +33,7 @@
  */
 
 import { Config } from '@embedthis/ejscript'
-import { teq, tskip, ttrue } from '@embedthis/testme'
+import { teq, tget, tskip, ttrue } from '@embedthis/testme'
 import { spawn, execSync } from 'node:child_process'
 import { connect } from 'node:net'
 import { join } from 'node:path'
@@ -42,6 +42,8 @@ const LIMIT = 16
 const PORT = 18081
 const HOST = '127.0.0.1'
 const TESTDIR = join(import.meta.dir, '..')
+//  The route table assembled for this build's feature set
+const ROUTES = String(tget('TM_ROUTES'))
 const SERVER = join(TESTDIR, '..', 'build', 'bin', 'goahead-test')
 
 if (Config.OS == 'windows' || Config.OS == 'win32') {
@@ -128,7 +130,7 @@ await new Promise<void>((resolve) => {
     setTimeout(() => { probe.destroy(); resolve() }, 1000)
 })
 
-let server = spawn(SERVER, ['--connections', String(LIMIT), 'web', `${HOST}:${PORT}`],
+let server = spawn(SERVER, ['--connections', String(LIMIT), '--route', ROUTES, 'web', `${HOST}:${PORT}`],
     {cwd: TESTDIR, stdio: 'ignore'})
 let held: any[] = []
 
