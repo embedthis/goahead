@@ -122,7 +122,7 @@ typedef struct Format {
  */
 #define BPUT(fmt, c) \
     do { \
-        char bputChar = (char) (c); \
+        uchar bputChar = (uchar) (c); \
         /* Less one to allow room for the null */ \
         if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
             if (growBuf(fmt) > 0) { \
