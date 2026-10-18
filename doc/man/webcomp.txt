@@ -45,7 +45,7 @@ REPORTING BUGS
        Report bugs to <dev@embedthis.com>.
 
 COPYRIGHT
-       Copyright © Embedthis Software.
+       Copyright © Embedthis Pty Ltd.
 
 SEE ALSO
 

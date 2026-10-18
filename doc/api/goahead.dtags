@@ -11,6 +11,13 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
+      <type>cchar *</type>
+      <name>authReason</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a757569f28934ee99c40057a15609a02a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>char *</type>
       <name>authResponse</name>
       <anchorfile>struct_webs.html</anchorfile>
@@ -36,6 +43,13 @@
       <name>boundaryLen</name>
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>a2a858c57baa126b0e3016af1e99481e5</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>ssize</type>
+      <name>boundaryScan</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>adc9f64bfdedc4f22a2d0ab9e8f910670</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -179,6 +193,13 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
+      <type>WebsTime</type>
+      <name>flushDeadline</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ae4fee6d87b2075ff7fe1d52ad80f31a0</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>char *</type>
       <name>host</name>
       <anchorfile>struct_webs.html</anchorfile>
@@ -191,6 +212,13 @@
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>af4eddf70464df95a1258bb788820e726</anchor>
       <arglist>[ME_MAX_IP]</arglist>
+    </member>
+    <member kind="variable">
+      <type>char *</type>
+      <name>ifNoneMatch</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aa5b8d43939b8fc6f3cb20104cf5f714a</anchor>
+      <arglist></arglist>
     </member>
     <member kind="variable">
       <type>WebsBuf</type>
@@ -309,6 +337,13 @@
       <name>responseCookies</name>
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>afd73f2a3554b6ac32582f9fbe82304ce</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>struct WebsSession *</type>
+      <name>retiredSession</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ad2e643ade4bf8a7fdce4ac52fde08802</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -473,17 +508,17 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
-      <type>ssize</type>
+      <type>Offset</type>
       <name>txLen</name>
       <anchorfile>struct_webs.html</anchorfile>
-      <anchor>a1a7f1f5f078448015482cbaba8b17836</anchor>
+      <anchor>ae44e6b2c39b9785ffff0067932e2ce19</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
-      <type>ssize</type>
+      <type>Offset</type>
       <name>txRemaining</name>
       <anchorfile>struct_webs.html</anchorfile>
-      <anchor>ad4e07bb1cefb9553587d601ba86f17cc</anchor>
+      <anchor>a573e6aa8d7a00311b4d00b94775f4613</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -491,6 +526,20 @@
       <name>upfd</name>
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>aa20891b8f5a0e1ddd490e3a3bb0531c2</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>uploadFiles</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>a27eb3d7731e9bf6b6e741ce90a52211a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>uploadParts</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aa2fb53482388c62261a3a9a9d3fcf78c</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -603,10 +652,10 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
-      <type>int</type>
+      <type>ssize</type>
       <name>increment</name>
       <anchorfile>struct_webs_buf.html</anchorfile>
-      <anchor>a8c7906ee76c3918fc6d279998271e45d</anchor>
+      <anchor>ad6c9a9ad846d7d23a81f3083605560c1</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -646,6 +695,13 @@
     <name>WebsFileInfo</name>
     <filename>struct_webs_file_info.html</filename>
     <member kind="variable">
+      <type>uint64</type>
+      <name>hash</name>
+      <anchorfile>struct_webs_file_info.html</anchorfile>
+      <anchor>a9ba49b41cb18a58c4b1664c861141c5c</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>int</type>
       <name>isDir</name>
       <anchorfile>struct_webs_file_info.html</anchorfile>
@@ -660,10 +716,10 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
-      <type>ulong</type>
+      <type>Offset</type>
       <name>size</name>
       <anchorfile>struct_webs_file_info.html</anchorfile>
-      <anchor>a98aaf5ef7942a3658aacea5d8f55c521</anchor>
+      <anchor>a3d5d0d9e0edb28207c9522aac81f3f05</anchor>
       <arglist></arglist>
     </member>
   </compound>
@@ -743,6 +799,20 @@
     <name>WebsRomIndex</name>
     <filename>struct_webs_rom_index.html</filename>
     <member kind="variable">
+      <type>uint64</type>
+      <name>hash</name>
+      <anchorfile>struct_webs_rom_index.html</anchorfile>
+      <anchor>addb61101287b4034f7a009852ee09293</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>WebsTime</type>
+      <name>mtime</name>
+      <anchorfile>struct_webs_rom_index.html</anchorfile>
+      <anchor>ad1afd42ff247f66a8c1783f60a37b34f</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>uchar *</type>
       <name>page</name>
       <anchorfile>struct_webs_rom_index.html</anchorfile>
@@ -754,13 +824,6 @@
       <name>path</name>
       <anchorfile>struct_webs_rom_index.html</anchorfile>
       <anchor>a2488bb3bf70a2805ed1509d563a7954f</anchor>
-      <arglist></arglist>
-    </member>
-    <member kind="variable">
-      <type>Offset</type>
-      <name>pos</name>
-      <anchorfile>struct_webs_rom_index.html</anchorfile>
-      <anchor>aeb5b9cf7ef8a7beeefe7a166339509fa</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -911,6 +974,13 @@
       <anchor>a5ee1219dd9f009ac8fa4b5729f8acc7f</anchor>
       <arglist></arglist>
     </member>
+    <member kind="variable">
+      <type>int64</type>
+      <name>used</name>
+      <anchorfile>struct_webs_session.html</anchorfile>
+      <anchor>ad09e428eeda26d264a9fbef5f1eca372</anchor>
+      <arglist></arglist>
+    </member>
   </compound>
   <compound kind="struct">
     <name>WebsSocket</name>
@@ -997,6 +1067,13 @@
       <name>lineBuf</name>
       <anchorfile>struct_webs_socket.html</anchorfile>
       <anchor>a117eeaaf35ed8316551c6ad033e34ca9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>lingerEvent</name>
+      <anchorfile>struct_webs_socket.html</anchorfile>
+      <anchor>a981f5bbcb3d481742e7a4791a535b62e</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">

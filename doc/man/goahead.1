@@ -7,10 +7,17 @@ goahead\- Embedded HTTP Web Server
 .B goahead
     \fB--auth authFile\fR
     \fB--background\fR
+    \fB--cert certFile\fR
     \fB--debugger\fR
+    \fB--group groupName\fR
     \fB--home directory\fR
+    \fB--key keyFile\fR
     \fB--log logSpec\fR
+    \fB--no-strict\fR
+    \fB--proxy addresses\fR
     \fB--route routeFile\fR
+    \fB--strict\fR
+    \fB--user userName\fR
     \fB--version\fR
     \fB--verbose\fR
     \fB[IP][:port] [documents]\fR
@@ -20,27 +27,52 @@ portable server developed for use by embedded devices and applications.  It can 
 GoAhead library can be embedded in applications.
 .P
 GoAhead supports HTTP/1.1, SSL, digest, basic and web-form authentication, chunked transfers,
-file upload and sandbox security limits.
+file upload and configurable resource limits. Before deploying GoAhead in a product, read SECURITY-DEPLOYMENT.md at
+the top of the distribution.
 .P
 When goahead is built, it is configured to open a port for HTTP requests and optionally one for SSL. However,
 if goahead is invoked with an IP address or port number on the command line, GoAhead will listen on these ports instead.
 If the PORT component is omitted, GoAhead will listen
 on port 80. If the IP address is omitted and a port is supplied, GoAhead will listen on all network interfaces.
+.P
+An https endpoint, such as https://*:443, needs a certificate and key, given by \fB--cert\fR and \fB--key\fR or
+configured when GoAhead is built. Without them, GoAhead refuses to listen on the endpoint and exits.
+.P
+Started as root, for example to listen on port 80 or 443, GoAhead keeps root privilege unless \fB--user\fR and
+\fB--group\fR name a less privileged account, and warns that it is running as root.
 .SH OPTIONS
 .TP
 \fB\--auth filename\fR
 Define the name of the authentication configuration file. This is by default \fBauth.txt\fR.
-If GoAhead is built with PAM support (Unix Pluggable Authentication Modules), then passwords will be authenticated
-from the system password database.
+If GoAhead is built with \fBME_GOAHEAD_AUTH_STORE="pam"\fR (Unix Pluggable Authentication Modules), then passwords
+are authenticated from the system password database instead.
+.TP
+\fB\--background\fR
+Run as a Unix daemon, detached from the terminal, once GoAhead has listened on its endpoints. The working directory
+is kept, so relative documents, route and CGI paths still resolve. Standard input, output and error are redirected
+to /dev/null, so log output to stdout or stderr, including \fB--verbose\fR, is discarded and GoAhead warns before
+detaching: log to a file with \fB--log\fR. Errors are also sent to syslog. Not available on macOS. The \fB-b\fR
+option is an alias for --background.
+.TP
+\fB\--cert filename\fR
+Define the server certificate file, in PEM format, for https endpoints. This overrides the certificate configured
+when GoAhead is built.
 .TP
 \fB\--debugger\fR
 Run GoAhead in debug mode and disable all timeouts. This disables request and session timeouts.
 The \fB-d\fR option is an alias for --debugger.
 .TP
+\fB\--group groupName\fR
+Run as this group once GoAhead has listened on its endpoints and opened its files. Without \fB--user\fR only the
+group changes. Overrides the ME_GOAHEAD_GROUP build setting. Unix only.
+.TP
 \fB\--log logSpec\fR
 Name the GoAhead log file. This will override the ErrorLog directive
-in the configuration file.  When the maximum size is exceeded, the log file will be rotated to logName.old
-and a new log file will be started. The \fB-l\fR option is an alias for --log.
+in the configuration file. A log file is created with mode 0640 and is appended to when GoAhead restarts. It is never
+opened through a symbolic link: if the log cannot be opened, GoAhead reports it and does not start. When the log reaches
+the maximum size (1 MB unless the ME_GOAHEAD_LIMIT_LOG_SIZE build setting changes it; 0 disables the limit), it is
+renamed to logName.old, replacing any previous one, and a new log file is started. The limit does not apply to stdout or
+stderr. The \fB-l\fR option is an alias for --log.
 The syntax is:
 .PP
 .RS 6
@@ -50,20 +82,49 @@ The syntax is:
 \fB\--home directory\fR
 Define the server home directory for GoAhead.
 .TP
+\fB\--key filename\fR
+Define the private key file, in PEM format, for the \fB--cert\fR certificate. This overrides the key configured when
+GoAhead is built.
+.TP
+\fB\--no-strict\fR
+Start even when the route table is unsafe, and only warn about it. See \fB--strict\fR.
+.TP
+\fB\--proxy addresses\fR
+Trust the reverse proxies at these comma separated IP addresses. A request from one of them takes its scheme from
+its X-Forwarded-Proto header, so a session cookie is marked secure, Strict-Transport-Security is sent and redirects
+use https when the client reached the proxy over HTTPS, and the proxy is exempt from the per-address connection
+limit. Forwarded headers from any other peer are ignored. This overrides ME_GOAHEAD_TRUSTED_PROXIES.
+.TP
 \fB\--route routeFile\fR
 This option overrides the default route configuration file name of "route.txt". When GoAhead starts, it reads the
 route configuration file to load URI routes. These routes define what actions should be taken when various client
 requests are received.
 .TP
+\fB\--strict\fR
+Refuse to start when the route table is unsafe: when an unauthenticated route can serve the directory of an
+authenticated one, or when an action, template or CGI route comes before an authenticated route that covers it. This
+is the default unless GoAhead is built with ME_GOAHEAD_STRICT set to 0. A route table in which no route requires
+authentication is only warned about.
+.TP
+\fB\--user userName\fR
+Run as this user once GoAhead has listened on its endpoints and opened its log, certificate, route and
+authentication files. The group is the user's primary group unless \fB--group\fR is given, and supplementary groups
+are the user's own. GoAhead exits if the account does not exist or the change fails, and when not started as root,
+unless it already runs as that account. Overrides the ME_GOAHEAD_USER build setting. Unix only.
+.TP
 \fB\--verbose\fR
-Shorthand for --log stdout:4. The \fB-v\fR option is an alias for --verbose.
+Shorthand for --log stdout:2. The \fB-v\fR option is an alias for --verbose.
 .TP
 \fB\--version\fR
 Output the product version number.
+.SH SIGNALS
+On Unix, SIGINT, SIGHUP and SIGTERM stop GoAhead cleanly: it closes its connections, removes request data staged in
+its temporary directory and exits with status 0. A signal received during startup stops the server as soon as
+startup completes. GoAhead sets its file creation mask to 027, so files it creates are not readable by other users.
 .SH "REPORTING BUGS"
 Report bugs to <dev@embedthis.com>.
 .SH COPYRIGHT
-Copyright \(co Embedthis Software.
+Copyright \(co Embedthis Pty Ltd.
 .br
 .SH "SEE ALSO"
 gopass, webcomp

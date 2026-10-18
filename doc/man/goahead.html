@@ -1,14 +1,20 @@
-
 <PRE>
 <!-- Manpage converted by man2html 3.0.1 -->
 
        goahead
            --auth authFile
            --background
+           --cert certFile
            --debugger
+           --group groupName
            --home directory
+           --key keyFile
            --log logSpec
+           --no-strict
+           --proxy addresses
            --route routeFile
+           --strict
+           --user userName
            --version
            --verbose
            [IP][:port] [documents]
@@ -21,8 +27,9 @@ DESCRIPTION
        applications.
 
        GoAhead supports HTTP/1.1, SSL, digest, basic and web-form
-       authentication, chunked transfers, file upload and sandbox security
-       limits.
+       authentication, chunked transfers, file upload and configurable
+       resource limits. Before deploying GoAhead in a product, read
+       SECURITY-DEPLOYMENT.md at the top of the distribution.
 
        When goahead is built, it is configured to open a port for HTTP
        requests and optionally one for SSL. However, if goahead is invoked
@@ -31,35 +38,128 @@ DESCRIPTION
        GoAhead will listen on port 80. If the IP address is omitted and a port
        is supplied, GoAhead will listen on all network interfaces.
 
+       An https endpoint, such as https://*:443, needs a certificate and key,
+       given by --cert and --key or configured when GoAhead is built. Without
+       them, GoAhead refuses to listen on the endpoint and exits.
+
+       Started as root, for example to listen on port 80 or 443, GoAhead keeps
+       root privilege unless --user and --group name a less privileged
+       account, and warns that it is running as root.
+
 OPTIONS
        --auth filename
               Define the name of the authentication configuration file. This
-              is by default auth.txt.  If GoAhead is built with PAM support
-              (Unix Pluggable Authentication Modules), then passwords will be
-              authenticated from the system password database.
+              is by default auth.txt.  If GoAhead is built with
+              ME_GOAHEAD_AUTH_STORE="pam" (Unix Pluggable Authentication
+              Modules), then passwords are authenticated from the system
+              password database instead.
+
+       --background
+              Run as a Unix daemon, detached from the terminal, once GoAhead
+              has listened on its endpoints. The working directory is kept, so
+              relative documents, route and CGI paths still resolve. Standard
+              input, output and error are redirected to /dev/null, so log
+              output to stdout or stderr, including --verbose, is discarded
+              and GoAhead warns before detaching: log to a file with --log.
+              Errors are also sent to syslog. Not available on macOS. The -b
+              option is an alias for --background.
+
+       --cert filename
+              Define the server certificate file, in PEM format, for https
+              endpoints. This overrides the certificate configured when
+              GoAhead is built.
 
        --debugger
               Run GoAhead in debug mode and disable all timeouts. This
               disables request and session timeouts.  The -d option is an
               alias for --debugger.
 
+       --group groupName
+              Run as this group once GoAhead has listened on its endpoints and
+              opened its files. Without --user only the group changes.
+              Overrides the ME_GOAHEAD_GROUP build setting. Unix only.
+
        --log logSpec
               Name the GoAhead log file. This will override the ErrorLog
-              directive in the configuration file.  When the maximum size is
-              exceeded, the log file will be rotated to logName.old and a new
-              log file will be started. The -l option is an alias for --log.
+              directive in the configuration file. A log file is created with
+              mode 0640 and is appended to when GoAhead restarts. It is never
+              opened through a symbolic link: if the log cannot be opened,
+              GoAhead reports it and does not start. When the log reaches the
+              maximum size (1 MB unless the ME_GOAHEAD_LIMIT_LOG_SIZE build
+              setting changes it; 0 disables the limit), it is renamed to
+              logName.old, replacing any previous one, and a new log file is
+              started. The limit does not apply to stdout or stderr. The -l
+              option is an alias for --log.
               The syntax is:
 
               --log logName[:logLevel]
 
        --home directory
+              Define the server home directory for GoAhead.
+
+       --key filename
+              Define the private key file, in PEM format, for the --cert
+              certificate. This overrides the key configured when GoAhead is
+              built.
+
+       --no-strict
+              Start even when the route table is unsafe, and only warn about
+              it. See --strict.
+
+       --proxy addresses
+              Trust the reverse proxies at these comma separated IP addresses.
+              A request from one of them takes its scheme from its
+              X-Forwarded-Proto header, so a session cookie is marked secure,
+              Strict-Transport-Security is sent and redirects use https when
+              the client reached the proxy over HTTPS, and the proxy is exempt
+              from the per-address connection limit. Forwarded headers from
+              any other peer are ignored. This overrides
+              ME_GOAHEAD_TRUSTED_PROXIES.
+
+       --route routeFile
+              This option overrides the default route configuration file name
+              of "route.txt". When GoAhead starts, it reads the route
+              configuration file to load URI routes. These routes define what
+              actions should be taken when various client requests are
+              received.
+
+       --strict
+              Refuse to start when the route table is unsafe: when an
+              unauthenticated route can serve the directory of an
+              authenticated one, or when an action, template or CGI route
+              comes before an authenticated route that covers it. This is the
+              default unless GoAhead is built with ME_GOAHEAD_STRICT set to 0.
+              A route table in which no route requires authentication is only
+              warned about.
+
+       --user userName
+              Run as this user once GoAhead has listened on its endpoints and
+              opened its log, certificate, route and authentication files. The
+              group is the user's primary group unless --group is given, and
+              supplementary groups are the user's own. GoAhead exits if the
+              account does not exist or the change fails, and when not started
+              as root, unless it already runs as that account. Overrides the
+              ME_GOAHEAD_USER build setting. Unix only.
+
+       --verbose
+              Shorthand for --log stdout:2. The -v option is an alias for
+              --verbose.
+
+       --version
               Output the product version number.
 
+SIGNALS
+       On Unix, SIGINT, SIGHUP and SIGTERM stop GoAhead cleanly: it closes its
+       connections, removes request data staged in its temporary directory and
+       exits with status 0. A signal received during startup stops the server
+       as soon as startup completes. GoAhead sets its file creation mask to
+       027, so files it creates are not readable by other users.
+
 REPORTING BUGS
-       Report bugs to &lt;;dev@embedthis.com&gt;;.
+       Report bugs to &lt;dev@embedthis.com&gt;.
 
 COPYRIGHT
-       Copyright © Embedthis Software.
+       Copyright © Embedthis Pty Ltd.
 
 SEE ALSO
        gopass, webcomp

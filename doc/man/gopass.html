@@ -10,13 +10,14 @@ DESCRIPTION
        authorization file and format for Basic, Digest and web-form
        authentication. This simplifies           administration.
 
-            gopass --file auth.conf --password pass1 example.com joshua
-            administrator buyer
+            gopass --file auth.txt example.com admin administrator buyer
 
-       To calculate the passwword only, omit the "--file" option and the
+       gopass prompts for the password and asks for it twice.
+
+       To calculate the password only, omit the "--file" option and the
        password will be displayed to the standard output.
 
-            gopass --password pass1 example.com joshua administrator buyer
+            gopass example.com admin administrator buyer
 
 
 OPTIONS
@@ -26,7 +27,10 @@ OPTIONS
               used for digest authentication.
 
        --password password
-              Specifies a password to use to for the user.
+              Specifies the password for the user. Without this option, gopass
+              prompts for it. A password given on the command line can be seen
+              by other local users in the process list and is kept in the
+              shell history, so prefer the prompt.
 
        --file filename
               Update the specified password configuration file.
@@ -40,7 +44,7 @@ REPORTING BUGS
        Report bugs to dev@embedthis.com.
 
 COPYRIGHT
-       Copyright © Embedthis Software.
+       Copyright © Embedthis Pty Ltd.
 
 SEE ALSO
 

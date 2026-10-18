@@ -13,13 +13,15 @@ The gopass program creates authentication passwords for GoAhead in the nominated
 GoAhead uses the same authorization file and format for Basic, Digest and web-form authentication. This simplifies           administration.
 
 .RS 5
-gopass --file auth.conf --password pass1 example.com joshua administrator buyer
+gopass --file auth.txt example.com admin administrator buyer
 .RE
 
-To calculate the passwword only, omit the "--file" option and the password will be displayed to the standard output.
+gopass prompts for the password and asks for it twice.
+
+To calculate the password only, omit the "--file" option and the password will be displayed to the standard output.
 
 .RS 5
-gopass --password pass1 example.com joshua administrator buyer
+gopass example.com admin administrator buyer
 .RE
 
 .SH OPTIONS
@@ -29,7 +31,8 @@ Specifies the cipher to use to hash the password. Default is blowfish. Blowfish 
 MD5 must be used for digest authentication.
 .TP
 \fB\--password password\fR 
-Specifies a password to use to for the user.
+Specifies the password for the user. Without this option, gopass prompts for it. A password given on the command
+line can be seen by other local users in the process list and is kept in the shell history, so prefer the prompt.
 .TP
 \fB\--file filename\fR 
 Update the specified password configuration file.
@@ -40,6 +43,6 @@ GoAhead uses the same authorization file and format for Basic, Digest and Post a
 .SH "REPORTING BUGS"
 Report bugs to dev@embedthis.com.
 .SH COPYRIGHT
-Copyright \(co Embedthis Software.
+Copyright \(co Embedthis Pty Ltd.
 .br
 .SH "SEE ALSO"
