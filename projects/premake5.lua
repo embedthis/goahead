@@ -125,6 +125,11 @@ workspace "goahead"
         'ME_VERSION="' .. VERSION .. '"',
     }
 
+    -- Programs import the library's PUBLIC_DATA; without this each would define private copies such as logLevel
+    filter { "platforms:windows", "kind:ConsoleApp" }
+        defines { "ME_DLL_IMPORT=1" }
+    filter {}
+
     -- TLS provider defines
     if tlsProvider == "openssl" then
         defines {
