@@ -21,7 +21,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define CERTS "../../certs/"
+#define CERTS "../pki/"
 
 static char logged[1024];
 

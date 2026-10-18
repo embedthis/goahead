@@ -47,8 +47,8 @@ int main(int argc, char **argv)
 #if ME_GOAHEAD_LOGGING
     logSetHandler(quietLog);
 #endif
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(sslOpen(), 0, "open TLS");
     teq(socketOpen(), 0, "open the socket layer");
     sid = socketAlloc("127.0.0.1", 0, NULL, 0);

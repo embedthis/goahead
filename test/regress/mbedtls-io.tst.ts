@@ -35,7 +35,7 @@ if (String(Config.OS).startsWith('win') || !cc || pkg.status !== 0 || openssl.st
         const built = spawnSync(String(cc), args, { encoding: 'utf8' })
         teq(built.status, 0, `the fixture compiles: ${built.stderr}`)
 
-        const result = spawnSync(exe, [join(root, 'certs'), nopub], { encoding: 'utf8', timeout: 60000 })
+        const result = spawnSync(exe, [join(root, 'test', 'pki'), nopub], { encoding: 'utf8', timeout: 60000 })
         let partial = Number((result.stdout.match(/partial (-?\d+)/) || [])[1])
         ttrue(partial > 0 && partial < BIG, `a write blocked after its first record must report what it sent, got ${partial}`)
         tcontains(result.stdout, `delivered ${BIG}`, 'and completing it delivers each byte once')

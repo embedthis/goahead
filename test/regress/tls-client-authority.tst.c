@@ -60,8 +60,8 @@ int main(int argc, char **argv)
     setEnv("SSL_CERT_FILE", STORE);
     setEnv("SSL_CERT_DIR", ".");
 
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(sslOpen(), 0, "open TLS with client and issuer verification and no authority");
 
     clientCtx = SSL_CTX_new(TLS_client_method());

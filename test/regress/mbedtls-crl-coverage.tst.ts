@@ -19,7 +19,7 @@ if (String(Config.OS).startsWith('win') || !cc || !ssl || pkg.status !== 0) {
     tskip('Requires a POSIX compiler, the openssl command and MbedTLS development packages via pkg-config')
 } else {
     const root = join(import.meta.dir, '..', '..')
-    const certs = join(root, 'certs')
+    const certs = join(root, 'test', 'pki')
     const dir = mkdtempSync(join(tmpdir(), 'goahead-mbed-crl-'))
     const fixture = join(import.meta.dir, 'mbedtls-crl-coverage-fixture.c')
 

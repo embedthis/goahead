@@ -60,29 +60,35 @@ if [ -n "${GOAHEAD_TEST_STACK_KB:-}" ] ; then
     ulimit -s "$GOAHEAD_TEST_STACK_KB" || exit 1
 fi
 
-goahead-test -v --cert self.crt --key self.key --route "${TM_ROUTES}" > ../server-log.txt 2>&1 &
+goahead-test -v --cert pki/self.crt --key pki/self.key --route "${TM_ROUTES}" > ../server-log.txt 2>&1 &
 PID=$!
 echo "$PID" > "$PIDFILE"
 
-# Wait for shutdown. STATUS is set only for an already reaped server; clear traps before exit to avoid recursion.
-finish() {
-    trap - SIGINT SIGTERM SIGQUIT EXIT
-    if [ -z "${STATUS:-}" ] ; then
-        kill $PID 2>/dev/null
-        wait $PID
-        STATUS=$?
-    elif [ "$STATUS" != 0 ] ; then
-        #   The server stopped by itself. tm reports only this script's exit status, so say why.
-        echo "goahead-test exited with status $STATUS; last lines of server-log.txt:" >&2
-        tail -n 40 ../server-log.txt >&2
-    fi
-    echo "$STATUS" > "$STATUSFILE"
-    rm -f "$PIDFILE"
-    exit $STATUS
+#   The trap only stops the server. Waiting for it inside the trap, while the main wait is interrupted, can
+#   return before bash has recorded the server's status. A trapped signal ends wait early with a status above
+#   128, so wait again until one completes uninterrupted. The EXIT trap stops the server if this script dies.
+STOPPED=0
+stop() {
+    STOPPED=1
+    INTERRUPTED=1
+    kill $PID 2>/dev/null
 }
+trap stop SIGINT SIGTERM SIGQUIT
+trap 'kill $PID 2>/dev/null' EXIT
 
-trap finish SIGINT SIGTERM SIGQUIT EXIT
+while : ; do
+    INTERRUPTED=0
+    wait $PID
+    STATUS=$?
+    [ "$INTERRUPTED" = 1 ] && [ "$STATUS" -gt 128 ] || break
+done
+trap - SIGINT SIGTERM SIGQUIT EXIT
 
-wait $PID
-STATUS=$?
-finish
+if [ "$STOPPED" = 0 ] && [ "$STATUS" != 0 ] ; then
+    #   The server stopped by itself. tm reports only this script's exit status, so say why.
+    echo "goahead-test exited with status $STATUS; last lines of server-log.txt:" >&2
+    tail -n 40 ../server-log.txt >&2
+fi
+echo "$STATUS" > "$STATUSFILE"
+rm -f "$PIDFILE"
+exit $STATUS

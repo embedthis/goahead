@@ -50,8 +50,8 @@ int main(int argc, char **argv)
 #if ME_GOAHEAD_LOGGING
     logSetHandler(quietLog);
 #endif
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(sslOpen(), 0, "open TLS");
     ttrue(ticketKeys[0].created != 0, "sslOpen makes a ticket key");
     clientCtx = SSL_CTX_new(TLS_client_method());

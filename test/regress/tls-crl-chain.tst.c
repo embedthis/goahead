@@ -122,8 +122,8 @@ int main(int argc, char **argv)
     teq(verifyChain(plain, leaf, mid), X509_V_OK, "the chain must verify without revocation checks");
     X509_STORE_free(plain);
 
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(sslOpen(), 0, "open TLS with the revocation list");
     X509_STORE_add_cert(SSL_CTX_get_cert_store(sslctx), root);
     rc = verifyChain(SSL_CTX_get_cert_store(sslctx), leaf, mid);

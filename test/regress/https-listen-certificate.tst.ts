@@ -10,7 +10,7 @@ const ENDPOINT = 'https://127.0.0.1:14977'
 const HOME = join(import.meta.dir, '..')
 //  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
-const CERTS = join(HOME, '..', 'certs')
+const CERTS = join(HOME, 'pki')
 
 function handshake(): Promise<boolean> {
     return new Promise((resolve) => {

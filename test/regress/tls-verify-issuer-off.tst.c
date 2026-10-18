@@ -99,8 +99,8 @@ int main(int argc, char **argv)
     PEM_write_bio_X509(bio, root);
     BIO_free(bio);
 
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(websOpen("../web", NULL), 0, "open the server with client verification and an authority");
     ttrue(warned, "websOpen must warn that the authority is not enforced without issuer verification");
 

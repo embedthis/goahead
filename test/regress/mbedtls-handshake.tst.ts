@@ -17,7 +17,7 @@ if (String(Config.OS).startsWith('win') || !cc || pkg.status !== 0) {
     tskip('Requires a POSIX compiler and MbedTLS development packages via pkg-config')
 } else {
     const root = join(import.meta.dir, '..', '..')
-    const certs = join(root, 'certs')
+    const certs = join(root, 'test', 'pki')
     const dir = mkdtempSync(join(tmpdir(), 'goahead-mbed-handshake-'))
 
     const SETTINGS = [

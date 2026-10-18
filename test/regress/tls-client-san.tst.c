@@ -82,8 +82,8 @@ int main(int argc, char **argv)
     PEM_write_bio_X509(bio, certs[0]);
     BIO_free(bio);
 
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(sslOpen(), 0, "open TLS with client and issuer verification");
 
     sanKey = EVP_EC_gen("P-256");

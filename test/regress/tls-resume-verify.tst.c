@@ -44,8 +44,8 @@ int main(int argc, char **argv)
 #if ME_GOAHEAD_LOGGING
     logSetHandler(quietLog);
 #endif
-    websSetSslCertFile("../../certs/self.crt");
-    websSetSslKeyFile("../../certs/self.key");
+    websSetSslCertFile("../pki/self.crt");
+    websSetSslKeyFile("../pki/self.key");
     teq(sslOpen(), 0, "open TLS with client certificates required");
     teq(SSL_CTX_get_timeout(sslctx), ME_GOAHEAD_SSL_TIMEOUT, "the configured session lifetime is applied");
 

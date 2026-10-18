@@ -18,7 +18,7 @@ if (String(Config.OS).startsWith('win') || !cc || pkg.status !== 0 || openssl.st
     const dir = mkdtempSync(join(tmpdir(), 'goahead-mbed-setup-'))
     try {
         const encrypted = join(dir, 'encrypted.key')
-        teq(spawnSync('openssl', ['pkey', '-in', join(root, 'certs/test.key'), '-aes256', '-passout', 'pass:secret',
+        teq(spawnSync('openssl', ['pkey', '-in', join(root, 'test/pki/test.key'), '-aes256', '-passout', 'pass:secret',
             '-out', encrypted]).status, 0, 'write an encrypted key')
         const malformed = join(dir, 'malformed.pem')
         writeFileSync(malformed, 'this is not a certificate, a key or a CRL\n')
@@ -30,7 +30,7 @@ if (String(Config.OS).startsWith('win') || !cc || pkg.status !== 0 || openssl.st
             ...pkg.stdout.trim().split(/\s+/), '-o', exe]
         const built = spawnSync(String(cc), args, { encoding: 'utf8' })
         teq(built.status, 0, 'MbedTLS backend fixture compiles: ' + built.stderr)
-        const result = spawnSync(exe, [join(root, 'certs'), encrypted, malformed], { encoding: 'utf8' })
+        const result = spawnSync(exe, [join(root, 'test', 'pki'), encrypted, malformed], { encoding: 'utf8' })
         teq(result.status, 0, 'the backend fixture passes: ' + result.stderr)
         tcontains(result.stdout, 'setup failure and success passed', 'success control also exercised')
         tcontains(result.stdout, 'dh group passed', 'sslOpen configures the 2048-bit RFC 3526 DHE group')
