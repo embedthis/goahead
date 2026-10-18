@@ -1,5 +1,5 @@
 /*
-    crypt.c - Base-64 encoding/decoding, MD5 digests, Blowfish password hashing and random bytes.
+    crypt.c - Base-64 encoding/decoding, MD5 and SHA-1 digests, Blowfish password hashing and random bytes.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -84,6 +84,22 @@ typedef struct {
     uchar buffer[64];
 } MD5CONTEXT;
 
+/*
+    SHA-1 is used only to compress arbitrary-length password material to a fixed-width key for the
+    Blowfish schedule below, so it is not part of the public API.
+ */
+#define SHA_SIZE 20
+
+#define shaShift(bits, word) (((word) << (bits)) | ((word) >> (32 - (bits))))
+
+typedef struct {
+    uint hash[SHA_SIZE / 4];                /* Message digest */
+    uint lowLength;                         /* Message length in bits */
+    uint highLength;                        /* Message length in bits */
+    int index;                              /* Index into the message block */
+    uchar block[64];                        /* 512-bit message block */
+} WebsSha;
+
 /******************************* Base 64 Data *********************************/
 
 #define CRYPT_HASH_SIZE 16
@@ -137,6 +153,12 @@ static void finalizeMD5(uchar digest[16], MD5CONTEXT *context);
 static void initMD5(MD5CONTEXT *context);
 static void transform(uint state[4], uchar block[64]);
 static void update(MD5CONTEXT *context, uchar *input, uint inputLen);
+
+static void shaFinalize(uchar *digest, WebsSha *sha);
+static void shaInit(WebsSha *sha);
+static void shaPad(WebsSha *sha);
+static void shaProcess(WebsSha *sha);
+static void shaUpdate(WebsSha *sha, uchar *msg, ssize len);
 
 /*********************************** Code *************************************/
 /*
@@ -207,7 +229,7 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
 {
     MD5CONTEXT context;
     uchar      hash[CRYPT_HASH_SIZE];
-    cchar      *hex = "0123456789abcdef";
+    cchar      *hexDigits = "0123456789abcdef";
     char       *r, *str;
     char       result[(CRYPT_HASH_SIZE * 2) + 1];
     ssize      len;
@@ -221,8 +243,8 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
     finalizeMD5(hash, &context);
 
     for (i = 0, r = result; i < 16; i++) {
-        *r++ = hex[hash[i] >> 4];
-        *r++ = hex[hash[i] & 0xF];
+        *r++ = hexDigits[hash[i] >> 4];
+        *r++ = hexDigits[hash[i] & 0xF];
     }
     *r = '\0';
     len = (prefix) ? strlen(prefix) : 0;
@@ -309,7 +331,7 @@ static void finalizeMD5(uchar digest[16], MD5CONTEXT *context)
 /*
     MD5 basic transformation. Transforms state based on block.
  */
-static void transform(uint state[4], uchar block[64])
+static ME_NO_SANITIZE_WRAP void transform(uint state[4], uchar block[64])
 {
     uint a = state[0], b = state[1], c = state[2], d = state[3], x[16];
 
@@ -448,7 +470,11 @@ PUBLIC char *websEncode64Block(char *s, ssize len)
     ssize size;
     int   i, j, shift;
 
-    size = len * 2;
+    /* Allow four output bytes per input triplet, plus the terminator. */
+    if (len < 0 || len / 3 > (SSIZE_MAX - 5) / 4) {
+        return NULL;
+    }
+    size = (len / 3 + (len % 3 != 0)) * 4;
     if ((buffer = walloc(size + 1)) == 0) {
         return NULL;
     }
@@ -473,8 +499,183 @@ PUBLIC char *websEncode64Block(char *s, ssize len)
     return buffer;
 }
 
+/************************************* Sha1 **********************************/
+/*
+    Return the SHA-1 hash of a block as a null terminated hex string. Returns an allocated string of
+    exactly SHA_SIZE * 2 characters whatever the length of the input.
+ */
+static char *shaHex(cchar *buf, ssize length)
+{
+    WebsSha sha;
+    uchar   hash[SHA_SIZE];
+    cchar   *hexDigits = "0123456789abcdef";
+    char    *r, *str;
+    char    result[(SHA_SIZE * 2) + 1];
+    int     i;
+
+    if (length < 0) {
+        length = slen(buf);
+    }
+    shaInit(&sha);
+    shaUpdate(&sha, (uchar*) buf, length);
+    shaFinalize(hash, &sha);
+
+    for (i = 0, r = result; i < SHA_SIZE; i++) {
+        *r++ = hexDigits[hash[i] >> 4];
+        *r++ = hexDigits[hash[i] & 0xF];
+    }
+    *r = '\0';
+    str = walloc(sizeof(result));
+    if (str) {
+        strcpy(str, result);
+    }
+    memset(&sha, 0, sizeof(sha));
+    memset(hash, 0, sizeof(hash));
+    return str;
+}
+
+
+static void shaInit(WebsSha *sha)
+{
+    sha->lowLength = 0;
+    sha->highLength = 0;
+    sha->index = 0;
+    sha->hash[0] = 0x67452301;
+    sha->hash[1] = 0xEFCDAB89;
+    sha->hash[2] = 0x98BADCFE;
+    sha->hash[3] = 0x10325476;
+    sha->hash[4] = 0xC3D2E1F0;
+}
+
+
+static void shaUpdate(WebsSha *sha, uchar *msg, ssize len)
+{
+    while (len--) {
+        sha->block[sha->index++] = (*msg & 0xFF);
+        sha->lowLength += 8;
+        if (sha->lowLength == 0) {
+            sha->highLength++;
+        }
+        if (sha->index == 64) {
+            shaProcess(sha);
+        }
+        msg++;
+    }
+}
+
+
+static void shaFinalize(uchar *digest, WebsSha *sha)
+{
+    int i;
+
+    shaPad(sha);
+    memset(sha->block, 0, 64);
+    sha->lowLength = 0;
+    sha->highLength = 0;
+    for (i = 0; i < SHA_SIZE; i++) {
+        digest[i] = (uchar) (sha->hash[i >> 2] >> 8 * (3 - (i & 0x03)));
+    }
+}
+
+
+static ME_NO_SANITIZE_WRAP void shaProcess(WebsSha *sha)
+{
+    uint K[] = { 0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6 };
+    uint temp, W[80], A, B, C, D, E;
+    int  t;
+
+    for (t = 0; t < 16; t++) {
+        // Widen before shifting to avoid signed-int overflow.
+        W[t] = (uint) sha->block[t * 4] << 24;
+        W[t] |= (uint) sha->block[t * 4 + 1] << 16;
+        W[t] |= (uint) sha->block[t * 4 + 2] << 8;
+        W[t] |= sha->block[t * 4 + 3];
+    }
+    for (t = 16; t < 80; t++) {
+        W[t] = shaShift(1, W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16]);
+    }
+    A = sha->hash[0];
+    B = sha->hash[1];
+    C = sha->hash[2];
+    D = sha->hash[3];
+    E = sha->hash[4];
+
+    for (t = 0; t < 20; t++) {
+        temp = shaShift(5, A) + ((B & C) | ((~B) & D)) + E + W[t] + K[0];
+        E = D;
+        D = C;
+        C = shaShift(30, B);
+        B = A;
+        A = temp;
+    }
+    for (t = 20; t < 40; t++) {
+        temp = shaShift(5, A) + (B ^ C ^ D) + E + W[t] + K[1];
+        E = D;
+        D = C;
+        C = shaShift(30, B);
+        B = A;
+        A = temp;
+    }
+    for (t = 40; t < 60; t++) {
+        temp = shaShift(5, A) + ((B & C) | (B & D) | (C & D)) + E + W[t] + K[2];
+        E = D;
+        D = C;
+        C = shaShift(30, B);
+        B = A;
+        A = temp;
+    }
+    for (t = 60; t < 80; t++) {
+        temp = shaShift(5, A) + (B ^ C ^ D) + E + W[t] + K[3];
+        E = D;
+        D = C;
+        C = shaShift(30, B);
+        B = A;
+        A = temp;
+    }
+    sha->hash[0] += A;
+    sha->hash[1] += B;
+    sha->hash[2] += C;
+    sha->hash[3] += D;
+    sha->hash[4] += E;
+    sha->index = 0;
+}
+
+
+static void shaPad(WebsSha *sha)
+{
+    if (sha->index > 55) {
+        sha->block[sha->index++] = 0x80;
+        while (sha->index < 64) {
+            sha->block[sha->index++] = 0;
+        }
+        shaProcess(sha);
+        while (sha->index < 56) {
+            sha->block[sha->index++] = 0;
+        }
+    } else {
+        sha->block[sha->index++] = 0x80;
+        while (sha->index < 56) {
+            sha->block[sha->index++] = 0;
+        }
+    }
+    sha->block[56] = (uchar) (sha->highLength >> 24);
+    sha->block[57] = (uchar) (sha->highLength >> 16);
+    sha->block[58] = (uchar) (sha->highLength >> 8);
+    sha->block[59] = (uchar) (sha->highLength);
+    sha->block[60] = (uchar) (sha->lowLength >> 24);
+    sha->block[61] = (uchar) (sha->lowLength >> 16);
+    sha->block[62] = (uchar) (sha->lowLength >> 8);
+    sha->block[63] = (uchar) (sha->lowLength);
+    shaProcess(sha);
+}
+
 /************************************ Blowfish *******************************/
 
+/*
+    The key schedule below consumes exactly (BF_ROUNDS + 2) * 4 == WEBS_BLOWFISH_KEY_WINDOW key
+    bytes and ignores everything after them. This is a property of Blowfish, not of this
+    implementation - real bcrypt has the same window.
+ */
 #define BF_ROUNDS 16
 
 typedef struct {
@@ -756,7 +957,7 @@ static const uint ORIG_S[4][256] = {
 };
 
 
-static uint BF(WebsBlowfish *bp, uint x)
+static ME_NO_SANITIZE_WRAP uint BF(WebsBlowfish *bp, uint x)
 {
     ushort a, b, c, d;
     uint   y;
@@ -799,33 +1000,6 @@ static void bencrypt(WebsBlowfish *bp, uint *xl, uint *xr)
     *xl = Xl;
     *xr = Xr;
 }
-
-
-#if KEEP
-static void bdecrypt(WebsBlowfish *bp, uint *xl, uint *xr)
-{
-    uint Xl, Xr, temp;
-    int  i;
-
-    Xl = *xl;
-    Xr = *xr;
-
-    for (i = BF_ROUNDS + 1; i > 1; --i) {
-        Xl = Xl ^ bp->P[i];
-        Xr = BF(bp, Xl) ^ Xr;
-        temp = Xl;
-        Xl = Xr;
-        Xr = temp;
-    }
-    temp = Xl;
-    Xl = Xr;
-    Xr = temp;
-    Xr = Xr ^ bp->P[1];
-    Xl = Xl ^ bp->P[0];
-    *xl = Xl;
-    *xr = Xr;
-}
-#endif
 
 
 static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
@@ -921,14 +1095,46 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
 }
 
 
-PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
+/*
+    Run the Blowfish schedule over "salt:key" and return the encoded cipher text. The caller decides
+    what "key" is: BF1 passes the password through unchanged, BF2 passes its SHA-1 digest.
+ */
+static char *cryptBlock(cchar *key, cchar *salt, int rounds)
 {
-    WebsBlowfish bf;
-    char         *result, *key;
+    WebsBlowfish *bf;
+    char         *result, *composite;
     uint         *text;
     ssize        len, limit;
     int          i, j;
 
+    composite = sfmt("%s:%s", salt, key);
+    bf = walloc(sizeof(WebsBlowfish));
+    binit(bf, (uchar*) composite, slen(composite));
+    len = sizeof(cipherText);
+    text = wdup(cipherText, len);
+
+    for (i = 0; i < rounds; i++) {
+        limit = len / sizeof(uint);
+        for (j = 0; j < limit; j += 2) {
+            bencrypt(bf, &text[j], &text[j + 1]);
+        }
+    }
+    result = websEncode64Block((char*) text, len);
+    memset(bf, 0, sizeof(WebsBlowfish));
+    wfree(bf);
+    memset(text, 0, len);
+    wfree(text);
+    wfree(composite);
+    return result;
+}
+
+
+/*
+    BF1. Retained with its original semantics so hashes already in the field keep verifying. New
+    hashes are not written in this format - see websMakePassword.
+ */
+PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
+{
     /*
         Defense-in-depth: callers are expected to enforce the plaintext-password limit
         (WEBS_MAX_PASSWORD). This bound accommodates "username:realm:password" inputs
@@ -937,22 +1143,26 @@ PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
     if (slen(password) > WEBS_MAX_PASSWORD_BUFFER) {
         return 0;
     }
-    key = sfmt("%s:%s", salt, password);
-    binit(&bf, (uchar*) key, slen(key));
-    len = sizeof(cipherText);
-    text = wdup(cipherText, len);
+    return cryptBlock(password, salt, rounds);
+}
 
-    for (i = 0; i < rounds; i++) {
-        limit = len / sizeof(uint);
-        for (j = 0; j < limit; j += 2) {
-            bencrypt(&bf, &text[j], &text[j + 1]);
-        }
+
+/*
+    BF2. The SHA-1 digest is a fixed SHA_SIZE * 2 characters, so with the default salt the key is 57
+    bytes and the schedule window cannot be reached however long the caller's input is.
+ */
+static char *cryptPassword2(cchar *password, cchar *salt, int rounds)
+{
+    char *digest, *result;
+
+    if (slen(password) > WEBS_MAX_PASSWORD_BUFFER) {
+        return 0;
     }
-    result = websEncode64Block((char*) text, len);
-    memset(&bf, 0, sizeof(bf));
-    memset(text, 0, len);
-    wfree(text);
-    wfree(key);
+    if ((digest = shaHex(password, slen(password))) == 0) {
+        return 0;
+    }
+    result = cryptBlock(digest, salt, rounds);
+    wfree(digest);
     return result;
 }
 
@@ -988,7 +1198,7 @@ PUBLIC char *websMakeSalt(ssize size)
  */
 PUBLIC char *websMakePassword(cchar *password, int saltLength, int rounds)
 {
-    char *salt;
+    char *salt, *hash, *result;
 
     if (slen(password) > WEBS_MAX_PASSWORD_BUFFER) {
         return 0;
@@ -999,14 +1209,35 @@ PUBLIC char *websMakePassword(cchar *password, int saltLength, int rounds)
     if (rounds <= 0) {
         rounds = BLOWFISH_ROUNDS;
     }
-    salt = websMakeSalt(saltLength);
-    return sfmt("BF1:%05d:%s:%s", rounds, salt, websCryptPassword(password, salt, rounds));
+    /*
+        A null salt would be formatted into the hash as the literal "null", giving every password on
+        the device the same salt. Fail rather than issue one.
+     */
+    if ((salt = websMakeSalt(saltLength)) == 0) {
+        return 0;
+    }
+    /*
+        Refuse a salt long enough to push the fixed-width digest out of the schedule window. The
+        default salt leaves ample room; a caller-supplied one must not reintroduce truncation.
+     */
+    if ((slen(salt) + 1 + (SHA_SIZE * 2)) >= WEBS_BLOWFISH_KEY_WINDOW) {
+        wfree(salt);
+        return 0;
+    }
+    if ((hash = cryptPassword2(password, salt, rounds)) == 0) {
+        wfree(salt);
+        return 0;
+    }
+    result = sfmt("%s:%05d:%s:%s", WEBS_CRYPT_BLOWFISH2, rounds, salt, hash);
+    wfree(hash);
+    wfree(salt);
+    return result;
 }
 
 
 PUBLIC bool websCheckPassword(cchar *plainTextPassword, cchar *passwordHash)
 {
-    char  *given, *rounds, *salt, *s1, *s2, *tok, *hash, *ph;
+    char  *algorithm, *given, *rounds, *salt, *s1, *s2, *tok, *hash, *ph;
     ssize match;
 
     if (!passwordHash || !plainTextPassword) {
@@ -1016,20 +1247,50 @@ PUBLIC bool websCheckPassword(cchar *plainTextPassword, cchar *passwordHash)
         return 0;
     }
     ph = sclone(passwordHash);
-    stok(ph, ":", &tok);
+    algorithm = stok(ph, ":", &tok);
     rounds = stok(NULL, ":", &tok);
     salt = stok(NULL, ":", &tok);
     hash = stok(NULL, ":", &tok);
-    if (!rounds || !salt || !hash) {
+    if (!algorithm || !rounds || !salt || !hash) {
         wfree(ph);
         return 0;
     }
-    given = websCryptPassword(plainTextPassword, salt, atoi(rounds));
+    /*
+        Verify in the format the stored hash was written in. A BF1 hash must keep verifying the BF1
+        way or every credential already deployed stops working - it cannot be upgraded in place,
+        because the stored value never depended on the password it is supposed to check.
+     */
+    if (smatch(algorithm, WEBS_CRYPT_BLOWFISH2)) {
+        given = cryptPassword2(plainTextPassword, salt, atoi(rounds));
 
+    } else if (smatch(algorithm, WEBS_CRYPT_BLOWFISH)) {
+        /*
+            BF1, fail closed at or past the key window. A key that reaches the window was truncated
+            when the hash was stored, so the stored value no longer depends on the password and every
+            password matches. The test is >= because a candidate filling the window exactly matches a
+            longer stored key truncated to the same bytes. A residual below the window is not closed
+            here: this routine sees one composite string and cannot tell a long realm from a long
+            password, so websAddUser reports that band instead.
+         */
+        if ((slen(salt) + 1 + slen(plainTextPassword)) >= WEBS_BLOWFISH_KEY_WINDOW) {
+            wfree(ph);
+            return 0;
+        }
+        given = websCryptPassword(plainTextPassword, salt, atoi(rounds));
+
+    } else {
+        wfree(ph);
+        return 0;
+    }
+    if (given == 0) {
+        wfree(ph);
+        return 0;
+    }
     match = slen(given) ^ slen(hash);
     for (s1 = given, s2 = hash; *s1 && *s2; s1++, s2++) {
         match |= (*s1 & 0xFF) ^ (*s2 & 0xFF);
     }
+    wfree(given);
     wfree(ph);
     return !match;
 }
@@ -1083,7 +1344,7 @@ PUBLIC char *websReadPassword(cchar *prompt)
             fputs("^C\n", stdout);
             exit(255);
         } else if (!iscntrl((uchar) c) && (i < (int) sizeof(passbuf) - 1)) {
-            passbuf[i] = c;
+            passbuf[i] = (char) c;
             fputc('*', stdout);
         } else {
             fputc('', stdout);
@@ -1107,7 +1368,7 @@ PUBLIC char *websReadPassword(cchar *prompt)
 }
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

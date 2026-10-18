@@ -34,15 +34,19 @@
 /*********************************** Locals ***********************************/
 
 static WebsHash   users = -1;
-static WebsHash   roles = -1;
+static WebsHash   roleTable = -1;
 static char       *masterSecret;
 static int        autoLogin = ME_GOAHEAD_AUTO_LOGIN;
-static WebsVerify verifyPassword = websVerifyPasswordFromFile;
+static WebsVerify verifyPassword;
+#if ME_GOAHEAD_DIGEST
+static WebsHash nonceCounts = -1;               /* Digest nonce -> issue time and last accepted nonce count */
+static WebsTime nonceFloor;                     /* Nonces issued at or before this time were evicted */
+static int      nonceTotal;                     /* Records in nonceCounts */
+static int      noncePruneId = -1;
+#endif
 static bool pmatch(cchar *s1, cchar *s2);
 
-#ifndef ME_GOAHEAD_NONCE_DURATION
-    #define ME_GOAHEAD_NONCE_DURATION 60
-#endif
+#define WEBS_MAX_AUTH_LOG_USER 64               /* Longest claimed user name written to the log */
 
 #if ME_COMPILER_HAS_PAM
 typedef struct {
@@ -60,17 +64,28 @@ typedef gid_t Gid;
 /********************************** Forwards **********************************/
 
 static void computeAbilities(WebsHash abilities, cchar *role, int depth);
+static WebsVerify getVerify(WebsRoute *route);
 static void computeUserAbilities(WebsUser *user);
 static WebsUser *createUser(cchar *username, cchar *password, cchar *roles);
 static void freeRole(WebsRole *rp);
 static void freeUser(WebsUser *up);
+static bool isBlowfishHash(cchar *password);
+static bool isMd5Hash(cchar *password);
+static bool isCompleteHash(cchar *hash);
+static void verifyUnknownUser(Webs *wp);
 static void logoutServiceProc(Webs *wp);
 static void loginServiceProc(Webs *wp);
+static void reportPasswordBudget(cchar *username, cchar *password);
+static void setUsername(Webs *wp, cchar *username);
 
 #if ME_GOAHEAD_DIGEST
+static bool checkNonceCount(Webs *wp);
+static char *formatDigestNonce(WebsTime when, uint64 counter);
+static uint64 parseHex64(cchar *str);
+static void pruneNonces(void *data, int id);
 static char *calcDigest(Webs *wp, char *username, char *password);
 static char *createDigestNonce(Webs *wp);
-static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime *when, char **counterStr);
+static char *parseDigestNonce(char *nonce, char **secret, WebsTime *when, char **counterStr);
 #endif
 
 #if ME_COMPILER_HAS_PAM
@@ -78,6 +93,44 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 #endif
 
 /************************************ Code ************************************/
+/*
+    Resolve the user again when the username changes to avoid reusing another user's record.
+ */
+static void setUsername(Webs *wp, cchar *username)
+{
+    char *name;
+
+    name = sclone(username);
+    wfreeset(wp->username);
+    wp->username = name;
+    wp->user = 0;
+}
+
+
+#if ME_GOAHEAD_LOGGING
+/*
+    Log one authentication outcome. The user name is request data: it is truncated here and escaped by the log.
+ */
+static void logAuth(Webs *wp, int level, cchar *scheme, cchar *outcome, cchar *reason)
+{
+    char *name;
+
+    name = snclone(wp->username ? wp->username : "-", WEBS_MAX_AUTH_LOG_USER);
+    logmsg(level, "Authentication %s for user \"%s\" from %s on %s (%s)%s%s", outcome, name, wp->ipaddr,
+           (wp->route && wp->route->prefix) ? wp->route->prefix : "-", scheme, reason ? ": " : "",
+           reason ? reason : "");
+    wfree(name);
+}
+
+
+PUBLIC void websLogAuth(Webs *wp, int level, cchar *outcome, cchar *reason)
+{
+    logAuth(wp, level, (wp->route && wp->route->authType) ? wp->route->authType : "none", outcome, reason);
+}
+#else
+    #define logAuth(wp, level, scheme, outcome, reason) if (1); else { }
+#endif
+
 
 PUBLIC bool websAuthenticate(Webs *wp)
 {
@@ -96,21 +149,30 @@ PUBLIC bool websAuthenticate(Webs *wp)
     cached = 0;
     if (wp->cookie && websGetSession(wp, 0) != 0) {
         /*
-            Retrieve authentication state from the session storage. Faster than re-authenticating.
+            Reuse sessions only when their authentication protocol matches the route.
          */
-        if ((username = (char*) websGetSessionVar(wp, WEBS_SESSION_USERNAME, 0)) != 0) {
+        if ((username = (char*) websGetSessionVar(wp, WEBS_SESSION_USERNAME, 0)) != 0 &&
+            smatch(websGetSessionVar(wp, WEBS_SESSION_AUTHTYPE, 0), route->authType)) {
             cached = 1;
-            wfreeset(wp->username);
-            wp->username = sclone(username);
+            setUsername(wp, username);
         }
     }
     if (!cached) {
         if (wp->authType && !smatch(wp->authType, route->authType)) {
+            logAuth(wp, 0, route->authType, "failed", "wrong authentication scheme");
             websError(wp, HTTP_CODE_UNAUTHORIZED, "Access denied. Wrong authentication protocol type.");
             return 0;
         }
+        /*
+            Do not verify unchanged credentials again on reroute; Digest counts are accepted once.
+         */
+        if (wp->flags & WEBS_AUTHENTICATED) {
+            return 1;
+        }
         if (wp->authDetails && route->parseAuth) {
-            if (!(route->parseAuth)(wp)) {
+            wp->authReason = 0;
+            if (!(route->parseAuth)(wp) || !wp->username || !*wp->username) {
+                logAuth(wp, 0, route->authType, "failed", wp->authReason ? wp->authReason : "invalid credentials");
                 /*
                     parseAuth may have taken ownership of a cloned username before failing.
                     Free it here so a failed authentication does not orphan the block.
@@ -125,24 +187,32 @@ PUBLIC bool websAuthenticate(Webs *wp)
             websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
             return 0;
         }
-        if (!(route->verify)(wp)) {
+        wp->authReason = 0;
+        if (!getVerify(route) || !(getVerify(route))(wp)
+#if ME_GOAHEAD_DIGEST
+            || (smatch(route->authType, "digest") && !checkNonceCount(wp))
+#endif
+            ) {
+            logAuth(wp, 0, route->authType, "failed", wp->authReason ? wp->authReason : "invalid credentials");
             if (route->askLogin) {
                 (route->askLogin)(wp);
             }
             websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
             return 0;
         }
+        wp->flags |= WEBS_AUTHENTICATED;
+        logAuth(wp, 2, route->authType, "succeeded", 0);
         /*
-            Store authentication state and user in session storage. Rotate the session id first:
-            this is a privilege transition, and any session the client arrived carrying was
-            established while it was unauthenticated. If rotation fails (the session table is full)
-            the request is still authenticated - the credentials were verified - it simply is not
-            cached, and the next request re-verifies.
+            Cache verified credentials only in an existing client session, rotating its ID first. Authentication
+            still succeeds if rotation fails; creating sessions here could exhaust the table.
          */
-        if (websRotateSession(wp) != 0) {
-            websSetSessionVar(wp, WEBS_SESSION_USERNAME, wp->username);
+        if (wp->session) {
+            websLoginSession(wp, route->authType);
         }
     }
+    //  Name the protocol that authenticated the request, not the one the client claimed
+    wfreeset(wp->authType);
+    wp->authType = sclone(route->authType);
     return 1;
 }
 
@@ -156,30 +226,45 @@ PUBLIC int websOpenAuth(int minimal)
     if ((users = hashCreate(-1)) < 0) {
         return -1;
     }
-    if ((roles = hashCreate(-1)) < 0) {
+    if ((roleTable = hashCreate(-1)) < 0) {
         return -1;
     }
+#if ME_GOAHEAD_DIGEST
+    if ((nonceCounts = hashCreate(-1)) < 0) {
+        return -1;
+    }
+    nonceFloor = 0;
+    nonceTotal = 0;
     if (!minimal) {
-        websGetRandomBytes(sbuf, sizeof(sbuf), 0);
-        masterSecret = websEncode64Block(sbuf, sizeof(sbuf));
-        websDefineAction("login", loginServiceProc);
-        websDefineAction("logout", logoutServiceProc);
+        noncePruneId = websStartEvent(WEBS_SESSION_PRUNE, pruneNonces, 0);
     }
-    if (smatch(ME_GOAHEAD_AUTH_STORE, "file")) {
-        verifyPassword = websVerifyPasswordFromFile;
-#if ME_COMPILER_HAS_PAM
-    } else if (smatch(ME_GOAHEAD_AUTH_STORE, "pam")) {
-        verifyPassword = websVerifyPasswordFromPam;
 #endif
-    } else {
+    if (!minimal) {
         /*
-            The configured store is not compiled in - typically ME_GOAHEAD_AUTH_STORE="pam" on a
-            build without PAM. Falling back to the file store would verify credentials against a
-            different set of secrets than the operator configured, so refuse to start instead.
+            Require random bytes before issuing Digest nonces.
          */
-        error("Password store \"%s\" is not available in this build. Rebuild with support for it, "
-              "or set ME_GOAHEAD_AUTH_STORE to \"file\".", ME_GOAHEAD_AUTH_STORE);
-        return -1;
+        if (websGetRandomBytes(sbuf, sizeof(sbuf), 0) < 0) {
+            error("Cannot get random bytes for the authentication secret");
+            return -1;
+        }
+        masterSecret = websEncode64Block(sbuf, sizeof(sbuf));
+        websDefineNativeAction("login", loginServiceProc);
+        websDefineNativeAction("logout", logoutServiceProc);
+    }
+    /* Preserve an application-installed verifier. */
+    if (!verifyPassword) {
+        if (smatch(ME_GOAHEAD_AUTH_STORE, "file")) {
+            verifyPassword = websVerifyPasswordFromFile;
+#if ME_COMPILER_HAS_PAM
+        } else if (smatch(ME_GOAHEAD_AUTH_STORE, "pam")) {
+            verifyPassword = websVerifyPasswordFromPam;
+#endif
+        } else {
+            /* Refuse an unavailable configured store; falling back would use different credentials. */
+            error("Password store \"%s\" is not available in this build. Rebuild with support for it, "
+                  "or set ME_GOAHEAD_AUTH_STORE to \"file\".", ME_GOAHEAD_AUTH_STORE);
+            return -1;
+        }
     }
     /*
         Auto-login serves every authenticated route without credentials. It is a development aid, so
@@ -198,7 +283,7 @@ PUBLIC void websCloseAuth(void)
 {
     WebsKey *key, *next;
 
-    wfree(masterSecret);
+    wfreeset(masterSecret);
     if (users >= 0) {
         for (key = hashFirst(users); key; key = next) {
             next = hashNext(users, key);
@@ -207,68 +292,26 @@ PUBLIC void websCloseAuth(void)
         hashFree(users);
         users = -1;
     }
-    if (roles >= 0) {
-        for (key = hashFirst(roles); key; key = next) {
-            next = hashNext(roles, key);
+    if (roleTable >= 0) {
+        for (key = hashFirst(roleTable); key; key = next) {
+            next = hashNext(roleTable, key);
             freeRole(key->content.value.symbol);
         }
-        hashFree(roles);
-        roles = -1;
+        hashFree(roleTable);
+        roleTable = -1;
     }
-}
-
-
-#if KEEP
-PUBLIC int websWriteAuthFile(char *path)
-{
-    FILE     *fp;
-    WebsKey  *kp, *ap;
-    WebsRole *role;
-    WebsUser *user;
-    char     *tempFile;
-
-    assert(path && *path);
-
-    if ((tempFile = websTempFile(NULL, NULL)) == 0) {
-        error("Cannot create a temp file to rewrite %s", path);
-        return -1;
+#if ME_GOAHEAD_DIGEST
+    if (noncePruneId >= 0) {
+        websStopEvent(noncePruneId);
+        noncePruneId = -1;
     }
-    if ((fp = fopen(tempFile, "w" FILE_TEXT)) == 0) {
-        error("Cannot open %s", tempFile);
-        wfree(tempFile);
-        return -1;
+    if (nonceCounts >= 0) {
+        hashFree(nonceCounts);
+        nonceCounts = -1;
     }
-    fprintf(fp, "#\n#   %s - Authorization data\n#\n\n", basename(path));
-
-    if (roles >= 0) {
-        for (kp = hashFirst(roles); kp; kp = hashNext(roles, kp)) {
-            role = kp->content.value.symbol;
-            fprintf(fp, "role name=%s abilities=", kp->name.value.string);
-            for (ap = hashFirst(role->abilities); ap; ap = hashNext(role->abilities, ap)) {
-                fprintf(fp, "%s,", ap->name.value.string);
-            }
-            fputc('\n', fp);
-        }
-        fputc('\n', fp);
-    }
-    if (users >= 0) {
-        for (kp = hashFirst(users); kp; kp = hashNext(users, kp)) {
-            user = kp->content.value.symbol;
-            fprintf(fp, "user name=%s password=%s roles=%s", user->name, user->password, user->roles);
-            fputc('\n', fp);
-        }
-    }
-    fclose(fp);
-    unlink(path);
-    if (rename(tempFile, path) < 0) {
-        error("Cannot create new %s", path);
-        wfree(tempFile);
-        return -1;
-    }
-    wfree(tempFile);
-    return 0;
-}
 #endif
+    verifyPassword = 0;
+}
 
 
 static WebsUser *createUser(cchar *username, cchar *password, cchar *roles)
@@ -288,6 +331,71 @@ static WebsUser *createUser(cchar *username, cchar *password, cchar *roles)
 }
 
 
+/*
+    True when the stored hash is a Blowfish password hash, in the current BF2 format or the legacy
+    BF1 format.
+ */
+static bool isBlowfishHash(cchar *password)
+{
+    return sstarts(password, WEBS_CRYPT_BLOWFISH ":") || sstarts(password, WEBS_CRYPT_BLOWFISH2 ":");
+}
+
+
+static bool isMd5Hash(cchar *password)
+{
+    cchar *cp;
+
+    if (slen(password) != 32) {
+        return 0;
+    }
+    for (cp = password; *cp; cp++) {
+        if (!isxdigit((uchar) *cp)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+    Report legacy BF1 accounts whose username and realm crowd the password out of the Blowfish key
+    schedule. Such a hash was stored without depending on the whole of the password it claims to
+    check, and verification refuses the ones that reach the window, so the operator must be told
+    which credentials to regenerate. Only websAddUser knows how the composite splits into username,
+    realm and password, so the report belongs here rather than in the verifier.
+ */
+static void reportPasswordBudget(cchar *username, cchar *password)
+{
+    char  *ph, *salt, *tok;
+    ssize budget;
+
+    if (!sstarts(password, WEBS_CRYPT_BLOWFISH ":")) {
+        return;
+    }
+    ph = sclone(password);
+    stok(ph, ":", &tok);
+    stok(NULL, ":", &tok);
+    if ((salt = stok(NULL, ":", &tok)) == 0) {
+        wfree(ph);
+        return;
+    }
+    /*
+        Key material is "salt:username:realm:password". Whatever the three known fields and their
+        separators do not consume is the password's budget inside the window.
+     */
+    budget = WEBS_BLOWFISH_KEY_WINDOW - (slen(salt) + 1 + slen(username) + 1 + slen(ME_GOAHEAD_REALM) + 1);
+    if (budget <= 0) {
+        error("User \"%s\" has a legacy %s password hash that does not depend on the password. "
+              "Authentication is refused for this user. Regenerate the password with gopass.",
+              username, WEBS_CRYPT_BLOWFISH);
+    } else if (budget < WEBS_BLOWFISH_MIN_BUDGET) {
+        error("User \"%s\" has a legacy %s password hash that depends on only the first %zd password "
+              "characters. Regenerate the password with gopass.", username, WEBS_CRYPT_BLOWFISH, budget);
+    }
+    wfree(ph);
+}
+
+
 WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles)
 {
     WebsUser *user;
@@ -301,6 +409,7 @@ WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles)
         /* Already exists */
         return 0;
     }
+    reportPasswordBudget(username, password);
     if ((user = createUser(username, password, roles)) == 0) {
         return 0;
     }
@@ -317,6 +426,7 @@ PUBLIC int websRemoveUser(cchar *username)
 
     assert(username);
     if ((key = hashLookup(users, username)) != 0) {
+        websReleaseUser(key->content.value.symbol);
         freeUser(key->content.value.symbol);
     }
     return hashDelete(users, username);
@@ -388,8 +498,8 @@ static void computeAbilities(WebsHash abilities, cchar *role, int depth)
         error("Recursive ability definition for %s", role);
         return;
     }
-    if (roles >= 0) {
-        if ((key = hashLookup(roles, role)) != 0) {
+    if (roleTable >= 0) {
+        if ((key = hashLookup(roleTable, role)) != 0) {
             rp = (WebsRole*) key->content.value.symbol;
             for (key = hashFirst(rp->abilities); key; key = hashNext(rp->abilities, key)) {
                 computeAbilities(abilities, key->name.value.string, ++depth);
@@ -406,7 +516,8 @@ static void computeUserAbilities(WebsUser *user)
     char *ability, *roles, *tok;
 
     assert(user);
-    if ((user->abilities = hashCreate(-1)) == 0) {
+    hashFree(user->abilities);
+    if ((user->abilities = hashCreate(-1)) < 0) {
         return;
     }
     roles = sclone(user->roles);
@@ -454,7 +565,7 @@ WebsRole *websAddRole(cchar *name, WebsHash abilities)
         error("Role is missing name");
         return 0;
     }
-    if (hashLookup(roles, name)) {
+    if (hashLookup(roleTable, name)) {
         error("Role %s already exists", name);
         /* Already exists */
         return 0;
@@ -463,7 +574,7 @@ WebsRole *websAddRole(cchar *name, WebsHash abilities)
         return 0;
     }
     rp->abilities = abilities;
-    if (hashEnter(roles, name, valueSymbol(rp), 0) == 0) {
+    if (hashEnter(roleTable, name, valueSymbol(rp), 0) == 0) {
         return 0;
     }
     return rp;
@@ -487,14 +598,14 @@ PUBLIC int websRemoveRole(cchar *name)
     WebsKey  *sym;
 
     assert(name && *name);
-    if (roles) {
-        if ((sym = hashLookup(roles, name)) == 0) {
+    if (roleTable >= 0) {
+        if ((sym = hashLookup(roleTable, name)) == 0) {
             return -1;
         }
         rp = sym->content.value.symbol;
         hashFree(rp->abilities);
         wfree(rp);
-        return hashDelete(roles, name);
+        return hashDelete(roleTable, name);
     }
     return -1;
 }
@@ -508,40 +619,55 @@ PUBLIC WebsHash websGetUsers(void)
 
 PUBLIC WebsHash websGetRoles(void)
 {
-    return roles;
+    return roleTable;
 }
 
 
 PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
 {
+    char *pass;
+
     assert(wp);
     assert(wp->route);
     assert(username);
     assert(password);
 
-    if (!wp->route || !wp->route->verify) {
+    if (!wp->route || !getVerify(wp->route)) {
         return 0;
     }
-    wfreeset(wp->username);
-    wp->username = sclone(username);
+    setUsername(wp, username);
+    pass = sclone(password);
     wfreeset(wp->password);
-    wp->password = sclone(password);
+    wp->password = pass;
+    /*
+        Clear cached password-format state before checking plaintext credentials.
+     */
+    wp->encoded = 0;
+    wfreeset(wp->digest);
+    wp->authReason = 0;
 
-    if (!(wp->route->verify)(wp)) {
-        trace(2, "Password does not match");
+    if (!(getVerify(wp->route))(wp)) {
+        logAuth(wp, 0, "form", "failed", wp->authReason ? wp->authReason : "invalid credentials");
+        // Clear unverified identity before exposing it through request APIs.
+        wfreeset(wp->username);
+        wfreeset(wp->password);
+        wp->user = 0;
         return 0;
     }
-    trace(2, "Login successful for %s", username);
-    if (websRotateSession(wp) == 0) {
+    /*
+        Application login creates a form-auth session, not Basic or Digest authentication.
+     */
+    if (websLoginSession(wp, "form") != 0) {
+        logAuth(wp, 0, "form", "succeeded", "login");
+    } else {
         /*
             Session storage is full or unavailable. Fail the login rather than reporting success: the
             client would otherwise be redirected to the protected page carrying no session cookie and
             bounced straight back to the login form with no error anywhere it can see.
          */
-        error("Cannot create session for %s", username);
+        error("Cannot create session for %s", wp->username);
         return 0;
     }
-    websSetSessionVar(wp, WEBS_SESSION_USERNAME, wp->username);
     return 1;
 }
 
@@ -549,7 +675,9 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
 PUBLIC bool websLogoutUser(Webs *wp)
 {
     assert(wp);
+    logAuth(wp, 0, "form", "logout", 0);
     websRemoveSessionVar(wp, WEBS_SESSION_USERNAME);
+    websRemoveSessionVar(wp, WEBS_SESSION_AUTHTYPE);
     websDestroySession(wp);
     if (smatch(wp->authType, "basic") || smatch(wp->authType, "digest")) {
         websError(wp, HTTP_CODE_UNAUTHORIZED, "Logged out.");
@@ -563,20 +691,47 @@ PUBLIC bool websLogoutUser(Webs *wp)
 /*
     Internal login service routine for Form-based auth
  */
+/*
+    Accept only local paths rooted at one slash; reject network-path references.
+ */
+static bool isLocalPath(cchar *uri)
+{
+    return uri && uri[0] == '/' && uri[1] != '/' && uri[1] != '\\';
+}
+
+
+/*
+    Read credentials only from the body to keep them out of URL logs and history.
+ */
+static cchar *getCredential(Webs *wp, cchar *name)
+{
+    WebsKey *sp;
+
+    if ((sp = hashLookup(wp->vars, name)) == 0 || sp->arg != WEBS_VAR_BODY) {
+        return "";
+    }
+    return websGetVar(wp, name, "");
+}
+
+
 static void loginServiceProc(Webs *wp)
 {
     WebsRoute *route;
+    char      *referrer;
 
     assert(wp);
     route = wp->route;
     assert(route);
 
-    if (websLoginUser(wp, websGetVar(wp, "username", ""), websGetVar(wp, "password", ""))) {
-        /* If the application defines a referrer session var, redirect to that */
-        cchar *referrer;
-        if ((referrer = websGetSessionVar(wp, "referrer", 0)) != 0) {
+    /* Read the local redirect before login rotates the session. */
+    referrer = sclone(websGetSessionVar(wp, "referrer", 0));
+    if (websLoginUser(wp, getCredential(wp, "username"), getCredential(wp, "password"))) {
+        if (isLocalPath(referrer)) {
             websRedirect(wp, referrer);
         } else {
+            if (*referrer) {
+                trace(2, "Ignoring a login referrer that is not a path on this server");
+            }
             websRedirectByStatus(wp, HTTP_CODE_OK);
         }
         websSetSessionVar(wp, "loginStatus", "ok");
@@ -596,6 +751,7 @@ static void loginServiceProc(Webs *wp)
         }
         websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
     }
+    wfree(referrer);
 }
 
 
@@ -614,6 +770,15 @@ static void basicLogin(Webs *wp)
 }
 
 
+/*
+    Resolve the route or store verifier at use so setter changes affect loaded routes.
+ */
+static WebsVerify getVerify(WebsRoute *route)
+{
+    return route->verify ? route->verify : verifyPassword;
+}
+
+
 void websSetPasswordStoreVerify(WebsVerify verify)
 {
     verifyPassword = verify;
@@ -626,6 +791,19 @@ WebsVerify websGetPasswordStoreVerify(void)
 }
 
 
+/*
+    Reject truncated username:realm:password input so every password byte is hashed.
+ */
+static bool makePasswordPreimage(char *buf, ssize bufsize, cchar *username, cchar *password)
+{
+    if ((slen(username) + slen(ME_GOAHEAD_REALM) + slen(password) + 3) > bufsize) {
+        return 0;
+    }
+    fmt(buf, bufsize, "%s:%s:%s", username, ME_GOAHEAD_REALM, password);
+    return 1;
+}
+
+
 PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 {
     char passbuf[WEBS_MAX_PASSWORD_BUFFER];
@@ -634,6 +812,8 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
     assert(wp);
     if (!wp->user && (wp->user = websLookupUser(wp->username)) == 0) {
         trace(5, "verifyUser: Unknown user \"%s\"", wp->username);
+        wp->authReason = "unknown user";
+        verifyUnknownUser(wp);
         return 0;
     }
     /*
@@ -643,49 +823,32 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
      */
     if (!wp->encoded && wp->password && slen(wp->password) > WEBS_MAX_PASSWORD) {
         trace(5, "Password for user \"%s\" exceeds maximum length", wp->username);
+        wp->authReason = "password too long";
         return 0;
     }
     /*
-        Verify wp->password against the stored user->password record.
-
-        wp->password is either plaintext or an MD5 digest depending on the client's auth scheme. wp->encoded
-           distinguishes the two:
-          - Set by parseDigestDetails when the client supplied a Digest response.
-            wp->password holds the client-computed MD5(HA1:nonce:HA2) hash.
-          - Cleared by parseBasicDetails after base64-decoding a Basic Authorization header.
-            wp->password holds plaintext.
-          - Set by this routine after hashing plaintext to MD5, so repeat calls for the same
-            request do not re-hash.
-
-        Three mutually exclusive auth cases are handled below in request-driven order.
-        Digest is selected first by the request-level wp->digest signal so it cannot
-        be diverted through the BF1 branch (which would always fail since digest carries
-        no plaintext to bcrypt). Basic/Form auth then dispatches by stored-hash format.
-          1. Digest auth - wp->digest is the server-computed digest; constant-time compare against
-                           wp->password (the client-supplied digest response). Requires MD5-HA1
-                           stored hash; BF1 is rejected explicitly.
-          2. BF1 bcrypt  - stored hash starts with "BF1:". Bcrypt username:realm:plaintext and verify.
-          3. Legacy MD5  - stored hash is MD5(username:realm:password). MD5-hash the incoming
-                           plaintext (unless already encoded) and constant-time compare.
-
-        Wrapping plaintext as username:realm:password ensures a stored hash is not portable across
-        users or realms.
+        Verify wp->password against the stored user->password record. wp->password holds the
+        client-computed MD5(HA1:nonce:HA2) when wp->encoded is set, otherwise plaintext. Digest is
+        selected first on the request-level wp->digest signal so it cannot be diverted through the
+        Blowfish branch, which carries no plaintext to bcrypt; Basic and form auth then dispatch on
+        the stored hash format. Plaintext is wrapped as username:realm:password so a stored hash is
+        not portable across users or realms.
      */
     if (wp->digest) {
-        /*
-            Digest auth: compare client-supplied digest (wp->password) to server-computed digest (wp->digest).
-            Digest can only verify against an MD5-HA1 stored hash; a BF1 stored hash is incompatible
-            because digest never transmits plaintext. Reject explicitly rather than silently failing
-            through the BF1 branch.
-         */
-        if (sstarts(wp->user->password, "BF1:")) {
-            trace(2, "Digest authentication requires MD5-HA1 stored hash, not BF1, for user \"%s\"", wp->username);
+        /* Digest requires a stored MD5 HA1. Refuse Blowfish hashes and accounts without passwords. */
+        if (!isMd5Hash(wp->user->password)) {
+            trace(5, "Digest authentication requires an MD5-HA1 stored hash for user \"%s\"", wp->username);
+            wp->authReason = "stored password cannot verify digest credentials";
             return 0;
         }
         success = pmatch(wp->digest, wp->password);
-    } else if (sstarts(wp->user->password, "BF1:")) {
-        // BF1 (bcrypt) stored hash. wp->password is plaintext; bcrypt and verify.
-        fmt(passbuf, sizeof(passbuf), "%s:%s:%s", wp->username, ME_GOAHEAD_REALM, wp->password);
+    } else if (isBlowfishHash(wp->user->password)) {
+        // Blowfish stored hash. wp->password is plaintext; bcrypt and verify.
+        if (!makePasswordPreimage(passbuf, sizeof(passbuf), wp->username, wp->password)) {
+            trace(5, "Credentials for user \"%s\" do not fit the password buffer", wp->username);
+            wp->authReason = "credentials too long";
+            return 0;
+        }
         success = websCheckPassword(passbuf, wp->user->password);
     } else {
         // Legacy MD5 stored hash: MD5(username:realm:password).
@@ -696,7 +859,11 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
                 SECURITY Acceptable: - Legacy MD5 hash - required for backward compatibility with digest auth
                 which must use MD5. Newer clients may support other algorithms, but not widespread.
              */
-            fmt(passbuf, sizeof(passbuf), "%s:%s:%s", wp->username, ME_GOAHEAD_REALM, wp->password);
+            if (!makePasswordPreimage(passbuf, sizeof(passbuf), wp->username, wp->password)) {
+                trace(5, "Credentials for user \"%s\" do not fit the password buffer", wp->username);
+                wp->authReason = "credentials too long";
+                return 0;
+            }
             wfreeset(wp->password);
             wp->password = websMD5(passbuf);
             wp->encoded = 1;
@@ -707,8 +874,48 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
         trace(5, "User \"%s\" authenticated", wp->username);
     } else {
         trace(5, "Password for user \"%s\" failed to authenticate", wp->username);
+        wp->authReason = "password does not match";
     }
     return success;
+}
+
+
+/*
+    Check a configured Blowfish hash for unknown users to reduce timing differences. Ignore the result.
+ */
+static void verifyUnknownUser(Webs *wp)
+{
+    WebsKey  *key;
+    WebsUser *user;
+    char     passbuf[WEBS_MAX_PASSWORD_BUFFER];
+
+    if (wp->encoded || slen(wp->password) > WEBS_MAX_PASSWORD ||
+        !makePasswordPreimage(passbuf, sizeof(passbuf), wp->username, wp->password)) {
+        return;
+    }
+    for (key = hashFirst(users); key; key = hashNext(users, key)) {
+        user = key->content.value.symbol;
+        if (isBlowfishHash(user->password) && isCompleteHash(user->password)) {
+            websCheckPassword(passbuf, user->password);
+            return;
+        }
+    }
+}
+
+
+/*
+    True when a Blowfish hash has its four fields: algorithm, rounds, salt and hash.
+ */
+static bool isCompleteHash(cchar *hash)
+{
+    int fields;
+
+    for (fields = 1; *hash; hash++) {
+        if (*hash == ':') {
+            fields++;
+        }
+    }
+    return fields == 4;
 }
 
 
@@ -759,8 +966,15 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     assert(wp);
     assert(wp->username && wp->username);
     assert(wp->password);
-    assert(!wp->encoded);
 
+    /*
+        PAM verifies a plaintext password. A Digest response or an encoded password is not one.
+     */
+    if (wp->encoded || wp->digest) {
+        trace(5, "PAM cannot verify a Digest or encoded credential");
+        wp->authReason = "PAM cannot verify digest credentials";
+        return 0;
+    }
     info.name = (char*) wp->username;
     info.password = (char*) wp->password;
     pamh = NULL;
@@ -770,6 +984,7 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     if ((res = pam_authenticate(pamh, PAM_DISALLOW_NULL_AUTHTOK)) != PAM_SUCCESS) {
         pam_end(pamh, PAM_SUCCESS);
         trace(5, "httpPamVerifyUser failed to verify %s", wp->username);
+        wp->authReason = "password does not match";
         return 0;
     }
     pam_end(pamh, PAM_SUCCESS);
@@ -820,7 +1035,7 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
 {
     UserInfo            *info;
     struct pam_response *reply;
-    int                 i;
+    int                 i, j;
 
     i = 0;
     reply = 0;
@@ -837,22 +1052,40 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
         reply[i].resp = 0;
 
         switch (msg[i]->msg_style) {
+        /*
+            strdup, not sclone. Once this callback returns, the responses belong to libpam, which
+            releases them with free(). Under ME_GOAHEAD_REPLACE_MALLOC walloc hands back an interior
+            pointer into its own arena, and free() must never see one.
+         */
         case PAM_PROMPT_ECHO_ON:
-            reply[i].resp = sclone(info->name);
+            reply[i].resp = strdup(info->name);
             break;
 
         case PAM_PROMPT_ECHO_OFF:
             /* Retrieve the user password and pass onto pam */
-            reply[i].resp = sclone(info->password);
+            reply[i].resp = strdup(info->password);
             break;
 
         default:
-            free(reply);
-            return PAM_CONV_ERR;
+            goto err;
+        }
+        if (reply[i].resp == 0) {
+            goto err;
         }
     }
     *resp = reply;
     return PAM_SUCCESS;
+
+err:
+    /*
+        Release the responses already built. libpam never sees them, so this side owns them, and
+        they are C library allocations like the array itself.
+     */
+    for (j = 0; j < i; j++) {
+        free(reply[j].resp);
+    }
+    free(reply);
+    return PAM_CONV_ERR;
 }
 #endif /* ME_COMPILER_HAS_PAM */
 
@@ -871,14 +1104,13 @@ static bool parseBasicDetails(Webs *wp)
             *cp++ = '\0';
         }
     }
-    wfreeset(wp->username);
     wfreeset(wp->password);
     if (cp) {
-        wp->username = sclone(userAuth);
+        setUsername(wp, userAuth);
         wp->password = sclone(cp);
         wp->encoded = 0;
     } else {
-        wp->username = sclone("");
+        setUsername(wp, "");
         wp->password = sclone("");
     }
     wfree(userAuth);
@@ -889,26 +1121,34 @@ static bool parseBasicDetails(Webs *wp)
 #if ME_GOAHEAD_DIGEST
 static void digestLogin(Webs *wp)
 {
-    char *nonce, *opaque;
+    char *nonce, *opaque, *domain;
 
     assert(wp);
     assert(wp->route);
 
-    nonce = createDigestNonce(wp);
+    wfreeset(wp->authResponse);
+    /* Without a clock there is no nonce to issue, so offer no challenge */
+    if ((nonce = createDigestNonce(wp)) == 0) {
+        return;
+    }
     /* Opaque is unused. Set to anything */
     opaque = "5ccc069c403ebaf9f0171e9517f40e41";
-    wfreeset(wp->authResponse);
+    /*
+        Omit an unknown Digest domain; RFC 7616 then covers this server's URIs.
+     */
+    domain = websGetServerUrl() ? sfmt("domain=\"%s\", ", websGetServerUrl()) : sclone("");
     wp->authResponse = sfmt(
-        "Digest realm=\"%s\", domain=\"%s\", qop=\"%s\", nonce=\"%s\", opaque=\"%s\", algorithm=\"%s\", stale=\"%s\"",
-        ME_GOAHEAD_REALM, websGetServerUrl(), "auth", nonce, opaque, "MD5", "FALSE");
+        "Digest realm=\"%s\", %sqop=\"%s\", nonce=\"%s\", opaque=\"%s\", algorithm=\"%s\", stale=\"%s\"",
+        ME_GOAHEAD_REALM, domain, "auth", nonce, opaque, "MD5", (wp->flags & WEBS_NONCE_STALE) ? "TRUE" : "FALSE");
+    wfree(domain);
     wfree(nonce);
 }
 
 
 static bool parseDigestDetails(Webs *wp)
 {
-    WebsTime when;
-    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *realm, *counterStr, *preimage, *expected;
+    WebsTime when, now;
+    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *counterStr, *expected;
     int      seenComma;
 
     assert(wp);
@@ -931,8 +1171,14 @@ static bool parseDigestDetails(Webs *wp)
         }
         seenComma = 0;
         if (*tok == '\"') {
+            /*
+                Skip escaped quotes while scanning; never advance past a trailing backslash.
+             */
             value = ++tok;
             while (*tok != '\"' && *tok != '\0') {
+                if (*tok == '\\' && tok[1]) {
+                    tok++;
+                }
                 tok++;
             }
         } else {
@@ -1033,8 +1279,7 @@ static bool parseDigestDetails(Webs *wp)
                 wfreeset(wp->digestUri);
                 wp->digestUri = sclone(value);
             } else if (scaselesscmp(key, "username") == 0 || scaselesscmp(key, "user") == 0) {
-                wfreeset(wp->username);
-                wp->username = sclone(value);
+                setUsername(wp, value);
             }
             break;
 
@@ -1054,61 +1299,73 @@ static bool parseDigestDetails(Webs *wp)
     }
     wfree(keyBuf);
 
-    if (wp->username == 0 || wp->realm == 0 || wp->nonce == 0 || wp->route == 0 || wp->password == 0) {
+    /*
+        Require every mandatory field to be nonempty before parsing.
+     */
+    if (wp->username == 0 || wp->realm == 0 || wp->nonce == 0 || *wp->nonce == '\0' || wp->route == 0 ||
+        wp->password == 0) {
+        wp->authReason = "missing digest fields";
+        return 0;
+    }
+    /*
+        Require the client's realm to match this server's challenge.
+     */
+    if (!smatch(wp->realm, ME_GOAHEAD_REALM)) {
+        wp->authReason = "realm mismatch";
+        return 0;
+    }
+    /*
+        Compare Digest uri with the request target in origin form (RFC 7616 3.4.6).
+     */
+    if (!wp->digestUri || !smatch(websOriginForm(wp->digestUri), websOriginForm(wp->url))) {
+        wp->authReason = "digest uri does not match the request target";
         return 0;
     }
     if (wp->qop && (wp->cnonce == 0 || wp->nc == 0)) {
+        wp->authReason = "missing digest fields";
         return 0;
     }
     if (wp->qop == 0) {
         wp->qop = sclone("");
     }
     /*
-        Validate the nonce value - prevents replay attacks
+        Require the exact issued nonce encoding so alternate spellings cannot bypass replay tracking. Defer expiry
+        rejection until the response verifies, to report stale nonces.
      */
-    when = 0; secret = 0; realm = 0; counterStr = 0;
-    decoded = parseDigestNonce(wp->nonce, &secret, &realm, &when, &counterStr);
-    if (decoded == 0 || secret == 0 || realm == 0 || counterStr == 0) {
-        trace(2, "Access denied: Bad nonce");
+    when = 0; secret = 0; counterStr = 0;
+    decoded = parseDigestNonce(wp->nonce, &secret, &when, &counterStr);
+    if (decoded == 0 || secret == 0 || counterStr == 0) {
+        wp->authReason = "bad nonce";
         wfree(decoded);
         return 0;
     }
-    if (!smatch(realm, ME_GOAHEAD_REALM)) {
-        trace(2, "Access denied: Realm mismatch");
+    if (!smatch(wp->qop, "auth")) {
+        wp->authReason = "bad qop";
         wfree(decoded);
         return 0;
-    } else if (!smatch(wp->qop, "auth")) {
-        trace(2, "Access denied: Bad qop");
+    }
+    if ((now = websTime()) < 0) {
+        wp->authReason = "system clock unavailable";
         wfree(decoded);
         return 0;
-    } else if (when > (WebsTime) time(0)) {
-        trace(2, "Access denied: Nonce has future timestamp");
+    }
+    if (when > now) {
+        wp->authReason = "nonce has a future timestamp";
         wfree(decoded);
         return 0;
-    } else if ((when + ME_GOAHEAD_NONCE_DURATION) < time(0)) {
-        trace(2, "Access denied: Nonce is stale");
-        wfree(decoded);
-        return 0;
-    } else {
-        /*
-            Recompute the expected nonce hash from masterSecret, realm, timestamp, and counter,
-            then compare against the hash extracted from the nonce using constant-time pmatch.
-            SECURITY Acceptable: MD5 is used for legacy digest authentication nonce verification.
-         */
-        preimage = sfmt("%s:%s:%x:%s", masterSecret, ME_GOAHEAD_REALM, (unsigned int) when, counterStr);
-        expected = websMD5Block(preimage, slen(preimage), NULL);
-        wfree(preimage);
-        if (!pmatch(expected, secret)) {
-            wfree(expected);
-            trace(2, "Access denied: Nonce mismatch");
-            wfree(decoded);
-            return 0;
-        }
+    }
+    expected = formatDigestNonce(when, parseHex64(counterStr));
+    if (!pmatch(expected, wp->nonce)) {
         wfree(expected);
+        wp->authReason = "nonce mismatch";
+        wfree(decoded);
+        return 0;
     }
+    wfree(expected);
+    wp->nonceTime = when;
     if (!wp->user) {
         if ((wp->user = websLookupUser(wp->username)) == 0) {
-            trace(2, "Access denied: user is unknown");
+            wp->authReason = "unknown user";
             wfree(decoded);
             return 0;
         }
@@ -1120,30 +1377,158 @@ static bool parseDigestDetails(Webs *wp)
 }
 
 
-/*
-    Create a nonce value for digest authentication (RFC 2617).
-    The nonce format is: base64(MD5(masterSecret:realm:hex_time:hex_counter):hex_time:hex_counter)
-    The masterSecret is bound via a one-way MD5 hash so it is never transmitted in recoverable form.
-    SECURITY Acceptable: MD5 is used for legacy digest authentication nonce construction.
- */
-static char *createDigestNonce(Webs *wp)
+static bool nonceStale(WebsTime when)
 {
-    static int64 next = 0;
-    char         *hash, *preimage, *plain, *encoded;
-    unsigned int hexTime;
+    WebsTime now;
 
-    assert(wp);
-    assert(wp->route);
+    return (now = websTime()) < 0 || when + ME_GOAHEAD_NONCE_DURATION < now || when <= nonceFloor;
+}
 
-    hexTime = (unsigned int) time(0);
-    preimage = sfmt("%s:%s:%x:%llx", masterSecret, ME_GOAHEAD_REALM, hexTime, (long long) next);
+
+/*
+    Check nonce freshness and increasing count without recording it until authorization succeeds. Pack issue time
+    and count into two 32-bit words for Windows compatibility.
+ */
+static bool checkNonceCount(Webs *wp)
+{
+    WebsKey *key;
+    cchar   *cp;
+
+    if (slen(wp->nc) != 8) {
+        wp->authReason = "invalid nonce count";
+        return 0;
+    }
+    for (cp = wp->nc; *cp; cp++) {
+        if (!isxdigit((uchar) *cp)) {
+            wp->authReason = "invalid nonce count";
+            return 0;
+        }
+    }
+    if (nonceStale(wp->nonceTime)) {
+        wp->authReason = "nonce is stale";
+        wp->flags |= WEBS_NONCE_STALE;
+        return 0;
+    }
+    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0 && (uint) hextoi(wp->nc) <= (uint) key->content.value.big[1]) {
+        wp->authReason = "nonce count already used";
+        return 0;
+    }
+    return 1;
+}
+
+
+/* Evict the oldest nonces and mark their issue times stale to prevent replay after eviction. */
+static void evictNonces(void)
+{
+    WebsKey  *key, *next;
+    WebsTime when, oldest;
+
+    while (nonceTotal >= ME_GOAHEAD_LIMIT_NONCES) {
+        oldest = 0;
+        for (key = hashFirst(nonceCounts); key; key = hashNext(nonceCounts, key)) {
+            when = (WebsTime) (uint) key->content.value.big[0];
+            if (oldest == 0 || when < oldest) {
+                oldest = when;
+            }
+        }
+        for (key = hashFirst(nonceCounts); key; key = next) {
+            next = hashNext(nonceCounts, key);
+            if ((WebsTime) (uint) key->content.value.big[0] <= oldest) {
+                hashDelete(nonceCounts, key->name.value.string);
+                nonceTotal--;
+            }
+        }
+        if (oldest > nonceFloor) {
+            nonceFloor = oldest;
+        }
+    }
+}
+
+
+PUBLIC void websAcceptDigestCount(Webs *wp)
+{
+    WebsValue record;
+
+    if (!(wp->flags & WEBS_AUTHENTICATED) || !wp->route || !smatch(wp->route->authType, "digest") || !wp->nonce ||
+        !wp->nc || nonceCounts < 0) {
+        return;
+    }
+    if (!hashLookup(nonceCounts, wp->nonce)) {
+        evictNonces();
+        nonceTotal++;
+    }
+    memset(&record, 0, sizeof(record));
+    record.valid = 1;
+    record.type = big;
+    record.value.big[0] = (long) (uint) wp->nonceTime;
+    record.value.big[1] = (long) (uint) hextoi(wp->nc);
+    hashEnter(nonceCounts, wp->nonce, record, 0);
+}
+
+
+static void pruneNonces(void *data, int id)
+{
+    WebsKey  *key, *next;
+    WebsTime now;
+
+    if (nonceCounts >= 0 && (now = websTime()) >= 0) {
+        for (key = hashFirst(nonceCounts); key; key = next) {
+            next = hashNext(nonceCounts, key);
+            if ((WebsTime) (uint) key->content.value.big[0] + ME_GOAHEAD_NONCE_DURATION < now) {
+                hashDelete(nonceCounts, key->name.value.string);
+                nonceTotal--;
+            }
+        }
+    }
+    websRestartEvent(noncePruneId, WEBS_SESSION_PRUNE);
+}
+
+
+/*
+    Nonce format: base64(MD5(masterSecret:realm:hex_time:hex_counter):hex_time:hex_counter).
+    SECURITY Acceptable: MD5 supports legacy Digest nonce construction without exposing the secret.
+ */
+static char *formatDigestNonce(WebsTime when, uint64 counter)
+{
+    char *hash, *preimage, *plain, *encoded;
+
+    preimage = sfmt("%s:%s:%x:%llx", masterSecret, ME_GOAHEAD_REALM, (uint) when, (unsigned long long) counter);
     hash = websMD5Block(preimage, slen(preimage), NULL);
     wfree(preimage);
-    plain = sfmt("%s:%x:%llx", hash, hexTime, (long long) next++);
+    plain = sfmt("%s:%x:%llx", hash, (uint) when, (unsigned long long) counter);
     wfree(hash);
     encoded = websEncode64(plain);
     wfree(plain);
     return encoded;
+}
+
+
+/*
+    Return a nonce with a 32-bit timestamp, or NULL if the clock fails or exceeds the field.
+ */
+static char *createDigestNonce(Webs *wp)
+{
+    static uint64 next = 0;
+    WebsTime      now;
+
+    assert(wp);
+    assert(wp->route);
+    if ((now = websTime()) < 0 || now > (WebsTime) UINT_MAX) {
+        trace(2, "Cannot issue Digest nonce: system clock unavailable");
+        return 0;
+    }
+    return formatDigestNonce(now, next++);
+}
+
+
+static uint64 parseHex64(cchar *str)
+{
+    uint64 value;
+
+    for (value = 0; str && isxdigit((uchar) *str); str++) {
+        value = value * 16 + (uint64) (isdigit((uchar) *str) ? *str - '0' : tolower((uchar) *str) - 'a' + 10);
+    }
+    return value;
 }
 
 
@@ -1153,13 +1538,12 @@ static char *createDigestNonce(Webs *wp)
     *when to the decoded timestamp, and *counterStr to the counter string.
     The caller owns the returned decoded buffer; *secret and *counterStr point into it.
  */
-static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime *when, char **counterStr)
+static char *parseDigestNonce(char *nonce, char **secret, WebsTime *when, char **counterStr)
 {
     char *tok, *decoded, *whenStr;
 
-    assert(nonce && *nonce);
+    assert(nonce);
     assert(secret);
-    assert(realm);
     assert(when);
     assert(counterStr);
 
@@ -1167,7 +1551,6 @@ static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime
         return 0;
     }
     *secret = 0;
-    *realm = 0;
     *when = 0;
     *counterStr = 0;
     if (strchr(decoded, ':')) {
@@ -1175,11 +1558,6 @@ static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime
         whenStr = stok(NULL, ":", &tok);
         *counterStr = stok(NULL, ":", &tok);
         *when = (WebsTime) hextoi(whenStr);
-        /*
-            The realm is not stored in the new nonce format; set it to the server realm
-            so the caller's existing realm-match check works without modification.
-         */
-        *realm = ME_GOAHEAD_REALM;
     }
     return decoded;
 }
@@ -1191,43 +1569,35 @@ static char *parseDigestNonce(char *nonce, char **secret, char **realm, WebsTime
  */
 static char *calcDigest(Webs *wp, char *username, char *password)
 {
-    char a1Buf[256], a2Buf[256], digestBuf[256];
-    char *ha1, *ha2, *method, *result;
+    char *a1, *a2, *preimage, *ha1, *ha2, *result;
 
     assert(wp);
     assert(password);
 
     /*
-        Compute HA1. If username == 0, then the password is already expected to be in the HA1 format
-        (MD5(username:realm:password).
+        Hash complete inputs without truncation. With no username, password already contains HA1.
      */
     if (username == 0) {
         ha1 = sclone(password);
     } else {
-        fmt(a1Buf, sizeof(a1Buf), "%s:%s:%s", username, wp->realm, password);
-        ha1 = websMD5(a1Buf);
+        a1 = sfmt("%s:%s:%s", username, wp->realm, password);
+        ha1 = websMD5(a1);
+        wfree(a1);
     }
+    a2 = sfmt("%s:%s", wp->method, wp->digestUri);
+    ha2 = websMD5(a2);
+    wfree(a2);
 
     /*
-        HA2
+        H(HA1:nonce:nc:cnonce:qop:HA2) for qop=auth and auth-int, else the RFC 2069 form H(HA1:nonce:HA2)
      */
-    method = wp->method;
-    fmt(a2Buf, sizeof(a2Buf), "%s:%s", method, wp->digestUri);
-    ha2 = websMD5(a2Buf);
-
-    /*
-        H(HA1:nonce:HA2)
-     */
-    if (scmp(wp->qop, "auth") == 0) {
-        fmt(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, wp->nonce, wp->nc, wp->cnonce, wp->qop, ha2);
-
-    } else if (scmp(wp->qop, "auth-int") == 0) {
-        fmt(digestBuf, sizeof(digestBuf), "%s:%s:%s:%s:%s:%s", ha1, wp->nonce, wp->nc, wp->cnonce, wp->qop, ha2);
-
+    if (smatch(wp->qop, "auth") || smatch(wp->qop, "auth-int")) {
+        preimage = sfmt("%s:%s:%s:%s:%s:%s", ha1, wp->nonce, wp->nc, wp->cnonce, wp->qop, ha2);
     } else {
-        fmt(digestBuf, sizeof(digestBuf), "%s:%s:%s", ha1, wp->nonce, ha2);
+        preimage = sfmt("%s:%s:%s", ha1, wp->nonce, ha2);
     }
-    result = websMD5(digestBuf);
+    result = websMD5(preimage);
+    wfree(preimage);
     wfree(ha1);
     wfree(ha2);
     return result;
@@ -1250,6 +1620,14 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
         parseAuth = parseBasicDetails;
 #if ME_GOAHEAD_DIGEST
     } else if (smatch(auth, "digest")) {
+#if ME_COMPILER_HAS_PAM
+        /* PAM requires plaintext passwords and cannot verify Digest responses. */
+        if (getVerify(route) == websVerifyPasswordFromPam) {
+            error("Route \"%s\" requests digest authentication, which the PAM password store cannot verify. "
+                  "Use basic or form authentication, or the file password store.", route->prefix);
+            return -1;
+        }
+#endif
         askLogin = digestLogin;
         parseAuth = parseDigestDetails;
 #endif
@@ -1267,13 +1645,17 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
 #endif
     } else {
         /*
-            An unrecognized type used to be silently reduced to the form-authentication behaviour, so
-            a typo produced a route that could never issue a challenge and denied every request.
+            Refuse an unrecognized type. Falling back to the form behaviour gives a route that can
+            never issue a challenge and denies every request.
          */
         error("Route \"%s\" requests unknown authentication type \"%s\". Use \"basic\", \"digest\" "
               "or \"form\".", route->prefix, auth);
         return -1;
     }
+#if !ME_COM_SSL
+    error("Warning: Route \"%s\" uses %s authentication but this build has no TLS: credentials and session cookies "
+          "cross the network unencrypted", route->prefix, auth);
+#endif
     route->authType = sclone(auth);
     route->askLogin = askLogin;
     route->parseAuth = parseAuth;
@@ -1282,7 +1664,7 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
 #endif /* ME_GOAHEAD_AUTH */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

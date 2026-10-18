@@ -11,6 +11,7 @@
 
 #include    "goahead.h"
 
+#if ME_GOAHEAD_AUTH
 /********************************** Locals ************************************/
 
 #define MAX_PASS    64
@@ -114,6 +115,10 @@ int main(int argc, char *argv[])
     if (!password && (password = getPassword()) == 0) {
         exit(1);
     }
+    if (*password == '\0') {
+        error("Password must not be empty");
+        exit(3);
+    }
     if (slen(password) > WEBS_MAX_PASSWORD) {
         error("Password exceeds maximum length of %d characters", WEBS_MAX_PASSWORD);
         exit(3);
@@ -123,6 +128,10 @@ int main(int argc, char *argv[])
     } else {
         /* This uses the more secure blowfish cipher */
         encodedPassword = websMakePassword(sfmt("%s:%s:%s", username, realm, password), 16, 128);
+    }
+    if (encodedPassword == 0) {
+        error("Cannot encode password for user \"%s\"", username);
+        exit(3);
     }
     if (authFile) {
         websRemoveUser(username);
@@ -147,11 +156,23 @@ static int writeAuthFile(char *path)
     WebsRole    *role;
     WebsUser    *user;
     WebsHash    roles, users;
-    char        *tempFile;
+    char        *dir, *sep, *tempFile;
 
     assert(path && *path);
 
-    if ((tempFile = websTempFile(NULL, "gp")) == 0) {
+    /*
+        Stage the new file beside the old one so the final rename stays on one filesystem and replaces it atomically.
+     */
+    dir = sclone(path);
+    if ((sep = strrchr(dir, '/')) != 0 || (sep = strrchr(dir, '\\')) != 0) {
+        sep[sep == dir ? 1 : 0] = '\0';
+    } else {
+        wfree(dir);
+        dir = sclone(".");
+    }
+    tempFile = websTempFile(dir, "gp");
+    wfree(dir);
+    if (tempFile == 0) {
         error("Cannot create a temp file to rewrite %s", path);
         return -1;
     }
@@ -183,11 +204,17 @@ static int writeAuthFile(char *path)
         }
     }
     fclose(fp);
+#if ME_WIN_LIKE
+    //  Windows rename does not replace an existing file
     unlink(path);
+#endif
     if (rename(tempFile, path) < 0) {
         error("Cannot create new %s from %s errno %d", path, tempFile, errno);
+        unlink(tempFile);
+        wfree(tempFile);
         return -1;
     }
+    wfree(tempFile);
     return 0;
 }
 
@@ -196,11 +223,15 @@ static char *getPassword(void)
 {
     char    *password, *confirm;
 
-    password = getpass("New password: ");
+    /*
+        getpass may return the same static buffer for both prompts, so keep a copy of the first answer.
+     */
+    password = sclone(getpass("New password: "));
     confirm = getpass("Confirm password: ");
     if (smatch(password, confirm)) {
         return password;
     }
+    wfree(password);
     error("Password not verified");
     return 0;
 }
@@ -240,7 +271,7 @@ static char *getpass(char *prompt)
             fputs("^C\n", stdout);
             exit(255);
         } else if (!iscntrl((uchar) c) && (i < (int) sizeof(password) - 1)) {
-            password[i] = c;
+            password[i] = (char) c;
             fputc('*', stdout);
         } else {
             fputc('', stdout);
@@ -263,17 +294,26 @@ static char *getpass(char *prompt)
 
 static void printUsage(void)
 {
-    error("usage: gopass [--cipher cipher] [--file path] [--password password] realm user roles...\n"
+    fprintf(stderr, "usage: gopass [--cipher cipher] [--file path] [--password password] realm user roles...\n"
         "Options:\n"
-        "    --cipher md5|blowfish Select the encryption cipher. Defaults to md5\n"
+        "    --cipher md5|blowfish Select the encryption cipher. Defaults to blowfish\n"
         "    --file filename       Modify the password file\n"
         "    --password password   Use the specified password\n"
         "\n");
 }
 
+#else
+
+int main(int argc, char *argv[])
+{
+    fprintf(stderr, "gopass: authentication is not enabled in this build (ME_GOAHEAD_AUTH)\n");
+    return 1;
+}
+#endif /* ME_GOAHEAD_AUTH */
+
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */
