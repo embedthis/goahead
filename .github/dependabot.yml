@@ -9,3 +9,7 @@ updates:
     directory: /test/utils
     schedule:
       interval: weekly
+    # The image matches CI's ubuntu-latest runner, so only its digest moves
+    ignore:
+      - dependency-name: ubuntu
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
