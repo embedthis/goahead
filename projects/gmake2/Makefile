@@ -56,6 +56,30 @@ else ifeq ($(config),release_freebsd)
   webcomp_config = release_freebsd
   cgitest_config = release_freebsd
 
+else ifeq ($(config),asan_macosx)
+  goahead_lib_config = asan_macosx
+  goahead_config = asan_macosx
+  goahead_test_config = asan_macosx
+  gopass_config = asan_macosx
+  webcomp_config = asan_macosx
+  cgitest_config = asan_macosx
+
+else ifeq ($(config),asan_linux)
+  goahead_lib_config = asan_linux
+  goahead_config = asan_linux
+  goahead_test_config = asan_linux
+  gopass_config = asan_linux
+  webcomp_config = asan_linux
+  cgitest_config = asan_linux
+
+else ifeq ($(config),asan_freebsd)
+  goahead_lib_config = asan_freebsd
+  goahead_config = asan_freebsd
+  goahead_test_config = asan_freebsd
+  gopass_config = asan_freebsd
+  webcomp_config = asan_freebsd
+  cgitest_config = asan_freebsd
+
 else
   $(error "invalid configuration $(config)")
 endif
@@ -114,6 +138,9 @@ help:
 	@echo "  release_macosx"
 	@echo "  release_linux"
 	@echo "  release_freebsd"
+	@echo "  asan_macosx"
+	@echo "  asan_linux"
+	@echo "  asan_freebsd"
 	@echo ""
 	@echo "TARGETS:"
 	@echo "   all (default)"

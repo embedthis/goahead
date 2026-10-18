@@ -57,13 +57,13 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <DisableSpecificWarnings>4100;4127;4133;4152;4244;4389;4456;4459;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ME_VERSION="6.1.1";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_MBEDTLS_PATH="/usr";ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";ME_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4127;4152;4389;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <PreprocessorDefinitions>ME_VERSION="6.2.0";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_MBEDTLS_PATH="/usr";ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";ME_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\src;..\..\src\osdep;C:\Program Files\OpenSSL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalOptions>/we4774 %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <AdditionalOptions>/we4774 /we4013 /we4716 /we4133 /we4244 /we4456 /we4459 /guard:cf %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
@@ -71,8 +71,9 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>ws2_32.lib;advapi32.lib;user32.lib;kernel32.lib;oldnames.lib;shell32.lib;libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files\OpenSSL\lib;C:\Program Files\OpenSSL\lib\VC\x64\MTd;C:\Program Files\OpenSSL\lib\VC\x64\MT;C:\Program Files\OpenSSL\lib\VC\x64\MDd;C:\Program Files\OpenSSL\lib\VC\x64\MD;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files\OpenSSL\lib;C:\Program Files\OpenSSL\lib\VC\x64\MDd;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>..\..\build\bin\libgoahead.lib</ImportLibrary>
+      <AdditionalOptions>/guard:cf /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT /CETCOMPAT %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ProjectReference>
     </ProjectReference>
@@ -81,8 +82,8 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <DisableSpecificWarnings>4100;4127;4133;4152;4244;4389;4456;4459;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ME_VERSION="6.1.1";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_MBEDTLS_PATH="/usr";ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4127;4152;4389;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <PreprocessorDefinitions>ME_VERSION="6.2.0";ME_COM_OPENSSL=1;ME_COM_MBEDTLS=0;ME_COM_SSL=1;ME_COM_MBEDTLS_PATH="/usr";ME_COM_OPENSSL_PATH="C:/Program Files/OpenSSL";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\src;..\..\src\osdep;C:\Program Files\OpenSSL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>
@@ -90,8 +91,8 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalOptions>/we4774 %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalOptions>/we4774 /we4013 /we4716 /we4133 /we4244 /we4456 /we4459 /guard:cf %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
@@ -101,8 +102,9 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>ws2_32.lib;advapi32.lib;user32.lib;kernel32.lib;oldnames.lib;shell32.lib;libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files\OpenSSL\lib;C:\Program Files\OpenSSL\lib\VC\x64\MTd;C:\Program Files\OpenSSL\lib\VC\x64\MT;C:\Program Files\OpenSSL\lib\VC\x64\MDd;C:\Program Files\OpenSSL\lib\VC\x64\MD;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files\OpenSSL\lib;C:\Program Files\OpenSSL\lib\VC\x64\MD;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>..\..\build\bin\libgoahead.lib</ImportLibrary>
+      <AdditionalOptions>/guard:cf /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT /CETCOMPAT %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ProjectReference>
     </ProjectReference>

@@ -88,7 +88,12 @@ local tlsProvider = _OPTIONS["tls"] or "openssl"
 ---------------------------------------------------------------------
 
 workspace "goahead"
-    configurations { "debug", "release" }
+-- Add sanitizer configuration to make projects; IDEs provide their own controls.
+    if isVS or isXcode then
+        configurations { "debug", "release" }
+    else
+        configurations { "debug", "release", "asan" }
+    end
     language       "C"
     warnings       "Extra"
     objdir         (ROOT .. "/build/obj/%{prj.name}-%{cfg.platform}-%{cfg.buildcfg}")
@@ -100,7 +105,8 @@ workspace "goahead"
         cdialect  "C11"
         architecture "x86_64"
         characterset "MBCS"
-        staticruntime "On"
+-- Use one dynamic C runtime so all components share heap, errno, and descriptors.
+        staticruntime "Off"
     elseif isXcode then
         platforms { "macosx" }
         location  "xcode"
@@ -173,6 +179,20 @@ workspace "goahead"
     if not isVS then
         filter "configurations:debug"
             linkoptions { "-g" }
+
+-- Abort on sanitizer reports to fail the test. SANITIZE_FLAGS from the Makefile adds the groups the compiler supports.
+        filter "configurations:asan"
+            symbols  "On"
+            optimize "Off"
+            defines  { "ME_DEBUG=1" }
+            buildoptions {
+                "-fsanitize=address,undefined",
+                "$(SANITIZE_FLAGS)",
+                "-fno-omit-frame-pointer",
+                "-fno-sanitize-recover=all",
+            }
+            linkoptions { "-g", "-fsanitize=address,undefined", "$(SANITIZE_FLAGS)", "$(SANITIZE_LDFLAGS)" }
+
         filter {}
     end
 
@@ -183,42 +203,70 @@ workspace "goahead"
         filter "platforms:windows"
             system  "windows"
             toolset "msc"
-            --
-            -- C4774: "format string expected in argument N is not a string literal". This is the
-            -- MSVC analogue of -Werror=format-security and the only format diagnostic that reaches
-            -- a user-defined variadic; it fires on the parameters marked PRINTF_FORMAT in osdep.h.
-            -- Without it, code inside #if ME_WIN_LIKE blocks is format-checked by no CI leg at all.
-            --
+            -- Debug information as /Zi: the edit-and-continue form, /ZI, cannot be combined with /guard:cf
+            editandcontinue "Off"
+-- Enable format checks for annotated variadic functions.
+            -- Treat undeclared functions and missing returns as errors.
+            -- Treat incompatible pointers, narrowing and shadowing as errors, as the POSIX build does.
             buildoptions {
                 "/we4774",
+                "/we4013",
+                "/we4716",
+                "/we4133",
+                "/we4244",
+                "/we4456",
+                "/we4459",
+                "/guard:cf",
             }
+-- Enable CFG, ASLR, DEP, and CET. Avoid /sdl's errors on intentional C library use.
+            linkoptions {
+                "/guard:cf",
+                "/DYNAMICBASE",
+                "/HIGHENTROPYVA",
+                "/NXCOMPAT",
+                "/CETCOMPAT",
+            }
+-- Disable only warnings for intentional patterns or checks covered elsewhere.
             disablewarnings {
-                "4100",     -- unreferenced formal parameter
-                "4127",     -- conditional expression is constant
-                "4133",     -- incompatible types (char*/LPCWSTR)
-                "4152",     -- function/data pointer conversion
-                "4244",     -- conversion, possible loss of data
-                "4389",     -- signed/unsigned mismatch
-                "4456",     -- declaration hides previous local declaration
-                "4459",     -- declaration hides global declaration
+                "4100",     -- unreferenced parameter: callbacks take fixed signatures
+                "4127",     -- constant condition: ME_* configuration tests and while (1) loops
+                "4152",     -- function/data pointer conversion: callbacks are stored as symbols
+                "4389",     -- signed/unsigned comparison: checked by -Wsign-compare on POSIX
             }
         filter {}
     else
+-- Share POSIX compile and ELF link flags. Fixed callback signatures leave some parameters unused.
+        local posixBuildOptions = {
+            "-Wno-unused-parameter",
+            "-Wall",
+            "-Wshadow",
+            "-fstack-protector-strong",
+            "-Wformat=2", "-Wformat-security", "-Werror=format-security",
+            "-Wsign-compare",
+-- Treat these diagnostics as errors in every configuration.
+            "-Werror=format",
+            "-Werror=implicit-function-declaration",
+            "-Werror=return-type",
+            "-Werror=int-conversion",
+            "-Werror=null-dereference",
+        }
+-- Use target-supported CFI_FLAGS from Makefile. Xcode manages its own architecture settings.
+        if not isXcode then
+            table.insert(posixBuildOptions, "$(CFI_FLAGS)")
+        end
+-- Mark the stack non-executable while retaining warnings for objects requesting an executable stack.
+        local elfLinkOptions = {
+            "-Wl,-z,relro,-z,now",
+            "-Wl,-z,noexecstack",
+        }
+
         filter "platforms:macosx"
             system  "macosx"
             toolset "clang"
-            buildoptions {
-                "-Wno-sign-conversion",
-                "-Wno-unused-parameter",
-                "-Wno-unused-result",
-                "-Wshorten-64-to-32",
-                "-Wall",
-                "-Wno-unknown-warning-option",
-                "-fstack-protector",
-                "--param=ssp-buffer-size=4",
-                "-Wformat=2", "-Wformat-security", "-Werror=format-security",
-                "-Wsign-compare",
-            }
+-- Keep unknown-warning diagnostics so misspelled flags fail visibly.
+            buildoptions(posixBuildOptions)
+-- Clang-only conversion check.
+            buildoptions { "-Wshorten-64-to-32", "-Wimplicit-int-conversion" }
             linkoptions {
                 "-Wl,-no_warn_duplicate_libraries",
                 "-Wl,-rpath,@executable_path/",
@@ -226,54 +274,40 @@ workspace "goahead"
             }
             links { "dl", "pthread", "m", "pam" }
 
+-- Apple's linker lacks -s; strip local symbols after linking while retaining exports.
+        filter { "platforms:macosx", "configurations:release" }
+            postbuildcommands { "strip -x \"%{cfg.buildtarget.abspath}\"" }
+
+-- FORTIFY requires optimization. Use level 3 where supported, otherwise level 2.
+        filter { "platforms:macosx or linux or freebsd", "configurations:release" }
+            defines { "_FORTIFY_SOURCE=3" }
+
         filter "platforms:linux"
             system  "linux"
             toolset "gcc"
-            buildoptions {
-                "-Wno-unused-parameter",
-                "-Wno-unused-result",
-                "-Wall",
-                "-fstack-protector",
-                "--param=ssp-buffer-size=4",
-                "-Wformat=2", "-Wformat-security", "-Werror=format-security",
-                "-Wsign-compare",
-            }
-            --
-            --  "-z noexecheap" is not a GNU ld option. GNU ld accepts and ignores it with
-            --  "warning: -z noexecheap ignored" on every link, so it bought no hardening and only
-            --  noise. A non-executable heap comes from the kernel's NX handling on every Linux
-            --  target GoAhead supports; there is no linker flag to request it here.
-            --
+            buildoptions(posixBuildOptions)
+            linkoptions(elfLinkOptions)
             linkoptions {
-                "-Wl,-z,relro,-z,now",
                 "-Wl,--as-needed",
                 "-Wl,--no-copy-dt-needed-entries",
-                "-Wl,--no-warn-execstack",
             }
             links { "rt", "dl", "pthread", "m" }
+
+        filter "platforms:freebsd"
+            system  "bsd"
+            toolset "gcc"
+            buildoptions(posixBuildOptions)
+            linkoptions(elfLinkOptions)
+            links { "dl", "pthread", "m" }
 
         --
         -- PIE applies only to executables. Applying -fPIE to shared-library
         -- objects produces R_X86_64_PC32 relocations against extern data
         -- (e.g. stderr) that cannot be resolved when linking the .so.
         --
-        filter { "platforms:linux", "kind:ConsoleApp" }
+        filter { "platforms:linux or freebsd", "kind:ConsoleApp" }
             buildoptions { "-fPIE" }
             linkoptions  { "-pie" }
-
-        filter "platforms:freebsd"
-            system  "bsd"
-            toolset "gcc"
-            buildoptions {
-                "-Wno-unused-parameter",
-                "-Wno-unused-result",
-                "-Wall",
-                "-fstack-protector",
-                "--param=ssp-buffer-size=4",
-                "-Wformat=2", "-Wformat-security", "-Werror=format-security",
-                "-Wsign-compare",
-            }
-            links { "dl", "pthread", "m" }
 
         filter {}
     end
@@ -324,14 +358,13 @@ project "goahead-lib"
                 links { "ws2_32", "advapi32", "user32", "kernel32", "oldnames", "shell32" }
                 if tlsProvider == "openssl" then
                     local p = opensslPathFor("windows")
-                    libdirs {
-                        p .. "/lib",
-                        p .. "/lib/VC/x64/MTd",
-                        p .. "/lib/VC/x64/MT",
-                        p .. "/lib/VC/x64/MDd",
-                        p .. "/lib/VC/x64/MD",
-                    }
+                    libdirs { p .. "/lib" }
                     links { "libssl", "libcrypto" }
+                    --  The OpenSSL build for the same C runtime: dynamic, debug or release
+                    filter { "platforms:windows", "configurations:debug" }
+                        libdirs { p .. "/lib/VC/x64/MDd" }
+                    filter { "platforms:windows", "configurations:release" }
+                        libdirs { p .. "/lib/VC/x64/MD" }
                 else
                     libdirs { mbedtlsPath .. "/lib", mbedtlsPath .. "/library" }
                     links   { "mbedtls", "mbedcrypto", "mbedx509" }

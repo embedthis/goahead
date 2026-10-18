@@ -49,12 +49,10 @@ echo Found OpenSSL at: %SSL_DIR%
 REM Set INCLUDE for the compiler
 set "INCLUDE=%SSL_DIR%\include;%INCLUDE%"
 
-REM Add all possible lib subdirectories to LIB
+REM Add the lib subdirectories for the dynamic C runtime the build uses
 REM The Shining Light OpenSSL installer uses lib\VC\<arch>\<crt> layout
 REM vcpkg uses lib\ directly
 set "LIB=%SSL_DIR%\lib;%LIB%"
-if exist "%SSL_DIR%\lib\VC\%SSL_ARCH%\MTd" set "LIB=%SSL_DIR%\lib\VC\%SSL_ARCH%\MTd;%LIB%"
-if exist "%SSL_DIR%\lib\VC\%SSL_ARCH%\MT"  set "LIB=%SSL_DIR%\lib\VC\%SSL_ARCH%\MT;%LIB%"
 if exist "%SSL_DIR%\lib\VC\%SSL_ARCH%\MDd" set "LIB=%SSL_DIR%\lib\VC\%SSL_ARCH%\MDd;%LIB%"
 if exist "%SSL_DIR%\lib\VC\%SSL_ARCH%\MD"  set "LIB=%SSL_DIR%\lib\VC\%SSL_ARCH%\MD;%LIB%"
 

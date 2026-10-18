@@ -105,6 +105,7 @@
 				48A82C2398BBC0D51B39F263 /* Sources */,
 				6F13922CBF2726DE41A5586C /* Frameworks */,
 				580C1D98FB57A6CA162873D8 /* Embed Libraries */,
+				9607AE3710C85E8F00CD1376 /* Postbuild */,
 			);
 			buildRules = (
 			);
@@ -165,6 +166,23 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		9607AE3710C85E8F00CD1376 /* Postbuild */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = Postbuild;
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nif [ \"${CONFIGURATION}\" = \"release\" ]; then\nstrip -x \"../../build/bin/cgitest\"\nfi";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		48A82C2398BBC0D51B39F263 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -208,12 +226,13 @@
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"ME_VERSION=\\\"6.1.1\\\"",
+					"ME_VERSION=\\\"6.2.0\\\"",
 					"ME_COM_OPENSSL=1",
 					"ME_COM_MBEDTLS=0",
 					"ME_COM_SSL=1",
 					"ME_COM_MBEDTLS_PATH=\\\"/usr\\\"",
 					"ME_COM_OPENSSL_PATH=\\\"/opt/homebrew\\\"",
+					"_FORTIFY_SOURCE=3",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
@@ -227,18 +246,21 @@
 				OBJROOT = "../../build/obj/cgitest-macosx-release";
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CFLAGS = (
-					"-Wno-sign-conversion",
 					"-Wno-unused-parameter",
-					"-Wno-unused-result",
-					"-Wshorten-64-to-32",
 					"-Wall",
-					"-Wno-unknown-warning-option",
-					"-fstack-protector",
-					"--param=ssp-buffer-size=4",
+					"-Wshadow",
+					"-fstack-protector-strong",
 					"-Wformat=2",
 					"-Wformat-security",
 					"-Werror=format-security",
 					"-Wsign-compare",
+					"-Werror=format",
+					"-Werror=implicit-function-declaration",
+					"-Werror=return-type",
+					"-Werror=int-conversion",
+					"-Werror=null-dereference",
+					"-Wshorten-64-to-32",
+					"-Wimplicit-int-conversion",
 				);
 				OTHER_LDFLAGS = (
 					"-ldl",
@@ -269,7 +291,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"ME_VERSION=\\\"6.1.1\\\"",
+					"ME_VERSION=\\\"6.2.0\\\"",
 					"ME_COM_OPENSSL=1",
 					"ME_COM_MBEDTLS=0",
 					"ME_COM_SSL=1",
@@ -289,18 +311,21 @@
 				OBJROOT = "../../build/obj/cgitest-macosx-debug";
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CFLAGS = (
-					"-Wno-sign-conversion",
 					"-Wno-unused-parameter",
-					"-Wno-unused-result",
-					"-Wshorten-64-to-32",
 					"-Wall",
-					"-Wno-unknown-warning-option",
-					"-fstack-protector",
-					"--param=ssp-buffer-size=4",
+					"-Wshadow",
+					"-fstack-protector-strong",
 					"-Wformat=2",
 					"-Wformat-security",
 					"-Werror=format-security",
 					"-Wsign-compare",
+					"-Werror=format",
+					"-Werror=implicit-function-declaration",
+					"-Werror=return-type",
+					"-Werror=int-conversion",
+					"-Werror=null-dereference",
+					"-Wshorten-64-to-32",
+					"-Wimplicit-int-conversion",
 				);
 				OTHER_LDFLAGS = (
 					"-ldl",

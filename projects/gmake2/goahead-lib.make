@@ -27,8 +27,6 @@ define PREBUILDCMDS
 endef
 define PRELINKCMDS
 endef
-define POSTBUILDCMDS
-endef
 
 ifeq ($(config),debug_macosx)
 ifeq ($(origin CC), default)
@@ -44,12 +42,14 @@ RESCOMP = windres
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.dylib
 OBJDIR = ../../build/obj/goahead-lib-macosx-debug
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_DEBUG=1
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_DEBUG=1
 INCLUDES += -I../../src -I../../src/osdep -I/opt/homebrew/include
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS) -Wshorten-64-to-32 -Wimplicit-int-conversion
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS) -Wshorten-64-to-32 -Wimplicit-int-conversion
 LIBS += -ldl -lpthread -lm -lpam -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -dynamiclib -Wl,-install_name,@rpath/libgoahead.dylib -g -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
+define POSTBUILDCMDS
+endef
 
 else ifeq ($(config),debug_linux)
 ifeq ($(origin CC), default)
@@ -65,12 +65,14 @@ RESCOMP = windres
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-linux-debug
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
 INCLUDES += -I../../src -I../../src/osdep -I/usr/include
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
 LIBS += -lrt -ldl -lpthread -lm -lssl -lcrypto
-ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -Wl,-soname=libgoahead.so -g -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,--no-warn-execstack
+ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -Wl,-soname=libgoahead.so -g -Wl,-z,relro,-z,now -Wl,-z,noexecstack -Wl,--as-needed -Wl,--no-copy-dt-needed-entries
+define POSTBUILDCMDS
+endef
 
 else ifeq ($(config),debug_freebsd)
 ifeq ($(origin CC), default)
@@ -86,12 +88,14 @@ RESCOMP = windres
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-freebsd-debug
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
 INCLUDES += -I../../src -I../../src/osdep -I/usr/include
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
 LIBS += -ldl -lpthread -lm -lssl -lcrypto
-ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -g
+ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -g -Wl,-z,relro,-z,now -Wl,-z,noexecstack
+define POSTBUILDCMDS
+endef
 
 else ifeq ($(config),release_macosx)
 ifeq ($(origin CC), default)
@@ -107,12 +111,16 @@ RESCOMP = windres
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.dylib
 OBJDIR = ../../build/obj/goahead-lib-macosx-release
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\"
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -D_FORTIFY_SOURCE=3
 INCLUDES += -I../../src -I../../src/osdep -I/opt/homebrew/include
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-result -Wshorten-64-to-32 -Wall -Wno-unknown-warning-option -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS) -Wshorten-64-to-32 -Wimplicit-int-conversion
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS) -Wshorten-64-to-32 -Wimplicit-int-conversion
 LIBS += -ldl -lpthread -lm -lpam -lssl -lcrypto
 ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -dynamiclib -Wl,-install_name,@rpath/libgoahead.dylib -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
+define POSTBUILDCMDS
+	@echo "       [Run] postbuild"
+	strip -x "../../build/bin/libgoahead.dylib"
+endef
 
 else ifeq ($(config),release_linux)
 ifeq ($(origin CC), default)
@@ -128,12 +136,14 @@ RESCOMP = windres
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-linux-release
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\"
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -D_FORTIFY_SOURCE=3
 INCLUDES += -I../../src -I../../src/osdep -I/usr/include
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
 LIBS += -lrt -ldl -lpthread -lm -lssl -lcrypto
-ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -Wl,-soname=libgoahead.so -s -Wl,-z,relro,-z,now -Wl,--as-needed -Wl,--no-copy-dt-needed-entries -Wl,--no-warn-execstack
+ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -Wl,-soname=libgoahead.so -s -Wl,-z,relro,-z,now -Wl,-z,noexecstack -Wl,--as-needed -Wl,--no-copy-dt-needed-entries
+define POSTBUILDCMDS
+endef
 
 else ifeq ($(config),release_freebsd)
 ifeq ($(origin CC), default)
@@ -149,12 +159,83 @@ RESCOMP = windres
 TARGETDIR = ../../build/bin
 TARGET = $(TARGETDIR)/libgoahead.so
 OBJDIR = ../../build/obj/goahead-lib-freebsd-release
-DEFINES += -DME_VERSION=\"6.1.1\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\"
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -D_FORTIFY_SOURCE=3
 INCLUDES += -I../../src -I../../src/osdep -I/usr/include
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wno-unused-result -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -std=gnu11 -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O2 -fPIC -Wall -Wextra -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
 LIBS += -ldl -lpthread -lm -lssl -lcrypto
-ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -s
+ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -s -Wl,-z,relro,-z,now -Wl,-z,noexecstack
+define POSTBUILDCMDS
+endef
+
+else ifeq ($(config),asan_macosx)
+ifeq ($(origin CC), default)
+  CC = clang
+endif
+ifeq ($(origin CXX), default)
+  CXX = clang++
+endif
+ifeq ($(origin AR), default)
+  AR = ar
+endif
+RESCOMP = windres
+TARGETDIR = ../../build/bin
+TARGET = $(TARGETDIR)/libgoahead.dylib
+OBJDIR = ../../build/obj/goahead-lib-macosx-asan
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/opt/homebrew\" -DME_DEBUG=1
+INCLUDES += -I../../src -I../../src/osdep -I/opt/homebrew/include
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -fsanitize=address,undefined $(SANITIZE_FLAGS) -fno-omit-frame-pointer -fno-sanitize-recover=all -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS) -Wshorten-64-to-32 -Wimplicit-int-conversion
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -fsanitize=address,undefined $(SANITIZE_FLAGS) -fno-omit-frame-pointer -fno-sanitize-recover=all -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS) -Wshorten-64-to-32 -Wimplicit-int-conversion
+LIBS += -ldl -lpthread -lm -lpam -lssl -lcrypto
+ALL_LDFLAGS += $(LDFLAGS) -L/opt/homebrew/lib -dynamiclib -Wl,-install_name,@rpath/libgoahead.dylib -g -fsanitize=address,undefined $(SANITIZE_FLAGS) $(SANITIZE_LDFLAGS) -Wl,-no_warn_duplicate_libraries -Wl,-rpath,@executable_path/ -Wl,-rpath,@loader_path/
+define POSTBUILDCMDS
+endef
+
+else ifeq ($(config),asan_linux)
+ifeq ($(origin CC), default)
+  CC = gcc
+endif
+ifeq ($(origin CXX), default)
+  CXX = g++
+endif
+ifeq ($(origin AR), default)
+  AR = ar
+endif
+RESCOMP = windres
+TARGETDIR = ../../build/bin
+TARGET = $(TARGETDIR)/libgoahead.so
+OBJDIR = ../../build/obj/goahead-lib-linux-asan
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
+INCLUDES += -I../../src -I../../src/osdep -I/usr/include
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -fsanitize=address,undefined $(SANITIZE_FLAGS) -fno-omit-frame-pointer -fno-sanitize-recover=all -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -fsanitize=address,undefined $(SANITIZE_FLAGS) -fno-omit-frame-pointer -fno-sanitize-recover=all -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+LIBS += -lrt -ldl -lpthread -lm -lssl -lcrypto
+ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -Wl,-soname=libgoahead.so -g -fsanitize=address,undefined $(SANITIZE_FLAGS) $(SANITIZE_LDFLAGS) -Wl,-z,relro,-z,now -Wl,-z,noexecstack -Wl,--as-needed -Wl,--no-copy-dt-needed-entries
+define POSTBUILDCMDS
+endef
+
+else ifeq ($(config),asan_freebsd)
+ifeq ($(origin CC), default)
+  CC = gcc
+endif
+ifeq ($(origin CXX), default)
+  CXX = g++
+endif
+ifeq ($(origin AR), default)
+  AR = ar
+endif
+RESCOMP = windres
+TARGETDIR = ../../build/bin
+TARGET = $(TARGETDIR)/libgoahead.so
+OBJDIR = ../../build/obj/goahead-lib-freebsd-asan
+DEFINES += -DME_VERSION=\"6.2.0\" -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -DME_COM_MBEDTLS_PATH=\"/usr\" -DME_COM_OPENSSL_PATH=\"/usr\" -DME_DEBUG=1
+INCLUDES += -I../../src -I../../src/osdep -I/usr/include
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -std=gnu11 -fsanitize=address,undefined $(SANITIZE_FLAGS) -fno-omit-frame-pointer -fno-sanitize-recover=all -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -O0 -fPIC -g -Wall -Wextra -fsanitize=address,undefined $(SANITIZE_FLAGS) -fno-omit-frame-pointer -fno-sanitize-recover=all -Wno-unused-parameter -Wall -Wshadow -fstack-protector-strong -Wformat=2 -Wformat-security -Werror=format-security -Wsign-compare -Werror=format -Werror=implicit-function-declaration -Werror=return-type -Werror=int-conversion -Werror=null-dereference $(CFI_FLAGS)
+LIBS += -ldl -lpthread -lm -lssl -lcrypto
+ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib -shared -g -fsanitize=address,undefined $(SANITIZE_FLAGS) $(SANITIZE_LDFLAGS) -Wl,-z,relro,-z,now -Wl,-z,noexecstack
+define POSTBUILDCMDS
+endef
 
 endif
 

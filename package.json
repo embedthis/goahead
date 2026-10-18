@@ -7,10 +7,10 @@
         "http",
         "webserver"
     ],
-    "version": "6.1.1",
+    "version": "6.2.0",
     "homepage": "https://embedthis.com/goahead/",
     "author": {
-        "name": "Embedthis Software",
+        "name": "Embedthis Pty Ltd",
         "email": "dev@embedthis.com",
         "url": "https://embedthis.com"
     },
@@ -24,8 +24,11 @@
     },
     "devDependencies": {
         "@embedthis/ejscript": "^2.1.1",
-        "@embedthis/testme": "^0.8.32"
+        "@embedthis/testme": "^0.8.37"
     },
+    "trustedDependencies": [
+        "@embedthis/testme"
+    ],
     "repository": "git://github.com/embedthis/goahead.git",
     "paks": {
         "certs": "~1",
