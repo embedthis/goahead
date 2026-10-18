@@ -12,6 +12,7 @@
                                 another, at any size (used by the response framing tests)
             -c type             Output "type" as the Content-type header value
             -e                  Output the environment
+            -E text             Write "text" and a newline to stderr before the response
             -h lines            Output header "lines" long
             -H header           Output "header" verbatim as a response header line. The value is
                                 percent-descaped first, so %0d%0a delivers a raw CRLF into the
@@ -23,8 +24,13 @@
             -p                  Ouput the post data
             -q                  Ouput the query data
             -s status           Output "status" header
+            -S                  Output the state the program started with: the SIGPIPE disposition,
+                                the number of blocked signals and the number of open descriptors
+                                above 2 (POSIX)
             -t timeout          Sleep "timeout" seconds before writing anything. Used to hold a
                                 request open past the server's request timeout
+            -w                  Output the current working directory
+            -x                  Exit without writing anything, to stdout or stderr
             default             Output args, env and query
 
         Alternatively, pass the arguments as an environment variable HTTP_SWITCHES="-a -e -q"
@@ -46,6 +52,9 @@
 #include <stdlib.h>
 
 #if _WIN32 || WINCE
+#if !WINCE
+#include <direct.h>
+#endif
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
@@ -73,6 +82,8 @@
     #define rmdir(a)    _rmdir(a)
 typedef int ssize_t;
 #else
+#include <fcntl.h>
+#include <signal.h>
 #include <unistd.h>
 #endif
 
@@ -111,7 +122,7 @@ typedef int ssize_t;
 #define MAX_ARGV            64
 
 static char *argvList[MAX_ARGV];
-static int      getArgv(int *argc, char ***argv, int originalArgc, char **originalArgv);
+static int      getArgv(int *argc, char ***argv, int argcIn, char **argvIn);
 static int    hasError;
 static int    nonParsedHeader;
 static int    numPostKeys;
@@ -121,11 +132,15 @@ static char   **originalArgv;
 static int    outputArgs, outputEnv, outputPost, outputQuery;
 static int    outputLines, outputHeaderLines, responseStatus;
 static int    outputBodyBytes;
+static int    outputSignals;
+static int    outputCwd;
+static int    outputNothing;
 static char   *outputContentLength;
 static char   *outputContentType;
 static char   *outputHeader;
 static char   *outputLocation;
 static char   *outputRaw;
+static char   *outputStderr;
 static char   *postBuf;
 static size_t postBufLen;
 static char   **postKeys;
@@ -145,9 +160,14 @@ static int      getVars(char ***cgiKeys, char *buf, size_t len);
 static int      getPostData(char **buf, size_t *len);
 static int      getQueryString(char **buf, size_t *len);
 static void     printEnv(char **env);
+static void     printHtml(const char *s);
+static void     writeHtml(const char *buf, size_t len);
+static void     printVar(const char *prefix, const char *name, const char *value, const char *suffix);
 static void     printQuery();
 static void     printPost(char *buf, size_t len);
-static char *safeGetenv(char *key);
+static void     printStartState(void);
+static void     printCwd(void);
+static char *safeGetenv(const char *key);
 static void     finish(void);
 static void     writeBody(int bytes);
 
@@ -168,10 +188,14 @@ int main(int argc, char **argv, char **envp)
     outputArgs = outputQuery = outputEnv = outputPost = 0;
     outputLines = outputHeaderLines = responseStatus = 0;
     outputBodyBytes = 0;
+    outputSignals = 0;
+    outputCwd = 0;
+    outputNothing = 0;
     outputContentLength = 0;
     outputHeader = 0;
     outputLocation = 0;
     outputRaw = 0;
+    outputStderr = 0;
     nonParsedHeader = 0;
     responseMsg = 0;
     hasError = 0;
@@ -230,6 +254,14 @@ int main(int argc, char **argv, char **envp)
 
             case 'e':
                 outputEnv++;
+                break;
+
+            case 'E':
+                if (++i >= argc) {
+                    err = __LINE__;
+                } else {
+                    outputStderr = argv[i];
+                }
                 break;
 
             case 'h':
@@ -310,6 +342,10 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
 
+            case 'S':
+                outputSignals++;
+                break;
+
             case 't':
                 if (++i >= argc) {
                     err = __LINE__;
@@ -318,13 +354,20 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
 
+            case 'w':
+                outputCwd++;
+                break;
+
+            case 'x':
+                outputNothing++;
+                break;
+
             default:
                 /*
                     Unrecognized switches are fatal only when supplied explicitly via HTTP_SWITCHES.
-                    When they arrive as ISINDEX query args (the process argv), they are request data
-                    under test, not cgitest configuration, so tolerate them and let the default output
-                    echo the args verbatim. This preserves the argv round-trip (e.g. php-cgi "-d" PoC
-                    shapes from GOAHEAD-SA-2026-0007) instead of aborting with a usage error.
+                    Arriving as ISINDEX query args they are request data under test, not cgitest
+                    configuration, so tolerate them and let the default output echo the args verbatim
+                    to preserve the argv round-trip.
                  */
                 if (switchesFromHttp) {
                     err = __LINE__;
@@ -334,11 +377,15 @@ int main(int argc, char **argv, char **envp)
         }
     }
     if (err) {
-        fprintf(stderr, "usage: cgitest -aenp [-b bytes] [-c type] [-h lines] [-H header]\n"
+        fprintf(stderr, "usage: cgitest -aenpx [-b bytes] [-c type] [-E text] [-h lines] [-H header]\n"
                 "\t[-B bytes] [-l location] [-L length] [-r response] [-s status] [-t timeout]\n"
                 "\tor set the HTTP_SWITCHES environment variable\n");
         fprintf(stderr, "Error at cgitest:%d\n", __LINE__);
         exit(255);
+    }
+    if (outputStderr) {
+        fprintf(stderr, "%s\n", outputStderr);
+        fflush(stderr);
     }
     /*
         Stay silent for the requested period before emitting anything. This models a wedged CGI and
@@ -346,6 +393,10 @@ int main(int argc, char **argv, char **envp)
      */
     if (timeout > 0) {
         sleepSeconds(timeout);
+    }
+    if (outputNothing) {
+        finish();
+        return 0;
     }
     if (outputRaw) {
         fputs(outputRaw, stdout);
@@ -364,7 +415,9 @@ int main(int argc, char **argv, char **envp)
     if (hasError) {
         if (!nonParsedHeader) {
             printf("HTTP/1.0 %d %s\r\n\r\n", responseStatus, responseMsg);
-            printf("<HTML><BODY><p>Error: %d -- %s</p></BODY></HTML>\r\n", responseStatus, responseMsg);
+            printf("<HTML><BODY><p>Error: %d -- ", responseStatus);
+            printHtml(responseMsg);
+            printf("</p></BODY></HTML>\r\n");
         }
         fprintf(stderr, "cgitest: ERROR: %s\n", responseMsg);
         exit(2);
@@ -401,7 +454,7 @@ int main(int argc, char **argv, char **envp)
     printf("\r\n");
 
     if ((outputLines + outputArgs + outputEnv + outputQuery + outputPost + responseStatus +
-         outputBodyBytes) == 0 && outputLocation == NULL) {
+         outputBodyBytes + outputSignals + outputCwd) == 0 && outputLocation == NULL) {
         outputArgs++;
         outputEnv++;
         outputQuery++;
@@ -418,14 +471,24 @@ int main(int argc, char **argv, char **envp)
         printf("<HTML><TITLE>cgitest: Output</TITLE><BODY>\r\n");
         if (outputArgs) {
 #if _WIN32
-            printf("<P>CommandLine: %s</P>\r\n", GetCommandLine());
+            printf("<P>CommandLine: ");
+            printHtml(GetCommandLine());
+            printf("</P>\r\n");
 #endif
             printf("<H2>Args</H2>\r\n");
             for (i = 0; i < argc; i++) {
-                printf("<P>ARG[%d]=%s</P>\r\n", i, argv[i]);
+                printf("<P>ARG[%d]=", i);
+                printHtml(argv[i]);
+                printf("</P>\r\n");
             }
         }
         printEnv(envp);
+        if (outputSignals) {
+            printStartState();
+        }
+        if (outputCwd) {
+            printCwd();
+        }
         if (outputQuery) {
             printQuery();
         }
@@ -467,7 +530,7 @@ static void writeBody(int bytes)
 
 /*
     Terminate the CGI output. VxWorks pipes need an explicit eof string, and must not call exit(0) as
-    that would exit the task before the CGI handler can cleanup -- the caller must return instead.
+    that would exit the task before the CGI handler can cleanup. The caller must return instead.
  */
 static void finish(void)
 {
@@ -475,6 +538,14 @@ static void finish(void)
     write(1, CMD_VXWORKS_EOF, CMD_VXWORKS_EOF_LEN);
     write(2, CMD_VXWORKS_EOF, CMD_VXWORKS_EOF_LEN);
 #endif
+    free(queryKeys);
+    queryKeys = NULL;
+    free(postKeys);
+    postKeys = NULL;
+    free(postBuf);
+    postBuf = NULL;
+    free(responseMsg);
+    responseMsg = NULL;
     fflush(stderr);
     fflush(stdout);
 }
@@ -483,7 +554,7 @@ static void finish(void)
 /*
     If there is a HTTP_SWITCHES argument in the query string, examine that instead of the original argv
  */
-static int getArgv(int *pargc, char ***pargv, int originalArgc, char **originalArgv)
+static int getArgv(int *pargc, char ***pargv, int argcIn, char **argvIn)
 {
     static char sbuf[1024];
     char        *switches, *next;
@@ -496,7 +567,7 @@ static int getArgv(int *pargc, char ***pargv, int originalArgc, char **originalA
     numQueryKeys = getVars(&queryKeys, queryBuf, queryLen);
 
     switches = 0;
-    for (i = 0; i < numQueryKeys; i += 2) {
+    for (i = 0; i < numQueryKeys * 2; i += 2) {
         if (strcmp(queryKeys[i], "HTTP_SWITCHES") == 0) {
             switches = queryKeys[i + 1];
             break;
@@ -511,18 +582,17 @@ static int getArgv(int *pargc, char ***pargv, int originalArgc, char **originalA
         strncpy(sbuf, switches, sizeof(sbuf) - 1);
         descape(sbuf);
         next = strtok(sbuf, " \t\n");
-        i = 1;
         for (i = 1; next && i < (MAX_ARGV - 1); i++) {
             argvList[i] = next;
             next = strtok(0, " \t\n");
         }
-        argvList[0] = originalArgv[0];
+        argvList[0] = argvIn[0];
         *pargv = argvList;
         *pargc = i;
 
     } else {
-        *pargc = originalArgc;
-        *pargv = originalArgv;
+        *pargc = argcIn;
+        *pargv = argvIn;
     }
     return 0;
 }
@@ -530,30 +600,18 @@ static int getArgv(int *pargc, char ***pargv, int originalArgc, char **originalA
 
 static void printEnv(char **envp)
 {
+    static const char *vars[] = {
+        "AUTH_TYPE", "CONTENT_LENGTH", "CONTENT_TYPE", "DOCUMENT_ROOT", "GATEWAY_INTERFACE", "HTTP_ACCEPT",
+        "HTTP_CONNECTION", "HTTP_HOST", "HTTP_USER_AGENT", "PATH_INFO", "PATH_TRANSLATED", "QUERY_STRING",
+        "REMOTE_ADDR", "REQUEST_METHOD", "REQUEST_URI", "REMOTE_USER", "SCRIPT_NAME", "SCRIPT_FILENAME",
+        "SERVER_ADDR", "SERVER_NAME", "SERVER_PORT", "SERVER_PROTOCOL", "SERVER_SOFTWARE", NULL
+    };
+    int               i;
+
     printf("<H2>Environment Variables</H2>\r\n");
-    printf("<P>AUTH_TYPE=%s</P>\r\n", safeGetenv("AUTH_TYPE"));
-    printf("<P>CONTENT_LENGTH=%s</P>\r\n", safeGetenv("CONTENT_LENGTH"));
-    printf("<P>CONTENT_TYPE=%s</P>\r\n", safeGetenv("CONTENT_TYPE"));
-    printf("<P>DOCUMENT_ROOT=%s</P>\r\n", safeGetenv("DOCUMENT_ROOT"));
-    printf("<P>GATEWAY_INTERFACE=%s</P>\r\n", safeGetenv("GATEWAY_INTERFACE"));
-    printf("<P>HTTP_ACCEPT=%s</P>\r\n", safeGetenv("HTTP_ACCEPT"));
-    printf("<P>HTTP_CONNECTION=%s</P>\r\n", safeGetenv("HTTP_CONNECTION"));
-    printf("<P>HTTP_HOST=%s</P>\r\n", safeGetenv("HTTP_HOST"));
-    printf("<P>HTTP_USER_AGENT=%s</P>\r\n", safeGetenv("HTTP_USER_AGENT"));
-    printf("<P>PATH_INFO=%s</P>\r\n", safeGetenv("PATH_INFO"));
-    printf("<P>PATH_TRANSLATED=%s</P>\r\n", safeGetenv("PATH_TRANSLATED"));
-    printf("<P>QUERY_STRING=%s</P>\r\n", safeGetenv("QUERY_STRING"));
-    printf("<P>REMOTE_ADDR=%s</P>\r\n", safeGetenv("REMOTE_ADDR"));
-    printf("<P>REQUEST_METHOD=%s</P>\r\n", safeGetenv("REQUEST_METHOD"));
-    printf("<P>REQUEST_URI=%s</P>\r\n", safeGetenv("REQUEST_URI"));
-    printf("<P>REMOTE_USER=%s</P>\r\n", safeGetenv("REMOTE_USER"));
-    printf("<P>SCRIPT_NAME=%s</P>\r\n", safeGetenv("SCRIPT_NAME"));
-    printf("<P>SCRIPT_FILENAME=%s</P>\r\n", safeGetenv("SCRIPT_FILENAME"));
-    printf("<P>SERVER_ADDR=%s</P>\r\n", safeGetenv("SERVER_ADDR"));
-    printf("<P>SERVER_NAME=%s</P>\r\n", safeGetenv("SERVER_NAME"));
-    printf("<P>SERVER_PORT=%s</P>\r\n", safeGetenv("SERVER_PORT"));
-    printf("<P>SERVER_PROTOCOL=%s</P>\r\n", safeGetenv("SERVER_PROTOCOL"));
-    printf("<P>SERVER_SOFTWARE=%s</P>\r\n", safeGetenv("SERVER_SOFTWARE"));
+    for (i = 0; vars[i]; i++) {
+        printVar("<P>", vars[i], safeGetenv(vars[i]), "</P>\r\n");
+    }
 
 #if !VXWORKS
     /*
@@ -561,15 +619,51 @@ static void printEnv(char **envp)
      */
     printf("\r\n<H2>All Defined Environment Variables</H2>\r\n");
     if (envp) {
-        char *p;
-        int  i;
-        for (i = 0, p = envp[0]; envp[i]; i++) {
-            p = envp[i];
-            printf("<P>%s</P>\r\n", p);
+        for (i = 0; envp[i]; i++) {
+            printf("<P>");
+            printHtml(envp[i]);
+            printf("</P>\r\n");
         }
     }
 #endif
     printf("\r\n");
+}
+
+
+/*
+    Escape < and > in HTML element content; preserve & so values read back unchanged.
+ */
+static void writeHtml(const char *buf, size_t len)
+{
+    size_t i;
+
+    for (i = 0; i < len; i++) {
+        if (buf[i] == '<') {
+            fputs("&lt;", stdout);
+        } else if (buf[i] == '>') {
+            fputs("&gt;", stdout);
+        } else {
+            putchar(buf[i]);
+        }
+    }
+}
+
+
+static void printHtml(const char *s)
+{
+    if (s) {
+        writeHtml(s, strlen(s));
+    }
+}
+
+
+static void printVar(const char *prefix, const char *name, const char *value, const char *suffix)
+{
+    fputs(prefix, stdout);
+    printHtml(name);
+    putchar('=');
+    printHtml(value);
+    fputs(suffix, stdout);
 }
 
 
@@ -582,11 +676,7 @@ static void printQuery()
     } else {
         printf("<H2>Decoded Query String Variables</H2>\r\n");
         for (i = 0; i < (numQueryKeys * 2); i += 2) {
-            if (queryKeys[i + 1] == 0) {
-                printf("<p>QVAR %s=</p>\r\n", queryKeys[i]);
-            } else {
-                printf("<p>QVAR %s=%s</p>\r\n", queryKeys[i], queryKeys[i + 1]);
-            }
+            printVar("<p>QVAR ", queryKeys[i], queryKeys[i + 1], "</p>\r\n");
         }
     }
     printf("\r\n");
@@ -600,14 +690,13 @@ static void printPost(char *buf, size_t len)
     if (numPostKeys) {
         printf("<H2>Decoded Post Variables</H2>\r\n");
         for (i = 0; i < (numPostKeys * 2); i += 2) {
-            printf("<p>PVAR %s=%s</p>\r\n", postKeys[i], postKeys[i + 1]);
+            printVar("<p>PVAR ", postKeys[i], postKeys[i + 1], "</p>\r\n");
         }
 
     } else if (buf) {
         if (len < (50 * 1000)) {
             printf("<H2>Post Data %d bytes found (data below)</H2>\r\n", (int) len);
-            fflush(stdout);
-            if ((size_t) write(1, buf, (int) len) != len) { }
+            writeHtml(buf, len);
         } else {
             printf("<H2>Post Data %d bytes found</H2>\r\n", (int) len);
         }
@@ -619,18 +708,85 @@ static void printPost(char *buf, size_t len)
 }
 
 
+static void printCwd(void)
+{
+    char cwd[1024];
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        strcpy(cwd, "unknown");
+    }
+    printf("<p>CWD=");
+    printHtml(cwd);
+    printf("</p>\r\n");
+}
+
+
+static void printStartState(void)
+{
+#if _WIN32 && !WINCE
+    WSADATA   wsa;
+    ULONG_PTR h;
+    int       inherited, type, len;
+
+    printf("<p>SIGPIPE=unsupported</p>\r\n");
+    /*
+        This program creates no sockets, so any socket handle it holds was inherited. Handle values are
+        multiples of four.
+     */
+    inherited = 0;
+    if (WSAStartup(MAKEWORD(1, 1), &wsa) == 0) {
+        for (h = 4; h < 65536; h += 4) {
+            len = sizeof(type);
+            if (getsockopt((SOCKET) h, SOL_SOCKET, SO_TYPE, (char*) &type, &len) == 0) {
+                inherited++;
+            }
+        }
+        WSACleanup();
+    }
+    printf("<p>INHERITED=%d</p>\r\n", inherited);
+#elif WINCE || VXWORKS
+    printf("<p>SIGPIPE=unsupported</p>\r\n");
+#else
+    struct sigaction act;
+    sigset_t         mask;
+    long             max;
+    int              blocked, fd, inherited, sig;
+
+    printf("<H2>Signals</H2>\r\n");
+    if (sigaction(SIGPIPE, NULL, &act) == 0) {
+        printf("<p>SIGPIPE=%s</p>\r\n", act.sa_handler == SIG_IGN ? "ignored" :
+               act.sa_handler == SIG_DFL ? "default" : "caught");
+    }
+    blocked = 0;
+    if (sigprocmask(SIG_BLOCK, NULL, &mask) == 0) {
+        for (sig = 1; sig < NSIG; sig++) {
+            if (sigismember(&mask, sig) == 1) {
+                blocked++;
+            }
+        }
+    }
+    printf("<p>BLOCKED=%d</p>\r\n", blocked);
+
+    inherited = 0;
+    max = sysconf(_SC_OPEN_MAX);
+    for (fd = 3; fd < max && fd < 65536; fd++) {
+        if (fcntl(fd, F_GETFD) >= 0) {
+            inherited++;
+        }
+    }
+    printf("<p>INHERITED=%d</p>\r\n", inherited);
+    printf("<p>UID=%d</p>\r\n<p>GID=%d</p>\r\n", (int) geteuid(), (int) getegid());
+#endif
+}
+
+
 static int getQueryString(char **buf, size_t *buflen)
 {
-    *buflen = 0;
-    *buf = 0;
-
-    if (getenv("QUERY_STRING") == 0) {
+    *buf = getenv("QUERY_STRING");
+    if (*buf == NULL) {
         *buf = "";
-        *buflen = 0;
-    } else {
-        *buf = getenv("QUERY_STRING");
-        *buflen = (int) strlen(*buf);
     }
+    *buflen = strlen(*buf);
     return 0;
 }
 
@@ -692,58 +848,48 @@ static int getVars(char ***cgiKeys, char *buf, size_t buflen)
     char **keyList, *eq, *cp, *pp, *newbuf;
     int  i, keyCount;
 
-    if (buflen > 0) {
-        if ((newbuf = malloc(buflen + 1)) == 0) {
-            error("Can't allocate memory");
-            return 0;
-        }
-        strncpy(newbuf, buf, buflen);
-        newbuf[buflen] = '\0';
-        buf = newbuf;
+    *cgiKeys = NULL;
+    if (buf == NULL || buflen == 0) {
+        return 0;
     }
-
-    /*
-        Change all plus signs back to spaces
-     */
-    keyCount = (buflen > 0) ? 1 : 0;
-    for (cp = buf; cp < &buf[buflen]; cp++) {
-        if (*cp == '+') {
-            *cp = ' ';
-        } else if (*cp == '&') {
+    keyCount = 1;
+    for (i = 0; (size_t) i < buflen; i++) {
+        if (buf[i] == '&') {
             keyCount++;
         }
     }
-    if (keyCount == 0) {
+    /* Keep the decoded strings and their pointer table in one owned allocation. */
+    keyList = malloc((size_t) keyCount * 2 * sizeof(*keyList) + buflen + 1);
+    if (keyList == NULL) {
+        error("Can't allocate memory");
         return 0;
     }
-
-    /*
-        Crack the input into name/value pairs
-     */
-    keyList = malloc((keyCount * 2) * sizeof(char**));
-
-    i = 0;
-    for (pp = strtok(buf, "&"); pp; pp = strtok(0, "&")) {
-        if ((eq = strchr(pp, '=')) != 0) {
-            *eq++ = '\0';
-            descape(pp);
-            descape(eq);
-        } else {
-            descape(pp);
-        }
-        if (i < (keyCount * 2)) {
-            keyList[i++] = pp;
-            keyList[i++] = eq;
+    newbuf = (char*) (keyList + keyCount * 2);
+    memcpy(newbuf, buf, buflen);
+    newbuf[buflen] = '\0';
+    for (cp = newbuf; *cp; cp++) {
+        if (*cp == '+') {
+            *cp = ' ';
         }
     }
+    i = 0;
+    for (pp = strtok(newbuf, "&"); pp; pp = strtok(0, "&")) {
+        if ((eq = strchr(pp, '=')) != NULL) {
+            *eq++ = '\0';
+            descape(eq);
+        }
+        descape(pp);
+        keyList[i++] = pp;
+        keyList[i++] = eq;
+    }
     *cgiKeys = keyList;
-    return keyCount;
+    return i / 2;
 }
 
 
 static char hex2Char(char *s)
 {
-    char c;
+    int c;
 
     if (*s >= 'A') {
         c = toupper(*s & 0xFF) - 'A' + 10;
@@ -757,7 +903,7 @@ static char hex2Char(char *s)
     } else {
         c = (c * 16) + (toupper(*s & 0xFF) - '0');
     }
-    return c;
+    return (char) c;
 }
 
 
@@ -767,7 +913,8 @@ static void descape(char *src)
 
     dest = src;
     while (*src) {
-        if (*src == '%') {
+        // Decode only complete hex escapes.
+        if (*src == '%' && isxdigit((unsigned char) src[1]) && isxdigit((unsigned char) src[2])) {
             *dest++ = hex2Char(++src);
             src += 2;
         } else {
@@ -778,7 +925,7 @@ static void descape(char *src)
 }
 
 
-static char *safeGetenv(char *key)
+static char *safeGetenv(const char *key)
 {
     char *cp;
 
@@ -821,7 +968,7 @@ int _exit()
 #endif /* VXWORKS */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */
