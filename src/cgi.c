@@ -1598,7 +1598,9 @@ static CgiModule **cgiModules;
 static int       cgiModuleMax;
 static int       cgiTaskSeq;
 
-static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, char **envp, int fdin, int fdout);
+typedef int (*CgiEntry)(int argc, char **argv);
+
+static void vxWebsCgiEntry(CgiEntry entryAddr, char **argp, char **envp, int fdin, int fdout);
 
 /*
     taskSpawn takes its task arguments as _Vx_usr_arg_t, which holds a pointer on 64-bit VxWorks. Releases before 6.9
@@ -1753,7 +1755,7 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
     Set task stdio, argc/argv, and private environment before calling the entry point.
     envLib's delete hook frees the environment if the task is aborted.
  */
-static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, char **envp, int fdin, int fdout)
+static void vxWebsCgiEntry(CgiEntry entryAddr, char **argp, char **envp, int fdin, int fdout)
 {
     char   **p;
     CgiPid taskId;
@@ -1772,7 +1774,7 @@ static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, c
     for (p = envp; p != NULL && *p != NULL; p++) {
         putenv(*p);
     }
-    (*entryAddr)(argc, argp);
+    entryAddr(argc, argp);
 
     envPrivateDestroy(taskId);
     exit(0);

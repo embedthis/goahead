@@ -67,7 +67,7 @@ int main(int argc, char **argv)
         tnotnull(start, "1a the VxWorks section must define the launcher");
     }
     if (start) {
-        end = strstr(start, "static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argp");
+        end = strstr(start, "static void vxWebsCgiEntry(CgiEntry entryAddr, char **argp");
         tnotnull(end, "2 the VxWorks task wrapper must follow the launcher");
         if (end) {
             *end = '\0';

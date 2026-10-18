@@ -42,7 +42,7 @@ if (String(Config.OS).startsWith('win') || !cc) {
 
 
         const source = readFileSync(join(root, 'src', 'cgi.c'), 'utf8')
-        const start = source.indexOf('static void vxWebsCgiEntry(void *entryAddr(int argc, char **argv), char **argp')
+        const start = source.indexOf('static void vxWebsCgiEntry(CgiEntry entryAddr, char **argp, char **envp, int fdin, int fdout)\n{')
         const end = source.indexOf('\n}\n', start)
         ttrue(start >= 0 && end > start, 'the VxWorks task wrapper is defined')
         const wrapper = source.slice(start, end)
