@@ -6,6 +6,8 @@
         filelist is a file containing the pathnames of all web pages
         strip is a path prefix to remove from all the web page pathnames
         webrom.c is the resulting C source file to compile and link.
+    Each page's index entry records its source file's modified time and a 64-bit FNV-1a hash of its content, from
+    which the server derives the page's Last-Modified and ETag.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -16,8 +18,9 @@
 
 /**************************** Forward Declarations ****************************/
 
-static int  compile(char *fileList, char *strip);
-static void usage();
+static int    compile(char *fileList, char *strip);
+static uint64 hashFile(cchar *path);
+static void   usage();
 
 /*********************************** Code *************************************/
 
@@ -54,7 +57,8 @@ static void usage()
     fprintf(stdout, "usage: webcomp [--strip strip] filelist >output.c\n\
         --strip specifies is a path prefix to remove from all the web page pathnames\n\
         filelist is a file containing the pathnames of all web pages\n\
-        output.c is the resulting C source file to compile and link.\n");
+        output.c is the resulting C source file to compile and link.\n\
+        Each page is indexed with its source file's modified time and a hash of its content.\n");
     exit(2);
 }
 
@@ -62,7 +66,7 @@ static void usage()
 static int compile(char *fileList, char *strip)
 {
     WebsStat        sbuf;
-    WebsTime        now;
+    time_t          now;
     FILE            *lp;
     char            buf[512], file[ME_GOAHEAD_LIMIT_FILENAME], *cp, *sl;
     uchar           *p;
@@ -150,25 +154,47 @@ static int compile(char *fileList, char *strip)
         }
 
         if (stat(file, &sbuf) == 0 && sbuf.st_mode & S_IFDIR) {
-            fprintf(stdout, "\t{ \"/%s\", 0, 0 },\n", cp);
+            fprintf(stdout, "\t{ \"/%s\", 0, 0, 0, 0 },\n", cp);
             continue;
         }
-        fprintf(stdout, "\t{ \"/%s\", p%d, %d },\n", cp, nFile, (int) sbuf.st_size);
+        fprintf(stdout, "\t{ \"/%s\", p%d, %d, %lld, 0x%016llxULL },\n", cp, nFile, (int) sbuf.st_size,
+                (long long) sbuf.st_mtime, (unsigned long long) hashFile(file));
         nFile++;
     }
     fclose(lp);
-    fprintf(stdout, "\t{ 0, 0, 0 }\n");
+    fprintf(stdout, "\t{ 0, 0, 0, 0, 0 }\n");
     fprintf(stdout, "};\n");
     fprintf(stdout, "#else\n");
     fprintf(stdout, "WebsRomIndex websRomIndex[] = {\n");
-    fprintf(stdout, "\t{ 0, 0, 0 }\n};\n");
+    fprintf(stdout, "\t{ 0, 0, 0, 0, 0 }\n};\n");
     fprintf(stdout, "#endif\n");
     fflush(stdout);
     return 0;
 }
 
+
+
+static ME_NO_SANITIZE_WRAP uint64 hashFile(cchar *path)
+{
+    uchar  buf[512];
+    uint64 hash;
+    ssize  len, i;
+    int    fd;
+
+    hash = 0xcbf29ce484222325ULL;
+    if ((fd = open(path, O_RDONLY | O_BINARY, 0644)) >= 0) {
+        while ((len = read(fd, buf, sizeof(buf))) > 0) {
+            for (i = 0; i < len; i++) {
+                hash = (hash ^ buf[i]) * 0x100000001b3ULL;
+            }
+        }
+        close(fd);
+    }
+    return hash;
+}
+
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

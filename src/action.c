@@ -18,59 +18,97 @@ static WebsHash actionTable = -1;            /* Symbol table for actions */
 
 /************************************* Code ***********************************/
 /*
+    Return a copy of the action name, the second segment of the path. The caller must free it.
+ */
+static char *getActionName(Webs *wp)
+{
+    char *name, *end;
+
+    if ((name = strchr(&wp->path[1], '/')) == NULL) {
+        return NULL;
+    }
+    name++;
+    if ((end = strchr(name, '/')) == NULL) {
+        end = name + slen(name);
+    }
+    return snclone(name, end - name);
+}
+
+
+/*
+    Decline actions outside this route so later routes enforce their own policies.
+ */
+static bool actionMatch(Webs *wp)
+{
+    char *name;
+    bool served;
+
+    if ((name = getActionName(wp)) == NULL) {
+        return 1;
+    }
+    served = websRouteServesAction(wp->route, name);
+    wfree(name);
+    return served;
+}
+
+
+/*
     Process an action request. Returns 1 always to indicate it handled the URL
     Return true to indicate the request was handled, even for errors.
  */
 static bool actionHandler(Webs *wp)
 {
     WebsKey    *sp;
-    char       actionBuf[ME_GOAHEAD_LIMIT_URI + 1];
-    char       *cp, *actionName;
+    char       *actionName;
     WebsAction fn;
+
+#if ME_GOAHEAD_LEGACY
+    WebsProc proc;
+#endif
 
     assert(websValid(wp));
     assert(actionTable >= 0);
 
-    /*
-        Extract the action name
-     */
-    scopy(actionBuf, sizeof(actionBuf), wp->path);
-    if ((actionName = strchr(&actionBuf[1], '/')) == NULL) {
+    if ((actionName = getActionName(wp)) == NULL) {
         websError(wp, HTTP_CODE_NOT_FOUND, "Missing action name");
         return 1;
     }
-    actionName++;
-    if ((cp = strchr(actionName, '/')) != NULL) {
-        *cp = '\0';
+    /*
+        Default state-changing actions to POST.
+     */
+    if (wp->route && wp->route->methods < 0 && !smatch(wp->method, "POST")) {
+        websSetStatus(wp, HTTP_CODE_BAD_METHOD);
+        websWriteHeaders(wp, 0, 0);
+        websWriteHeader(wp, "Allow", "POST");
+        websWriteEndHeaders(wp);
+        websDone(wp);
+        wfree(actionName);
+        return 1;
     }
     sp = hashLookup(actionTable, actionName);
     if (sp == NULL) {
         websError(wp, HTTP_CODE_NOT_FOUND, "Action %s is not defined", actionName);
     } else {
-        fn = (WebsAction) sp->content.value.symbol;
-        assert(fn);
         /*
-            SECURITY Acceptable: this generic URI-to-C-function dispatcher intentionally performs no HTTP
-            method or CSRF check. Method enforcement is delegated to the route layer (route->methods);
-            state-changing actions are gated by route configuration such as "methods=POST" (see route.txt).
-            Validation of developer-registered handlers is the developer's responsibility.
+            Routes choose methods; application handlers must validate CSRF tokens.
+            The key's arg records whether the action was defined with the legacy signature.
          */
-        if (fn) {
 #if ME_GOAHEAD_LEGACY
-            (*((WebsProc) fn))((void*) wp, actionName, wp->query);
-#else
-            (*fn)((void*) wp);
-#endif
+        if (sp->arg) {
+            proc = (WebsProc) sp->content.value.symbol;
+            (*proc)(wp, actionName, wp->query);
+            return 1;
         }
+#endif
+        fn = (WebsAction) sp->content.value.symbol;
+        (*fn)(wp);
     }
+    wfree(actionName);
     return 1;
 }
 
 
-/*
-    Define a function in the "action" map space
- */
-PUBLIC int websDefineAction(cchar *name, void *fn)
+static int defineAction(cchar *name, void *fn, int legacy)
 {
     assert(name && *name);
     assert(fn);
@@ -78,8 +116,23 @@ PUBLIC int websDefineAction(cchar *name, void *fn)
     if (fn == NULL) {
         return -1;
     }
-    hashEnter(actionTable, (char*) name, valueSymbol(fn), 0);
+    hashEnter(actionTable, name, valueSymbol(fn), legacy);
     return 0;
+}
+
+
+/*
+    Define a function in the "action" map space. Legacy builds call it with the WebsProc signature.
+ */
+PUBLIC int websDefineAction(cchar *name, void *fn)
+{
+    return defineAction(name, fn, ME_GOAHEAD_LEGACY);
+}
+
+
+PUBLIC int websDefineNativeAction(cchar *name, WebsAction fn)
+{
+    return defineAction(name, fn, 0);
 }
 
 
@@ -95,7 +148,7 @@ static void closeAction(void)
 PUBLIC void websActionOpen(void)
 {
     actionTable = hashCreate(WEBS_HASH_INIT);
-    websDefineHandler("action", 0, actionHandler, closeAction, 0);
+    websDefineHandler("action", actionMatch, actionHandler, closeAction, 0);
 }
 
 
@@ -123,7 +176,7 @@ PUBLIC void websFooter(Webs *wp)
 #endif
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */
