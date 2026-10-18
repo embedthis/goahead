@@ -23,7 +23,6 @@ extern "C" {
 #define JS_INC                110   /* Growth for lines */
 #define JS_SCRIPT_INC         1023  /* Growth for scripts */
 #define JS_OFFSET             1     /* hAlloc doesn't like 0 entries */
-#define JS_MAX_RECURSE        100   /* Sanity for maximum recursion */
 
 /*
     Javascript Lexical analyser tokens
@@ -149,6 +148,7 @@ typedef struct Js {
     int jid;                                    /* Halloc handle */
     int flags;                                  /* Flags */
     void *userHandle;                           /* User defined handle */
+    size_t steps;                               /* Parser steps in the current evaluation */
     int recursionDepth;                         /* Sanity recursion depth */
 } Js;
 
@@ -335,7 +335,7 @@ typedef JsFun jsfunc_t;
 #endif /* _h_JS */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

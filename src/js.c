@@ -11,8 +11,27 @@
 #if ME_GOAHEAD_JAVASCRIPT
 /********************************** Defines ***********************************/
 
-#define     OCTAL 8
-#define     HEX   16
+#define     OCTAL                       8
+#define     HEX                         16
+
+#if defined(__clang__) && defined(__has_attribute)
+    #if __has_attribute(no_sanitize)
+        #define JS_NO_SANITIZE_FUNCTION __attribute__((no_sanitize("function")))
+    #endif
+#endif
+#ifndef JS_NO_SANITIZE_FUNCTION
+    #define JS_NO_SANITIZE_FUNCTION
+#endif
+
+/*
+    Allocate loop positions only while parsing a for statement to reduce recursive stack use.
+ */
+typedef struct JsLoop {
+    JsInput cond;                               /* Before the condition */
+    JsInput incr;                               /* Before the increment */
+    JsInput body;                               /* Before the body */
+    JsInput end;                                /* After the body */
+} JsLoop;
 
 static Js  **jsHandles;     /* List of js handles */
 static int jsMax = -1;      /* Maximum size of  */
@@ -22,7 +41,7 @@ static int jsMax = -1;      /* Maximum size of  */
 static Js *jsPtr(int jid);
 static void     clearString(char **ptr);
 static void     setString(char **ptr, cchar *s);
-static void     appendString(char **ptr, cchar *s);
+static int      appendString(Js *ep, char **ptr, cchar *s);
 static int      parse(Js *ep, int state, int flags);
 static int      parseStmt(Js *ep, int state, int flags);
 static int      parseDeclaration(Js *ep, int state, int flags);
@@ -30,7 +49,9 @@ static int      parseCond(Js *ep, int state, int flags);
 static int      parseExpr(Js *ep, int state, int flags);
 static int      parseFunctionArgs(Js *ep, int state, int flags);
 static int      evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs);
-static int      evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs);
+static int      evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs, int flags);
+static int      isTrue(Js *ep, cchar *value, int flags, bool *truth);
+static int      parseInteger(Js *ep, cchar *value, int *result);
 static int      evalFunction(Js *ep);
 static void     freeFunc(JsFun *func);
 static void     jsRemoveNewlines(Js *ep, int state);
@@ -129,51 +150,6 @@ PUBLIC void jsCloseEngine(int jid)
 }
 
 
-#if !ECOS && KEEP
-PUBLIC char *jsEvalFile(int jid, char *path, char **emsg)
-{
-    WebsStat sbuf;
-    Js       *ep;
-    char     *script, *rs;
-    int      fd;
-
-    assert(path && *path);
-
-    if (emsg) {
-        *emsg = NULL;
-    }
-    if ((ep = jsPtr(jid)) == NULL) {
-        return NULL;
-    }
-    if ((fd = open(path, O_RDONLY | O_BINARY, 0666)) < 0) {
-        jsError(ep, "Bad handle %d", jid);
-        return NULL;
-    }
-    if (stat(path, &sbuf) < 0) {
-        close(fd);
-        jsError(ep, "Cannot stat %s", path);
-        return NULL;
-    }
-    if ((script = walloc(sbuf.st_size + 1)) == NULL) {
-        close(fd);
-        jsError(ep, "Cannot allocate %d", sbuf.st_size);
-        return NULL;
-    }
-    if (read(fd, script, sbuf.st_size) != (int) sbuf.st_size) {
-        close(fd);
-        wfree(script);
-        jsError(ep, "Error reading %s", path);
-        return NULL;
-    }
-    script[sbuf.st_size] = '\0';
-    close(fd);
-    rs = jsEvalBlock(jid, script, emsg);
-    wfree(script);
-    return rs;
-}
-#endif
-
-
 /*
     Create a new variable scope block so that consecutive jsEval calls may be made with the same variable scope. This
     space MUST be closed with jsCloseBlock when the evaluations are complete.
@@ -251,6 +227,9 @@ PUBLIC char *jsEval(int jid, cchar *script, char **emsg)
         Allocate a new evaluation block, and save the old one
      */
     oldBlock = ep->input;
+    if (!oldBlock) {
+        ep->steps = 0;
+    }
     jsLexOpenScript(ep, script);
 
     /*
@@ -312,8 +291,13 @@ static int parse(Js *ep, int state, int flags)
 {
     assert(ep);
 
+    if (ep->steps >= ME_GOAHEAD_LIMIT_SCRIPT_STEPS) {
+        jsError(ep, "Script step limit exceeded");
+        return STATE_ERR;
+    }
+    ep->steps++;
     ep->recursionDepth++;
-    if (ep->recursionDepth > JS_MAX_RECURSE) {
+    if (ep->recursionDepth > ME_GOAHEAD_LIMIT_SCRIPT_RECURSE) {
         jsError(ep, "Script recursion too deep");
         ep->recursionDepth--;
         return STATE_ERR;
@@ -386,24 +370,18 @@ static int parse(Js *ep, int state, int flags)
  */
 static int parseStmt(Js *ep, int state, int flags)
 {
-    JsFun   func;
-    JsFun   *saveFunc;
-    JsInput condScript, endScript, bodyScript, incrScript;
-    cchar   *value;
-    char    *identifier;
-    int     done, expectSemi, thenFlags, elseFlags, tid, cond, forFlags;
-    int     jsVarType;
+    JsFun  func;
+    JsFun  *saveFunc;
+    JsLoop *loop;
+    cchar  *value;
+    char   *identifier;
+    bool   cond, truth;
+    int    done, expectSemi, thenFlags, elseFlags, tid, forFlags;
+    int    jsVarType;
 
     assert(ep);
 
-    /*
-        Set these to NULL, else we try to free them if an error occurs.
-     */
-    endScript.putBackToken = NULL;
-    bodyScript.putBackToken = NULL;
-    incrScript.putBackToken = NULL;
-    condScript.putBackToken = NULL;
-
+    loop = NULL;
     expectSemi = 0;
     saveFunc = NULL;
 
@@ -412,6 +390,9 @@ static int parseStmt(Js *ep, int state, int flags)
 
         switch (tid) {
         default:
+            if (state == STATE_STMT) {
+                goto error;
+            }
             jsLexPutbackToken(ep, TOK_EXPR, ep->token);
             done++;
             break;
@@ -473,10 +454,12 @@ static int parseStmt(Js *ep, int state, int flags)
                     jsVarType = jsGetVar(ep->jid, identifier, &value);
                     if (jsVarType < 0 || !value) {
                         jsError(ep, "Undefined variable %s\n", identifier);
+                        clearString(&identifier);
                         goto error;
                     }
                     setString(&ep->result, value);
                     if (evalExpr(ep, value, (int) *ep->token, "1") < 0) {
+                        clearString(&identifier);
                         state = STATE_ERR;
                         break;
                     }
@@ -596,7 +579,10 @@ static int parseStmt(Js *ep, int state, int flags)
             /*
                 This is the "then" case. We need to always parse both cases and execute only the relevant case.
              */
-            if (*ep->result == '1') {
+            if (isTrue(ep, ep->result, flags, &truth) < 0) {
+                goto error;
+            }
+            if (truth) {
                 thenFlags = flags;
                 elseFlags = flags & ~FLAGS_EXE;
             } else {
@@ -666,11 +652,17 @@ static int parseStmt(Js *ep, int state, int flags)
                 The first time through, we save the current input context just to each step: prior to the conditional,
                 the loop increment and the loop body.
              */
-            jsLexSaveInputState(ep, &condScript);
+            if (loop == NULL) {
+                loop = walloc(sizeof(JsLoop));
+                memset(loop, 0, sizeof(JsLoop));
+            }
+            jsLexSaveInputState(ep, &loop->cond);
             if (parse(ep, STATE_COND, flags) != STATE_COND_DONE) {
                 goto error;
             }
-            cond = (*ep->result != '0');
+            if (isTrue(ep, ep->result, flags, &cond) < 0) {
+                goto error;
+            }
 
             if (jsLexGetToken(ep, state) != TOK_SEMI) {
                 goto error;
@@ -680,7 +672,7 @@ static int parseStmt(Js *ep, int state, int flags)
                 Don't execute the loop increment statement or the body first time
              */
             forFlags = flags & ~FLAGS_EXE;
-            jsLexSaveInputState(ep, &incrScript);
+            jsLexSaveInputState(ep, &loop->incr);
             if (parse(ep, STATE_EXPR, forFlags) != STATE_EXPR_DONE) {
                 goto error;
             }
@@ -691,11 +683,11 @@ static int parseStmt(Js *ep, int state, int flags)
             /*
                 Parse the body and remember the end of the body script
              */
-            jsLexSaveInputState(ep, &bodyScript);
+            jsLexSaveInputState(ep, &loop->body);
             if (parse(ep, STATE_STMT, forFlags) != STATE_STMT_DONE) {
                 goto error;
             }
-            jsLexSaveInputState(ep, &endScript);
+            jsLexSaveInputState(ep, &loop->end);
 
             /*
                 Now actually do the for loop. Note loop has been rotated
@@ -704,11 +696,12 @@ static int parseStmt(Js *ep, int state, int flags)
                 /*
                     Evaluate the body
                  */
-                jsLexRestoreInputState(ep, &bodyScript);
+                jsLexRestoreInputState(ep, &loop->body);
 
                 switch (parse(ep, STATE_STMT, flags)) {
                 case STATE_RET:
-                    return STATE_RET;
+                    state = STATE_RET;
+                    goto doneParse;
                 case STATE_STMT_DONE:
                     break;
                 default:
@@ -717,20 +710,22 @@ static int parseStmt(Js *ep, int state, int flags)
                 /*
                     Evaluate the increment script
                  */
-                jsLexRestoreInputState(ep, &incrScript);
+                jsLexRestoreInputState(ep, &loop->incr);
                 if (parse(ep, STATE_EXPR, flags) != STATE_EXPR_DONE) {
                     goto error;
                 }
                 /*
                     Evaluate the condition
                  */
-                jsLexRestoreInputState(ep, &condScript);
+                jsLexRestoreInputState(ep, &loop->cond);
                 if (parse(ep, STATE_COND, flags) != STATE_COND_DONE) {
                     goto error;
                 }
-                cond = (*ep->result != '0');
+                if (isTrue(ep, ep->result, flags, &cond) < 0) {
+                    goto error;
+                }
             }
-            jsLexRestoreInputState(ep, &endScript);
+            jsLexRestoreInputState(ep, &loop->end);
             done++;
             break;
 
@@ -785,6 +780,9 @@ static int parseStmt(Js *ep, int state, int flags)
                 return state;
             }
 
+            if (state != STATE_STMT_BLOCK_DONE) {
+                goto error;
+            }
             if (jsLexGetToken(ep, state) != TOK_RBRACE) {
                 goto error;
             }
@@ -822,11 +820,12 @@ static int parseStmt(Js *ep, int state, int flags)
     }
 
 doneParse:
-    if (tid == TOK_FOR) {
-        jsLexFreeInputState(ep, &condScript);
-        jsLexFreeInputState(ep, &incrScript);
-        jsLexFreeInputState(ep, &endScript);
-        jsLexFreeInputState(ep, &bodyScript);
+    if (loop) {
+        jsLexFreeInputState(ep, &loop->cond);
+        jsLexFreeInputState(ep, &loop->incr);
+        jsLexFreeInputState(ep, &loop->end);
+        jsLexFreeInputState(ep, &loop->body);
+        wfree(loop);
     }
     if (state == STATE_STMT) {
         return STATE_STMT_DONE;
@@ -834,7 +833,7 @@ doneParse:
         return STATE_DEC_DONE;
     } else if (state == STATE_EXPR) {
         return STATE_EXPR_DONE;
-    } else if (state == STATE_EOF) {
+    } else if (state == STATE_EOF || state == STATE_RET) {
         return state;
     } else {
         return STATE_ERR;
@@ -956,7 +955,7 @@ static int parseCond(Js *ep, int state, int flags)
 
         if (operator > 0) {
             setString(&rhs, ep->result);
-            if (evalCond(ep, lhs, operator, rhs) < 0) {
+            if (evalCond(ep, lhs, operator, rhs, flags) < 0) {
                 state = STATE_ERR;
                 break;
             }
@@ -1023,7 +1022,7 @@ static int parseExpr(Js *ep, int state, int flags)
         if (rel > 0) {
             setString(&rhs, ep->result);
             if (tid == TOK_LOGICAL) {
-                if (evalCond(ep, lhs, rel, rhs) < 0) {
+                if (evalCond(ep, lhs, rel, rhs, flags) < 0) {
                     state = STATE_ERR;
                     break;
                 }
@@ -1058,38 +1057,102 @@ static int parseExpr(Js *ep, int state, int flags)
 
 
 /*
-    Evaluate a condition. Implements &&, ||, !
+    Convert a numeric operand without invoking overflow in the C library conversion.
  */
-static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
+static int parseInteger(Js *ep, cchar *value, int *result)
+{
+    char *end;
+    long number;
+
+    if (!*value) {
+        *result = 0;
+        return 0;
+    }
+    errno = 0;
+    number = strtol(value, &end, 10);
+    while (*end == ' ' || *end == '\t') {
+        end++;
+    }
+    if (errno == ERANGE || *end || number < INT_MIN || number > INT_MAX) {
+        jsError(ep, "Integer operand out of range");
+        return -1;
+    }
+    *result = (int) number;
+    return 0;
+}
+
+
+/*
+    True when value is a number: optional spaces, an optional sign, digits, and optional spaces
+ */
+static bool isNumber(cchar *value)
+{
+    cchar *cp;
+
+    for (cp = value; *cp == ' ' || *cp == '\t'; cp++) { }
+    if (*cp == '+' || *cp == '-') {
+        cp++;
+    }
+    if (!isdigit((uchar) *cp)) {
+        return 0;
+    }
+    while (isdigit((uchar) *cp)) {
+        cp++;
+    }
+    while (*cp == ' ' || *cp == '\t') {
+        cp++;
+    }
+    return *cp == '\0';
+}
+
+
+/*
+    Conditions accept empty as false and nonzero numbers as true. Other values fail; skipped branches are not evaluated.
+ */
+static int isTrue(Js *ep, cchar *value, int flags, bool *truth)
+{
+    int number;
+
+    *truth = 0;
+    if (!(flags & FLAGS_EXE) || !value || !*value) {
+        return 0;
+    }
+    if (!isNumber(value)) {
+        jsError(ep, "Condition must be numeric: %s", value);
+        return -1;
+    }
+    if (parseInteger(ep, value, &number) < 0) {
+        return -1;
+    }
+    *truth = number != 0;
+    return 0;
+}
+
+
+
+static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs, int flags)
 {
     char buf[16];
-    int  l, r, lval;
+    bool l, r;
+    int  lval;
 
     assert(lhs);
     assert(rhs);
     assert(rel > 0);
 
-    lval = 0;
-    if (isdigit((uchar) *lhs) && isdigit((uchar) *rhs)) {
-        l = atoi(lhs);
-        r = atoi(rhs);
-        switch (rel) {
-        case COND_AND:
-            lval = l && r;
-            break;
-        case COND_OR:
-            lval = l || r;
-            break;
-        default:
-            jsError(ep, "Bad operator %d", rel);
-            return -1;
-        }
-    } else {
-        if (!isdigit((uchar) *lhs)) {
-            jsError(ep, "Conditional must be numeric: %s", lhs);
-        } else {
-            jsError(ep, "Conditional must be numeric: %s", rhs);
-        }
+    if (isTrue(ep, lhs, flags, &l) < 0 || isTrue(ep, rhs, flags, &r) < 0) {
+        return -1;
+    }
+    switch (rel) {
+    case COND_AND:
+        lval = l && r;
+        break;
+    case COND_OR:
+        lval = l || r;
+        break;
+    default:
+        jsError(ep, "Bad operator %d", rel);
+        return -1;
     }
     itosbuf(buf, sizeof(buf), lval, 10);
     setString(&ep->result, buf);
@@ -1102,70 +1165,65 @@ static int evalCond(Js *ep, cchar *lhs, int rel, cchar *rhs)
  */
 static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
 {
-    cchar *cp;
     char  buf[16];
+    bool  lnum, rnum;
     int   numeric, l, r, lval;
+    int64 wide;
 
     assert(lhs);
     assert(rhs);
     assert(rel > 0);
 
+    lval = 0;
     /*
-        All of the characters in the lhs and rhs must be numeric
+        Compare numeric operands numerically; empty values act as zero beside numbers. Reject number/non-number
+        comparisons to prevent string ordering from bypassing numeric bounds.
      */
-    numeric = 1;
-    for (cp = lhs; *cp; cp++) {
-        if (!isdigit((uchar) *cp)) {
-            numeric = 0;
-            break;
-        }
+    lnum = isNumber(lhs);
+    rnum = isNumber(rhs);
+    numeric = (lnum || !*lhs) && (rnum || !*rhs);
+    if (!numeric && (lnum || rnum) && rel != EXPR_PLUS) {
+        jsError(ep, "Operand is not a number: %s", lnum ? rhs : lhs);
+        return -1;
     }
     if (numeric) {
-        for (cp = rhs; *cp; cp++) {
-            if (!isdigit((uchar) *cp)) {
-                numeric = 0;
-                break;
-            }
+        if (parseInteger(ep, lhs, &l) < 0 || parseInteger(ep, rhs, &r) < 0) {
+            return -1;
         }
-    }
-    if (numeric) {
-        l = atoi(lhs);
-        r = atoi(rhs);
+        wide = 0;
         switch (rel) {
         case EXPR_PLUS:
-            lval = l + r;
+            wide = (int64) l + r;
             break;
         case EXPR_INC:
-            lval = l + 1;
+            wide = (int64) l + 1;
             break;
         case EXPR_MINUS:
-            lval = l - r;
+            wide = (int64) l - r;
             break;
         case EXPR_DEC:
-            lval = l - 1;
+            wide = (int64) l - 1;
             break;
         case EXPR_MUL:
-            lval = l * r;
+            wide = (int64) l * r;
             break;
         case EXPR_DIV:
-            if (r != 0) {
-                lval = l / r;
-            } else {
-                lval = 0;
-            }
+            wide = r ? (int64) l / r : 0;
             break;
         case EXPR_MOD:
-            if (r != 0) {
-                lval = l % r;
-            } else {
-                lval = 0;
-            }
+            wide = r ? (int64) l % r : 0;
             break;
         case EXPR_LSHIFT:
-            lval = l << r;
-            break;
         case EXPR_RSHIFT:
-            lval = l >> r;
+            if (r < 0 || r >= (int) (sizeof(int) * CHAR_BIT) || l < 0) {
+                jsError(ep, "Invalid shift operand");
+                return -1;
+            }
+            if (rel == EXPR_LSHIFT) {
+                wide = (int64) l << r;
+            } else {
+                wide = l >> r;
+            }
             break;
         case EXPR_EQ:
             lval = l == r;
@@ -1192,12 +1250,21 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
             jsError(ep, "Bad operator %d", rel);
             return -1;
         }
+        if (rel == EXPR_PLUS || rel == EXPR_MINUS || rel == EXPR_MUL || rel == EXPR_DIV || rel == EXPR_MOD ||
+            rel == EXPR_INC || rel == EXPR_DEC || rel == EXPR_LSHIFT || rel == EXPR_RSHIFT) {
+            if (wide < INT_MIN || wide > INT_MAX) {
+                jsError(ep, "Integer result out of range");
+                return -1;
+            }
+            lval = (int) wide;
+        }
     } else {
         switch (rel) {
         case EXPR_PLUS:
             clearString(&ep->result);
-            appendString(&ep->result, lhs);
-            appendString(&ep->result, rhs);
+            if (appendString(ep, &ep->result, lhs) < 0 || appendString(ep, &ep->result, rhs) < 0) {
+                return -1;
+            }
             return 0;
         case EXPR_LESS:
             lval = strcmp(lhs, rhs) < 0;
@@ -1236,9 +1303,9 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
 
 
 /*
-    Evaluate a function
+    Callbacks are stored as JsProc despite their registered types; exempt this indirect call from clang's type check.
  */
-static int evalFunction(Js *ep)
+static JS_NO_SANITIZE_FUNCTION int evalFunction(Js *ep)
 {
     WebsKey *sp;
 
@@ -1266,9 +1333,8 @@ PUBLIC void jsError(Js *ep, cchar *fmt, ...)
     JsInput *ip;
     char    *errbuf, *msgbuf;
 
-    assert(ep);
     assert(fmt);
-    ip = ep->input;
+    ip = ep ? ep->input : NULL;
 
     va_start(args, fmt);
     msgbuf = sfmtv(fmt, args);
@@ -1278,6 +1344,8 @@ PUBLIC void jsError(Js *ep, cchar *fmt, ...)
         errbuf = sfmt("%s\n At line %d, line => \n\n%s\n", msgbuf, ip->lineNumber, ip->line);
         wfreeset(ep->error);
         ep->error = errbuf;
+    } else {
+        error("%s", msgbuf);
     }
     wfree(msgbuf);
 }
@@ -1305,21 +1373,21 @@ static void setString(char **ptr, cchar *s)
 }
 
 
-static void appendString(char **ptr, cchar *s)
+static int appendString(Js *ep, char **ptr, cchar *s)
 {
-    ssize len, oldlen, size;
+    size_t len, oldlen;
 
     assert(ptr);
 
-    if (*ptr) {
-        len = strlen(s);
-        oldlen = strlen(*ptr);
-        size = (len + oldlen + 1) * sizeof(char);
-        *ptr = wrealloc(*ptr, size);
-        strcpy(&(*ptr)[oldlen], s);
-    } else {
-        *ptr = sclone(s);
+    len = strlen(s);
+    oldlen = *ptr ? strlen(*ptr) : 0;
+    if (oldlen > ME_GOAHEAD_LIMIT_SCRIPT_RESULT || len > ME_GOAHEAD_LIMIT_SCRIPT_RESULT - oldlen) {
+        jsError(ep, "Script result limit exceeded");
+        return -1;
     }
+    *ptr = wrealloc(*ptr, (ssize) (len + oldlen + 1));
+    memcpy(*ptr + oldlen, s, len + 1);
+    return 0;
 }
 
 
@@ -1461,7 +1529,7 @@ PUBLIC int jsGetLineNumber(int jid)
 {
     Js *ep;
 
-    if ((ep = jsPtr(jid)) == NULL) {
+    if ((ep = jsPtr(jid)) == NULL || ep->input == NULL) {
         return -1;
     }
     return ep->input->lineNumber;
@@ -1613,11 +1681,16 @@ WebsHash jsGetFunctionTable(int jid)
  */
 static void freeFunc(JsFun *func)
 {
-    int i;
+    char *arg;
+    int  i;
 
+    /*
+        Free the handle while its slot is occupied; retain the argument because the map may be freed.
+     */
     for (i = func->nArgs - 1; i >= 0; i--) {
-        wfreeset(func->args[i]);
+        arg = func->args[i];
         func->nArgs = wfreeHandle(&func->args, i);
+        wfree(arg);
     }
     if (func->fname) {
         wfreeset(func->fname);
@@ -1742,6 +1815,11 @@ PUBLIC void jsLexSaveInputState(Js *ep, JsInput *state)
     if (ip->putBackToken) {
         state->putBackToken = sclone(ip->putBackToken);
     }
+    if (ip->line) {
+        //  The line is terminated at lineColumn, but may hold earlier nulls from the script
+        state->line = walloc(ip->lineColumn + 1);
+        memcpy(state->line, ip->line, ip->lineColumn + 1);
+    }
 }
 
 
@@ -1763,6 +1841,11 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
     if (state->putBackToken) {
         ip->putBackToken = sclone(state->putBackToken);
     }
+    ip->lineNumber = state->lineNumber;
+    ip->lineColumn = state->lineColumn;
+    if (ip->line) {
+        memcpy(ip->line, state->line ? state->line : "", state->lineColumn + 1);
+    }
 }
 
 
@@ -1771,6 +1854,7 @@ PUBLIC void jsLexFreeInputState(Js *ep, JsInput *state)
     if (state->putBackToken) {
         wfreeset(state->putBackToken);
     }
+    wfreeset(state->line);
 }
 
 
@@ -2147,7 +2231,7 @@ static int getLexicalToken(Js *ep, int state)
 }
 
 
-PUBLIC void jsLexPutbackToken(Js *ep, int tid, cchar *string)
+PUBLIC void jsLexPutbackToken(Js *ep, int tid, cchar *str)
 {
     JsInput *ip;
 
@@ -2159,7 +2243,7 @@ PUBLIC void jsLexPutbackToken(Js *ep, int tid, cchar *string)
         wfreeset(ip->putBackToken);
     }
     ip->putBackTokenId = tid;
-    ip->putBackToken = sclone(string);
+    ip->putBackToken = sclone(str);
 }
 
 
@@ -2203,7 +2287,7 @@ static int inputGetc(Js *ep)
             ip->lineLength += JS_INC;
             ip->line = wrealloc(ip->line, ip->lineLength * sizeof(char));
         }
-        ip->line[ip->lineColumn++] = c;
+        ip->line[ip->lineColumn++] = (char) c;
         ip->line[ip->lineColumn] = '\0';
     }
     return c;
@@ -2264,7 +2348,7 @@ static int charConvert(Js *ep, int base, int maxDig)
 #endif /* ME_GOAHEAD_JAVASCRIPT */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */

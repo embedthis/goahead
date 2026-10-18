@@ -18,8 +18,28 @@ static WebsHash websJstFunctions = -1;  /* Symbol table of functions */
 
 static char *strtokcmp(char *s1, char *s2);
 static char *skipWhite(char *s);
+static int jstEscape(int jid, Webs *wp, int argc, char **argv);
+static int jstEscapeUri(int jid, Webs *wp, int argc, char **argv);
+static int jstEscapeJs(int jid, Webs *wp, int argc, char **argv);
+static int jstWriteHtml(int jid, Webs *wp, int argc, char **argv);
 
 /************************************* Code ***********************************/
+/*
+    Keep template source and interpreter details out of client responses. A native callback
+    may already have finalized an error response; never append another response in that case.
+ */
+static void jstError(Webs *wp)
+{
+    if (!wp->finalized) {
+        if (wp->flags & WEBS_HEADERS_CREATED) {
+            websWrite(wp, "<h2>Javascript Error</h2>\n");
+        } else {
+            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Javascript Error");
+        }
+    }
+}
+
+
 /*
     Process requests and expand all scripting commands. We read the entire web page into memory and then process. If
     you have really big documents, it is better to make them plain HTML files rather than Javascript web pages.
@@ -66,7 +86,11 @@ static bool jstHandler(Webs *wp)
     /*
         Create a buffer to hold the web page in-memory
      */
-    len = sbuf.size;
+    if (sbuf.size >= MAXSSIZE) {
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Template too large: %s", wp->filename);
+        goto done;
+    }
+    len = (ssize) sbuf.size;
     if ((buf = walloc(len + 1)) == NULL) {
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot get memory");
         goto done;
@@ -78,14 +102,7 @@ static bool jstHandler(Webs *wp)
         goto done;
     }
     websPageClose(wp);
-    /*
-        A JST page is dynamic. Mark it uncacheable before the headers are built so websWriteHeaders emits the single
-        authoritative Cache-Control rather than a second, weaker one here.
-     */
-    wp->flags |= WEBS_NO_CACHE;
-    websWriteHeaders(wp, (ssize) -1, 0);
-    websWriteHeader(wp, "Pragma", "no-cache");
-    websWriteEndHeaders(wp);
+    wp->flags |= WEBS_JST_HEADERS;
 
     /*
         Scan for the next "<%"
@@ -137,28 +154,21 @@ static bool jstHandler(Webs *wp)
                     PUT/DELETE are not enabled by default), and filesystem integrity is out of scope.
                  */
                 if (jsEval(jid, nextp, &result) == 0) {
-                    /*
-                         On an error, discard all output accumulated so far and store the error in the result buffer.
-                         Be careful if the user has called websError() already.
-                     */
-                    rc = -1;
-                    if (websValid(wp)) {
-                        if (result) {
-                            websWrite(wp, "<h2><b>Javascript Error: %s</b></h2>\n", result);
-                            websWrite(wp, "<pre>%s</pre>", nextp);
-                            wfree(result);
-                        } else {
-                            websWrite(wp, "<h2><b>Javascript Error</b></h2>\n%s\n", nextp);
-                        }
-                        websWrite(wp, "</body></html>\n");
-                        rc = 0;
+                    if (result) {
+                        trace(4, "JST evaluation failed: %s", result);
+                        wfree(result);
                     }
+                    jstError(wp);
+                    goto done;
+                }
+                if (wp->finalized) {
                     goto done;
                 }
             }
 
         } else {
-            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Unterminated script in %s: \n", wp->filename);
+            trace(4, "Unterminated JST script");
+            jstError(wp);
             goto done;
         }
     }
@@ -174,8 +184,8 @@ static bool jstHandler(Webs *wp)
  */
 done:
     /*
-        Close the block before the engine. jsCloseEngine only frees variable frames it owns and it does not
-        own any here because the caller supplied the global frame.
+        Close the page scope before the engine. The caller retains ownership of the global request variables;
+        the engine releases any remaining block frames.
      */
     if (jid >= 0) {
         if (vid >= 0) {
@@ -205,6 +215,10 @@ PUBLIC int websJstOpen(void)
 {
     websJstFunctions = hashCreate(WEBS_HASH_INIT * 2);
     websDefineJst("write", websJstWrite);
+    websDefineJst("writeHtml", jstWriteHtml);
+    websDefineJst("escape", jstEscape);
+    websDefineJst("escapeUri", jstEscapeUri);
+    websDefineJst("escapeJs", jstEscapeJs);
     websDefineHandler("jst", 0, jstHandler, closeJst, 0);
     return 0;
 }
@@ -239,6 +253,81 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv)
             }
         }
     }
+    return 0;
+}
+
+
+/*
+    Write HTML-escaped arguments separated by spaces.
+ */
+static int jstWriteHtml(int jid, Webs *wp, int argc, char **argv)
+{
+    char *escaped;
+    int  i;
+
+    for (i = 0; i < argc; i++) {
+        escaped = websEscapeHtml(argv[i]);
+        if (websWriteBlock(wp, escaped, slen(escaped)) < 0) {
+            wfree(escaped);
+            return -1;
+        }
+        wfree(escaped);
+        if (i + 1 < argc && websWriteBlock(wp, " ", 1) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Return HTML-escaped text.
+ */
+static int jstEscape(int jid, Webs *wp, int argc, char **argv)
+{
+    char *escaped;
+
+    if (argc != 1) {
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "escape() takes one argument");
+        return -1;
+    }
+    escaped = websEscapeHtml(argv[0]);
+    jsSetResult(jid, escaped);
+    wfree(escaped);
+    return 0;
+}
+
+
+/*
+    Encode a whole URI while preserving delimiters. HTML-escape the result when writing attributes.
+ */
+static int jstEscapeUri(int jid, Webs *wp, int argc, char **argv)
+{
+    char *escaped;
+
+    if (argc != 1) {
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "escapeUri() takes one argument");
+        return -1;
+    }
+    escaped = websEscapeUri(argv[0]);
+    jsSetResult(jid, escaped);
+    wfree(escaped);
+    return 0;
+}
+
+
+
+static int jstEscapeJs(int jid, Webs *wp, int argc, char **argv)
+{
+    char *escaped;
+
+    if (argc != 1) {
+        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "escapeJs() takes one argument");
+        return -1;
+    }
+    escaped = websEscapeJs(argv[0]);
+    jsSetResult(jid, escaped);
+    wfree(escaped);
     return 0;
 }
 
@@ -282,7 +371,7 @@ static char *skipWhite(char *s)
 #endif /* ME_GOAHEAD_JAVASCRIPT */
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */
