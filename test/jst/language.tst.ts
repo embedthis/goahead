@@ -56,8 +56,8 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
         language is a deliberate change.
      */
     http = await fetch('/jst/while.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Undefined procedure while')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
 
     //  Postfix ++ and -- are supported
     http = await fetch('/jst/incdec.jst')
@@ -66,13 +66,34 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 
     //  Prefix ++ is not - it is a syntax error. Pinned as a known gap.
     http = await fetch('/jst/preinc.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Syntax error')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
 
     //  Logical and relational operators
     http = await fetch('/jst/logical.jst')
     ttrue(http.status == 200)
     ttrue(http.response.trim() == 'and or not rel')
+
+
+    for (let value of ['2', '%2B1', '%201', '10']) {
+        http = await fetch('/jst/truth.jst?errors=' + value)
+        tcontains(http.response, 'REFUSED')
+        http = await fetch('/jst/cond.jst?expired=0&locked=' + value)
+        tcontains(http.response, 'REFUSED')
+    }
+    for (let value of ['0', '-0', '']) {
+        http = await fetch('/jst/truth.jst?errors=' + value)
+        tcontains(http.response, 'COMMITTED')
+    }
+    http = await fetch('/jst/cond.jst?locked=0&expired=0')
+    tcontains(http.response, 'GRANTED')
+    for (let value of ['abc', '1x']) {
+        for (let path of ['/jst/truth.jst?errors=', '/jst/cond.jst?expired=0&locked=']) {
+            http = await fetch(path + value)
+            tcontains(http.response, 'Javascript Error')
+            ttrue(!http.response.match(/REFUSED|COMMITTED|GRANTED/), `${path}${value} must not take either branch`)
+        }
+    }
 
     //  String literals in both quote styles, escapes, and number-to-string coercion by "+"
     http = await fetch('/jst/strings.jst')

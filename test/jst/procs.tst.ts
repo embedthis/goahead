@@ -34,11 +34,10 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 
     /*
         Too few arguments: aspTest's jsArgs("%s %s") check fails and the procedure answers with
-        websError(400). The headers were already flushed by the handler, so the transport status
-        stays 200 and the error document is the body.
+        websError(400). No body has been written, so the response retains the callback's 400 status.
      */
     http = await fetch('/jst/asp0.jst')
-    ttrue(http.status == 200)
+    ttrue(http.status == 400)
     tcontains(http.response, 'Bad Request')
 
     //  A procedure that writes a large response streams it all
@@ -52,7 +51,7 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
     http = await fetch('/jst/nofunc.jst')
     ttrue(http.status == 200)
     tcontains(http.response, 'Before')
-    tcontains(http.response, 'Undefined procedure noSuchFunction')
+    tcontains(http.response, 'Javascript Error')
 
     http = await fetch('/index.html')
     ttrue(http.status == 200)

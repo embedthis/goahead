@@ -325,61 +325,35 @@ if (thas('ME_GOAHEAD_CGI')) {
         let body: string
 
         /*
-            GOAHEAD-SA-2026-0009 reconciliation: ISINDEX search terms now reach argv only as
-            positional operands, preceded by a "--" end-of-options marker (ARG[1]). Benign
-            metacharacter tokens still round-trip verbatim, but every ARG[i] index shifts +1
-            because the marker occupies ARG[1]. Option-looking (-leading) or decoded-'=' queries
-            are rejected with HTTP 400 (see isindexDashReject / isindexEncodedEqReject).
-
-            ARG[0] is the CGI path; ARG[1] is the injected "--"; operands begin at ARG[2].
+            ISINDEX passes word-like terms after the end-of-options marker; reject other prefixes.
          */
 
-        /*  Reporter's .bat PoC shape, sent against the .exe (cgitest).
-            On any sane runtime the metacharacters must survive as argv
-            data, not be interpreted as shell separators.   */
-        body = await send("x+%26+whoami+%26+rem")
-        hasArg(body, 1, "--")
-        hasArg(body, 2, "x")
-        hasArg(body, 3, "&")
-        hasArg(body, 4, "whoami")
-        hasArg(body, 5, "&")
-        hasArg(body, 6, "rem")
-        ttrue(!body.contains("uid="), "no whoami output in response body")
+        /*
+            Reject metacharacter terms before building argv.
+         */
+        let h = await status400("x+%26+whoami+%26+rem")
+        ttrue(h.status == 400, "a bare metacharacter search term is refused")
+        ttrue(!h.response.contains("uid="), "no whoami output in response body")
 
-        /*  Single shell metacharacter as a single argv element each.   */
         for (let mc of ["%26", "%7c", "%3c", "%3e", "%5e", "%25", "%28", "%29"]) {
-            body = await send("x+" + mc + "+y")
-            hasArg(body, 1, "--")
-            hasArg(body, 2, "x")
-            hasArg(body, 4, "y")
+            h = await status400("x+" + mc + "+y")
+            ttrue(h.status == 400, "metacharacter term " + mc + " is refused")
         }
 
-        /*  Quoted token: "two three" inside a single argv element.   */
-        body = await send("one+%22two+three%22+four")
-        hasArg(body, 1, "--")
-        hasArg(body, 2, "one")
-        hasArg(body, 3, "\"two")
-        hasArg(body, 4, "three\"")
-        hasArg(body, 5, "four")
+        for (let q of ["one+%22two+three%22+four", "a+%5C%22+b"]) {
+            h = await status400(q)
+            ttrue(h.status == 400, "a quote or backslash leading a term is refused")
+        }
 
-        /*  Backslash inside a token.   */
         body = await send("path%5Cfile+next")
         hasArg(body, 1, "--")
         hasArg(body, 2, "path\\file")
         hasArg(body, 3, "next")
 
-        /*  Trailing backslashes in a token (the BS-before-closing-quote rule).   */
         body = await send("trail%5C%5C%5C%5C+after")
         hasArg(body, 1, "--")
         hasArg(body, 2, "trail\\\\\\\\")
         hasArg(body, 3, "after")
-
-        /*  Backslash-before-quote (BatBadBut shape).   */
-        body = await send("a+%5C%22+b")
-        hasArg(body, 1, "--")
-        hasArg(body, 2, "a")
-        hasArg(body, 3, "\\\"")
-        hasArg(body, 4, "b")
 
         /*  UTF-8 multi-byte content.   */
         body = await send("caf%C3%A9+au+lait")

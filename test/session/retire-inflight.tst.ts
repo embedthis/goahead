@@ -43,6 +43,19 @@ async function login(): Promise<string> {
     return cookie
 }
 
+async function sessionCount(): Promise<number> {
+    let http: Http = new Http
+    http.get(HTTP + "/action/sessions")
+    await http.wait()
+    ttrue(http.status == 200, `the sessions action must answer 200, got ${http.status}`)
+    let body = http.response
+    // Parse signed counts to detect accounting underflow.
+    let match = body.match(/sessions=(-?\d+)/)
+    ttrue(match != null, `the sessions action must report a count, got [${body}]`)
+    http.close()
+    return match ? parseInt(match[1]) : -1
+}
+
 async function logout(cookie: string) {
     let http: Http = new Http
     http.setCookie(cookie)
@@ -57,20 +70,24 @@ async function logout(cookie: string) {
     Send an authenticated request's headers with a Content-Length whose body is withheld. The server
     routes and authenticates it - caching the session on the request - then parks waiting for content.
  */
-async function park(cookie: string): Promise<Socket> {
+async function park(cookie: string, body: string = BODY): Promise<Socket> {
     let s = new Socket
     s.connect(ADDR)
-    await s.write("POST /auth/sessionTest HTTP/1.1\r\nHost: " + uri.host + "\r\nCookie: " + cookie +
-        "\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: " + BODY.length +
+    await s.write("POST /auth/authSessionTest HTTP/1.1\r\nHost: " + uri.host + "\r\nCookie: " + cookie +
+        "\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: " + body.length +
         "\r\nConnection: close\r\n\r\n")
     await delay()
+    parkedBodies.set(s, body)
     return s
 }
+
+const parkedBodies = new Map<Socket, string>()
 
 async function finish(s: Socket): Promise<string> {
     let response = new ByteArray(65536, true)
     let n
-    await s.write(BODY)
+    await s.write(parkedBodies.get(s) ?? BODY)
+    parkedBodies.delete(s)
     try {
         while ((n = await s.read(response, -1)) != null) {}
     } catch {
@@ -138,4 +155,29 @@ if (thas('ME_GOAHEAD_AUTH')) {
     await http.wait()
     ttrue(http.status == 200)
     http.close()
+    await logout(cookie)
+
+    /*
+        Retire one session from two requests and verify the count decreases only once.
+     */
+    const CYCLES = 8
+    let baseline = await sessionCount()
+    for (let i = 0; i < CYCLES; i++) {
+        cookie = await login()
+        parked = await park(cookie, "number=1&destroy=1")
+        await logout(cookie)
+        ttrue((await finish(parked)).contains('HTTP/1.1 200 OK'))
+    }
+    let after = await sessionCount()
+    ttrue(after == baseline, `session count drifted from ${baseline} to ${after} over ${CYCLES} double-retire cycles`)
+
+    cookie = await login()
+    http.reset()
+    http.setCookie(cookie)
+    http.get(HTTP + "/auth/form/index.html")
+    await http.wait()
+    ttrue(http.status == 200)
+    http.close()
+    await logout(cookie)
+    ttrue((await sessionCount()) == baseline, 'a normal login and logout must return the count to baseline')
 }

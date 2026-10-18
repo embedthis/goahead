@@ -1,12 +1,6 @@
 /*
-    errors.tst - Script error reporting and output semantics
-
-    On a script error jstHandler appends an error report to whatever the page has already written
-    and stops processing the rest of the template. The response headers were flushed before the
-    first block ran, so the status is always 200.
-
-    The error report echoes the failing script back to the client inside <pre>. These tests pin what
-    reaches the browser, including that a request parameter cannot get into that echo.
+    Script errors stop the template and return a generic report. Output already written is retained;
+    interpreter diagnostics and template source must never appear in the HTTP body.
  */
 
 import { Http } from '@embedthis/ejscript'
@@ -26,7 +20,7 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 } else {
     /*
         A syntax error. Everything written before the failing block is kept, the error names the
-        problem and echoes the script, and the template text after the failing block is dropped.
+        failure generically, and the template text after the failing block is dropped.
      */
     let http = await fetch('/jst/syntax.jst')
     ttrue(http.status == 200)
@@ -36,17 +30,15 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
     tcontains(http.response, 'Javascript Error')
     ttrue(http.response.indexOf('After') < 0)
 
-    //  An undefined variable read names the variable
+    //  An undefined variable read does not disclose its name
     http = await fetch('/jst/undef.jst')
     ttrue(http.status == 200)
     tcontains(http.response, 'Before')
-    tcontains(http.response, 'Undefined variable nosuchvariable')
+    tcontains(http.response, 'Javascript Error')
     ttrue(http.response.indexOf('After') < 0)
 
     /*
-        The error echo prints the script text from the template, never the request. A parameter
-        value cannot reach the echoed <pre> block, so a query string is not an injection vector into
-        the error page.
+        Neither request parameters nor template source are included in a generic error response.
      */
     http = await fetch('/jst/undef.jst?probe=%3Cscript%3Ealert(1)%3C/script%3E')
     ttrue(http.status == 200)

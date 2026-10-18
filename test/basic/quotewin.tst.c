@@ -1,24 +1,5 @@
 /*
     quotewin.tst.c - Unit tests for the Windows CGI argv-quoting helpers.
-
-    Phase 1 of the Windows CGI argument-quoting fix (GOAHEAD-SA-2026-0007).
-
-    Exercises the three platform-independent static helpers added to src/cgi.c:
-      - isCgiExeOnWindows()  - extension-gate predicate (true iff cgiPath ends ".exe")
-      - appendWinArg()       - emit one CRT-correctly-quoted argv element
-      - buildWinCmdLine()    - walk argp and produce a Windows lpCommandLine
-
-    Five suites:
-      A) appendWinArg byte-exact output      (hand-verified critical edges)
-      B) appendWinArg round-trip via reference parseCmdLineToArgv (semantic identity)
-      C) isCgiExeOnWindows accept / reject   (extension gate)
-      D) buildWinCmdLine integration         (full cmdLine builder)
-      E) NULL hardening                       (every helper tolerates NULL safely)
-
-    The reference parseCmdLineToArgv() in this file is a portable
-    implementation of the Microsoft-documented CommandLineToArgvW rules; on
-    Windows the same suites additionally cross-check against the real
-    shell32.lib CommandLineToArgvW in Phase 2.
  */
 
 #include "testme.h"
@@ -97,7 +78,7 @@ static char  *tmArgv[16];        /* reference-parser argv */
 
 /* Byte-exact: appendWinArg(input) must produce exactly `expected`. */
 #define CASE_BYTES(label, input, expected) do { \
-    ssize n = appendWinArg(tmOut, (input)); \
+    ssize n = appendWinArg(tmOut, BUF_SZ, (input)); \
     tmOut[n] = '\0'; \
     ttrue(strcmp(tmOut, (expected)) == 0, \
           "%s: input=[%s] expected=[%s] got=[%s]", \
@@ -107,7 +88,7 @@ static char  *tmArgv[16];        /* reference-parser argv */
 /* Round-trip: parseCmdLineToArgv(appendWinArg(input)) must yield [input]. */
 #define CASE_ROUND(label, input) do { \
     int   argc; \
-    ssize n = appendWinArg(tmOut, (input)); \
+    ssize n = appendWinArg(tmOut, BUF_SZ, (input)); \
     tmOut[n] = '\0'; \
     argc = parseCmdLineToArgv(tmOut, tmParse, tmArgv, 16); \
     ttrue(argc == 1, "%s: argc=%d expected 1 (quoted=[%s])", \
@@ -129,7 +110,7 @@ static char  *tmArgv[16];        /* reference-parser argv */
 
 /* buildWinCmdLine integration: produce expected cmdLine from argp. */
 #define CASE_CMDLINE(label, argpArr, expected) do { \
-    ssize n = buildWinCmdLine((argpArr), tmOut); \
+    ssize n = buildWinCmdLine((argpArr), tmOut, BUF_SZ); \
     ttrue(strcmp(tmOut, (expected)) == 0, \
           "%s: expected=[%s] got=[%s] len=%lld", \
           (label), (expected), tmOut, (long long) n); \
@@ -410,7 +391,7 @@ static void suiteD_buildCmdLine(void)
     for (i = 1; i < 17; i++) argv13[i] = (char*) "x";
     argv13[17] = NULL;
     {
-        ssize n = buildWinCmdLine(argv13, tmOut);
+        ssize n = buildWinCmdLine(argv13, tmOut, BUF_SZ);
         tinfo("D14 stress: built %lld bytes\n", (long long) n);
         ttrue(strncmp(tmOut, "cgitest.exe x x x x x x x x x x x x x x x x", 42) == 0,
               "D14 stress: prefix mismatch (got=[%.50s])", tmOut);
@@ -428,33 +409,101 @@ static void suiteE_nullHardening(void)
 
     /* E1: appendWinArg(tmOut, NULL) emits "" */
     tmOut[0] = 'X'; tmOut[1] = 'X'; tmOut[2] = 'X';
-    n = appendWinArg(tmOut, NULL);
+    n = appendWinArg(tmOut, BUF_SZ, NULL);
     ttrue(n == 2, "E1: appendWinArg(NULL) length n=%lld expected 2", (long long) n);
     ttrue(tmOut[0] == '"' && tmOut[1] == '"',
           "E1: appendWinArg(NULL) bytes [%c%c] expected [\"\"]", tmOut[0], tmOut[1]);
 
     /* E2: appendWinArg(NULL, "x") returns 0 with no write */
-    n = appendWinArg(NULL, "x");
+    n = appendWinArg(NULL, BUF_SZ, "x");
     ttrue(n == 0, "E2: appendWinArg(NULL dest) returns 0, got %lld", (long long) n);
 
     /* E3: buildWinCmdLine(NULL, tmOut) returns 0 */
     tmOut[0] = 'X';
-    n = buildWinCmdLine(NULL, tmOut);
+    n = buildWinCmdLine(NULL, tmOut, BUF_SZ);
     ttrue(n == 0, "E3: buildWinCmdLine(NULL argp) returns 0, got %lld", (long long) n);
 
     /* E4: buildWinCmdLine(argp, NULL) returns 0 */
-    n = buildWinCmdLine(argvNull, NULL);
+    n = buildWinCmdLine(argvNull, NULL, BUF_SZ);
     ttrue(n == 0, "E4: buildWinCmdLine(NULL out) returns 0, got %lld", (long long) n);
 
     /* E5: buildWinCmdLine with empty argp (just NULL sentinel) returns 0 */
     tmOut[0] = 'X';
-    n = buildWinCmdLine(argvNull, tmOut);
+    n = buildWinCmdLine(argvNull, tmOut, BUF_SZ);
     ttrue(n == 0, "E5: buildWinCmdLine(empty argp) returns 0, got %lld", (long long) n);
     ttrue(tmOut[0] == '\0', "E5: buildWinCmdLine(empty argp) null-terminated buf");
 
     /* E6: isCgiExeOnWindows(NULL) returns false */
     ttrue(!isCgiExeOnWindows(NULL),
           "E6: isCgiExeOnWindows(NULL) expected false");
+}
+
+/********************************* Suite F: bounds ******************************/
+/*
+    Test exact capacity and one byte less, with a guard byte to detect overflow.
+ */
+#define GUARD 'G'
+
+static bool argFits(cchar *arg, ssize room, cchar *expected)
+{
+    ssize n;
+
+    memset(tmOut, GUARD, BUF_SZ);
+    n = appendWinArg(tmOut, room, arg);
+    return n == slen(expected) && strncmp(tmOut, expected, n) == 0 && tmOut[room] == GUARD;
+}
+
+
+static bool argRefused(cchar *arg, ssize room)
+{
+    memset(tmOut, GUARD, BUF_SZ);
+    return appendWinArg(tmOut, room, arg) == -1 && tmOut[room] == GUARD;
+}
+
+
+static void suiteF_bounds(void)
+{
+    struct {
+        cchar *label, *arg, *quoted;
+    } cases[] = {
+        { "F1 empty", "", "\"\"" },
+        { "F2 plain", "plain", "plain" },
+        { "F3 space", "a b", "\"a b\"" },
+        { "F4 trailing backslashes", "a b\\\\", "\"a b\\\\\\\\\"" },
+        { "F5 quote after backslashes", "a\\\\\"b", "\"a\\\\\\\\\\\"b\"" },
+        { "F6 inner backslashes", "a\\\\ b", "\"a\\\\ b\"" },
+    };
+    char *argp[] = { (char*) "cgitest.exe", (char*) "a b", (char*) "c", NULL };
+    cchar *line = "cgitest.exe \"a b\" c";
+    ssize  n, room;
+    int    i;
+
+    tinfo("\n--- Suite F: destination bounds ---\n");
+
+    for (i = 0; i < (int) (sizeof(cases) / sizeof(cases[0])); i++) {
+        room = slen(cases[i].quoted);
+        ttrue(argFits(cases[i].arg, room, cases[i].quoted), "%s: fits in exactly %lld bytes",
+              cases[i].label, (long long) room);
+        ttrue(argRefused(cases[i].arg, room - 1), "%s: refused in %lld bytes without writing past them",
+              cases[i].label, (long long) room - 1);
+    }
+
+    room = slen(line) + 1;
+    memset(tmOut, GUARD, BUF_SZ);
+    n = buildWinCmdLine(argp, tmOut, room);
+    ttrue(n == slen(line) && smatch(tmOut, line) && tmOut[room] == GUARD,
+          "F7: command line fits in exactly %lld bytes, terminator included", (long long) room);
+    for (room = slen(line); room >= 0; room--) {
+        memset(tmOut, GUARD, BUF_SZ);
+        n = buildWinCmdLine(argp, tmOut, room);
+        if (n != -1 || tmOut[room] != GUARD || (room > 0 && tmOut[0] != '\0')) {
+            break;
+        }
+    }
+    if (room >= 0) {
+        tinfo("F8: a buffer of %lld bytes was accepted, overrun or left unterminated\n", (long long) room);
+    }
+    ttrue(room < 0, "F8: every shorter buffer is refused, left empty and not overrun");
 }
 
 /********************************* Main ****************************************/
@@ -468,6 +517,7 @@ int main(int argc, char **argv)
     suiteC_extensionGate();
     suiteD_buildCmdLine();
     suiteE_nullHardening();
+    suiteF_bounds();
 
     return 0;
 }

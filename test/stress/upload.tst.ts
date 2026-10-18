@@ -31,7 +31,12 @@ if (thas('ME_GOAHEAD_UPLOAD')) {
         line[j] = 'A'.charCodeAt(0) + (j % 26)
     }
     line[15] = '\n'.charCodeAt(0)
-    const lineCount = sizes[tdepth()] * 1024
+    /*
+        Clamped rather than indexed directly: tm accepts --depth 10 and beyond, and an out-of-range
+        index would yield undefined, then a NaN line count and a zero-length payload - a test that
+        silently stops testing at the depths where it matters most.
+     */
+    const lineCount = sizes[Math.min(tdepth(), sizes.length - 1)] * 1024
     const payload = new Uint8Array(line.length * lineCount)
     for (let i = 0; i < lineCount; i++) {
         payload.set(line, i * line.length)

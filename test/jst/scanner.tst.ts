@@ -52,9 +52,8 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
         than being skipped or rejected by the scanner.
      */
     http = await fetch('/jst/langbad.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Javascript Error')
-    tcontains(http.response, 'Undefined variable vbscript')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
 
     //  A block with only whitespace produces no output and is not an error
     http = await fetch('/jst/empty.jst')
@@ -74,16 +73,14 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
     http = await fetch('/jst/strpct.jst')
     ttrue(http.status == 200)
     tcontains(http.response, 'Javascript Error')
-    tcontains(http.response, 'Unmatched Quote')
 
     /*
-        A block with no closing "%>" is reported through websError. The response headers were
-        already flushed before the scan began, so the status stays 200 and the error page is
-        appended to the text emitted so far.
+        This fixture writes literal HTML before its unterminated block, so the status stays 200
+        and a generic error is appended. An error before any output is covered by error-response.tst.
      */
     http = await fetch('/jst/unterm.jst')
     ttrue(http.status == 200)
-    tcontains(http.response, 'Internal Server Error')
+    tcontains(http.response, 'Javascript Error')
 
     //  The server is still healthy after every scanner error above
     http = await fetch('/index.html')

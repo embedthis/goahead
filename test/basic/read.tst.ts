@@ -3,22 +3,24 @@
  */
 
 import { Http, ByteArray } from '@embedthis/ejscript'
-import { tget, ttrue } from '@embedthis/testme'
+import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
 
 let http: Http = new Http
 
 //  Test http.read() into a byte array
-http.get(HTTP + "/big.jst")
-await http.wait()
-const buf = new ByteArray
-let count = 0
-while ((await http.read(buf)) > 0) {
-    count += buf.length
+if (thas('ME_GOAHEAD_JAVASCRIPT')) {
+    http.get(HTTP + "/big.jst")
+    await http.wait()
+    const buf = new ByteArray
+    let count = 0
+    while ((await http.read(buf)) > 0) {
+        count += buf.length
+    }
+    ttrue(count >= 61491)
+    http.close()
 }
-ttrue(count >= 61491)
-http.close()
 
 http.get(HTTP + "/lines.txt")
 await http.wait()

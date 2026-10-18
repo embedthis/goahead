@@ -1,9 +1,5 @@
 /*
     robustness.tst - Limits and resource behaviour of the template engine
-
-    GoAhead is single threaded, so a template that wedges or crashes the interpreter takes the whole
-    server with it. These tests drive the engine past its documented limits (JS_MAX_TOKEN,
-    JS_MAX_RECURSE) and over large pages, and check after each that the server is still serving.
  */
 
 import { Http } from '@embedthis/ejscript'
@@ -13,6 +9,7 @@ const HTTP = tget('TM_HTTP') || '127.0.0.1:8080'
 
 async function fetch(path: string): Promise<Http> {
     let http: Http = new Http
+    http.setLimits({requestTimeout: 5})
     http.get(HTTP + path)
     await http.wait()
     return http
@@ -47,24 +44,46 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 
     //  A literal past JS_MAX_TOKEN is rejected by the lexer, not truncated or overflowed
     http = await fetch('/jst/long.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Token too big')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
     await alive()
 
-    //  Deeply nested parentheses hit the JS_MAX_RECURSE guard rather than exhausting the C stack
     http = await fetch('/jst/deep.jst')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
+    await alive()
+
+    /*
+        Invalid statement openers in bare blocks must fail instead of repeating a put-back token.
+        Include every token class and a nested block; each error must leave the event loop serving.
+     */
+    const badBlocks = ['blockexpr', 'blockmul', 'blockcomma', 'blocklogical', 'blockassign',
+        'blockincdec', 'blockelse', 'blocknested']
+    for (const name of badBlocks) {
+        http = await fetch(`/jst/${name}.jst`)
+        ttrue(http.status == 500)
+        tcontains(http.response, 'Internal Server Error')
+        await alive()
+    }
+    http = await fetch('/jst/blockok.jst')
     ttrue(http.status == 200)
-    tcontains(http.response, 'Script recursion too deep')
+    ttrue(http.response.trim() == 'ok')
     await alive()
 
     //  A run of failing templates leaves the server responsive
     for (let i = 0; i < 20; i++) {
         http = await fetch('/jst/deep.jst')
-        ttrue(http.status == 200)
+        ttrue(http.status == 500)
         http = await fetch('/jst/long.jst')
-        ttrue(http.status == 200)
+        ttrue(http.status == 500)
         http = await fetch('/jst/unterm.jst')
         ttrue(http.status == 200)
+        for (const name of badBlocks) {
+            http = await fetch(`/jst/${name}.jst`)
+            ttrue(http.status == 500)
+            tcontains(http.response, 'Internal Server Error')
+            await alive()
+        }
     }
     await alive()
 }

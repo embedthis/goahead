@@ -1,96 +1,74 @@
 /*
-    huge.tst - Huge get file
+    huge.tst - Transfer a file larger than 4 GB and verify the byte count and the advertised length.
+
+    This is the suite's only exercise of a response beyond the 32-bit range, which is where a
+    truncated length or offset shows up. The body is streamed and counted rather than buffered: the
+    ejscript Http class reads a whole response into a string, so it cannot carry 5 GB. fetch() hands
+    back a stream that can be drained a chunk at a time.
+
+    The file is generated on first use and left in place afterwards - generating it costs more than
+    the transfer it feeds. test/web/huge.txt is git-ignored.
  */
 
-import { Http, Path, ByteArray, File } from '@embedthis/ejscript'
-import { tdepth, tget, tskip, ttrue } from '@embedthis/testme'
+import { Path } from '@embedthis/ejscript'
+import { tdepth, tget, tinfo, tskip, ttrue } from '@embedthis/testme'
 
-const HTTP = tget('TM_HTTP') || "127.0.0.1:8080"
-const TIMEOUT = 10000
-const HUGE= "../web/huge.txt"
-var SIZE = 5 * 1024 * 1024 * 1024
-let http: Http = new Http
+const DEPTH = 5
+const HUGE = '../web/huge.txt'
+const BLOCK = 1024 * 1024
+const SIZE = 5 * 1024 * 1024 * 1024
 
-if (tdepth() >= 5) {
+const HTTP = tget('TM_HTTP') || '127.0.0.1:8080'
+const URL = (HTTP.includes('://') ? HTTP : 'http://' + HTTP) + '/huge.txt'
+
+if (tdepth() >= DEPTH) {
     /*
-        Create test file
+        Create the test file. A run that finds a file of the right size reuses it.
      */
-    if (!await Path(HUGE).exists || await Path(HUGE).size < SIZE) {
-        App.log.write("\n  [Generate] Huge 5GB test file \"" + HUGE + "\" ...")
-        let data = new ByteArray
-        for (let i = 0; i < 1024; i++) {
-            data.write("%05d 0123456789012345678901234567890123456789012345678", i)
+    if (!new Path(HUGE).exists || new Path(HUGE).size < SIZE) {
+        tinfo('  [Generate] ' + SIZE / (1024 * 1024 * 1024) + 'GB test file "' + HUGE + '" ...')
+        /*
+            A repeating 64-byte line replicated into a 1 MB block. Real bytes rather than a sparse
+            hole, so the server reads as many as it writes. Both sizes divide SIZE exactly.
+         */
+        const line = '0123456789abcdef'.repeat(3) + '0123456789abcde\n'
+        const block = new TextEncoder().encode(line.repeat(BLOCK / line.length))
+        const writer = Bun.file(HUGE).writer()
+        for (let written = 0; written < SIZE; written += block.length) {
+            writer.write(block)
+            await writer.flush()
         }
-        let f = File(HUGE, "w")
-        while (await Path(HUGE).size < SIZE) {
-            f.write(data)
-        }
-        f.close()
-        App.log.write("\n      [Test] GET \"" + HUGE + "\" ...")
+        await writer.end()
     }
-    SIZE = await Path(HUGE).size
+    ttrue(new Path(HUGE).size == SIZE)
 
     /*
         Test Http get for a huge file
      */
-    let total, count, complete
-    http.async = true
-    http.setLimits({receive: 10 * 1024 * 1024 * 1024})
-    var buf = new ByteArray
-    http.on("readable", function (event, http) {
-        buf.flush()
-        count = http.read(buf, -1)
-        total += count
-        // printf("Read %d total %5.2f %%\n", count, total / SIZE * 100.0)
-    })
-    http.on("close", function (event, http) {
-        complete = true
-    })
-    http.get(HTTP + "/huge.txt")
-    await http.wait()
-    let mark = new Date
-    ttrue(complete)
+    const started = Date.now()
+    const response = await fetch(URL)
+    ttrue(response.status == 200)
+
+    /*
+        The advertised length must survive the 32-bit boundary intact. A truncated Content-Length
+        desynchronises the connection: the peer stops reading at the advertised count and takes the
+        rest of the body for the next response.
+     */
+    ttrue(Number(response.headers.get('content-length')) == SIZE)
+
+    let total = 0
+    const reader = response.body.getReader()
+    for (;;) {
+        const {done, value} = await reader.read()
+        if (done) break
+        total += value.length
+    }
+    const elapsed = (Date.now() - started) / 1000
+
     ttrue(total == SIZE)
-    ttrue(http.status == 200)
-    http.close()
+    tinfo('  [Transfer] ' + total + ' bytes in ' + elapsed.toFixed(1) + 's (' +
+        (total / elapsed / (1024 * 1024)).toFixed(1) + ' MB/s)')
 
-/*
-    //  Get first 5 bytes
-    http.setHeader("range", "bytes=0-4")
-    await http.get(HTTP + "/big.txt")
-    ttrue(http.status == 206)
-    ttrue(http.response == "01234")
-    http.close()
-
-
-    //  Get last 5 bytes
-    http.setHeader("range", "bytes=-5")
-    await http.get(HTTP + "/big.txt")
-    ttrue(http.status == 206)
-    ttrue(http.response.trim() == "MENT")
-    http.close()
-
-
-    //  Get from specific position till the end
-    http.setHeader("range", "bytes=117000-")
-    await http.get(HTTP + "/big.txt")
-    ttrue(http.status == 206)
-    ttrue(http.response.trim() == "END OF DOCUMENT")
-    http.close()
-
-
-    //  Multiple ranges
-    http.setHeader("range", "bytes=0-5,25-30,-5")
-    await http.get(HTTP + "/big.txt")
-    ttrue(http.status == 206)
-    ttrue(http.response.contains("content-range: bytes 0-5/117016"))
-    ttrue(http.response.contains("content-range: bytes 25-30/117016"))
-    ttrue(http.response.contains("content-range: bytes 117011-117015/117016"))
-    ttrue(http.response.contains("012345"))
-    ttrue(http.response.contains("567890"))
-    ttrue(http.response.contains("MENT"))
-    http.close()
-*/
 } else {
-  tskip("Runs at depth 6")
+    tskip('Runs at depth ' + DEPTH)
 }

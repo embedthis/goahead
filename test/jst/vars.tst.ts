@@ -47,8 +47,8 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 
     //  Request variables do not survive into the next request
     http = await fetch('/jst/query.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Undefined variable q')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
 
     //  An assignment to an undeclared name defines a request variable for the rest of the page
     http = await fetch('/jst/setvar.jst')
@@ -57,8 +57,8 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 
     //  ... and that variable is gone on the next request
     http = await fetch('/jst/readvar.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Undefined variable newvar')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
 
     /*
         A bare declaration of a name that is also a request parameter must not disturb
@@ -94,8 +94,8 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
 
     //  A bare re-declaration of a name already declared by the script is rejected
     http = await fetch('/jst/redecl2.jst')
-    ttrue(http.status == 200)
-    tcontains(http.response, 'Variable already declared: z')
+    ttrue(http.status == 500)
+    tcontains(http.response, 'Internal Server Error')
 
     //  Declaring a name that only exists as a request parameter is NOT a re-declaration
     http = await fetch('/jst/shadow.jst?q=x')
