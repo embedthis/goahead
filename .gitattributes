@@ -1,0 +1,30 @@
+#
+#   .gitattributes - line-ending normalization
+#
+#   Force LF on all text files regardless of host platform. The default
+#   Windows behavior (core.autocrlf=true) converts text files to CRLF on
+#   checkout, which inflates file sizes (breaking byte-counted tests like
+#   test/upload/upload.tst.ts) and risks misparsing in code paths that
+#   read text files in binary mode.
+#
+
+* text=auto eol=lf
+
+# Windows-native scripts must keep CRLF.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Test data fixtures: opaque bytes, never translate.
+*.dat   binary
+
+# Certificates and keys: opaque bytes.
+*.crt   binary
+*.key   binary
+*.pem   binary
+
+# Raw HTTP request fixtures: CRLF is part of the protocol, never translate.
+*.req       binary
+*.request   binary
+*.header    binary
+*.fuzzinput binary
