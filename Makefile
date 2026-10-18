@@ -97,8 +97,8 @@ endif
 		bash test/utils/check-server.sh server-log.txt server-exit.txt || rc=1 ; rm -fr $(BUILD)/bin ; exit $$rc
 
 #
-#   Build and run the suite under Linux in a container, on a macOS host. Verifies the working tree;
-#   the release archive has its own procedure in doc/operations/linux-verification.md.
+#   Build and run the suite under Linux in a container, on a macOS host. Verifies the tree it is run
+#   from: the working tree, or an unpacked release archive.
 #   ARGS is passed through to tm, so "make test-linux ARGS=auth" runs that subset.
 #
 test-linux:
