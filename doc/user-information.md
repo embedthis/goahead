@@ -1,8 +1,8 @@
 # User Information
 
 Product: Embedthis GoAhead
-Version: 6.1.1
-Release Date: 2026-08-02
+Version: 6.2.0
+Release Date: [TODO: release date]
 
 This document provides required user information per the EU Cyber Resilience Act (CRA) Annex II. It
 accompanies the product and is distributed with every release archive.
@@ -11,7 +11,7 @@ accompanies the product and is distributed with every release archive.
 
 | Field | Value |
 |-------|-------|
-| Manufacturer | EmbedThis Software |
+| Manufacturer | Embedthis Pty Ltd |
 | Address | PO Box 6, Bentleigh VIC 3204, Australia (ABN 18700298317) |
 | Contact | dev@embedthis.com (general) |
 | Website | https://www.embedthis.com |
@@ -22,9 +22,9 @@ accompanies the product and is distributed with every release archive.
 | Field | Value |
 |-------|-------|
 | Product name | Embedthis GoAhead |
-| Version | 6.1.1 |
+| Version | 6.2.0 |
 | Product type | Software library (embeddable, single-threaded ANSI C web server library `libgo`) plus the `goahead` reference executable |
-| Release date | 2026-08-02 |
+| Release date | [TODO: release date] |
 | Lifecycle phase | Maintenance mode — security updates and critical bug fixes only; no new features. Successor product line: Ioto Device Agent (https://www.embedthis.com/ioto/). |
 | License | Distributed under three licenses — GPL-2.0, the Embedthis Commercial License, and the Embedthis Evaluation License. See `LICENSE.md` in the distribution, `EVAL.md` for the evaluation terms, and https://www.embedthis.com/goahead/licensing.html. The GPL does not generally permit incorporating the software into non-open-source products; embedding in a proprietary product requires a commercial license. |
 | Source repository | https://github.com/embedthis/goahead |
@@ -33,7 +33,7 @@ accompanies the product and is distributed with every release archive.
 
 | Document | Where it is |
 |----------|-------------|
-| EU Declaration of Conformity | Accompanies this product: `doc/declaration-of-conformity.md` in the release archive. The signed original is held on file by the manufacturer and is available on request from dev@embedthis.com. The full declaration accompanies the product, so no separate internet address is published for it. |
+| EU Declaration of Conformity | Accompanies this product: `doc/declaration-of-conformity.md` in the release archive. The declaration is issued electronically and the copy in the archive is the issued document. The full declaration accompanies the product, so no separate internet address is published for it. |
 | Software Bill of Materials | Accompanies this product: `doc/sbom.json` in the release archive, in CycloneDX 1.5 format. It is supplied for integrators assembling their own SBOM, and is produced to market surveillance authorities on reasoned request. |
 | Release notes | `doc/release-notes.md` in the release archive |
 | Integrity checksums | `SHA256SUMS`, published beside the release archive on the download channel (see §7.1) |
@@ -84,7 +84,7 @@ successor product line for embedded device connectivity.
 - **Access control**: role-based access control with route-level permission checks. Handlers and
   authorization requirements are bound to URL routes in the route configuration (`route.txt`).
 - **Sessions**: Form-based login uses server-side sessions. Session identifiers are generated
-  server-side (`makeSessionID()`) and are regenerated on login (session-fixation hardening in 6.1.1).
+  server-side (`makeSessionID()`) and are regenerated on login (session-fixation hardening since 6.1.1).
 
 ### 4.3 Cryptographic Features
 
@@ -92,7 +92,7 @@ successor product line for embedded device connectivity.
   a TLS library version** — the integrator fixes the concrete OpenSSL/MbedTLS version at link time and
   is responsible for tracking CVEs and recording that version in their own SBOM.
 - **Configurable policy**: cipher suites and SNI are configurable by the integrator.
-- **Client-certificate (mTLS)** verification is available; 6.1.1 enforces the configured
+- **Client-certificate (mTLS)** verification is available; since 6.1.1 GoAhead enforces the configured
   certificate-chain depth limit unconditionally (mTLS depth-guard hardening).
 - **Legacy hashing**: Digest authentication requires MD5; this is an accepted compromise retained only
   for legacy compatibility and should not be relied on for new deployments.
@@ -145,8 +145,8 @@ defect class relevant to this product:
 | Field | Value |
 |-------|-------|
 | Support period | 5 years (minimum) from release |
-| Support start date | 2026-08-02 |
-| Support end date | 2031-08-02 |
+| Support start date | [TODO: release date] |
+| Support end date | [TODO: release date + 5 years] |
 | Security updates | Provided free of charge throughout the support period |
 | Update availability | Published updates remain available for at least 10 years |
 
@@ -154,7 +154,7 @@ defect class relevant to this product:
 
 ### 7.1 Installation
 
-1. Obtain the official source distribution for the release (`goahead-6.1.1-src.tgz`) from the
+1. Obtain the official source distribution for the release (`goahead-6.2.0-src.tgz`) from the
    authoritative release channel (see 8.1).
 2. **Verify integrity before use**: every release is published with a `SHA256SUMS` file listing the
    SHA-256 of the source archive, generated from the official release build. Download both and verify:
@@ -170,16 +170,7 @@ defect class relevant to this product:
    checksum listing with it. GoAhead release artifacts are not cryptographically signed — see §10.2.
 3. Build with the project's `make` toolchain, selecting the TLS stack appropriate to your platform
    (OpenSSL preferred, or MbedTLS).
-4. **Recommended hardening flags for production builds.** GoAhead's own project files do not set
-   these — your toolchain governs — but the following are recommended where the target supports them:
-
-   ```
-   -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie
-   -Wl,-z,relro,-z,now -Wl,-z,noexecstack
-   ```
-
-   `_FORTIFY_SOURCE` requires `-O2` or higher to take effect. On constrained targets, weigh the code
-   size cost against the exposure of the deployment.
+4. **Hardening flags for production builds.** The GoAhead project files and `make` compile with stack protection, `_FORTIFY_SOURCE=3` in the release build on Linux, macOS and FreeBSD, control-flow protection where the compiler supports it, position-independent executables, full RELRO and a non-executable stack, and on Windows with Control Flow Guard, ASLR, DEP and CET compatibility. If you compile GoAhead with your own toolchain, the "Building" section of `SECURITY-DEPLOYMENT.md` lists these flags and how to check a built binary for them. On constrained targets, weigh the code size cost against the exposure of the deployment.
 
 ### 7.2 Initial Configuration
 
@@ -228,14 +219,11 @@ rather than the public issue tracker.
 
 - Verify the SHA-256 checksum published with the official release before building or deploying an
   update, using the `SHA256SUMS` file distributed alongside the archive (see §7.1).
-- **No cryptographic signature is provided for GoAhead release artifacts in this release.** Integrity
-  verification rests on the published checksums alone. Integrators who require authenticity guarantees
-  should obtain the archive over the authenticated Builder session and record the checksum they
-  verified against, rather than re-fetching it later from an untrusted path.
+- [TODO: 6.2.0 adds minisign signatures (`goahead-6.2.0-src.tgz.minisig`). State how to verify with `minisign -Vm goahead-6.2.0-src.tgz -P <public key>` and where the public key is published once doc/compliance/release-facts.md "Signing public key" is resolved. If the release ships unsigned, restore the "no cryptographic signature" statement.]
 
 ### 8.3 Applying Updates
 
-- GoAhead 6.1.1 is a drop-in replacement for 6.1.0; no configuration changes are required.
+- [TODO: GoAhead 6.2.0 is a minor release with behavior changes integrators must review before upgrading from 6.1.x. Summarise them from the release notes Breaking Changes section.]
 - Rebuild and relink the firmware image against the updated `libgo`, then redeploy.
 - After upgrading, if the session-fixation fix is relevant to your deployment, invalidate active
   sessions (or restart the server) so any pre-upgrade session identifiers are discarded.
@@ -296,8 +284,7 @@ rather than the public issue tracker.
 
 - API and reference documentation: `doc/api/` and `doc/man/` in the release archive.
 - Product documentation: https://www.embedthis.com/goahead/doc/
-- No consolidated public hardening guide is published for GoAhead. Sections 7 and 10.2 of this
-  document are the authoritative deployment guidance for this release.
+- Deployment and hardening guide: `SECURITY-DEPLOYMENT.md` at the top of the release archive. It covers build hardening, routes and authentication, TLS, network exposure, content and upgrading. Sections 7 and 10.2 of this document summarise the guidance for this release.
 
 ### 10.2 Known Limitations
 
@@ -329,9 +316,11 @@ rather than the public issue tracker.
 - **Release artifacts are not cryptographically signed.** Integrity verification rests on published
   SHA-256 checksums, which detect corruption but not substitution by an attacker who controls the
   distribution channel. This is a known gap, accepted for this release and tracked for a future one.
-- **Upstream CI runs no fuzzing or dynamic analysis.** Static analysis (`scan-build`) and a dependency
-  audit run on every change, and the full test suite runs on Linux, macOS and Windows, but there is no
-  fuzz harness and no DAST. Integrators must perform their own security validation.
+- **Upstream CI runs no fuzz campaign and no DAST.** Static analysis (`scan-build`) and a dependency
+  audit run on every change, and the full test suite runs on Linux, macOS and Windows. The maintainers
+  run in-process fuzz harnesses over several parsers, including the CGI argument, environment and
+  response paths, outside CI; the harnesses are not part of the source distribution. Integrators must
+  perform their own security validation.
 
 ### 10.3 Security Resources
 
