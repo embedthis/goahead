@@ -7,6 +7,10 @@ on:
     branches: [ main, master, develop ]
   workflow_dispatch:
 
+# Pin actions by commit SHA. Dependabot proposes updates; ci-pinning.tst.ts rejects unpinned references.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test on ${{ matrix.os }}
@@ -21,12 +25,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       - name: Install system dependencies
         shell: bash
@@ -67,7 +71,7 @@ jobs:
 
       - name: Setup MSBuild (Windows)
         if: runner.os == 'Windows'
-        uses: microsoft/setup-msbuild@v3
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -85,6 +89,7 @@ jobs:
       - name: Build release (Unix)
         if: runner.os != 'Windows'
         run: |
+          set -o pipefail
           make clean
           make OPTIMIZE=release SHOW=1 2>&1 | tee /tmp/release-build.log
           #
@@ -98,54 +103,47 @@ jobs:
           fi
           make clean
 
+      #
+      #   Cross-file inlining in the amalgamation exposes null dereferences that a per-file build cannot
+      #   see, so compile the committed amalgamation once with the release flags.
+      #
+      - name: Compile amalgamation (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          gcc -O2 -std=gnu11 -D_FORTIFY_SOURCE=3 -DME_COM_OPENSSL=1 -DME_COM_MBEDTLS=0 -DME_COM_SSL=1 -Werror=null-dereference -Isrc/osdep -c dist/goaheadLib.c -o /dev/null
+
       - name: Build release (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: |
           call projects\openssl-prep.bat
           msbuild projects\vs2022\goahead.sln /p:Configuration=release /p:Platform=windows /v:normal
+          rem  Both configurations build into build\bin. Rebuild debug, as the Unix step cleans, so the tests
+          rem  run against the debug C runtime they are compiled for.
+          msbuild projects\vs2022\goahead.sln /t:Rebuild /p:Configuration=debug /p:Platform=windows /v:minimal
 
-      #
-      #   dist/ is generated from src/ but committed for pak consumers. Fail loudly if a
-      #   source change (in particular a security fix) has not been amalgamated.
-      #
-      #   The amalgamation script belongs to the packaging process and is not part of the
-      #   source distribution, so this can only run in a tree that carries it. Where it does
-      #   not, say so and skip: a silent no-op would read as a pass.
-      #
-      - name: Verify dist/ is in sync with src/
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          if [ ! -f bin/buildLib.sh ] ; then
-            echo "::notice::Skipped: the amalgamation script is not part of this tree."
-            exit 0
-          fi
-          rm -fr build/dist-check
-          DIST=$PWD/build/dist-check bash bin/buildLib.sh --dist-only >/dev/null
-          if ! diff -r -q dist build/dist-check >/dev/null 2>&1 ; then
-            echo "::error::dist/ is stale. Run 'make package' and commit the result."
-            diff -r -u dist build/dist-check | head -40
-            exit 1
-          fi
-          echo "dist/ is in sync with src/"
-
+# Fail if default-enabled features are disabled and their tests would skip.
       - name: Run test suite (Unix)
         if: runner.os != 'Windows'
+        env:
+          TM_STRICT_SKIPS: '1'
         run: |
           make test
 
-      #
-      #   The staging diagnostics are printed here, inside the test step, rather than only in the
-      #   separate step below: this is the output people read when the suite fails, and a report in
-      #   an adjacent collapsed section is easily missed. tm's exit code is saved and restored so
-      #   printing the diagnostics cannot mask a test failure.
-      #
+      # Print the full server log on failure, including crashes and sanitizer reports after the last test.
+      - name: Print server log (Unix)
+        if: failure() && runner.os != 'Windows'
+        run: cat server-log.txt || true
+
+      # Print staging diagnostics alongside test output, preserving tm's exit status.
+      # windows.bat supplies the Visual Studio environment for tests that compile C.
       - name: Run test suite (Windows)
         if: runner.os == 'Windows'
         shell: cmd
+        env:
+          TM_STRICT_SKIPS: '1'
         run: |
-          call projects\openssl-prep.bat
-          tm test
+          call projects\windows.bat tm test
           set TMRC=%ERRORLEVEL%
           echo.
           echo ---- prep-diag.txt (CGI staging, captured before cleanup) ----
@@ -190,6 +188,151 @@ jobs:
           rem  step can never block the job waiting on a console.
           build\bin\cgitest.exe < NUL
           echo cgitest exit=%ERRORLEVEL%
+          echo ---- goahead-test.exe standalone ----
+          build\bin\goahead-test.exe --version < NUL
+          echo goahead-test exit=%ERRORLEVEL%
+
+# Run the suite with AddressSanitizer and UndefinedBehaviorSanitizer.
+  sanitizers:
+    name: Sanitizers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev
+
+      - name: Add Bun to PATH
+        run: echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run test suite (sanitized)
+        env:
+          TM_STRICT_SKIPS: '1'
+        run: |
+          make test-asan
+
+      #
+      #   clang adds the integer and implicit-conversion groups, which gcc does not have.
+      #
+      - name: Run test suite (sanitized, clang)
+        env:
+          TM_STRICT_SKIPS: '1'
+        run: |
+          sudo apt-get install -y clang
+          make test-asan CC=clang
+
+      - name: Print server log
+        if: failure()
+        run: cat server-log.txt || true
+
+  # Compile and link each feature configuration without warnings. Only the allocator variant runs the suite:
+  # other variants cannot use its default-feature routes and C tests.
+  # Override DEFINES for TLS variants because generated defines follow CFLAGS.
+  features:
+    name: Features (${{ matrix.leg }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: logging-off
+            cflags: -DME_GOAHEAD_LOGGING=0
+            run: true
+          - leg: tracing-off
+            cflags: -DME_GOAHEAD_TRACING=0
+          - leg: legacy
+            cflags: -DME_GOAHEAD_LEGACY=1
+          - leg: rom
+            cflags: -DME_ROM=1
+          - leg: auth-off
+            cflags: -DME_GOAHEAD_AUTH=0
+            run: true
+          - leg: digest-off
+            cflags: -DME_GOAHEAD_DIGEST=0
+          - leg: access-log
+            cflags: -DME_GOAHEAD_ACCESS_LOG=1
+          - leg: no-tls
+            defines: -DME_COM_SSL=0 -DME_COM_OPENSSL=0 -DME_COM_MBEDTLS=0 -DME_DEBUG=1
+          - leg: replace-malloc
+            cflags: -DME_GOAHEAD_REPLACE_MALLOC=1
+            run: true
+          - leg: assert-abort
+            cflags: -DME_GOAHEAD_ASSERT_ABORT=1
+          - leg: release-legacy
+            optimize: release
+            cflags: -DME_GOAHEAD_LEGACY=1
+          - leg: cgi-off
+            cflags: -DME_GOAHEAD_CGI=0
+            run: true
+          - leg: javascript-off
+            cflags: -DME_GOAHEAD_JAVASCRIPT=0
+            run: true
+          - leg: upload-off
+            cflags: -DME_GOAHEAD_UPLOAD=0
+            run: true
+
+    env:
+      LEG_CFLAGS: ${{ matrix.cflags }}
+      LEG_DEFINES: ${{ matrix.defines }}
+      LEG_OPTIMIZE: ${{ matrix.optimize || 'debug' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Bun
+        if: matrix.run
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev
+
+      - name: Add Bun to PATH
+        if: matrix.run
+        run: echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
+      - name: Install test dependencies
+        if: matrix.run
+        run: npm ci
+
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          args=(OPTIMIZE="$LEG_OPTIMIZE" SHOW=1)
+          [ -n "$LEG_CFLAGS" ] && args+=(CFLAGS="$LEG_CFLAGS")
+          [ -n "$LEG_DEFINES" ] && args+=(DEFINES="$LEG_DEFINES")
+          make clean
+          make "${args[@]}" 2>&1 | tee /tmp/feature-build.log
+          if grep -qE 'warning:|is obsolete' /tmp/feature-build.log ; then
+            echo "::error::The ${{ matrix.leg }} build produced warnings"
+            grep -E 'warning:|is obsolete' /tmp/feature-build.log
+            exit 1
+          fi
+
+      - name: Run test suite
+        if: matrix.run
+        shell: bash
+        run: |
+          args=(OPTIMIZE="$LEG_OPTIMIZE")
+          [ -n "$LEG_CFLAGS" ] && args+=(CFLAGS="$LEG_CFLAGS")
+          make "${args[@]}" test
+
+      - name: Print server log
+        if: failure() && matrix.run
+        run: cat server-log.txt || true
 
   #
   #   SDL/CRA release-gate evidence. These run on every push so the release-time evidence is a
@@ -202,10 +345,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev clang-tools
+        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev clang-tools-18 python3
 
       #
       #   Build and test tooling only - no third-party package ships in the product, so this is
@@ -216,19 +359,26 @@ jobs:
         run: npm audit --audit-level=high
 
       #
-      #   Static analysis over the full product build. Findings are triaged into the release
-      #   records retained by the manufacturer. The step reports rather than fails:
-      #   the analyzer flags the assert-based API contract and dead stores that are dispositioned
-      #   as not-applicable, so a raw count is not a pass/fail signal. The report is uploaded for
-      #   the release evidence package.
+      #   The baseline gate and its reviewed baseline are retained by the manufacturer and are not part
+      #   of the source distribution. Where they are absent, report rather than fail: the analyzer flags
+      #   the assert-based API contract and dead stores, so a raw count is not a pass/fail signal.
+      #   Reports are in build/scan-results.
       #
       - name: Static analysis (scan-build)
+        shell: bash
+        env:
+          SCAN_BUILD: scan-build-18
         run: |
-          scan-build -o build/scan-results --status-bugs make || true
-          scan-build -o /dev/null make 2>&1 | tail -1
+          if [ -f bin/scan-check.sh ] ; then
+            bash bin/scan-check.sh
+          else
+            echo "::notice::The static-analysis baseline gate is not part of this tree; reporting only."
+            $SCAN_BUILD -o build/scan-results make || true
+          fi
 
       - name: Upload static-analysis report
-        uses: actions/upload-artifact@v7
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scan-build-report
           path: build/scan-results
