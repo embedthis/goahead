@@ -560,6 +560,12 @@ static void termWebs(Webs *wp, int reuse)
 {
     assert(wp);
 
+#if ME_GOAHEAD_UPLOAD
+    //  Remove staged files before the close, so a client that sees the connection end finds them gone
+    if (wp->files >= 0) {
+        websFreeUpload(wp);
+    }
+#endif
     /*
         Some of this is done elsewhere, but keep this here for when a shutdown is done and there are open connections.
      */
@@ -657,11 +663,6 @@ static void termWebs(Webs *wp, int reuse)
      */
     releaseSession(wp);
 
-#if ME_GOAHEAD_UPLOAD
-    if (wp->files >= 0) {
-        websFreeUpload(wp);
-    }
-#endif
 }
 
 

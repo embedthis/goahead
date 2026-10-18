@@ -125,6 +125,11 @@ PUBLIC void websFreeUpload(Webs *wp)
     WebsUpload *up;
     WebsKey    *s;
 
+    //  Close the file being written first: Windows cannot remove a file that is still open
+    if (wp->upfd >= 0) {
+        close(wp->upfd);
+        wp->upfd = -1;
+    }
     if (wp->files >= 0) {
         for (s = hashFirst(wp->files); s; s = hashNext(wp->files, s)) {
             up = s->content.value.symbol;
@@ -139,10 +144,6 @@ PUBLIC void websFreeUpload(Webs *wp)
     if (wp->currentFile) {
         freeUploadFile(wp->currentFile);
         wp->currentFile = 0;
-    }
-    if (wp->upfd >= 0) {
-        close(wp->upfd);
-        wp->upfd = -1;
     }
 }
 
