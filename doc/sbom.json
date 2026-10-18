@@ -2,17 +2,17 @@
     "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:ae1cc7dd-bb41-47cb-b876-8f584fd3ed25",
+    "serialNumber": "urn:uuid:56d13838-b900-41c8-987a-999e88bfe62a",
     "version": 2,
     "metadata": {
-        "timestamp": "2026-08-02T00:00:00Z",
+        "timestamp": "2026-10-17T20:35:29Z",
         "tools": {
             "components": [
                 {
                     "type": "application",
-                    "publisher": "EmbedThis Software",
+                    "publisher": "Embedthis Pty Ltd",
                     "name": "release-skill",
-                    "version": "1.3.0",
+                    "version": "1.4.0",
                     "description": "The EmbedThis /release skill, executed by Claude Code. Components derived from package.json (paks map and devDependencies), paks/*/package.json and node_modules/*/package.json."
                 }
             ]
@@ -21,10 +21,10 @@
             "bom-ref": "goahead",
             "type": "application",
             "name": "goahead",
-            "version": "6.1.1",
+            "version": "6.2.0",
             "description": "Embedthis GoAhead embedded web server",
             "supplier": {
-                "name": "EmbedThis Software",
+                "name": "Embedthis Pty Ltd",
                 "url": [
                     "https://www.embedthis.com"
                 ],
@@ -35,7 +35,7 @@
                     }
                 ]
             },
-            "author": "EmbedThis Software",
+            "author": "Embedthis Pty Ltd",
             "licenses": [
                 {
                     "license": {
@@ -44,7 +44,7 @@
                     }
                 }
             ],
-            "purl": "pkg:generic/goahead@6.1.1",
+            "purl": "pkg:generic/goahead@6.2.0",
             "externalReferences": [
                 {
                     "type": "website",
@@ -61,19 +61,19 @@
             ]
         },
         "manufacture": {
-            "name": "EmbedThis Software",
+            "name": "Embedthis Pty Ltd",
             "url": [
                 "https://www.embedthis.com"
             ]
         },
         "supplier": {
-            "name": "EmbedThis Software",
+            "name": "Embedthis Pty Ltd",
             "url": [
                 "https://www.embedthis.com"
             ],
             "contact": [
                 {
-                    "name": "EmbedThis Software",
+                    "name": "Embedthis Pty Ltd",
                     "email": "dev@embedthis.com"
                 },
                 {
@@ -88,8 +88,14 @@
             "bom-ref": "osdep",
             "type": "library",
             "name": "osdep",
-            "version": "1.2.0",
+            "version": "1.2.3",
             "description": "O/S Dependent Layer",
+            "supplier": {
+                "name": "Embedthis Pty Ltd",
+                "url": [
+                    "https://www.embedthis.com"
+                ]
+            },
             "scope": "required",
             "licenses": [
                 {
@@ -99,7 +105,13 @@
                     }
                 }
             ],
-            "purl": "pkg:generic/osdep@1.2.0",
+            "purl": "pkg:generic/osdep@1.2.3",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "89ae64c6fcba3759633372f2e4dd022497f78f36d1e47c8be6eee17bf76cc77f"
+                }
+            ],
             "externalReferences": [
                 {
                     "type": "vcs",
@@ -112,6 +124,10 @@
                     "value": "shipped - compiled into the product"
                 },
                 {
+                    "name": "embedthis:hash-subject",
+                    "value": "The SHA-256 hash identifies the vendored file src/osdep/osdep.h, the whole of the osdep source compiled into the product"
+                },
+                {
                     "name": "embedthis:craScope",
                     "value": "in-scope - shipped in the product"
                 }
@@ -121,7 +137,7 @@
             "bom-ref": "certs",
             "type": "library",
             "name": "certs",
-            "version": "1.2.0",
+            "version": "1.3.1",
             "description": "Test certificates",
             "scope": "excluded",
             "licenses": [
@@ -131,7 +147,7 @@
                     }
                 }
             ],
-            "purl": "pkg:generic/certs@1.2.0",
+            "purl": "pkg:generic/certs@1.3.1",
             "externalReferences": [
                 {
                     "type": "vcs",
@@ -141,11 +157,11 @@
             "properties": [
                 {
                     "name": "embedthis:usage",
-                    "value": "build and test only - self-signed development certificates; not compiled into the product and not part of the placed-on-market artifact"
+                    "value": "shipped as test data in the source archive; not compiled in - the self-signed test certificates ca.crt, ec.crt, self.crt and test.crt used by the test suite. No private key and no root certificate bundle ships"
                 },
                 {
                     "name": "embedthis:craScope",
-                    "value": "out-of-scope - not part of the product placed on the market"
+                    "value": "out-of-scope - test data, not a component of the product; shipped in the source archive under certs/ for the test suite only"
                 }
             ]
         },
@@ -193,7 +209,7 @@
             "bom-ref": "embedthis-testme",
             "type": "library",
             "name": "@embedthis/testme",
-            "version": "0.8.32",
+            "version": "0.8.37",
             "description": "TestMe unit test runner - executes the GoAhead test suite",
             "scope": "excluded",
             "licenses": [
@@ -203,7 +219,7 @@
                     }
                 }
             ],
-            "purl": "pkg:npm/%40embedthis/testme@0.8.32",
+            "purl": "pkg:npm/%40embedthis/testme@0.8.37",
             "externalReferences": [
                 {
                     "type": "vcs",
@@ -272,9 +288,7 @@
             "scope": "optional",
             "licenses": [
                 {
-                    "license": {
-                        "id": "Apache-2.0"
-                    }
+                    "expression": "Apache-2.0 OR GPL-2.0-or-later"
                 }
             ],
             "purl": "pkg:generic/mbedtls",
@@ -298,6 +312,47 @@
                     "value": "in-scope - shipped in the product"
                 }
             ]
+        },
+        {
+            "bom-ref": "libpam",
+            "type": "library",
+            "name": "libpam",
+            "description": "Pluggable Authentication Modules, the optional PAM password store (ME_GOAHEAD_AUTH_STORE \"pam\"). Linked from the operating system; not vendored in this repository.",
+            "scope": "optional",
+            "licenses": [
+                {
+                    "expression": "BSD-3-Clause OR GPL-2.0-or-later"
+                }
+            ],
+            "purl": "pkg:generic/libpam",
+            "externalReferences": [
+                {
+                    "type": "website",
+                    "url": "https://github.com/linux-pam/linux-pam"
+                },
+                {
+                    "type": "website",
+                    "url": "https://www.openpam.org/"
+                }
+            ],
+            "properties": [
+                {
+                    "name": "embedthis:usage",
+                    "value": "external system library - compiled in when ME_COMPILER_HAS_PAM is set, which is the default on macOS only (projects/premake5.lua links pam on every macOS build), adapter src/auth.c"
+                },
+                {
+                    "name": "embedthis:license-status",
+                    "value": "The license is that of the platform's PAM implementation: OpenPAM (macOS, FreeBSD) is BSD-3-Clause; Linux-PAM is BSD-3-Clause OR GPL-2.0-or-later. The expression records the union; the integrator records the implementation actually linked."
+                },
+                {
+                    "name": "embedthis:version-authority",
+                    "value": "INTEGRATOR - the concrete implementation and version are fixed by the target operating system and MUST be recorded in the integrator's own SBOM. GoAhead does not pin it."
+                },
+                {
+                    "name": "embedthis:craScope",
+                    "value": "in-scope - shipped in the product when PAM is compiled in"
+                }
+            ]
         }
     ],
     "dependencies": [
@@ -309,7 +364,8 @@
                 "embedthis-ejscript",
                 "embedthis-testme",
                 "openssl",
-                "mbedtls"
+                "mbedtls",
+                "libpam"
             ]
         },
         {
@@ -334,6 +390,10 @@
         },
         {
             "ref": "mbedtls",
+            "dependsOn": []
+        },
+        {
+            "ref": "libpam",
             "dependsOn": []
         }
     ]
