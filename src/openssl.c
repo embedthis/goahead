@@ -2,7 +2,7 @@
     openssl.c - OpensSSL socket layer for GoAhead
 
     This is the interface between GoAhead and the OpenSSL stack.
-    This code expects at least Openssl 1.1.1.
+    This code requires OpenSSL 3.0 or later.
 
     Copyright (c) All Rights Reserved. See details at the end of the file.
  */
@@ -15,7 +15,7 @@
 
 #if ME_UNIX_LIKE
 /*
-    Mac OS X OpenSSL stack is deprecated. Suppress those warnings.
+    The DH parameter API used for TLS 1.2 DHE is deprecated in OpenSSL 3. Suppress those warnings.
  */
     #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -29,11 +29,11 @@
 /* Clashes with WinCrypt.h */
 #undef OCSP_RESPONSE
 
-#ifndef ME_GOAHEAD_SSL_HANDSHAKES
-    #define ME_GOAHEAD_SSL_HANDSHAKES  0    /* Defaults to infinite */
-#endif
-#ifndef ME_GOAHEAD_SSL_RENEGOTIATE
-    #define ME_GOAHEAD_SSL_RENEGOTIATE 1
+
+ #include    <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    #error "GoAhead requires OpenSSL 3.0 or later. See SECURITY-DEPLOYMENT.md for the supported TLS library versions."
 #endif
 
  #include    <openssl/ssl.h>
@@ -41,32 +41,13 @@
  #include    <openssl/rand.h>
  #include    <openssl/err.h>
  #include    <openssl/dh.h>
+ #include    <openssl/core_names.h>
 
 /************************************* Defines ********************************/
 /*
-    Default ciphers from Mozilla (https://wiki.mozilla.org/Security/Server_Side_TLS).
-    See cipher mappings at: https://wiki.mozilla.org/Security/Server_Side_TLS#Cipher_names_correspondence_table
-
-    Rationale:
- * TLSv1.3 ciphers are preferred and listed first.
- * TLSv1.2 and earlier ciphers are legacy and only for backward compatibility with legacy systems.
- * For TLSv1.2, AES256-GCM is prioritized above its 128 bits variant, and ChaCha20 because we assume that most modern
-      devices support AESNI instructions and thus benefit from fast and constant time AES.
- * For TLSv1.2, We recommend ECDSA certificates with P256 as other curves may not be supported everywhere. RSA signatures
-      on ECDSA certificates are permitted because very few CAs sign with ECDSA at the moment.
- * For TLSv1.2, DHE is removed entirely because it is slow in comparison with ECDHE, and all modern clients support
-      elliptic curve key exchanges.
- * For TLSv1.2, SHA1 signature algorithm is removed in favor of SHA384 for AES256 and SHA256 for AES128.
- * Recommended RSA and DH parameter size: 2048 bits.
+    Ciphers never permitted for TLS 1.2 and earlier, whatever the configured list says
  */
-#define OPENSSL_TLSV3_DEFAULT_CIPHERS "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    #define OPENSSL_DEFAULT_CIPHERS   OPENSSL_TLSV3_DEFAULT_CIPHERS \
-        ":ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256"
-#else
-    #define OPENSSL_DEFAULT_CIPHERS   OPENSSL_TLSV3_DEFAULT_CIPHERS \
-        ":ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4:!SSLv3"
-#endif
+#define OPENSSL_CIPHER_FLOOR "!aNULL:!eNULL:!EXPORT:!DES:!3DES:!RC4:!MD5:!kRSA"
 
 /*
     Map Iana names to OpenSSL names
@@ -194,7 +175,6 @@ typedef struct RandBuf {
     int pid;
 } RandBuf;
 
-#define VERIFY_DEPTH             10
 
 /*
     Used for OpenSSL versions < 1.0.2
@@ -217,15 +197,31 @@ static int maxHandshakes;
 static char *sslCertPath;
 static char *sslKeyPath;
 
+/*
+    Session ticket keys, the current one first and the one it replaced second. See ticketKeyCallback.
+ */
+typedef struct TicketKey {
+    uchar name[16];
+    uchar cipher[32];
+    uchar mac[32];
+    time_t created;                     /* Zero for no key */
+} TicketKey;
+
+static TicketKey ticketKeys[2];
+
 /************************************ Forwards ********************************/
 
 static DH *dhcallback(SSL *handle, int is_export, int keylength);
 static DH *getDhKey();
 static char *mapCipherNames(char *ciphers);
+static int  setCiphers(cchar *ciphers);
 static int  sslSetCertFile(char *certFile);
 static int  sslSetKeyFile(char *keyFile);
 static int  verifyClientCertificate(int ok, X509_STORE_CTX *ctx);
+static int  noPassphrase(char *buf, int size, int rwflag, void *arg);
 static void infoCallback(const SSL *ssl, int where, int rc);
+static int  rotateTicketKeys(void);
+static int  ticketKeyCallback(SSL *ssl, uchar *name, uchar *iv, EVP_CIPHER_CTX *ctx, EVP_MAC_CTX *hctx, int enc);
 
 /************************************** Code **********************************/
 /*
@@ -261,14 +257,15 @@ PUBLIC int sslOpen()
         return -1;
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    /* Enforce minimum TLS version 1.2 on modern OpenSSL */
-    if (!SSL_CTX_set_min_proto_version(sslctx, TLS1_2_VERSION)) {
-        error("Unable to set minimum TLS version to 1.2");
+    /*
+        Apply the configured protocol versions. TLS 1.1 and earlier are never offered.
+     */
+    if (!SSL_CTX_set_min_proto_version(sslctx, ME_GOAHEAD_SSL_NO_V1_2 ? TLS1_3_VERSION : TLS1_2_VERSION) ||
+        !SSL_CTX_set_max_proto_version(sslctx, ME_GOAHEAD_SSL_NO_V1_3 ? TLS1_2_VERSION : TLS1_3_VERSION)) {
+        error("Unable to set the TLS protocol versions");
         sslClose();
         return -1;
     }
-#endif
 
     /*
           Set the server certificate and key files. Prefer runtime-provided paths
@@ -290,14 +287,13 @@ PUBLIC int sslOpen()
 
     if (ME_GOAHEAD_SSL_VERIFY_PEER) {
         SSL_CTX_set_verify(sslctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verifyClientCertificate);
-        SSL_CTX_set_verify_depth(sslctx, VERIFY_DEPTH);
+        SSL_CTX_set_verify_depth(sslctx, ME_GOAHEAD_SSL_VERIFY_DEPTH);
     } else {
         SSL_CTX_set_verify(sslctx, SSL_VERIFY_NONE, verifyClientCertificate);
     }
     /*
-        Set the client certificate verification locations
-        Use either the authority file or the default verify paths
-        OpenSSL currently has issues where loading additional paths may (may not) invalidate the default paths
+        Verify client certificates only against the configured authority, never the system public CA store. Without
+        an authority, refuse issuer verification.
      */
     if (ME_GOAHEAD_SSL_AUTHORITY && *ME_GOAHEAD_SSL_AUTHORITY) {
         if (!SSL_CTX_load_verify_locations(sslctx, ME_GOAHEAD_SSL_AUTHORITY, NULL)) {
@@ -310,12 +306,9 @@ PUBLIC int sslOpen()
             their client certificate for validation
          */
         SSL_CTX_set_client_CA_list(sslctx, SSL_load_client_CA_file(ME_GOAHEAD_SSL_AUTHORITY));
-    } else {
-        if (!SSL_CTX_set_default_verify_paths(sslctx)) {
-            error("Unable to read cert verification locations");
-            sslClose();
-            return -1;
-        }
+    } else if (ME_GOAHEAD_SSL_VERIFY_PEER && ME_GOAHEAD_SSL_VERIFY_ISSUER) {
+        error("Client certificate issuers are verified but ME_GOAHEAD_SSL_AUTHORITY is not set: every client "
+              "certificate will be refused");
     }
     if (ME_GOAHEAD_SSL_REVOKE && *ME_GOAHEAD_SSL_REVOKE) {
         store = SSL_CTX_get_cert_store(sslctx);
@@ -325,10 +318,9 @@ PUBLIC int sslOpen()
             return -1;
         }
         /*
-            Enable CRL checking on the leaf certificate. Without this flag OpenSSL loads the CRL but
-            never consults it, silently accepting revoked client certificates.
+            Check revocation for the full chain; require a CRL for each CA.
          */
-        X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK);
+        X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
     }
 
     /*
@@ -343,30 +335,16 @@ PUBLIC int sslOpen()
     if (ME_GOAHEAD_SSL_CIPHERS && *ME_GOAHEAD_SSL_CIPHERS) {
         ciphers = ME_GOAHEAD_SSL_CIPHERS;
     } else {
-        ciphers = OPENSSL_DEFAULT_CIPHERS;
+        ciphers = ME_GOAHEAD_SSL_DEFAULT_CIPHERS;
     }
     ciphers = mapCipherNames(ciphers);
     trace(5, "Using OpenSSL ciphers: %s", ciphers);
-#if OPENSSL_VERSION_NUMBER >= 0x1010100L
-    /*
-        Set TLSv1.3 ciphers and <1.2 ciphers via (cipher_list).
-        ciphersuites() fails if any cipher fails, cipher_list fails if all ciphers fail.
-        This fails if we can't get a 1.3 or 1.2 cipher suite configured
-     */
-    rc = 1;
-    if (SSL_CTX_set_ciphersuites(sslctx, ciphers) != 1 && SSL_CTX_set_cipher_list(sslctx, ciphers) != 1) {
-        rc = 0;
-    }
-#else
-    rc = SSL_CTX_set_cipher_list(sslctx, ciphers);
-#endif
-    if (rc != 1) {
-        error("Unable to set cipher list \"%s\"", ciphers);
+    rc = setCiphers(ciphers);
+    wfree(ciphers);
+    if (rc < 0) {
         sslClose();
-        wfree(ciphers);
         return -1;
     }
-    wfree(ciphers);
 
     /*
         Define default OpenSSL options
@@ -381,7 +359,10 @@ PUBLIC int sslOpen()
     /*
         Define a session reuse context
      */
-    RAND_bytes(resume, sizeof(resume));
+    if (RAND_bytes(resume, sizeof(resume)) != 1) {
+        error("Cannot get random bytes for the TLS session context");
+        return -1;
+    }
     SSL_CTX_set_session_id_context(sslctx, resume, sizeof(resume));
 
     /*
@@ -425,27 +406,6 @@ PUBLIC int sslOpen()
     SSL_CTX_set_options(sslctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 #endif
 
-    /*
-        Select the required protocols
-        Disable both SSLv2, SSLv3 and TLSv1.0 by default - they are insecure
-     */
-    SSL_CTX_set_options(sslctx, SSL_OP_NO_SSLv2);
-    SSL_CTX_set_options(sslctx, SSL_OP_NO_SSLv3);
-#if defined(SSL_OP_NO_TLSv1)
-    SSL_CTX_set_options(sslctx, SSL_OP_NO_TLSv1);
-#endif
-
-#if defined(SSL_OP_NO_TLSv1_1)
-    /* Disable TLS 1.1 by default on older OpenSSL */
-    SSL_CTX_set_options(sslctx, SSL_OP_NO_TLSv1_1);
-#endif
-#if defined(SSL_OP_NO_TLSv1_2) && ME_GOAHEAD_SSL_NO_V1_2
-    SSL_CTX_set_options(sslctx, SSL_OP_NO_TLSv1_2);
-#endif
-#if defined(SSL_OP_NO_TLSv1_3) && ME_GOAHEAD_SSL_NO_V1_3
-    SSL_CTX_set_options(sslctx, SSL_OP_NO_TLSv1_3);
-#endif
-
 #if defined(SSL_OP_NO_TICKET)
     /*
         Ticket based session reuse is enabled by default
@@ -460,6 +420,21 @@ PUBLIC int sslOpen()
     SSL_CTX_clear_options(sslctx, SSL_OP_NO_TICKET);
     #endif
 #endif
+    SSL_CTX_set_timeout(sslctx, ME_GOAHEAD_SSL_TIMEOUT);
+    if (rotateTicketKeys() < 0) {
+        error("Cannot get random bytes for the session ticket key");
+        return -1;
+    }
+    SSL_CTX_set_tlsext_ticket_key_evp_cb(sslctx, ticketKeyCallback);
+
+    /*
+        Disable resumption with client certificates so expiry, revocation, and chain checks run each time.
+     */
+    if (ME_GOAHEAD_SSL_VERIFY_PEER) {
+        SSL_CTX_set_options(sslctx, SSL_OP_NO_TICKET);
+        SSL_CTX_set_session_cache_mode(sslctx, SSL_SESS_CACHE_OFF);
+        SSL_CTX_set_num_tickets(sslctx, 0);
+    }
 
 #if defined(SSL_OP_NO_COMPRESSION)
     /*
@@ -519,10 +494,17 @@ PUBLIC void sslClose()
             dhKey = NULL;
         }
     }
+    OPENSSL_cleanse(ticketKeys, sizeof(ticketKeys));
     wfree(sslCertPath);
     sslCertPath = NULL;
     wfree(sslKeyPath);
     sslKeyPath = NULL;
+}
+
+
+PUBLIC bool sslHasCertificate(void)
+{
+    return sslctx && SSL_CTX_get0_certificate(sslctx) && SSL_CTX_get0_privatekey(sslctx);
 }
 
 
@@ -593,7 +575,16 @@ static void infoCallback(const SSL *ssl, int where, int rc)
 
 PUBLIC void sslFree(Webs *wp)
 {
+    WebsSocket *sp;
+
     if (wp->ssl) {
+        //  Tell the peer the stream is complete, unless the handshake did not finish or the connection failed
+        sp = (wp->sid >= 0) ? socketPtr(wp->sid) : NULL;
+        if (sp && !(sp->flags & SOCKET_EOF) && SSL_is_init_finished(wp->ssl)) {
+            SSL_shutdown(wp->ssl);
+            ERR_clear_error();
+        }
+        //  Marks the session resumable
         SSL_set_shutdown(wp->ssl, SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
         SSL_free(wp->ssl);
         wp->ssl = 0;
@@ -677,30 +668,39 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
         return -1;
     }
     sp = socketPtr(wp->sid);
+    if (!SSL_is_init_finished(wp->ssl)) {
+        //  SSL_write would continue the handshake, reading from the peer inside a blocking flush
+        sp->flags |= SOCKET_EOF;
+        socketSetError(ECONNRESET);
+        return -1;
+    }
     totalWritten = 0;
     err = 0;
     ERR_clear_error();
 
     do {
         rc = SSL_write(wp->ssl, buf, (int) len);
-        trace(7, "OpenSSL: written %d, requested len %d", rc, (int) len);
+        trace(7, "OpenSSL: written %d, requested len %zd", rc, len);
         if (rc <= 0) {
             err = SSL_get_error(wp->ssl, rc);
             if (err == SSL_ERROR_NONE || err == SSL_ERROR_WANT_WRITE) {
                 break;
             }
             trace(7, "OpenSSL: error %d", err);
+            /* Set a hard socket error so a stale EAGAIN cannot cause retries. */
+            sp->flags |= SOCKET_EOF;
+            socketSetError(ECONNRESET);
             return -1;
         } else if (maxHandshakes && sp->handshakes > maxHandshakes) {
             error("TLS renegotiation attack");
-            rc = -1;
             sp->flags |= SOCKET_EOF;
+            socketSetError(ECONNRESET);
             return -1;
         }
         totalWritten += rc;
         buf = (void*) ((char*) buf + rc);
         len -= rc;
-        trace(7, "OpenSSL: write: len %d, written %d, total %d", (int) len, rc, (int) totalWritten);
+        trace(7, "OpenSSL: write: len %zd, written %d, total %zd", len, rc, totalWritten);
     } while (len > 0);
 
     if (totalWritten == 0 && err == SSL_ERROR_WANT_WRITE) {
@@ -712,14 +712,15 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 
 
 /*
-    Set certificate file for SSL context
+    Load the leaf and following intermediate certificates for the server chain.
  */
 static int sslSetCertFile(char *certFile)
 {
-    X509 *cert;
-    BIO  *bio;
-    char *buf;
-    int  rc;
+    X509          *cert, *extra;
+    BIO           *bio;
+    char          *buf;
+    unsigned long err;
+    int           rc;
 
     assert(sslctx);
     assert(certFile);
@@ -738,7 +739,7 @@ static int sslSetCertFile(char *certFile)
     } else if ((bio = BIO_new_mem_buf(buf, -1)) == 0) {
         error("Unable to allocate memory for certificate %s", certFile);
 
-    } else if ((cert = PEM_read_bio_X509(bio, NULL, 0, NULL)) == 0) {
+    } else if ((cert = PEM_read_bio_X509(bio, NULL, noPassphrase, NULL)) == 0) {
         error("Unable to parse certificate %s", certFile);
 
     } else if (SSL_CTX_use_certificate(sslctx, cert) != 1) {
@@ -749,6 +750,24 @@ static int sslSetCertFile(char *certFile)
 
     } else {
         rc = 0;
+        SSL_CTX_clear_extra_chain_certs(sslctx);
+        while ((extra = PEM_read_bio_X509(bio, NULL, noPassphrase, NULL)) != 0) {
+            if (SSL_CTX_add_extra_chain_cert(sslctx, extra) != 1) {
+                error("Unable to use chain certificate in %s", certFile);
+                X509_free(extra);
+                rc = -1;
+                break;
+            }
+        }
+        /*
+            Only no-start-line at EOF is normal; report other chain parse failures.
+         */
+        err = ERR_peek_last_error();
+        if (rc == 0 && err && !(ERR_GET_LIB(err) == ERR_LIB_PEM && ERR_GET_REASON(err) == PEM_R_NO_START_LINE)) {
+            error("Unable to parse chain certificate in %s", certFile);
+            rc = -1;
+        }
+        ERR_clear_error();
     }
     wfree(buf);
     if (bio) {
@@ -762,14 +781,15 @@ static int sslSetCertFile(char *certFile)
 
 
 /*
-      Set key file for SSL context
+    Set the private key file for the SSL context. Any key type OpenSSL supports: RSA, EC or Ed25519.
  */
 static int sslSetKeyFile(char *keyFile)
 {
-    RSA  *key;
-    BIO  *bio;
-    char *buf;
-    int  rc;
+    EVP_PKEY *key;
+    BIO      *bio;
+    char     *buf;
+    bool     encrypted;
+    int      rc;
 
     assert(sslctx);
     assert(keyFile);
@@ -777,21 +797,26 @@ static int sslSetKeyFile(char *keyFile)
     key = 0;
     bio = 0;
     buf = 0;
+    encrypted = 0;
     rc = -1;
 
     if (sslctx == NULL) {
         ;
 
     } else if ((buf = websReadWholeFile(keyFile)) == 0) {
-        error("Unable to read certificate %s", keyFile);
+        error("Unable to read key %s", keyFile);
 
     } else if ((bio = BIO_new_mem_buf(buf, -1)) == 0) {
         error("Unable to allocate memory for key %s", keyFile);
 
-    } else if ((key = PEM_read_bio_RSAPrivateKey(bio, NULL, 0, NULL)) == 0) {
-        error("Unable to parse key %s", keyFile);
+    } else if ((key = PEM_read_bio_PrivateKey(bio, NULL, noPassphrase, &encrypted)) == 0) {
+        if (encrypted) {
+            error("Key %s is encrypted. GoAhead requires an unencrypted private key", keyFile);
+        } else {
+            error("Unable to parse key %s", keyFile);
+        }
 
-    } else if (SSL_CTX_use_RSAPrivateKey(sslctx, key) != 1) {
+    } else if (SSL_CTX_use_PrivateKey(sslctx, key) != 1) {
         error("Unable to use key %s", keyFile);
 
     } else {
@@ -802,33 +827,113 @@ static int sslSetKeyFile(char *keyFile)
         BIO_free(bio);
     }
     if (key) {
-        RSA_free(key);
+        EVP_PKEY_free(key);
     }
     return rc;
+}
+
+
+/*
+    Refuse to prompt on the console for a passphrase. Record in arg, when given, that one was asked for.
+ */
+static int noPassphrase(char *buf, int size, int rwflag, void *arg)
+{
+    if (arg) {
+        *(bool*) arg = 1;
+    }
+    return -1;
+}
+
+
+/*
+    Make a new session ticket key and keep the current one as the previous.
+ */
+static int rotateTicketKeys(void)
+{
+    ticketKeys[1] = ticketKeys[0];
+    if (RAND_bytes(ticketKeys[0].name, sizeof(ticketKeys[0].name)) != 1 ||
+        RAND_bytes(ticketKeys[0].cipher, sizeof(ticketKeys[0].cipher)) != 1 ||
+        RAND_bytes(ticketKeys[0].mac, sizeof(ticketKeys[0].mac)) != 1) {
+        OPENSSL_cleanse(&ticketKeys[0], sizeof(ticketKeys[0]));
+        return -1;
+    }
+    ticketKeys[0].created = time(0);
+    return 0;
+}
+
+
+/*
+    Rotate ticket keys each timeout. Accept the previous key for one more timeout and renew its tickets.
+ */
+static int ticketKeyCallback(SSL *ssl, uchar *name, uchar *iv, EVP_CIPHER_CTX *ctx, EVP_MAC_CTX *hctx, int enc)
+{
+    TicketKey  *key;
+    OSSL_PARAM params[3];
+    time_t     now;
+    int        i;
+
+    now = time(0);
+    if (enc) {
+        if (ticketKeys[0].created == 0 || now - ticketKeys[0].created >= ME_GOAHEAD_SSL_TIMEOUT) {
+            if (rotateTicketKeys() < 0) {
+                return -1;
+            }
+        }
+        key = &ticketKeys[0];
+        if (RAND_bytes(iv, EVP_CIPHER_get_iv_length(EVP_aes_256_cbc())) != 1) {
+            return -1;
+        }
+        memcpy(name, key->name, sizeof(key->name));
+        if (!EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key->cipher, iv)) {
+            return -1;
+        }
+    } else {
+        for (i = 0, key = 0; i < 2 && !key; i++) {
+            if (ticketKeys[i].created && now - ticketKeys[i].created < 2 * ME_GOAHEAD_SSL_TIMEOUT &&
+                memcmp(name, ticketKeys[i].name, sizeof(ticketKeys[i].name)) == 0) {
+                key = &ticketKeys[i];
+            }
+        }
+        if (!key) {
+            //  Unknown or retired key: make a full handshake
+            return 0;
+        }
+        if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key->cipher, iv)) {
+            return -1;
+        }
+    }
+    params[0] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_KEY, key->mac, sizeof(key->mac));
+    params[1] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, (char*) "SHA256", 0);
+    params[2] = OSSL_PARAM_construct_end();
+    if (!EVP_MAC_CTX_set_params(hctx, params)) {
+        return -1;
+    }
+    return (enc || key == &ticketKeys[0]) ? 1 : 2;
 }
 
 
 static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
 {
     X509 *cert;
-    char subject[260], issuer[260], peer[260];
+    char subject[260], issuer[260];
     int  error, depth;
 
     subject[0] = issuer[0] = '\0';
 
-    cert = X509_STORE_CTX_get_current_cert(xContext);
+    if ((cert = X509_STORE_CTX_get_current_cert(xContext)) == NULL) {
+        logmsg(3, "Certificate verification failed: no current certificate");
+        return 0;
+    }
     error = X509_STORE_CTX_get_error(xContext);
     depth = X509_STORE_CTX_get_error_depth(xContext);
 
     ok = 1;
+    //  The names are only logged and never decide acceptance
     if (X509_NAME_oneline(X509_get_subject_name(cert), subject, sizeof(subject) - 1) == NULL) {
-        ok = 0;
+        subject[0] = '\0';
     }
     if (X509_NAME_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer) - 1) == NULL) {
-        ok = 0;
-    }
-    if (X509_NAME_get_text_by_NID(X509_get_subject_name(cert), NID_commonName, peer, sizeof(peer) - 1) < 0) {
-        ok = 0;
+        issuer[0] = '\0';
     }
     /*
         Enforce the configured chain depth limit unconditionally. The underlying verifier may surface an
@@ -837,18 +942,16 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
         Rejecting here based on X509_STORE_CTX_get_error_depth avoids relying on backend-specific error
         mapping.
      */
-    if (VERIFY_DEPTH < depth) {
-        logmsg(3, "Certificate chain too long (depth %d exceeds limit %d)", depth, VERIFY_DEPTH);
+    if (ME_GOAHEAD_SSL_VERIFY_DEPTH < depth) {
+        logmsg(3, "Certificate chain too long (depth %d exceeds limit %d)", depth, ME_GOAHEAD_SSL_VERIFY_DEPTH);
+        trace(4, "OpenSSL: Subject: %s", subject);
         trace(4, "OpenSSL: Issuer: %s", issuer);
-        trace(4, "OpenSSL: Peer: %s", peer);
         return 0;
     }
     /*
-        SECURITY Acceptable: issuer-trust enforcement is gated by ME_GOAHEAD_SSL_VERIFY_ISSUER. When it is
-        disabled (the default), self-signed / unknown-issuer client certs are intentionally accepted so an
-        operator can run mTLS against an unmanaged client CA; set ME_GOAHEAD_SSL_VERIFY_ISSUER=1 to reject
-        them. Forged-signature and all other genuine verification failures still fail closed (default: ok=0).
-        mTLS itself is inactive unless ME_GOAHEAD_SSL_VERIFY_PEER is enabled.
+        SECURITY Acceptable: ME_GOAHEAD_SSL_VERIFY_PEER requests certificates. Without VERIFY_ISSUER,
+        accept untrusted and forged-issuer certificates without revocation checks; only key possession is proven.
+        Still reject invalid dates, malformed certificates, and excessive chain depth.
      */
     switch (error) {
     case X509_V_OK:
@@ -897,7 +1000,6 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
         trace(4, "OpenSSL: Error: %d: %s", error, X509_verify_cert_error_string(error));
     }
     trace(4, "OpenSSL: Issuer: %s", issuer);
-    trace(4, "OpenSSL: Peer: %s", peer);
     return ok;
 }
 
@@ -906,6 +1008,44 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
 /*
     Map iana names to OpenSSL names so users can provide IANA names as well as OpenSSL cipher names
  */
+/*
+    Split TLS 1.3 and earlier cipher names between OpenSSL APIs.
+    Apply the minimum cipher restrictions to earlier versions; fail if either list is invalid.
+ */
+static int setCiphers(cchar *ciphers)
+{
+    WebsBuf tls13, legacy;
+    char    *list, *cipher, *next;
+    int     rc;
+
+    bufCreate(&tls13, 0, -1);
+    bufCreate(&legacy, 0, -1);
+    list = sclone(ciphers);
+    for (next = list; (cipher = stok(next, ":", &next)) != 0; ) {
+        if (sstarts(cipher, "TLS_")) {
+            bufPut(&tls13, "%s%s", bufLen(&tls13) ? ":" : "", cipher);
+        } else {
+            bufPut(&legacy, "%s:", cipher);
+        }
+    }
+    wfree(list);
+    bufPut(&legacy, "%s%s", bufLen(&legacy) ? "" : "DEFAULT:", OPENSSL_CIPHER_FLOOR);
+
+    rc = 0;
+    if (bufLen(&tls13) && SSL_CTX_set_ciphersuites(sslctx, bufStart(&tls13)) != 1) {
+        error("Unable to set TLS 1.3 ciphers \"%s\"", bufStart(&tls13));
+        rc = -1;
+    }
+    if (rc == 0 && SSL_CTX_set_cipher_list(sslctx, bufStart(&legacy)) != 1) {
+        error("Unable to set cipher list \"%s\"", bufStart(&legacy));
+        rc = -1;
+    }
+    bufFree(&tls13);
+    bufFree(&legacy);
+    return rc;
+}
+
+
 static char *mapCipherNames(char *ciphers)
 {
     WebsBuf   buf;
@@ -963,31 +1103,19 @@ static DH *getDhKey()
         0x02,
     };
     DH                   *dh;
+    BIGNUM               *p, *g;
 
     if ((dh = DH_new()) == 0) {
         return 0;
     }
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    {
-        BIGNUM *p, *g;
-
-        p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
-        g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
-        if (!DH_set0_pqg(dh, p, NULL, g)) {
-            BN_free(p);
-            BN_free(g);
-            DH_free(dh);
-            return 0;
-        }
-    }
-#else
-    dh->p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
-    dh->g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
-    if ((dh->p == 0) || (dh->g == 0)) {
+    p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
+    g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
+    if (!DH_set0_pqg(dh, p, NULL, g)) {
+        BN_free(p);
+        BN_free(g);
         DH_free(dh);
         return 0;
     }
-#endif
     return dh;
 }
 
@@ -1007,7 +1135,7 @@ void opensslDummy()
 #endif
 
 /*
-    Copyright (c) Embedthis Software. All Rights Reserved.
+    Copyright (c) Embedthis Pty Ltd. All Rights Reserved.
     This software is distributed under a commercial license. Consult the LICENSE.md
     distributed with this software for full details and copyrights.
  */
