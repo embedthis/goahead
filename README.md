@@ -25,6 +25,8 @@ See [LICENSE.md](LICENSE.md) and https://www.embedthis.com/goahead/licensing.htm
 
   See https://www.embedthis.com/goahead/doc/index.html.
 
+  Before deploying GoAhead in a product, read [SECURITY-DEPLOYMENT.md](SECURITY-DEPLOYMENT.md).
+
 ## Building from Source
 
 You can build GoAhead with make, Visual Studio or Xcode.
@@ -74,6 +76,8 @@ Then open the Visual Studio solution file at:
 
 Then select Build -> Solution.
 
+GoAhead links the dynamic Microsoft C runtime, so the library, the programs and any application that embeds them share one heap and descriptor table. Install the Microsoft Visual C++ Redistributable on each target, or copy the runtime DLLs beside the binaries. Link OpenSSL libraries built for the same runtime: `MD` for release, `MDd` for debug.
+
 To run the debugger, right-click on the "goahead" project and set it as the startup project. Then modify the project properties and set the Debugging configuration properties. Set the working directory to be:
 
     $(ProjectDir)\..\..\test
@@ -94,7 +98,7 @@ Open the solution file:
 
     projects/xcode/goahead.xcworkspace
 
-Choose Product -> Scheme -> Edit Scheme, and select "Build" on the left of the dialog. Click the "+" symbol at the bottom in the center and then select all targets to be built. Before leaving this dialog, set the debugger options by selecting "Run/Debug" on the left hand side. Under "Info" set the Executable to be "goahead", set the launch arguments to be "-v" and set the working directory to be an absolute path to the "./test" directory in the goahead source. The click "Close" to save.
+Choose Product -> Scheme -> Edit Scheme, and select "Build" on the left of the dialog. Click the "+" symbol at the bottom in the center and then select all targets to be built. Before leaving this dialog, set the debugger options by selecting "Run/Debug" on the left hand side. Under "Info" set the Executable to be "goahead", set the launch arguments to be "-v --no-strict" and set the working directory to be an absolute path to the "./test" directory in the goahead source. The click "Close" to save.
 
 Click Project -> Build to build.
 
@@ -106,9 +110,13 @@ Run the server from the `test` directory, which supplies the sample documents, r
 and authentication file:
 
     cd test
-    ../build/bin/goahead -v web 127.0.0.1:8080
+    ../build/bin/goahead -v --no-strict web 127.0.0.1:8080
 
 Then browse to http://127.0.0.1:8080/.
+
+The test route table protects directories that its public catch-all route can also serve, so the test suite can exercise the server's defences. GoAhead refuses to start such a table unless given `--no-strict`, which turns the refusal into warnings. Do not use `--no-strict` in a product.
+
+The `test` directory is for development only. Its `auth.txt` holds test accounts whose passwords are published, including an administrator. Never deploy it: start a product from `src/auth.txt` and `src/route.txt`, create accounts with `gopass`, and read `SECURITY-DEPLOYMENT.md`.
 
 The command line is `goahead [options] [documents] [[IPaddress][:port] ...]`. The first non-option
 argument is the documents directory, so it must be given whenever a listen endpoint is. With no
@@ -140,8 +148,8 @@ This installs [TestMe](https://www.npmjs.com/package/@embedthis/testme) and
 [Ejscript](https://www.npmjs.com/package/@embedthis/ejscript). The TestMe post-install script builds
 the `tm` command into `~/.bun/bin`, so ensure that directory is on your PATH.
 
-If you prefer Bun, use `bun install --trust` instead. The `--trust` option is required so that Bun
-runs the TestMe post-install script.
+If you prefer Bun, use `bun install` instead. `package.json` lists TestMe in `trustedDependencies`,
+so Bun runs the TestMe post-install script.
 
 Run the tests with:
 
