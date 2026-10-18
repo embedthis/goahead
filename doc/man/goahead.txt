@@ -22,7 +22,7 @@ SYNOPSIS
            --user userName
            --version
            --verbose
-           [IP][:port] [documents]
+           [documents] [[IP][:port] ...]
 
 DESCRIPTION
        GoAhead is popular, simple embedded HTTP web server.  It is a fast,
@@ -85,8 +85,8 @@ OPTIONS
               Overrides the ME_GOAHEAD_GROUP build setting. Unix only.
 
        --log logSpec
-              Name the GoAhead log file. This will override the ErrorLog
-              directive in the configuration file. A log file is created with
+              Name the GoAhead log file. This overrides the default log set by
+              the ME_GOAHEAD_LOGFILE build setting. A log file is created with
               mode 0640 and is appended to when GoAhead restarts. It is never
               opened through a symbolic link: if the log cannot be opened,
               GoAhead reports it and does not start. When the log reaches the
@@ -169,4 +169,4 @@ COPYRIGHT
 SEE ALSO
        gopass, webcomp
 
-goahead                           March 2014                        GOAHEAD(1)
+goahead                          October 2026                       GOAHEAD(1)

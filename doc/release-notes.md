@@ -117,7 +117,7 @@ Upgrading is recommended for all deployments. Several defaults have changed: rev
 - Release builds add stack, control-flow and executable protections where supported. POSIX builds use `_FORTIFY_SOURCE=3` and `-fstack-protector-strong`; Windows uses Control Flow Guard. FreeBSD adds RELRO, BIND_NOW, a non-executable stack and PIE; Linux marks the stack non-executable; macOS release binaries are stripped.
 - More compiler diagnostics are enabled or treated as errors. CI checks release builds, runs the sanitized suite on every push, rejects skipped default-on tests and checks that `dist/` matches `src/`. CI static analysis fails on any finding not in a reviewed baseline.
 - `make test-linux` runs tests in a Linux container from macOS. `make test-asan` runs AddressSanitizer and UndefinedBehaviorSanitizer tests on Linux.
-- Source distributions omit private keys; tests generate temporary keys. Release archives omit host extended attributes and include minisign signatures.
+- Source distributions omit private keys; tests generate temporary keys. Release archives omit host extended attributes. Packaging can sign an archive with minisign; 6.2.0 is published with SHA-256 checksums only.
 - The source archive ships only the current test certificates (`ca.crt`, `ec.crt`, `self.crt`, `test.crt`); the expired EC test certificate is replaced and the unused root CA bundles are no longer included. Packaging fails if a shipped certificate expires within a year. The SBOM is corrected for this release, adding the optional PAM library and file hashes.
 - The new deployment guide covers strict mode, containment, template escaping, slow readers and front-end proxies. Security settings, API documentation and command-line help are expanded or corrected. Route examples clarify authentication and method checks; sample handlers escape request data.
 
@@ -183,24 +183,13 @@ New APIs:
 
 ## Security
 
-This release addresses these advisories:
-
-| Advisory | Severity | Fix |
-| --- | --- | --- |
-| GOAHEAD-SA-2026-0012 | Medium | Memory leak in `websWriteHeader()` when a connection breaks during a header write. |
-| GOAHEAD-SA-2026-0013 | Low | Undefined signed left-shift in `hashIndex()` for high-bit key bytes. |
-| GOAHEAD-SA-2026-0014 | High | Staging-file and memory leak when a multipart field name repeats. |
-| GOAHEAD-SA-2026-0015 | Critical | Unvalidated rewrites could escape the document root, expose template source or bypass authentication. Sessions could also satisfy routes using another authentication protocol. |
-
 Mahmoud Jadaan (@masjadaan) privately reported the `If-Modified-Since` date overflow. This correctness fix has no security impact on standard builds and has no advisory.
 
-Other internally discovered fixes address password and authentication bypasses, Digest replay, cross-site requests, CGI and response-header injection, descriptor inheritance, request-variable overwrites, malformed-input crashes, unsafe PUT staging, unbounded scripts, slow-reader stalls and writes on unfinished TLS handshakes. These fixes have no separate advisories.
-
-[TODO: confirm severities and advisory list against the published advisories before release.]
+Fixes address memory leaks on broken header writes and repeated multipart field names, an undefined shift in hashing, password and authentication bypasses, Digest replay, cross-site requests, CGI and response-header injection, descriptor inheritance, request-variable overwrites, validation of requests rewritten by application handlers, malformed-input crashes, unsafe PUT staging, unbounded scripts, slow-reader stalls and writes on unfinished TLS handshakes.
 
 ## Vulnerability Disposition
 
-[TODO: confirm after disposition review] No known exploitable High or Critical vulnerability remains open in this release. Remaining Medium and Low findings are risk-accepted in the manufacturer's release vulnerability disposition. Known limitations are disclosed in the accompanying user information.
+No vulnerability known to the manufacturer remains open in this release: every security finding raised against it, at any severity, has been fixed or assessed and closed. The manufacturer accepts three residual risks, recorded in its release vulnerability disposition. A slow-reading client can hold the single-threaded server for up to `ME_GOAHEAD_LIMIT_TIMEOUT` while a large response is written. The OpenSSL, MbedTLS and PAM library versions are chosen by the integrator, who is responsible for their vulnerability status; 6.2.0 refuses to build against OpenSSL earlier than 3.0 or MbedTLS earlier than 3.6.7. The release archive is not signed, so its integrity rests on the published SHA-256 sums. Known limitations are disclosed in the accompanying user information.
 
 ## Compatibility
 

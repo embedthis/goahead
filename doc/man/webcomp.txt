@@ -1,12 +1,10 @@
-MAKEROM(1)                       User Commands                      MAKEROM(1)
+WEBCOMP(1)                       User Commands                      WEBCOMP(1)
 
 NAME
        webcomp - Compile files into C source code
 
 SYNOPSIS
-       webcomp [options] files ... >output.c
-
-       [--files fileList] [--name structName] [--strip prefix]
+       webcomp [--strip prefix] fileList >output.c
 
 DESCRIPTION
        To enable files to be accessed on embedded systems without a file
@@ -16,18 +14,18 @@ DESCRIPTION
        file system.  This facility can also enhance security by preventing the
        modification of files.
 
-       The MPR portable runtime provides routines which can then read these
-       files much as you would read any file on disk.
+       The fileList argument names a file that lists the pathnames of the
+       files to convert, one per line. The C source is written to the standard
+       output.
+
+       When GoAhead is built with ME_ROM enabled, it serves documents from the
+       compiled files instead of the file system. Link the generated source
+       into the program.
 
 OPTIONS
-       --files fileList
-              Option to provide a list of files that should be converted.  --p
-              strip Specifies a prefix to remove from each of the compiled
-              file names.
-
-       --name structName
-              Specifies the name of top level C structure that holds the
-              converted files.
+       --strip prefix
+              Specifies a prefix to remove from each of the compiled file
+              names. The --prefix option is an alias for --strip.
 
 EXAMPLE
        This example will create a list of web files and then convert these
@@ -36,7 +34,7 @@ EXAMPLE
 
            find web -type f -print >fileList
 
-           webcomp --files filelist >romFiles.c
+           webcomp --strip web fileList >romFiles.c
 
            cc -o romFiles.o romFiles.c
 
@@ -49,4 +47,4 @@ COPYRIGHT
 
 SEE ALSO
 
-makerom                           March 2014                        MAKEROM(1)
+webcomp                          October 2026                       WEBCOMP(1)

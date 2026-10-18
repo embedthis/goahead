@@ -1,4 +1,4 @@
-AUTH(1)                          User Commands                         AUTH(1)
+GOPASS(1)                        User Commands                       GOPASS(1)
 
 NAME
        gopass - Create and manage passwords
@@ -52,4 +52,4 @@ COPYRIGHT
 
 SEE ALSO
 
-auth                             February 2014                         AUTH(1)
+gopass                           October 2026                        GOPASS(1)

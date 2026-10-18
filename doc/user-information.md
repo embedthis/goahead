@@ -23,7 +23,7 @@ accompanies the product and is distributed with every release archive.
 |-------|-------|
 | Product name | Embedthis GoAhead |
 | Version | 6.2.0 |
-| Product type | Software library (embeddable, single-threaded ANSI C web server library `libgo`) plus the `goahead` reference executable |
+| Product type | Software library (embeddable, single-threaded ANSI C web server library `libgoahead`) plus the `goahead` reference executable |
 | Release date | [TODO: release date] |
 | Lifecycle phase | Maintenance mode — security updates and critical bug fixes only; no new features. Successor product line: Ioto Device Agent (https://www.embedthis.com/ioto/). |
 | License | Distributed under three licenses — GPL-2.0, the Embedthis Commercial License, and the Embedthis Evaluation License. See `LICENSE.md` in the distribution, `EVAL.md` for the evaluation terms, and https://www.embedthis.com/goahead/licensing.html. The GPL does not generally permit incorporating the software into non-open-source products; embedding in a proprietary product requires a commercial license. |
@@ -54,7 +54,7 @@ The product is intended for **embedded-systems and device developers (integrator
 a larger firmware image and are responsible for configuring its routes, authentication, TLS stack, and
 deployment environment. It is designed for constrained, often headless, device environments rather than
 as a general-purpose internet-facing web server. It is single-threaded and event-driven (non-blocking
-I/O via `select()`/`poll()`), with no threads or fiber coroutines.
+I/O via `select()`), with no threads or fiber coroutines.
 
 GoAhead is in maintenance mode. New device projects should evaluate the Ioto Device Agent, the active
 successor product line for embedded device connectivity.
@@ -66,10 +66,9 @@ successor product line for embedded device connectivity.
 - **Confidentiality / integrity in transit**: provided by optional TLS (see 4.3). When TLS is enabled,
   request and response data are protected against eavesdropping and tampering on the network path.
 - **Credential storage**: user credentials are stored as salted password hashes in the authentication
-  file (`auth.txt`), not as plaintext. Blowfish/bcrypt (`BF1:` prefix) hashing is supported for stored
-  passwords.
+  file (`auth.txt`), not as plaintext. `gopass` writes Blowfish hashes in the current `BF2:` format. Legacy `BF1:` hashes from earlier releases still verify, except those whose username and realm leave too little of the hash key for the password: those are refused and reported at startup, and must be regenerated with `gopass`.
 - **Availability**: the single-threaded event loop is bounded by configurable resource limits — receive
-  buffer sizes, request timeouts, request-body limits (`postLimit`, `ME_GOAHEAD_LIMIT_PUT`), and file
+  buffer sizes, request timeouts, request-body limits (`ME_GOAHEAD_LIMIT_POST`, `ME_GOAHEAD_LIMIT_PUT`), and file
   limits — that constrain per-connection and per-request resource consumption. Because the server is
   single-threaded, a slow or abusive client that is not bounded by these limits can affect
   responsiveness for other clients; see Known Limitations (10.2) and Foreseeable Misuse (5).
@@ -91,7 +90,7 @@ successor product line for embedded device connectivity.
 - **TLS**: provided via OpenSSL (preferred) or MbedTLS, selected at build time. **GoAhead does not pin
   a TLS library version** — the integrator fixes the concrete OpenSSL/MbedTLS version at link time and
   is responsible for tracking CVEs and recording that version in their own SBOM.
-- **Configurable policy**: cipher suites and SNI are configurable by the integrator.
+- **Configurable policy**: cipher suites are configurable by the integrator at build time (`ME_GOAHEAD_SSL_CIPHERS`). GoAhead serves a single certificate and does not support SNI.
 - **Client-certificate (mTLS)** verification is available; since 6.1.1 GoAhead enforces the configured
   certificate-chain depth limit unconditionally (mTLS depth-guard hardening).
 - **Legacy hashing**: Digest authentication requires MD5; this is an accepted compromise retained only
@@ -111,9 +110,7 @@ successor product line for embedded device connectivity.
   handlers are only reachable when a route in `route.txt` binds a URL to that handler; they are not
   served on arbitrary URLs. A stock configuration ships no exposed CGI target and is not directly
   exposed to the CGI attack surface.
-- **TLS is off unless configured.** TLS must be explicitly enabled and provided with a certificate and
-  key. The certificates under `certs/` (e.g. `certs/self.crt`, `certs/self.key`) are **self-signed
-  development/test certificates only** and MUST NOT be used in production.
+- **HTTPS requires a certificate and key.** The default build includes TLS (`ME_COM_SSL`) and its default listen endpoints (`ME_GOAHEAD_LISTEN`) include `https://*:443`, but no certificate or key is configured. An https endpoint opens only when a certificate and key are given with `--cert` and `--key` or configured at build time (`ME_GOAHEAD_SSL_CERTIFICATE`, `ME_GOAHEAD_SSL_KEY`); otherwise GoAhead refuses to listen on it and does not start. No certificate or private key ships in the distribution. The certificates and keys the test suite generates are **development/test certificates only** and MUST NOT be used in production: generate production keys locally.
 - Basic and Digest authentication are not appropriate defaults for internet-facing or untrusted
   networks; prefer Form-based authentication over TLS, or an external authenticator.
 
@@ -137,7 +134,7 @@ defect class relevant to this product:
 - **Relying on the single-threaded server to absorb high-concurrency or slow-client load without
   bounding limits.** Configure request timeouts and body/size limits appropriately, and place
   rate-limiting and connection controls in front of the server for exposed deployments.
-- **Shipping the bundled development/test certificates or default authentication files into
+- **Shipping the test suite's development/test certificates or default authentication files into
   production.** Replace all sample certificates and credentials before deployment.
 
 ## 6. Support Period
@@ -175,8 +172,8 @@ defect class relevant to this product:
 ### 7.2 Initial Configuration
 
 1. Select and pin the TLS library version at link time; record that version in your own SBOM.
-2. Enable TLS and install a production certificate and private key. Remove or replace the bundled
-   self-signed development certificates under `certs/`.
+2. Enable TLS and install a production certificate and private key. Do not use the self-signed
+   development certificates and keys the test suite generates.
 3. Configure routes (`route.txt`) to expose only the required paths, and bind authorization
    requirements at the route level. Do not bind CGI, upload, or JST handlers to routes unless required.
 4. Configure authentication (`auth.txt`). Prefer Form-based authentication over TLS. Do not enable
@@ -189,13 +186,13 @@ defect class relevant to this product:
 
 ### 7.3 Integration
 
-- Link `libgo` into the firmware image and record the exact TLS library and version in the integrator's
+- Link `libgoahead` into the firmware image and record the exact TLS library and version in the integrator's
   SBOM (GoAhead does not pin it).
 - If deploying behind a proxy/load balancer, ensure request framing is consistent between the
   intermediary and GoAhead (see 5).
 - Perform your own security validation appropriate to the target device. Upstream CI builds and runs
   the full test suite on Linux, macOS and Windows and runs static analysis (`scan-build`) and a
-  dependency audit on every change, but it runs no fuzzing or dynamic analysis, and it cannot exercise
+  dependency audit on every change, and runs the full suite under AddressSanitizer and UndefinedBehaviorSanitizer on Linux. It runs no fuzzing campaign, and it cannot exercise
   your configuration, your CGI programs or your platform. Upstream CI is not a substitute for your own
   security testing.
 
@@ -219,20 +216,18 @@ rather than the public issue tracker.
 
 - Verify the SHA-256 checksum published with the official release before building or deploying an
   update, using the `SHA256SUMS` file distributed alongside the archive (see §7.1).
-- [TODO: 6.2.0 adds minisign signatures (`goahead-6.2.0-src.tgz.minisig`). State how to verify with `minisign -Vm goahead-6.2.0-src.tgz -P <public key>` and where the public key is published once doc/compliance/release-facts.md "Signing public key" is resolved. If the release ships unsigned, restore the "no cryptographic signature" statement.]
+- 6.2.0 is not cryptographically signed. Run `shasum -a 256 -c SHA256SUMS` beside the downloaded archive, and obtain `SHA256SUMS` from the official download channel. A checksum detects corruption, not substitution by an attacker who controls that channel (see §10.2).
 
 ### 8.3 Applying Updates
 
 - [TODO: GoAhead 6.2.0 is a minor release with behavior changes integrators must review before upgrading from 6.1.x. Summarise them from the release notes Breaking Changes section.]
-- Rebuild and relink the firmware image against the updated `libgo`, then redeploy.
+- Rebuild and relink the firmware image against the updated `libgoahead`, then redeploy.
 - After upgrading, if the session-fixation fix is relevant to your deployment, invalidate active
   sessions (or restart the server) so any pre-upgrade session identifiers are discarded.
 - If Basic authentication is used against Blowfish (`BF1:`) stored users, upgrade promptly and rotate
   affected passwords as a precaution.
 - **Rollback** is a property of your firmware update mechanism, not of GoAhead: the library is
-  relinked into your image, so reverting means deploying the previously validated image. GoAhead
-  writes no persistent state that would prevent a downgrade — configuration and credential files are
-  unchanged in format by this release, and session state does not survive a restart.
+  relinked into your image, so reverting means deploying the previously validated image. Credential files are not downgrade-safe: password hashes generated by 6.2.0 use the `BF2` format, which 6.1 servers cannot verify. Roll back the configuration and credential files validated with the earlier image together with it. Session state does not survive a restart.
 
 ### 8.4 Automatic Updates
 
@@ -295,17 +290,8 @@ rather than the public issue tracker.
   OpenSSL/MbedTLS version, including tracking and patching TLS-library CVEs.
 - **Legacy authentication.** Basic and Digest are retained only for legacy compatibility; Digest
   depends on MD5. Neither should be used for new deployments.
-- **No privilege separation.** GoAhead does not drop privileges after binding. The default listen
-  configuration binds ports 80 and 443, which requires elevated privilege to start and retains it
-  thereafter. Run the server under a dedicated service account with reduced capabilities (for example
-  systemd `User=` with `CAP_NET_BIND_SERVICE`), or bind an unprivileged port behind a redirect.
-- **Server-side templates execute without a resource budget.** JST templates run to completion with no
-  instruction or time limit, on the same event loop that serves every other request. Templates are
-  integrator-authored content and must be treated as trusted code: never serve a template from a
-  directory that accepts uploads, and take care with templates whose loop bounds derive from request
-  parameters.
-- **Response sizes.** Responses of 2 GiB or larger are not supported and must not be served directly;
-  delegate large transfers to a purpose-built mechanism.
+- **Privilege drop is opt-in and Unix only.** Started as root, for example to bind ports 80 and 443 of the default listen configuration, GoAhead keeps root privilege unless it is given an account to run as. `--user` and `--group`, or the `ME_GOAHEAD_USER` and `ME_GOAHEAD_GROUP` build settings, make the `goahead` program switch to that account once it has opened its listen endpoints and loaded its configuration; an embedding application calls `websDropPrivileges()` itself. GoAhead refuses to start if the account cannot be found, the switch fails or is incomplete, or root privilege could be regained, and warns when it is left running as root. On non-Unix platforms, including Windows, the options are not offered and the build settings are an error. The drop does not sandbox the server: CGI programs and file access run as that account. Choosing a dedicated least-privilege account that can read the documents, authentication file and certificates and write logs and uploads, and any further confinement (for example systemd `User=` with `CAP_NET_BIND_SERVICE` instead of root, or binding an unprivileged port behind a redirect), remain the integrator's responsibility.
+- **Server-side templates are trusted code.** JST templates run on the same event loop that serves every other request, bounded by a step budget (`ME_GOAHEAD_LIMIT_SCRIPT_STEPS`) and a nesting limit (`ME_GOAHEAD_LIMIT_SCRIPT_RECURSE`) that native callbacks do not share. Templates are integrator-authored content: never serve a template from a directory that accepts uploads, and take care with templates whose loop bounds derive from request parameters.
 - **Slow-reading clients.** A client that requests a large dynamic response and stops reading holds
   the event loop until the send deadline expires — bounded by `ME_GOAHEAD_LIMIT_TIMEOUT` (60 seconds
   by default), not eliminated. Deployments exposed to untrusted networks should lower that limit at
@@ -317,7 +303,7 @@ rather than the public issue tracker.
   SHA-256 checksums, which detect corruption but not substitution by an attacker who controls the
   distribution channel. This is a known gap, accepted for this release and tracked for a future one.
 - **Upstream CI runs no fuzz campaign and no DAST.** Static analysis (`scan-build`) and a dependency
-  audit run on every change, and the full test suite runs on Linux, macOS and Windows. The maintainers
+  audit run on every change, and the full test suite runs on Linux, macOS and Windows, and again on Linux under AddressSanitizer and UndefinedBehaviorSanitizer. The maintainers
   run in-process fuzz harnesses over several parsers, including the CGI argument, environment and
   response paths, outside CI; the harnesses are not part of the source distribution. Integrators must
   perform their own security validation.

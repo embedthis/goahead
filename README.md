@@ -15,7 +15,7 @@ If you are creating a new device or planning your upgrade path for the future, w
 
 The European Union has introduced the Cyber Resilience Act (CRA), a regulation aimed at enhancing cybersecurity for IoT products. This legislation mandates that manufacturers ensure their products are secure throughout their entire lifecycle, from design to decommissioning. This requires that software updates are provided for the lifetime of the device.
 
-To meet this need, the standalone [Embedthis Updater](https://github.com/embedthis/updater) library and command line utility can be used to automatically download and apply software updates to all your GoAhead-enabled devices. The [EmbedThis Builder](https://www.embedthis.com/builder/) can be used to publish, distribute, manage and track software updates for your GoAhead devices.
+To meet this need, the standalone [Embedthis Updater](https://github.com/embedthis/updater) library and command line utility can be used to automatically download and apply software updates to all your GoAhead-enabled devices. The [Embedthis Builder](https://www.embedthis.com/builder/) can be used to publish, distribute, manage and track software updates for your GoAhead devices.
 
 ## Licensing
 
@@ -34,7 +34,7 @@ You can build GoAhead with make, Visual Studio or Xcode.
 The supplied project files and Makefiles build with SSL using OpenSSL. GoAhead also supports the
 [MbedTLS](https://github.com/ARMmbed/mbedtls) TLS stack via `src/mbedtls.c`, but MbedTLS is not
 included in this distribution; to use it, supply your own MbedTLS and regenerate the project files
-with `premake5 --tls=mbedtls`.
+from the `projects` directory with `premake5 --tls=mbedtls gmake2` (or `vs2022`, `xcode4`).
 
 ## To Build with Make
 
@@ -100,9 +100,9 @@ Open the solution file:
 
 Choose Product -> Scheme -> Edit Scheme, and select "Build" on the left of the dialog. Click the "+" symbol at the bottom in the center and then select all targets to be built. Before leaving this dialog, set the debugger options by selecting "Run/Debug" on the left hand side. Under "Info" set the Executable to be "goahead", set the launch arguments to be "-v --no-strict" and set the working directory to be an absolute path to the "./test" directory in the goahead source. The click "Close" to save.
 
-Click Project -> Build to build.
+Click Product -> Build to build.
 
-Click Project -> Run to run.
+Click Product -> Run to run.
 
 ## To run
 
@@ -120,7 +120,7 @@ The `test` directory is for development only. Its `auth.txt` holds test accounts
 
 The command line is `goahead [options] [documents] [[IPaddress][:port] ...]`. The first non-option
 argument is the documents directory, so it must be given whenever a listen endpoint is. With no
-arguments GoAhead serves `web` on ports 80 and 443, which usually requires privilege. Use `--help`
+arguments GoAhead serves `web` on the build's default endpoints, ports 80 and 443, which usually requires privilege. The https endpoint needs a certificate and key, given with `--cert` and `--key` or configured at build time; without them GoAhead refuses to listen on it and exits. Use `--help`
 for the full option list.
 
 The build products are left under `build/bin`. GoAhead does not install itself into the system;

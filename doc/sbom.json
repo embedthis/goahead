@@ -157,11 +157,11 @@
             "properties": [
                 {
                     "name": "embedthis:usage",
-                    "value": "shipped as test data in the source archive; not compiled in - the self-signed test certificates ca.crt, ec.crt, self.crt and test.crt used by the test suite. No private key and no root certificate bundle ships"
+                    "value": "not shipped and not compiled in - the self-signed test certificates and keys the repository test suite uses. A source distribution generates its own test certificates and keys when the suite runs"
                 },
                 {
                     "name": "embedthis:craScope",
-                    "value": "out-of-scope - test data, not a component of the product; shipped in the source archive under certs/ for the test suite only"
+                    "value": "out-of-scope - test data, not a component of the product and not shipped in the source archive"
                 }
             ]
         },

@@ -1,12 +1,8 @@
-.TH MAKEROM "1" "March 2014" "makerom" "User Commands"
+.TH WEBCOMP "1" "October 2026" "webcomp" "User Commands"
 .SH NAME
 webcomp - Compile files into C source code
 .SH SYNOPSIS
-.B webcomp [options] files ... >output.c
-.P
-[\fI--files fileList\fR] 
-[\fI--name structName\fR]
-[\fI--strip prefix\fR]
+.B webcomp [--strip prefix] fileList >output.c
 .SH DESCRIPTION
 To enable files to be accessed on embedded systems without a file system, the
 \fBwebcomp\fR command converts arbitrary files into C code that
@@ -15,17 +11,13 @@ that must execute completely from ROM and not access a file system.
 This facility can also enhance security by preventing the
 modification of files.
 .PP
-The MPR portable runtime provides routines which can then read these files
-much as you would read any file on disk.
+The fileList argument names a file that lists the pathnames of the files to convert, one per line. The C source is written to the standard output.
+.PP
+When GoAhead is built with ME_ROM enabled, it serves documents from the compiled files instead of the file system. Link the generated source into the program.
 .SH OPTIONS
 .TP
-\fB\--files fileList\fR
-Option to provide a list of files that should be converted.
-\fB\--p strip\fR 
-Specifies a prefix to remove from each of the compiled file names. 
-.TP
-\fB\--name structName\fR 
-Specifies the name of top level C structure that holds the converted files.
+\fB\--strip prefix\fR
+Specifies a prefix to remove from each of the compiled file names. The \fB--prefix\fR option is an alias for --strip.
 .PP
 .SH "EXAMPLE"
 This example will create a list of web files and then convert these
@@ -34,7 +26,7 @@ files into C structures in the file romFiles.c.
 .PP
     find web -type f -print >fileList
 .PP
-    webcomp --files filelist >romFiles.c
+    webcomp --strip web fileList >romFiles.c
 .PP
     cc -o romFiles.o romFiles.c
 

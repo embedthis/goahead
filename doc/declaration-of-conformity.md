@@ -15,7 +15,7 @@
 | Field | Value |
 |-------|-------|
 | Product name | Embedthis GoAhead |
-| Product type | Software library (embeddable single-threaded ANSI C web server, `libgo`) plus the `goahead` reference executable |
+| Product type | Software library (embeddable single-threaded ANSI C web server, `libgoahead`) plus the `goahead` reference executable |
 | Version | 6.2.0 |
 | Identification | Source distribution `goahead-6.2.0-src.tgz`, identified by the SHA-256 checksum recorded in `SHA256SUMS`, which is published beside the archive on the download channel rather than inside it |
 

@@ -2,7 +2,7 @@
 <PRE>
 <!-- Manpage converted by man2html 3.0.1 -->
 
-       [--files fileList] [--name structName] [--strip prefix]
+       webcomp [--strip prefix] fileList &gt;output.c
 
 DESCRIPTION
        To enable files to be accessed on embedded systems without a file
@@ -12,40 +12,40 @@ DESCRIPTION
        file system.  This facility can also enhance security by preventing the
        modification of files.
 
-       The MPR portable runtime provides routines which can then read these
-       files much as you would read any file on disk.
+       The fileList argument names a file that lists the pathnames of the
+       files to convert, one per line. The C source is written to the standard
+       output.
+
+       When GoAhead is built with ME_ROM enabled, it serves documents from the
+       compiled files instead of the file system. Link the generated source
+       into the program.
 
 OPTIONS
-       --files fileList
-              Option to provide a list of files that should be converted.  --p
-              strip Specifies a prefix to remove from each of the compiled
-              file names.
-
-       --name structName
-              Specifies the name of top level C structure that holds the
-              converted files.
+       --strip prefix
+              Specifies a prefix to remove from each of the compiled file
+              names. The --prefix option is an alias for --strip.
 
 EXAMPLE
        This example will create a list of web files and then convert these
        files into C structures in the file romFiles.c.
 
 
-           find web -type f -print &gt;;fileList
+           find web -type f -print &gt;fileList
 
-           webcomp --files filelist &gt;;romFiles.c
+           webcomp --strip web fileList &gt;romFiles.c
 
            cc -o romFiles.o romFiles.c
 
 
 REPORTING BUGS
-       Report bugs to &lt;;dev@embedthis.com&gt;;.
+       Report bugs to &lt;dev@embedthis.com&gt;.
 
 COPYRIGHT
        Copyright © Embedthis Pty Ltd.
 
 SEE ALSO
 
-makerom                           March 2014                        <B>MAKEROM(1)</B>
+webcomp                          October 2026                       <B>WEBCOMP(1)</B>
 </PRE>
 <HR>
 <ADDRESS>

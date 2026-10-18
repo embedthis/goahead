@@ -1,4 +1,4 @@
-.TH GOAHEAD "1" "March 2014" "goahead" "User Commands"
+.TH GOAHEAD "1" "October 2026" "goahead" "User Commands"
 .SH NAME
 goahead\- Embedded HTTP Web Server
 .SH SYNOPSIS
@@ -20,7 +20,7 @@ goahead\- Embedded HTTP Web Server
     \fB--user userName\fR
     \fB--version\fR
     \fB--verbose\fR
-    \fB[IP][:port] [documents]\fR
+    \fB[documents] [[IP][:port] ...]\fR
 .SH DESCRIPTION
 GoAhead is popular, simple embedded HTTP web server.  It is a fast, small-footprint, single-threaded, standards-based,
 portable server developed for use by embedded devices and applications.  It can run as a stand-alone web server or the
@@ -67,8 +67,7 @@ Run as this group once GoAhead has listened on its endpoints and opened its file
 group changes. Overrides the ME_GOAHEAD_GROUP build setting. Unix only.
 .TP
 \fB\--log logSpec\fR
-Name the GoAhead log file. This will override the ErrorLog directive
-in the configuration file. A log file is created with mode 0640 and is appended to when GoAhead restarts. It is never
+Name the GoAhead log file. This overrides the default log set by the ME_GOAHEAD_LOGFILE build setting. A log file is created with mode 0640 and is appended to when GoAhead restarts. It is never
 opened through a symbolic link: if the log cannot be opened, GoAhead reports it and does not start. When the log reaches
 the maximum size (1 MB unless the ME_GOAHEAD_LIMIT_LOG_SIZE build setting changes it; 0 disables the limit), it is
 renamed to logName.old, replacing any previous one, and a new log file is started. The limit does not apply to stdout or
