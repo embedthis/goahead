@@ -196,20 +196,7 @@
         When 1, omit the Server response header and disable the OPTIONS and TRACE handler. Set to 0 only when
         those are needed.
      */
-    #define ME_GOAHEAD_STEALTH 1
-#endif
-/*
-    Temporary request data must stay outside served directories. Windows uses GetTempPath when empty;
-    other platforms must configure a writable temporary directory. See websGetTempDir.
- */
-#ifndef ME_GOAHEAD_TEMP_DIR
-    #if WINCE
-        #define ME_GOAHEAD_TEMP_DIR "\\Temp"
-    #elif ME_WIN_LIKE
-        #define ME_GOAHEAD_TEMP_DIR ""
-    #else
-        #define ME_GOAHEAD_TEMP_DIR "/tmp"
-    #endif
+    #define ME_GOAHEAD_STEALTH         1
 #endif
 #ifndef ME_GOAHEAD_TRUSTED_PROXIES
 /*
@@ -478,6 +465,19 @@ extern "C" {
         #define ME_GOAHEAD_CASE_INSENSITIVE_FS 1
     #else
         #define ME_GOAHEAD_CASE_INSENSITIVE_FS 0
+    #endif
+#endif
+/*
+    Temporary request data must stay outside served directories. Windows uses GetTempPath when empty;
+    other platforms must configure a writable temporary directory. See websGetTempDir.
+ */
+#ifndef ME_GOAHEAD_TEMP_DIR
+    #if WINCE
+        #define ME_GOAHEAD_TEMP_DIR "\\Temp"
+    #elif ME_WIN_LIKE
+        #define ME_GOAHEAD_TEMP_DIR ""
+    #else
+        #define ME_GOAHEAD_TEMP_DIR "/tmp"
     #endif
 #endif
 /*

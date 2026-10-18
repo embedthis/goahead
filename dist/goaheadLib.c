@@ -3833,7 +3833,9 @@ static CgiModule **cgiModules;
 static int       cgiModuleMax;
 static int       cgiTaskSeq;
 
-static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, char **envp, int fdin, int fdout);
+typedef int (*CgiEntry)(int argc, char **argv);
+
+static void vxWebsCgiEntry(CgiEntry entryAddr, char **argp, char **envp, int fdin, int fdout);
 
 /*
     taskSpawn takes its task arguments as _Vx_usr_arg_t, which holds a pointer on 64-bit VxWorks. Releases before 6.9
@@ -3988,7 +3990,7 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
     Set task stdio, argc/argv, and private environment before calling the entry point.
     envLib's delete hook frees the environment if the task is aborted.
  */
-static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, char **envp, int fdin, int fdout)
+static void vxWebsCgiEntry(CgiEntry entryAddr, char **argp, char **envp, int fdin, int fdout)
 {
     char   **p;
     CgiPid taskId;
@@ -4007,7 +4009,7 @@ static void vxWebsCgiEntry(void*entryAddr(int argc, char **argv), char **argp, c
     for (p = envp; p != NULL && *p != NULL; p++) {
         putenv(*p);
     }
-    (*entryAddr)(argc, argp);
+    entryAddr(argc, argp);
 
     envPrivateDestroy(taskId);
     exit(0);
@@ -7172,6 +7174,12 @@ static void termWebs(Webs *wp, int reuse)
 {
     assert(wp);
 
+#if ME_GOAHEAD_UPLOAD
+    //  Remove staged files before the close, so a client that sees the connection end finds them gone
+    if (wp->files >= 0) {
+        websFreeUpload(wp);
+    }
+#endif
     /*
         Some of this is done elsewhere, but keep this here for when a shutdown is done and there are open connections.
      */
@@ -7269,11 +7277,6 @@ static void termWebs(Webs *wp, int reuse)
      */
     releaseSession(wp);
 
-#if ME_GOAHEAD_UPLOAD
-    if (wp->files >= 0) {
-        websFreeUpload(wp);
-    }
-#endif
 }
 
 
@@ -19505,7 +19508,7 @@ typedef struct Format {
  */
 #define BPUT(fmt, c) \
     do { \
-        char bputChar = (char) (c); \
+        uchar bputChar = (uchar) (c); \
         /* Less one to allow room for the null */ \
         if ((fmt)->end >= ((fmt)->endbuf - sizeof(char))) { \
             if (growBuf(fmt) > 0) { \
@@ -24706,6 +24709,11 @@ PUBLIC void websFreeUpload(Webs *wp)
     WebsUpload *up;
     WebsKey    *s;
 
+    //  Close the file being written first: Windows cannot remove a file that is still open
+    if (wp->upfd >= 0) {
+        close(wp->upfd);
+        wp->upfd = -1;
+    }
     if (wp->files >= 0) {
         for (s = hashFirst(wp->files); s; s = hashNext(wp->files, s)) {
             up = s->content.value.symbol;
@@ -24720,10 +24728,6 @@ PUBLIC void websFreeUpload(Webs *wp)
     if (wp->currentFile) {
         freeUploadFile(wp->currentFile);
         wp->currentFile = 0;
-    }
-    if (wp->upfd >= 0) {
-        close(wp->upfd);
-        wp->upfd = -1;
     }
 }
 
