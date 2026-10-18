@@ -27,7 +27,8 @@ const response = await request('GET /a\ngoahead:\t0:\tFORGED-LOGIN-OK\r\x1b[2J H
 ttrue(response.includes(' 400 '), 'a request target with control bytes is rejected')
 await sleep(100)
 
-const added = readLog().slice(before)
+//  Windows writes the log in text mode, so lines end in CRLF; a lone CR is still a raw control byte
+const added = readLog().slice(before).replace(/\r\n/g, '\n')
 if (thas('ME_GOAHEAD_LOGGING')) {
     ttrue(added.split('\n').filter(line => line.includes('Bad character')).length === 1,
         'the rejected request target is logged on exactly one line')

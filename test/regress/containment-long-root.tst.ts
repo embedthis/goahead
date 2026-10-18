@@ -34,8 +34,7 @@ if (Config.OS == 'windows' || Config.OS == 'win32') {
     ttrue(parseInt(made.stdout) > 4096, `the home path must exceed PATH_MAX, got ${made.stdout.trim()} bytes`)
 
     let log = ''
-    let server = spawn('bash', ['-c', `cd '${BASE}' && ${cdHome} && exec goahead -v --route route.txt ` +
-        `--auth auth.txt web ${ENDPOINT}`])
+    let server = spawn('bash', ['-c', `cd '${BASE}' && ${cdHome} && exec goahead -v --route route.txt web ${ENDPOINT}`])
     server.stdout.on('data', (data) => log += data)
     server.stderr.on('data', (data) => log += data)
     try {

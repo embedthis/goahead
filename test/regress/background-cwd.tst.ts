@@ -21,8 +21,11 @@ if (process.platform != 'linux') {
         { cwd: HOME, encoding: 'utf8', timeout: 10000 })
     try {
         ttrue(result.status == 0, `goahead --background must start, got status ${result.status}: ${result.stderr}`)
-        tcontains(result.stdout + result.stderr, '--background discards log output',
-            'logging to stderr must be warned about before detaching')
+        //  A build without logging has no log output to discard
+        if (thas('ME_GOAHEAD_LOGGING')) {
+            tcontains(result.stdout + result.stderr, '--background discards log output',
+                'logging to stderr must be warned about before detaching')
+        }
 
         let status = 0
         for (let i = 0; i < 50 && status == 0; i++) {

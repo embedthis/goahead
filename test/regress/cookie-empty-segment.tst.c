@@ -22,14 +22,17 @@ static void freeWebs(Webs *wp)
 
 
 /*
-    Seed the stack with nonzero bytes to expose uninitialized pointers.
+    Seed the stack with nonzero bytes to expose uninitialized pointers. Called through a volatile pointer so
+    no compiler can inline it into the caller's frame.
  */
-static void __attribute__((noinline)) poisonStack(void)
+static void poisonStack(void)
 {
     volatile char pad[4096];
 
     memset((char*) pad, 0xAA, sizeof(pad));
 }
+
+static void (*volatile poison)(void) = poisonStack;
 
 
 static char *parse(cchar *cookie, cchar *name)
@@ -38,7 +41,7 @@ static char *parse(cchar *cookie, cchar *name)
     char *value;
 
     wp = allocWebs(cookie);
-    poisonStack();
+    poison();
     value = websParseCookie(wp, (char*) name);
     freeWebs(wp);
     return value;

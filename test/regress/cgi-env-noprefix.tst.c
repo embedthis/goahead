@@ -76,6 +76,8 @@ static void caseVariants(void)
 
     vars = hashCreate(-1);
     hashEnter(vars, "REMOTE_USER", valueString("server", VALUE_ALLOCATE), 0);
+    //  websSetEnv always sets AUTH_TYPE, empty for an unauthenticated request
+    hashEnter(vars, "AUTH_TYPE", valueString("", 0), 0);
     for (i = 0; variants[i]; i++) {
         hashEnter(vars, variants[i], valueString("client", VALUE_ALLOCATE), WEBS_VAR_QUERY);
     }

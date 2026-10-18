@@ -53,6 +53,40 @@ static bool accepted(uint c)
     return path != 0;
 }
 
+/*
+    Name the websValidateUriPath stage that refuses the code point, and the bytes it saw, for the failure message
+ */
+static cchar *refusal(uint c)
+{
+    static char result[160];
+    char        *uri, *decoded, *normalized, *cp;
+    cchar       *stage;
+    ssize       len;
+
+    uri = pathWith(c);
+    decoded = walloc(slen(uri) + 1);
+    decodeUrl(decoded, uri, -1, 0);
+    normalized = websNormalizeUriPath(decoded);
+    if (normalized == 0) {
+        stage = "normalize";
+    } else if (!validCanonicalPath(normalized)) {
+        stage = "canonical";
+    } else if (hasUnsafeEscape(normalized)) {
+        stage = "escape";
+    } else {
+        stage = "none";
+    }
+    fmt(result, sizeof(result), "%s, uri %s, path", stage, uri);
+    len = slen(result);
+    for (cp = normalized; cp && *cp && len < (ssize) sizeof(result) - 4; cp++) {
+        len += slen(fmt(&result[len], sizeof(result) - len, " %02X", (uchar) *cp));
+    }
+    wfree(uri);
+    wfree(decoded);
+    wfree(normalized);
+    return result;
+}
+
 int main(int argc, char **argv)
 {
     int i;
@@ -61,11 +95,13 @@ int main(int argc, char **argv)
         if (ME_GOAHEAD_CASE_INSENSITIVE_FS) {
             ttrue(!accepted(folding[i]), "U+%04X folds to ASCII and must be refused", folding[i]);
         } else {
-            ttrue(accepted(folding[i]), "U+%04X names a distinct file and must be accepted", folding[i]);
+            ttrue(accepted(folding[i]), "U+%04X names a distinct file and must be accepted, refused by %s", folding[i],
+                  refusal(folding[i]));
         }
     }
-    ttrue(accepted(0x00E9), "U+00E9 does not fold to ASCII and must be accepted");
-    ttrue(accepted(0x212B), "U+212B, the Angstrom sign, does not fold to ASCII and must be accepted");
-    ttrue(accepted(0x0100), "U+0100 does not fold to ASCII and must be accepted");
+    ttrue(accepted(0x00E9), "U+00E9 does not fold to ASCII and must be accepted, refused by %s", refusal(0x00E9));
+    ttrue(accepted(0x212B), "U+212B, the Angstrom sign, does not fold to ASCII and must be accepted, refused by %s",
+          refusal(0x212B));
+    ttrue(accepted(0x0100), "U+0100 does not fold to ASCII and must be accepted, refused by %s", refusal(0x0100));
     return 0;
 }

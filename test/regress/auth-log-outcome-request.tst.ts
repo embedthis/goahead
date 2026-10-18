@@ -53,7 +53,7 @@ async function withServer(level: number, body: (port: number, lines: () => strin
         }
         ttrue(ready, `private test server at level ${level} started`)
         const mark = logs.length
-        await body(port, () => { return logs.slice(mark).split('\n').filter(line => line.includes('Authentication ')) })
+        await body(port, () => logs.slice(mark).split(/\r?\n/).filter(line => line.includes('Authentication ')))
     } finally {
         const exited = new Promise<void>(resolve => server.once('exit', () => resolve()))
         server.kill()
