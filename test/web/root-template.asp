@@ -1,0 +1,1 @@
+<% write("rendered-template"); %>

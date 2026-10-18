@@ -13,6 +13,16 @@
             an option: the nearest config wins outright rather than merging, so a per-directory file
             would drop the environment block below. Every other test is fast, and this is a ceiling
             rather than a wait, so a hung test still fails -- just later.
+
+            soak/soak.tst.ts runs for a duration chosen by --depth: 3 seconds at depth 0, 240 at
+            depth 5, an hour at depth 9. From depth 5 it meets this ceiling and from depth 6 it
+            exceeds it, so a deep soak needs its own ceiling on the command line:
+
+                tm --depth 6 -t 600 soak
+
+            The ceiling is deliberately not raised to suit the deepest soak. It is the only thing
+            that turns a wedged server into a failure rather than a hang, and every other test in
+            the suite finishes in seconds.
          */
         timeout: 240,
     },
@@ -23,6 +33,7 @@
                     '-Wformat=2', '-Wformat-security', '-Werror=format-security',
                     '-Wsign-compare', '-Wsign-conversion',
                     '-I../src', '-I../src/osdep', '-L../build/bin',
+                    '-include', '${CONFIGDIR}/../build/test/goahead-features.h',
                     '-Wl,-rpath,${CONFIGDIR}/../build/bin'
                 ],
                 libraries: ['m', 'crypto', 'ssl', 'goahead'],
@@ -31,6 +42,7 @@
                 flags: [
                     '-GR-', '-MDd', '-wd4100',
                     '/I../src', '/I../src/osdep',
+                    '/FI${CONFIGDIR}/../build/test/goahead-features.h',
                     '/LIBPATH:../build/bin',
                     '/I${ME_COM_OPENSSL_PATH}/include',
                     '/LIBPATH:${ME_COM_OPENSSL_PATH}/lib/VC/${ARCH}/MDd',
@@ -49,13 +61,10 @@
             TM_HTTPV6: 'http://[::1]:18090',
             TM_HTTPSV6: 'https://[::1]:14453',
             /*
-                Feature gates for conditional tests. Values mirror compile-time ME_GOAHEAD_*
-                defaults in src/goahead.h; tests use thas('NAME') to skip when a feature is off.
+                The ME_GOAHEAD_* feature gates are not set here: services.environment reads them
+                from the build, so tests using thas('NAME') skip when the build compiles a feature
+                out. TLS is not reported by the build; set this to 0 for a build without it.
              */
-            ME_GOAHEAD_AUTH: '1',
-            ME_GOAHEAD_CGI: '1',
-            ME_GOAHEAD_JAVASCRIPT: '1',
-            ME_GOAHEAD_UPLOAD: '1',
             ME_SSL: '1',
             /*
                 IPv6 axis. The test server binds its IPv6 endpoints best-effort, so on a host with
@@ -63,19 +72,18 @@
                 test/ipv6 skips instead of failing.
              */
             ME_IPV6: '1',
-            /*
-                Stealth axis. With stealth on (the shipped default) OPTIONS and TRACE are refused
-                with 406. With it off they are answered - OPTIONS with an Allow header, TRACE by
-                echoing the request. Set this to 0 when building with ME_GOAHEAD_STEALTH=0 so
-                basic/methods.tst.ts asserts the answering behaviour instead of the refusal.
-             */
-            ME_GOAHEAD_STEALTH: '1',
         },
         windows: {
             PATH: '../build/bin;C:/Program Files/OpenSSL;${USERPROFILE}/vcpkg/installed/${ARCH}-windows/bin;${PATH}',
         },
     },
     services: {
+        /*
+            Emits the build's ME_GOAHEAD_* feature flags into the test environment, and writes the
+            header force-included above, so the TS gates and the C tests both follow the build.
+            ME_GOAHEAD_STEALTH selects which behaviour basic/methods.tst.ts asserts.
+         */
+        environment: './utils/features.sh',
         setup: './setup.sh',
         prep: './prep.sh',
         cleanup: './cleanup.sh',

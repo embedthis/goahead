@@ -1,0 +1,67 @@
+#
+#   Dockerfile.linux -- Linux test image for "make test-linux".
+#
+#   Built and run by bin/test-linux.sh with Apple's "container" tool. Ubuntu 24.04 is what CI's
+#   ubuntu-latest runner is, and the package list below is the same one .github/workflows/ci.yml
+#   installs, so a failure here is a failure CI would also see -- with the single exception of
+#   architecture: Apple's container runs arm64 Linux only, and the CI runner is x86_64.
+#
+#   Nothing from the repository is copied in. The working tree is mounted at run time, so the image
+#   only has to carry the toolchain and stays valid across source changes.
+#
+#   Every input is pinned: the base image by digest, bun by version and checksum. A new digest or bun
+#   release is a reviewed change to this file, not something the next build picks up silently.
+#   test/regress/ci-pinning.tst.ts fails on an unpinned reference.
+#
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+#
+#   The first line is CI's list verbatim. The second is what this container needs on top of it:
+#   rsync stages the working tree into the build volume, curl and unzip install bun, and procps
+#   supplies the "ps" that test/setup.sh uses to decide whether a recorded pid is still a
+#   goahead-test before signalling it -- without ps it will not signal, and a stale server keeps
+#   the test ports. clang runs the clang leg of the sanitizer job (GOAHEAD_LINUX_CC=clang).
+#
+#   Deliberately absent: libfcgi-dev and psmisc. There is no FastCGI here, and test/cleanup.sh
+#   removes files rather than killing processes, so it needs no killall.
+#
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc build-essential libc6-dev openssl libssl-dev \
+        ca-certificates curl unzip rsync git procps clang libclang-rt-18-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+#
+#   TestMe runs under bun, at the version in .bun-version, which bin/test-linux.sh passes as
+#   BUN_VERSION. The release archive is verified against the SHA-256 that release publishes in its
+#   SHASUMS256.txt. Changing .bun-version therefore means updating these sums, and the build fails
+#   until they are.
+#
+#   "tm" is not installed here. linux-test.sh installs the lockfile's TestMe into the build volume, as
+#   CI does with "npm ci", so the image and CI run the same TestMe.
+#
+ARG BUN_VERSION
+ARG BUN_SHA256_AARCH64=54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7
+ARG BUN_SHA256_X64=36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913
+
+ENV BUN_INSTALL=/root/.bun
+ENV PATH=/root/.bun/bin:$PATH
+
+RUN set -e ; \
+    test -n "${BUN_VERSION}" ; \
+    case "$(uname -m)" in \
+        aarch64) arch=aarch64 ; sum="${BUN_SHA256_AARCH64}" ;; \
+        x86_64) arch=x64 ; sum="${BUN_SHA256_X64}" ;; \
+        *) echo "No bun checksum for $(uname -m)" >&2 ; exit 1 ;; \
+    esac ; \
+    curl -fsSL -o /tmp/bun.zip \
+        "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${arch}.zip" ; \
+    echo "${sum}  /tmp/bun.zip" | sha256sum -c - ; \
+    unzip -q /tmp/bun.zip -d /tmp ; \
+    mkdir -p /root/.bun/bin ; \
+    mv "/tmp/bun-linux-${arch}/bun" /root/.bun/bin/bun ; \
+    rm -rf /tmp/bun.zip "/tmp/bun-linux-${arch}" ; \
+    bun --version
+
+WORKDIR /work

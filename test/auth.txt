@@ -1,6 +1,5 @@
-#
-#   auth.txt - Authorization data
-#
+# auth.txt - Test credentials with published passwords. NEVER DEPLOY THIS FILE.
+# Start products from src/auth.txt and create accounts with gopass.
 
 role name=person abilities=breathe
 role name=user abilities=view,person
@@ -9,9 +8,24 @@ role name=administrator abilities=user,manage
 user name=julie password=9d8873a123eb506e7f8e84d1f2a26916 roles=user
 user name=joshua password=2fd6e47ff9bb70c0465fd2f5c8e5305e roles=administrator,purchase
 user name=mary password=5b90553bea8ba3686f4239d62801f0f3 roles=user
+user name=nopass roles=user
 user name=peter password=7cdba57892649fd95a540683fdf8fba6 roles=user
 user name=testbf1 password=BF1:00128:k0715dAbGKAUd0DC:ADXY6J8XaIHQ5RkXvW5ok5yUgohWUo3u roles=administrator,purchase
 user name=formbf1 password=BF1:00128:HhPBWg5lCNiTBWfs:6dF7NIQ95I6JPqgTAIoNx7QpoJyeJ90J roles=administrator,purchase
 user name=badbf1 password=BF1:00128:badsalt roles=user
 user name=bigbf1 password=BF1:00128:rLgUv2ShjKqpOZ2a:8VpYc8oKl+0ARNUuVWJRikPWgGy1u+Fr roles=administrator,purchase
 user name=bigmd5 password=68f336d2baa5e01937f31e7d69abc265 roles=administrator,purchase
+
+#
+#   Blowfish key-window accounts. Both usernames are 42 characters, which with the 11-character
+#   realm exactly fills the 72-byte Blowfish key schedule window once the salt and separators are
+#   counted. bf1cliff... is a legacy BF1 hash generated at that condition, so it never depended on
+#   its password and must fail closed. bf2long... is the same condition in the current BF2 format,
+#   which keys the schedule with a fixed-width digest and so has no cliff. Both were created with
+#   the password "pass1". Loading bf1cliff... deliberately emits a configuration warning.
+#
+user name=bf1cliffuser000000000000000000000000000000 password=BF1:00128:1E1QncXLrNwc2SO1:UqGvMJWfwE7oDfM3wB7bdGdmHp704OPs roles=administrator,purchase
+user name=bf2longuser0000000000000000000000000000000 password=BF2:00128:rb2NhliEpyGxf5f1:0+PxNrgBF9ib6TQD5BBdb0NWu0Oi73k3 roles=administrator,purchase
+
+# Legacy truncated password-hash fixture; authentication must reject it.
+user name=uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu password=af3d1d3f72b2718bdae58ea70866e7c0 roles=user

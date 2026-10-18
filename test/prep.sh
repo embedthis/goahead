@@ -50,7 +50,16 @@ if [ "$TESTME_OS" != "windows" ] ; then
     rm -f web/fifo.txt
     mkfifo web/fifo.txt
 fi
-cp ../certs/self.key  ../certs/self.crt .
+# Generate local test keys when absent; distributions contain certificates only.
+if [ -f ../certs/self.key ] ; then
+    cp ../certs/self.key  ../certs/self.crt .
+elif [ ! -f self.key ] ; then
+    echo "      [Run] generate a self-signed test certificate"
+    openssl req -x509 -newkey rsa:2048 -nodes -keyout self.key -out self.crt -days 3650 \
+        -subj "/CN=localhost" >/dev/null 2>&1 || {
+        echo "      [Warn] cannot generate a test certificate - openssl is required for the TLS tests" >&2
+    }
+fi
 cp ../build/bin/cgitest* cgi-bin
 #
 #   cgitest links against libgoahead, so the library must sit beside it: the rpath is @loader_path

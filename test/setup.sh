@@ -50,22 +50,39 @@ if [ -f "$PIDFILE" ] ; then
     rm -f "$PIDFILE"
 fi
 
-#
-#   Keep the server's own log. cgiHandler reports why a CGI request failed via error(), and
-#   nothing was retaining that output, so a CGI failure gave the test suite a status code and no
-#   reason. Written outside test/ and not named *.log so cleanup.sh cannot remove it before it can
-#   be read. Readiness is decided by the healthcheck URL, not by watching this stream.
-#
-goahead-test -v --cert self.crt --key self.key > ../server-log.txt 2>&1 &
+# Keep the server log and exit status outside test/ so cleanup cannot remove shutdown failures.
+# check-server.sh checks both; readiness uses the healthcheck URL.
+# GOAHEAD_TEST_STACK_KB limits the server stack before launch to verify the documented minimum.
+# The route table is the one utils/features.sh assembled for this build's feature set.
+STATUSFILE="../server-exit.txt"
+rm -f "$STATUSFILE"
+if [ -n "${GOAHEAD_TEST_STACK_KB:-}" ] ; then
+    ulimit -s "$GOAHEAD_TEST_STACK_KB" || exit 1
+fi
+
+goahead-test -v --cert self.crt --key self.key --route "${TM_ROUTES}" > ../server-log.txt 2>&1 &
 PID=$!
 echo "$PID" > "$PIDFILE"
 
-cleanup() {
-    kill $PID 2>/dev/null
+# Wait for shutdown. STATUS is set only for an already reaped server; clear traps before exit to avoid recursion.
+finish() {
+    trap - SIGINT SIGTERM SIGQUIT EXIT
+    if [ -z "${STATUS:-}" ] ; then
+        kill $PID 2>/dev/null
+        wait $PID
+        STATUS=$?
+    elif [ "$STATUS" != 0 ] ; then
+        #   The server stopped by itself. tm reports only this script's exit status, so say why.
+        echo "goahead-test exited with status $STATUS; last lines of server-log.txt:" >&2
+        tail -n 40 ../server-log.txt >&2
+    fi
+    echo "$STATUS" > "$STATUSFILE"
     rm -f "$PIDFILE"
-    exit 0
+    exit $STATUS
 }
 
-trap cleanup SIGINT SIGTERM SIGQUIT EXIT
+trap finish SIGINT SIGTERM SIGQUIT EXIT
 
 wait $PID
+STATUS=$?
+finish

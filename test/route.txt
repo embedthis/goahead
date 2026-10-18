@@ -6,8 +6,9 @@
 #           extensions=EXTENSIONS abilities=ABILITIES 
 #
 #   Abilities are a set of required abilities that the user or request must possess.
-#   The abilities, extensions, methods and redirect keywords may use comma separated tokens to express a set of 
-#       required options, or use "|" separated tokens for a set of alternative options. This implements AND/OR.
+#   The abilities keyword lists abilities separated by commas, all of which are required, or by "|", any one of
+#       which is enough. The extensions, methods and redirect keywords list the accepted values separated by
+#       commas or "|", which mean the same.
 #   The protocol keyword may be set to http or https
 #   Multiple redirect fields are permissable
 #
@@ -32,6 +33,14 @@ route uri=/auth/basic/  auth=basic abilities=view
 route uri=/auth/digest/ auth=digest abilities=view
 
 #
+#   Ability syntax: "|" separates alternatives, "," requires all. mary has view but not purchase.
+#   See route/ability-syntax.tst.ts.
+#
+route uri=/either/ auth=basic abilities=view|purchase
+route uri=/either-last/ auth=basic abilities=purchase|view
+route uri=/both/ auth=basic abilities=view,purchase
+
+#
 #   Protected route whose prefix contains a non-ASCII character (NFC "café"). Used by
 #   regress/uri-unicode-fold.tst.ts to prove an NFD spelling cannot reach it unauthenticated.
 #
@@ -53,7 +62,11 @@ route uri=/auth/form/ auth=form handler=continue abilities=manage redirect=401@/
 #   and the action writes a session variable after the body completes - so a request to this route holds
 #   the session across the body read. Used by session/retire-inflight.tst.ts.
 #
-route uri=/auth/sessionTest methods=GET|POST auth=form abilities=manage handler=action redirect=401@/auth/form/login.html
+route uri=/auth/authSessionTest methods=GET|POST auth=form abilities=manage handler=action redirect=401@/auth/form/login.html
+
+# Form authentication must not supply the user record for a later Digest check.
+route uri=/stale/ auth=form handler=continue abilities=view redirect=401@/auth/form/login.html
+route uri=/stale/admin/ auth=digest abilities=manage
 
 #
 #   Support PUT and DELETE methods only for the ME_GOAHEAD_PUT_DIR directory
@@ -74,10 +87,50 @@ route uri=/reroute/ methods=GET|DELETE handler=upload
 route uri=/reroute/ methods=GET|DELETE auth=basic abilities=manage
 
 #
+#   An authentication gate without methods= must apply to every method, so a later route that accepts
+#   PUT or DELETE on the same prefix is still authenticated.
+#
+route uri=/gated/ auth=basic abilities=manage handler=continue
+route uri=/gated/ methods=PUT|DELETE handler=action
+
+#
+#   A gate that lists GET also authenticates HEAD, so an anonymous HEAD cannot step around it to a nested route.
+#
+route uri=/headgate/ methods=GET|POST auth=basic abilities=manage handler=continue
+route uri=/headgate/sub/
+
+#
 #   Standard routes
 #
-route uri=/cgi-bin handler=cgi
-route uri=/action handler=action
+route uri=/cgi-bin/ handler=cgi
+
+# Test multi-segment prefixes and matching sibling names.
+route uri=/deep/cgi-bin/ handler=cgi
+route uri=/sib handler=cgi
+
+# Resolve relative dir against the working directory.
+route uri=/relative/ dir=reldir handler=cgi
+
+# Run only .cgi programs from this directory.
+route uri=/extcgi/ extensions=cgi handler=cgi
+route uri=/action/uploadTest upload=true handler=action
+
+# CGI stdin length on an upload route and after a reroute. regress/cgi-stdin-length.tst.ts links the directories.
+route uri=/upcgi/ upload=true handler=cgi
+route uri=/rrcgi/ methods=POST handler=upload
+route uri=/rrcgi/ methods=POST handler=cgi
+
+# A CGI route that authenticates. regress/cgi-auth-type.tst.ts links the directory.
+route uri=/authcgi/ auth=basic abilities=view handler=cgi
+route uri=/putaction/ methods=PUT|PATCH handler=action
+route uri=/basicaction/ methods=GET|POST auth=basic abilities=manage handler=action
+route uri=/wildauth/ auth=basic abilities=view redirect=*@/index.html
+route uri=/okauth/ auth=basic abilities=view redirect=200@/index.html
+# Test actions explicitly permit GET.
+route uri=/action methods=GET|HEAD|POST handler=action
+route uri=/postonly/ handler=action
+# Accept form posts from another site, as an identity provider callback must.
+route uri=/crosssite/ cross-site=allow handler=action
 route uri=/ methods=OPTIONS|TRACE handler=options
 route uri=/ extensions=jst,asp handler=jst
 
