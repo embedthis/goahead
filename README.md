@@ -17,6 +17,12 @@ The European Union has introduced the Cyber Resilience Act (CRA), a regulation a
 
 To meet this need, the standalone [Embedthis Updater](https://github.com/embedthis/updater) library and command line utility can be used to automatically download and apply software updates to all your GoAhead-enabled devices. The [Embedthis Builder](https://www.embedthis.com/builder/) can be used to publish, distribute, manage and track software updates for your GoAhead devices.
 
+## EU Cyber Resilience Act
+
+The open source release of GoAhead, published in the public GitHub repository, does not carry CRA conformity documentation. A manufacturer that integrates GoAhead into a product placed on the EU market is responsible for that product's conformity with the Cyber Resilience Act (Regulation (EU) 2024/2847).
+
+CRA conformity is offered with the commercial GoAhead product. Its source distribution includes the EU Declaration of Conformity, the Annex II user information and a software bill of materials, backed by Embedthis vulnerability handling over a stated support period. Contact [sales@embedthis.com](mailto:sales@embedthis.com).
+
 ## Licensing
 
 See [LICENSE.md](LICENSE.md) and https://www.embedthis.com/goahead/licensing.html for details.

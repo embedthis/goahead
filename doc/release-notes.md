@@ -101,6 +101,7 @@ Upgrading is recommended for all deployments. Several defaults have changed: rev
 ### Memory and runtime safety
 
 - Fixed memory leaks in response headers, buffers and CGI cleanup; out-of-bounds Base64 and formatter access; signed-shift undefined behavior in hashing; and route-array bounds errors.
+- The formatter's `%X` reads an `unsigned int`, as `%x` does. On Windows x64 it read 64 bits and printed junk in the upper half; on 32-bit builds `%llX` printed only the low 32 bits.
 - Formatting caps width and precision at `ME_GOAHEAD_LIMIT_FORMAT_FIELD`, bounds float output, supports `%z` and 64-bit `%ll`, handles `INT64_MIN`, and cannot stall on a full buffer. Ring buffers are made contiguous before flat reads; buffer limits use `ssize`.
 - Character classification and socket-mask shifts use unsigned values. Accept lengths use the correct type, interrupted reads retry, and empty resolver results are rejected.
 - Timeouts use 64-bit arithmetic and recover after backward clock changes. Descriptor exhaustion no longer spins the listener; failed accepts and listens clean up correctly. A failed `select()` is no longer treated as readiness, and macOS accepts descriptors at or above `FD_SETSIZE`.
@@ -117,8 +118,8 @@ Upgrading is recommended for all deployments. Several defaults have changed: rev
 - Release builds add stack, control-flow and executable protections where supported. POSIX builds use `_FORTIFY_SOURCE=3` and `-fstack-protector-strong`; Windows uses Control Flow Guard. FreeBSD adds RELRO, BIND_NOW, a non-executable stack and PIE; Linux marks the stack non-executable; macOS release binaries are stripped.
 - More compiler diagnostics are enabled or treated as errors. CI checks release builds, runs the sanitized suite on every push, rejects skipped default-on tests and checks that `dist/` matches `src/`. CI static analysis fails on any finding not in a reviewed baseline.
 - `make test-linux` runs tests in a Linux container from macOS. `make test-asan` runs AddressSanitizer and UndefinedBehaviorSanitizer tests on Linux.
-- Source distributions omit private keys; tests generate temporary keys. Release archives omit host extended attributes. Packaging can sign an archive with minisign; 6.2.0 is published with SHA-256 checksums only.
-- The source archive ships only the current test certificates (`ca.crt`, `ec.crt`, `self.crt`, `test.crt`); the expired EC test certificate is replaced and the unused root CA bundles are no longer included. Packaging fails if a shipped certificate expires within a year. The SBOM is corrected for this release, adding the optional PAM library and file hashes.
+- Source distributions ship no certificates or private keys: the test suite generates a matched set of test certificates and keys each time it runs. Release archives omit host extended attributes. The 6.2.0 source archive is published with SHA-256 checksums.
+- The unused root CA bundles are no longer included. The SBOM in the commercial source distribution is corrected for this release, adding the optional PAM library and file hashes.
 - The new deployment guide covers strict mode, containment, template escaping, slow readers and front-end proxies. Security settings, API documentation and command-line help are expanded or corrected. Route examples clarify authentication and method checks; sample handlers escape request data.
 
 ## Breaking and Behavior Changes
@@ -160,7 +161,7 @@ Review these changes before upgrading. Rebuild embedding applications against th
 - **Windows needs the Visual C++ Redistributable.** The library and programs now use the dynamic C runtime.
 - **Build warnings may fail compilation.** Applications using the project compiler flags may need changes for newly enforced diagnostics.
 - **The `goahead` program changed.** It sets a umask of 027, so files it creates are not world-readable. `--background` keeps the working directory instead of changing to `/`.
-- **The source archive ships fewer certificates.** Only the test certificates `ca.crt`, `ec.crt`, `self.crt` and `test.crt` ship; take root CA bundles from your platform or another source.
+- **The source archive ships no certificates or keys.** The test suite generates its own test certificates and keys when it runs. Take root CA bundles from your platform or another source, and supply your own production certificate and key.
 
 ### API and ABI
 
@@ -189,7 +190,11 @@ Fixes address memory leaks on broken header writes and repeated multipart field 
 
 ## Vulnerability Disposition
 
-No vulnerability known to the manufacturer remains open in this release: every security finding raised against it, at any severity, has been fixed or assessed and closed. The manufacturer accepts three residual risks, recorded in its release vulnerability disposition. A slow-reading client can hold the single-threaded server for up to `ME_GOAHEAD_LIMIT_TIMEOUT` while a large response is written. The OpenSSL, MbedTLS and PAM library versions are chosen by the integrator, who is responsible for their vulnerability status; 6.2.0 refuses to build against OpenSSL earlier than 3.0 or MbedTLS earlier than 3.6.7. The release archive is not signed, so its integrity rests on the published SHA-256 sums. Known limitations are disclosed in the accompanying user information.
+No vulnerability known to the manufacturer remains open in this release: every security finding raised against it, at any severity, has been fixed or assessed and closed. The manufacturer accepts three residual risks, recorded in its release vulnerability disposition. A slow-reading client can hold the single-threaded server for up to `ME_GOAHEAD_LIMIT_TIMEOUT` while a large response is written. The OpenSSL, MbedTLS and PAM library versions are chosen by the integrator, who is responsible for their vulnerability status; 6.2.0 refuses to build against OpenSSL earlier than 3.0 or MbedTLS earlier than 3.6.7. The release archive is not signed, so its integrity rests on the published SHA-256 sums. Known limitations and secure configuration are described in `SECURITY-DEPLOYMENT.md` and, in the commercial source distribution, in the accompanying user information.
+
+## EU Cyber Resilience Act
+
+The commercial GoAhead source distribution carries the CRA conformity documents for this release: the EU Declaration of Conformity, the user information and the software bill of materials. The open source release in the public GitHub repository carries none of them. A manufacturer that integrates the open source release into a product placed on the EU market is responsible for that product's conformity with the Cyber Resilience Act. Contact [sales@embedthis.com](mailto:sales@embedthis.com) for the commercial product.
 
 ## Compatibility
 
