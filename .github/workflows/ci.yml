@@ -334,11 +334,6 @@ jobs:
         if: failure() && matrix.run
         run: cat server-log.txt || true
 
-  #
-  #   SDL/CRA release-gate evidence. These run on every push so the release-time evidence is a
-  #   CI artifact rather than a hand-run pass, per the SDL Verification Phase requirement that
-  #   dependency scans and static analysis be "current and clean".
-  #
   security:
     name: Security scans
     runs-on: ubuntu-latest
@@ -350,31 +345,18 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev clang-tools-18 python3
 
-      #
-      #   Build and test tooling only - no third-party package ships in the product, so this is
-      #   build-integrity evidence rather than a CRA gate. Advisories here do not block a release;
-      #   they are dispositioned in the release records retained by the manufacturer.
-      #
+      # Build and test tooling only: no third-party package ships in the product.
       - name: Dependency audit (build/test tree)
         run: npm audit --audit-level=high
 
-      #
-      #   The baseline gate and its reviewed baseline are retained by the manufacturer and are not part
-      #   of the source distribution. Where they are absent, report rather than fail: the analyzer flags
-      #   the assert-based API contract and dead stores, so a raw count is not a pass/fail signal.
-      #   Reports are in build/scan-results.
-      #
+      #   Reject findings outside the baseline; keep the analyzer version matched to it.
+      #   Reports are in build/scan-results. Public trees omit the baseline and skip this step.
       - name: Static analysis (scan-build)
+        if: hashFiles('test/sec/scan-build-baseline.txt') != ''
         shell: bash
         env:
           SCAN_BUILD: scan-build-18
-        run: |
-          if [ -f bin/scan-check.sh ] ; then
-            bash bin/scan-check.sh
-          else
-            echo "::notice::The static-analysis baseline gate is not part of this tree; reporting only."
-            $SCAN_BUILD -o build/scan-results make || true
-          fi
+        run: bash bin/scan-check.sh
 
       - name: Upload static-analysis report
         if: always()
