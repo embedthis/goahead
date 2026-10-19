@@ -1,30 +1,8 @@
 #!/bin/bash
 #
-#   test-linux.sh - Run the GoAhead unit test suite under Linux on a macOS host
-#
-#   Linux was previously reachable only through a CI round trip: push, wait, read a log. That is a
-#   poor loop for a defect that only appears on Linux -- select, glibc, /proc, fork/exec for CGI --
-#   and it is no loop at all for a change being iterated on. Apple's "container" tool runs a real
-#   Linux VM locally, so the same build and the same suite CI runs can run here in about the time a
-#   local build takes.
-#
-#   Two properties of the container are worth having for their own sake, beyond Linux coverage:
-#
-#   - The suite's ports (18080, 14443, 18090, 14453) are bound inside the container's own network
-#     namespace, so a stray goahead-test on the host cannot collide with them and a stray
-#     goahead-test in a container dies with the container.
-#   - There is no macOS sandbox in a Linux VM, so the sandbox's file and socket restrictions cannot
-#     colour the result.
-#
-#   ARCHITECTURE. Apple's container runs arm64 Linux natively. CI's ubuntu-latest runner is x86_64,
-#   so the default gets Linux coverage, not CI parity -- most obviously, plain char is unsigned on
-#   ARM and signed on x86, and the suite compiles its C tests with -Wsign-conversion. Treat a green
-#   arm64 run as necessary, not sufficient. GOAHEAD_LINUX_ARCH=amd64 runs the x86_64 image under
-#   Rosetta for parity; it is slower, and needs its own image and volume (GOAHEAD_LINUX_IMAGE and
-#   GOAHEAD_LINUX_VOLUME) so it does not replace the arm64 ones.
-#
-#   This verifies the tree it is run from. Run it from the working tree while developing, and from
-#   the unpacked release archive before a release: the archive is what a customer builds.
+#   Run the suite in an isolated Linux container on macOS.
+#   Default arm64 differs from CI x86_64; use GOAHEAD_LINUX_ARCH=amd64 for architecture parity.
+#   Run from the unpacked archive to verify release contents.
 #
 #   Usage:
 #       bin/test-linux.sh                   build the image if needed, then run the whole suite

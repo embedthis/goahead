@@ -125,7 +125,7 @@ workspace "goahead"
         'ME_VERSION="' .. VERSION .. '"',
     }
 
-    -- Programs import the library's PUBLIC_DATA; without this each would define private copies such as logLevel
+    -- Programs must import the library's PUBLIC_DATA rather than define private copies.
     filter { "platforms:windows", "kind:ConsoleApp" }
         defines { "ME_DLL_IMPORT=1" }
     filter {}
