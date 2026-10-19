@@ -161,6 +161,27 @@ static bool inBlackList(cchar *name)
 
 
 /*
+    Reserve CGI meta-variable names even when the server leaves them unset on this request.
+ */
+static cchar *metaPrefixes[] = {
+    "AUTH_", "CONTENT_", "CONTEXT_", "DOCUMENT_", "GATEWAY_", "HTTPS", "PATH_", "QUERY_", "REDIRECT_", "REMOTE_",
+    "REQUEST_", "SCRIPT_", "SERVER_", "SSL_", "TLS_", NULL
+};
+
+static bool isMetaVarName(cchar *name)
+{
+    cchar **mp;
+
+    for (mp = metaPrefixes; *mp; mp++) {
+        if (envNameStarts(name, *mp)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
     Check for names that would alias server environment variables on this platform.
  */
 static bool shadowsServerVar(Webs *wp, cchar *name)
@@ -502,7 +523,7 @@ static char **buildCgiEnv(Webs *wp)
                 }
                 if (s->arg != 0 && *ME_GOAHEAD_CGI_VAR_PREFIX != '\0') {
                     envp[n++] = sfmt("%s%s=%s", ME_GOAHEAD_CGI_VAR_PREFIX, name, s->content.value.string);
-                } else if (s->arg != 0 && shadowsServerVar(wp, name)) {
+                } else if (s->arg != 0 && (isMetaVarName(name) || shadowsServerVar(wp, name))) {
                     trace(5, "cgi: Skip request variable named like a server variable");
                     continue;
                 } else {

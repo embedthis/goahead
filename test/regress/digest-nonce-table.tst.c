@@ -48,6 +48,7 @@ static Webs *request(WebsTime when, uint64 counter, cchar *nc)
     wp = webs[wid];
     wp->route = route;
     wp->flags |= WEBS_AUTHENTICATED;
+    wp->username = sclone("joshua");
     wp->nonce = formatDigestNonce(when, counter);
     wp->nonceTime = when;
     wp->nc = sclone(nc);

@@ -600,8 +600,14 @@ static char       *masterSecret;
 static int        autoLogin = ME_GOAHEAD_AUTO_LOGIN;
 static WebsVerify verifyPassword;
 #if ME_GOAHEAD_DIGEST
-static WebsHash nonceCounts = -1;               /* Digest nonce -> issue time and last accepted nonce count */
-static WebsTime nonceFloor;                     /* Nonces issued at or before this time were evicted */
+typedef struct WebsNonce {
+    WebsTime when;                              /* Issue time carried by the nonce */
+    uint     nc;                                /* Last accepted nonce count */
+    char     *username;
+} WebsNonce;
+
+static WebsHash nonceCounts = -1;               /* Digest nonce -> WebsNonce */
+static WebsHash nonceFloors = -1;               /* Account -> issue time at or before which its nonces were evicted */
 static int      nonceTotal;                     /* Records in nonceCounts */
 static int      noncePruneId = -1;
 #endif
@@ -641,7 +647,9 @@ static void setUsername(Webs *wp, cchar *username);
 
 #if ME_GOAHEAD_DIGEST
 static bool checkNonceCount(Webs *wp);
+static void deleteNonce(WebsKey *key);
 static char *formatDigestNonce(WebsTime when, uint64 counter);
+static WebsTime nonceFloor(cchar *username);
 static uint64 parseHex64(cchar *str);
 static void pruneNonces(void *data, int id);
 static char *calcDigest(Webs *wp, char *username, char *password);
@@ -791,10 +799,9 @@ PUBLIC int websOpenAuth(int minimal)
         return -1;
     }
 #if ME_GOAHEAD_DIGEST
-    if ((nonceCounts = hashCreate(-1)) < 0) {
+    if ((nonceCounts = hashCreate(-1)) < 0 || (nonceFloors = hashCreate(-1)) < 0) {
         return -1;
     }
-    nonceFloor = 0;
     nonceTotal = 0;
     if (!minimal) {
         noncePruneId = websStartEvent(WEBS_SESSION_PRUNE, pruneNonces, 0);
@@ -867,8 +874,16 @@ PUBLIC void websCloseAuth(void)
         noncePruneId = -1;
     }
     if (nonceCounts >= 0) {
+        for (key = hashFirst(nonceCounts); key; key = next) {
+            next = hashNext(nonceCounts, key);
+            deleteNonce(key);
+        }
         hashFree(nonceCounts);
         nonceCounts = -1;
+    }
+    if (nonceFloors >= 0) {
+        hashFree(nonceFloors);
+        nonceFloors = -1;
     }
 #endif
     verifyPassword = 0;
@@ -1542,10 +1557,20 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     if ((res = pam_start("login", info.name, &conv, &pamh)) != PAM_SUCCESS) {
         return 0;
     }
+    pam_set_item(pamh, PAM_RHOST, wp->ipaddr);
     if ((res = pam_authenticate(pamh, PAM_DISALLOW_NULL_AUTHTOK)) != PAM_SUCCESS) {
-        pam_end(pamh, PAM_SUCCESS);
+        pam_end(pamh, res);
         trace(5, "httpPamVerifyUser failed to verify %s", wp->username);
         wp->authReason = "password does not match";
+        return 0;
+    }
+    /*
+        Reject expired, locked and restricted accounts, including passwords requiring a change.
+     */
+    if ((res = pam_acct_mgmt(pamh, 0)) != PAM_SUCCESS) {
+        pam_end(pamh, res);
+        trace(5, "httpPamVerifyUser account check refused %s", wp->username);
+        wp->authReason = "account is not permitted";
         return 0;
     }
     pam_end(pamh, PAM_SUCCESS);
@@ -1938,22 +1963,35 @@ static bool parseDigestDetails(Webs *wp)
 }
 
 
-static bool nonceStale(WebsTime when)
+/*
+    Return the account's nonce eviction cutoff; hash integers are 32 bits on Windows.
+ */
+static WebsTime nonceFloor(cchar *username)
+{
+    WebsKey *key;
+
+    return (key = hashLookup(nonceFloors, username)) != 0 ? (WebsTime) (uint) key->content.value.integer : 0;
+}
+
+
+static bool nonceStale(Webs *wp)
 {
     WebsTime now;
 
-    return (now = websTime()) < 0 || when + ME_GOAHEAD_NONCE_DURATION < now || when <= nonceFloor;
+    return (now = websTime()) < 0 || wp->nonceTime + ME_GOAHEAD_NONCE_DURATION < now ||
+           wp->nonceTime <= nonceFloor(wp->username);
 }
 
 
 /*
-    Check nonce freshness and increasing count without recording it until authorization succeeds. Pack issue time
-    and count into two 32-bit words for Windows compatibility.
+    Check nonce freshness and increasing count without recording it until authorization succeeds. A nonce belongs
+    to the account that first used it; any other account is offered a fresh one.
  */
 static bool checkNonceCount(Webs *wp)
 {
-    WebsKey *key;
-    cchar   *cp;
+    WebsNonce *np;
+    WebsKey   *key;
+    cchar     *cp;
 
     if (slen(wp->nc) != 8) {
         wp->authReason = "invalid nonce count";
@@ -1965,65 +2003,112 @@ static bool checkNonceCount(Webs *wp)
             return 0;
         }
     }
-    if (nonceStale(wp->nonceTime)) {
+    if (nonceStale(wp)) {
         wp->authReason = "nonce is stale";
         wp->flags |= WEBS_NONCE_STALE;
         return 0;
     }
-    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0 && (uint) hextoi(wp->nc) <= (uint) key->content.value.big[1]) {
-        wp->authReason = "nonce count already used";
-        return 0;
+    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0) {
+        np = key->content.value.symbol;
+        if (!smatch(np->username, wp->username)) {
+            wp->authReason = "nonce is in use by another account";
+            wp->flags |= WEBS_NONCE_STALE;
+            return 0;
+        }
+        if ((uint) hextoi(wp->nc) <= np->nc) {
+            wp->authReason = "nonce count already used";
+            return 0;
+        }
     }
     return 1;
 }
 
 
-/* Evict the oldest nonces and mark their issue times stale to prevent replay after eviction. */
+static void deleteNonce(WebsKey *key)
+{
+    WebsNonce *np;
+
+    np = key->content.value.symbol;
+    wfreeset(np->username);
+    wfree(np);
+    hashDelete(nonceCounts, key->name.value.string);
+    nonceTotal--;
+}
+
+
+/*
+    Evict from the account holding the most nonces. Its eviction cutoff prevents replay without
+    invalidating other accounts' nonces.
+ */
 static void evictNonces(void)
 {
-    WebsKey  *key, *next;
-    WebsTime when, oldest;
+    WebsNonce *np;
+    WebsKey   *key, *next, *kp;
+    WebsHash  counts;
+    WebsTime  oldest;
+    char      *account;
+    long      count, most;
 
     while (nonceTotal >= ME_GOAHEAD_LIMIT_NONCES) {
+        counts = hashCreate(-1);
+        account = 0;
+        most = 0;
+        for (key = hashFirst(nonceCounts); key; key = hashNext(nonceCounts, key)) {
+            np = key->content.value.symbol;
+            count = ((kp = hashLookup(counts, np->username)) != 0 ? kp->content.value.integer : 0) + 1;
+            hashEnter(counts, np->username, valueInteger(count), 0);
+            if (count > most) {
+                most = count;
+                account = np->username;
+            }
+        }
+        hashFree(counts);
+        if (account == 0) {
+            break;
+        }
+        account = sclone(account);
         oldest = 0;
         for (key = hashFirst(nonceCounts); key; key = hashNext(nonceCounts, key)) {
-            when = (WebsTime) (uint) key->content.value.big[0];
-            if (oldest == 0 || when < oldest) {
-                oldest = when;
+            np = key->content.value.symbol;
+            if (smatch(np->username, account) && (oldest == 0 || np->when < oldest)) {
+                oldest = np->when;
             }
         }
         for (key = hashFirst(nonceCounts); key; key = next) {
             next = hashNext(nonceCounts, key);
-            if ((WebsTime) (uint) key->content.value.big[0] <= oldest) {
-                hashDelete(nonceCounts, key->name.value.string);
-                nonceTotal--;
+            np = key->content.value.symbol;
+            if (smatch(np->username, account) && np->when <= oldest) {
+                deleteNonce(key);
             }
         }
-        if (oldest > nonceFloor) {
-            nonceFloor = oldest;
+        if (oldest > nonceFloor(account)) {
+            hashEnter(nonceFloors, account, valueInteger((long) (uint) oldest), 0);
         }
+        wfree(account);
     }
 }
 
 
 PUBLIC void websAcceptDigestCount(Webs *wp)
 {
-    WebsValue record;
+    WebsNonce *np;
+    WebsKey   *key;
 
     if (!(wp->flags & WEBS_AUTHENTICATED) || !wp->route || !smatch(wp->route->authType, "digest") || !wp->nonce ||
-        !wp->nc || nonceCounts < 0) {
+        !wp->nc || !wp->username || nonceCounts < 0) {
         return;
     }
-    if (!hashLookup(nonceCounts, wp->nonce)) {
+    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0) {
+        np = key->content.value.symbol;
+    } else {
         evictNonces();
+        np = walloc(sizeof(WebsNonce));
+        np->when = wp->nonceTime;
+        np->username = sclone(wp->username);
+        hashEnter(nonceCounts, wp->nonce, valueSymbol(np), 0);
         nonceTotal++;
     }
-    memset(&record, 0, sizeof(record));
-    record.valid = 1;
-    record.type = big;
-    record.value.big[0] = (long) (uint) wp->nonceTime;
-    record.value.big[1] = (long) (uint) hextoi(wp->nc);
-    hashEnter(nonceCounts, wp->nonce, record, 0);
+    np->nc = (uint) hextoi(wp->nc);
 }
 
 
@@ -2035,9 +2120,8 @@ static void pruneNonces(void *data, int id)
     if (nonceCounts >= 0 && (now = websTime()) >= 0) {
         for (key = hashFirst(nonceCounts); key; key = next) {
             next = hashNext(nonceCounts, key);
-            if ((WebsTime) (uint) key->content.value.big[0] + ME_GOAHEAD_NONCE_DURATION < now) {
-                hashDelete(nonceCounts, key->name.value.string);
-                nonceTotal--;
+            if (((WebsNonce*) key->content.value.symbol)->when + ME_GOAHEAD_NONCE_DURATION < now) {
+                deleteNonce(key);
             }
         }
     }
@@ -2396,6 +2480,27 @@ static bool inBlackList(cchar *name)
 
 
 /*
+    Reserve CGI meta-variable names even when the server leaves them unset on this request.
+ */
+static cchar *metaPrefixes[] = {
+    "AUTH_", "CONTENT_", "CONTEXT_", "DOCUMENT_", "GATEWAY_", "HTTPS", "PATH_", "QUERY_", "REDIRECT_", "REMOTE_",
+    "REQUEST_", "SCRIPT_", "SERVER_", "SSL_", "TLS_", NULL
+};
+
+static bool isMetaVarName(cchar *name)
+{
+    cchar **mp;
+
+    for (mp = metaPrefixes; *mp; mp++) {
+        if (envNameStarts(name, *mp)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
     Check for names that would alias server environment variables on this platform.
  */
 static bool shadowsServerVar(Webs *wp, cchar *name)
@@ -2737,7 +2842,7 @@ static char **buildCgiEnv(Webs *wp)
                 }
                 if (s->arg != 0 && *ME_GOAHEAD_CGI_VAR_PREFIX != '\0') {
                     envp[n++] = sfmt("%s%s=%s", ME_GOAHEAD_CGI_VAR_PREFIX, name, s->content.value.string);
-                } else if (s->arg != 0 && shadowsServerVar(wp, name)) {
+                } else if (s->arg != 0 && (isMetaVarName(name) || shadowsServerVar(wp, name))) {
                     trace(5, "cgi: Skip request variable named like a server variable");
                     continue;
                 } else {
@@ -5812,6 +5917,13 @@ static bool fileHandler(Webs *wp)
             websError(wp, HTTP_CODE_NOT_FOUND, "Cannot put the URI");
             return 1;
         }
+        /*
+            Do not let PUT create templates that a later request could execute.
+         */
+        if (isTemplate(wp->ext)) {
+            websError(wp, HTTP_CODE_NOT_FOUND, "Cannot put a template: %s", wp->path);
+            return 1;
+        }
         existed = websPageStat(wp, &info) >= 0;
         if (commitPut(wp) < 0) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot save the put URI");
@@ -5966,13 +6078,13 @@ static bool notModified(Webs *wp, WebsFileInfo *info, cchar *etag)
 
 
 /*
-    Do output back to the browser in the background. This is a socket write handler.
-    This bypasses the output buffer and writes directly to the socket.
+    Write directly to the socket, bypassing the output buffer. Bound each call so a fast reader
+    cannot starve other connections.
  */
 static void fileWriteEvent(Webs *wp)
 {
     char  *buf;
-    ssize size, len, wrote;
+    ssize size, len, wrote, slice;
     int   err;
 
     assert(wp);
@@ -5982,8 +6094,9 @@ static void fileWriteEvent(Webs *wp)
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot get memory");
         return;
     }
-    while (wp->txRemaining > 0) {
-        size = (ssize) min(wp->txRemaining, ME_GOAHEAD_LIMIT_BUFFER);
+    slice = ME_GOAHEAD_LIMIT_SLICE;
+    while (wp->txRemaining > 0 && slice > 0) {
+        size = (ssize) min(wp->txRemaining, min(ME_GOAHEAD_LIMIT_BUFFER, slice));
         len = websPageReadData(wp, buf, size);
         if (len <= 0) {
             /*
@@ -6007,6 +6120,7 @@ static void fileWriteEvent(Webs *wp)
             break;
         }
         wp->txRemaining -= wrote;
+        slice -= wrote;
         if (wrote != len) {
             websPageSeek(wp, -(len - wrote), SEEK_CUR);
             break;
@@ -6577,12 +6691,18 @@ static RomFile *getRomFile(int fd)
 }
 
 
+/*
+    A trailing slash may name a directory, never a document.
+ */
 static WebsRomIndex *lookup(WebsHash fs, cchar *path)
 {
-    WebsKey *sp;
-    char    *name;
-    ssize   len;
+    WebsRomIndex *wip;
+    WebsKey      *sp;
+    char         *name;
+    ssize        len;
+    bool         trailing;
 
+    trailing = 0;
     if ((sp = hashLookup(fs, path)) == NULL) {
         if (path[0] != '/') {
             name = sfmt("/%s", path);
@@ -6592,6 +6712,7 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path)
         len = slen(name) - 1;
         if (name[len] == '/') {
             name[len] = '\0';
+            trailing = 1;
         }
         sp = hashLookup(fs, name);
         wfree(name);
@@ -6599,7 +6720,11 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path)
             return 0;
         }
     }
-    return (WebsRomIndex*) sp->content.value.symbol;
+    wip = (WebsRomIndex*) sp->content.value.symbol;
+    if (trailing && wip->page != NULL) {
+        return 0;
+    }
+    return wip;
 }
 #endif
 
@@ -7175,7 +7300,7 @@ static void termWebs(Webs *wp, int reuse)
     assert(wp);
 
 #if ME_GOAHEAD_UPLOAD
-    //  Remove staged files before the close, so a client that sees the connection end finds them gone
+    //  Remove staged files before the peer observes the connection close.
     if (wp->files >= 0) {
         websFreeUpload(wp);
     }
@@ -7485,8 +7610,7 @@ static int auditRoutes(void)
         error("Strict mode: refusing to start with an unsafe route configuration");
         return -1;
     }
-    /* Fail startup if request staging is inside a served directory. */
-    if (websCheckTempDirs() > 0) {
+    if (websCheckTempDirs() + websCheckConfigFiles() > 0) {
         return -1;
     }
     return 0;
@@ -7768,22 +7892,29 @@ static void readEvent(Webs *wp)
     }
     if (wp->flags & WEBS_CLOSED) {
         return;
-    } else if (nbytes < 0 && socketEof(wp->sid)) {
-        /* EOF or error. Allow running requests to continue. */
-        if (wp->state < WEBS_READY) {
-            if (wp->state > WEBS_BEGIN) {
-                websError(wp, HTTP_CODE_COMMS_ERROR | WEBS_CLOSE, "Read error: connection lost");
-                websPump(wp);
-            } else {
-                complete(wp, 0);
-            }
+    }
+    if (nbytes < 0 && socketEof(wp->sid) && wp->state < WEBS_READY) {
+        /* EOF or error before the request was received in full */
+        if (wp->state > WEBS_BEGIN) {
+            websError(wp, HTTP_CODE_COMMS_ERROR | WEBS_CLOSE, "Read error: connection lost");
+            websPump(wp);
         } else {
-            socketDeleteHandler(wp->sid);
+            complete(wp, 0);
         }
-    } else if (wp->state < WEBS_READY) {
-        if ((sp = socketPtr(wp->sid)) != NULL) {
-            socketCreateHandler(wp->sid, sp->handlerMask | SOCKET_READABLE, socketEvent, wp);
-        }
+        return;
+    }
+    if ((sp = socketPtr(wp->sid)) == NULL) {
+        return;
+    }
+    /*
+        Stop reading completed requests until reuseConn restores read interest. Further reads could buffer
+        pipelined input without bound, renew the idle timeout, or cancel pending output on EOF.
+        Already-decrypted TLS input may deliver one more callback per record.
+     */
+    if (wp->state < WEBS_READY) {
+        socketCreateHandler(wp->sid, sp->handlerMask | SOCKET_READABLE, socketEvent, wp);
+    } else {
+        socketCreateHandler(wp->sid, sp->handlerMask & ~SOCKET_READABLE, socketEvent, wp);
     }
 }
 
@@ -7795,10 +7926,16 @@ PUBLIC void websPump(Webs *wp)
     for (canProceed = 1; canProceed; ) {
         switch (wp->state) {
         case WEBS_BEGIN:
-            canProceed = parseIncoming(wp);
-            break;
         case WEBS_CONTENT:
-            canProceed = processContent(wp);
+            /*
+                A finalized response must drain through write interest, then close. Re-entering the body filter
+                can loop on refused input or remove the handler needed to drain the response.
+             */
+            if (wp->finalized) {
+                canProceed = concludeRequest(wp);
+                break;
+            }
+            canProceed = (wp->state == WEBS_BEGIN) ? parseIncoming(wp) : processContent(wp);
             break;
         case WEBS_READY:
             /*
@@ -8792,11 +8929,6 @@ static bool processContent(Webs *wp)
     }
     if (wp->eof) {
         wp->state = WEBS_READY;
-        /*
-            Prevent reading content from the next request
-            The handler may not have been created if all the content was read in the initial read. No matter.
-         */
-        socketDeleteHandler(wp->sid);
         canProceed = 1;
     }
     return canProceed;
@@ -9131,9 +9263,7 @@ PUBLIC void websSetEnv(Webs *wp)
      */
     websSetVarFmt(wp, "CONTENT_LENGTH", "%zd", wp->rxLen > 0 ? wp->rxLen : 0);
     websSetVar(wp, "CONTENT_TYPE", wp->contentType);
-    if (wp->route && wp->route->dir) {
-        websSetVar(wp, "DOCUMENT_ROOT", wp->route->dir);
-    }
+    websSetVar(wp, "DOCUMENT_ROOT", wp->route && wp->route->dir ? wp->route->dir : websGetDocuments());
     websSetVar(wp, "GATEWAY_INTERFACE", "CGI/1.1");
     websSetVar(wp, "PATH_INFO", wp->path);
     websSetVar(wp, "PATH_TRANSLATED", wp->filename);
@@ -10160,54 +10290,60 @@ PUBLIC int websFlush(Webs *wp, bool block)
         deadline = wp->flushDeadline;
     }
     op = &wp->output;
-    if (wp->flags & WEBS_CHUNKING) {
-        trace(6, "websFlush chunking finalized %d", wp->finalized);
-        if (flushChunkData(wp) && wp->finalized) {
-            trace(6, "websFlush: write chunk trailer");
-            bufPutStr(op, "\r\n0\r\n\r\n");
-            bufAddNull(op);
-            wp->flags &= ~WEBS_CHUNKING;
-        }
-    }
-    trace(6, "websFlush: buflen %zd", bufLen(op));
     written = 0;
-    //  Written a contiguous block at a time: the ring's data can wrap past the end of its allocation
-    while ((nbytes = bufGetBlkMax(op)) > 0) {
-        /*
-            Test the deadline on every pass, not just after a send timeout. A peer that accepts a
-            few bytes per slice makes progress without ever timing out a send and would otherwise
-            hold the event loop for as long as it cared to trickle.
-         */
-        if (bounded && ((now = websTime()) < 0 || now >= deadline)) {
-            trace(2, "websFlush: peer not reading, close connection");
-            written = -1;
-        } else if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
-            errCode = socketGetError(wp->sid);
-            if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
-                if (!bounded) {
-                    /* Not an error. Without a send timeout the wait cannot be bounded here */
-                    written = 0;
-                    break;
-                }
-                /* The send slice expired but the flush deadline has not. Retry */
-                continue;
+    do {
+        if (wp->flags & WEBS_CHUNKING) {
+            trace(6, "websFlush chunking finalized %d", wp->finalized);
+            if (flushChunkData(wp) && wp->finalized) {
+                trace(6, "websFlush: write chunk trailer");
+                bufPutStr(op, "\r\n0\r\n\r\n");
+                bufAddNull(op);
+                wp->flags &= ~WEBS_CHUNKING;
             }
         }
-        if (written < 0) {
+        trace(6, "websFlush: buflen %zd", bufLen(op));
+        //  Written a contiguous block at a time: the ring's data can wrap past the end of its allocation
+        while ((nbytes = bufGetBlkMax(op)) > 0) {
             /*
-                Connection Error
+                Test the deadline on every pass, not just after a send timeout. A peer that accepts a
+                few bytes per slice makes progress without ever timing out a send and would otherwise
+                hold the event loop for as long as it cared to trickle.
              */
-            wp->flags &= ~WEBS_KEEP_ALIVE;
-            bufFlush(op);
-            wp->state = WEBS_COMPLETE;
-            break;
-        } else if (written == 0) {
-            break;
+            if (bounded && ((now = websTime()) < 0 || now >= deadline)) {
+                trace(2, "websFlush: peer not reading, close connection");
+                written = -1;
+            } else if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
+                errCode = socketGetError(wp->sid);
+                if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
+                    if (!bounded) {
+                        /* Not an error. Without a send timeout the wait cannot be bounded here */
+                        written = 0;
+                        break;
+                    }
+                    /* The send slice expired but the flush deadline has not. Retry */
+                    continue;
+                }
+            }
+            if (written < 0) {
+                /*
+                    Connection Error
+                 */
+                wp->flags &= ~WEBS_KEEP_ALIVE;
+                bufFlush(op);
+                wp->state = WEBS_COMPLETE;
+                break;
+            } else if (written == 0) {
+                break;
+            }
+            trace(6, "websFlush: wrote %zd to socket", written);
+            bufAdjustStart(op, written);
+            bufCompact(op);
         }
-        trace(6, "websFlush: wrote %zd to socket", written);
-        bufAdjustStart(op, written);
-        bufCompact(op);
-    }
+        /*
+            flushChunkData moves only what the output buffer can hold. Repeat while the socket drains it so
+            chunked data is never left behind with an empty output buffer.
+         */
+    } while (written >= 0 && bufLen(op) == 0 && (wp->flags & WEBS_CHUNKING) && bufLen(&wp->chunkbuf) > 0);
     assert(websValid(wp));
 
     if (bufLen(op) == 0 && wp->finalized) {
@@ -11287,6 +11423,23 @@ PUBLIC char *websValidateUriPath(cchar *uri)
 }
 
 
+PUBLIC bool websCanonicalUriPath(cchar *path)
+{
+    char *normalized;
+    bool canonical;
+
+    if (path == 0 || *path != '/' || strpbrk(path, "%\\?#")) {
+        return 0;
+    }
+    if ((normalized = websNormalizeUriPath(path)) == 0) {
+        return 0;
+    }
+    canonical = smatch(normalized, path) && validCanonicalPath(path);
+    wfree(normalized);
+    return canonical;
+}
+
+
 /*
     Reject remaining escapes for NUL, dot, and separators to prevent double-decoded traversal.
  */
@@ -11433,7 +11586,7 @@ PUBLIC bool websPageAllowed(Webs *wp)
 
 PUBLIC bool websPageContained(Webs *wp)
 {
-#if ME_GOAHEAD_CONTAIN_DOCUMENTS && ME_UNIX_LIKE
+#if ME_GOAHEAD_CONTAIN_DOCUMENTS && ME_UNIX_LIKE && !ME_ROM
     cchar *root;
     char  *path, *real, *realRoot, *sep;
     ssize len;
@@ -16776,7 +16929,8 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
             rc = -1;
             sp->flags |= SOCKET_EOF;
         }
-    } else if (SSL_pending(wp->ssl) > 0) {
+    } else {
+        //  Report pending bytes after every read to clear the buffered-input mark when drained.
         socketHiddenData(sp, SSL_pending(wp->ssl), SOCKET_READABLE);
     }
     return rc;
@@ -17789,6 +17943,8 @@ static int       routeMax = 0;
 static bool      strictMode = ME_GOAHEAD_STRICT;
 static WebsRoute **retiredRoutes;                  /* Removed routes still held by in-flight requests */
 static int       retiredCount;
+static char      **configFiles;                    /* Route and credential files websLoad has read */
+static int       configFileCount;
 static WebsHash  routeMethods = -1;                 /* Methods named by a route's methods= beyond the standard set */
 
 #define WEBS_MAX_ROUTE     16           /* Maximum passes over route set */
@@ -18167,6 +18323,13 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
         error("Route has bad URI");
         return 0;
     }
+    /* Request paths are decoded and normalized before matching, so a prefix in any other form never matches. */
+    if (!websCanonicalUriPath(uri)) {
+        error("Route \"%s\" is not a canonical path and never matches. Write the prefix as the decoded request path: "
+              "beginning with \"/\", without empty, \".\" or \"..\" segments, percent escapes or file system aliases.",
+              uri);
+        return 0;
+    }
     if ((route = walloc(sizeof(WebsRoute))) == 0) {
         return 0;
     }
@@ -18481,6 +18644,90 @@ static int prefixesNest(WebsRoute *r1, WebsRoute *r2)
 }
 
 
+/*
+    Can one request satisfy both routes' selectors? A route without methods= admits the safe methods.
+ */
+static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2)
+{
+    WebsKey *key;
+    cchar   *safe[] = { "GET", "HEAD", "POST", 0 };
+    int     i, common;
+
+    if (r1->protocol && r2->protocol && !smatch(r1->protocol, r2->protocol)) {
+        return 0;
+    }
+    if (r1->extensions >= 0 && r2->extensions >= 0) {
+        for (common = 0, key = hashFirst(r2->extensions); key && !common; key = hashNext(r2->extensions, key)) {
+            common = hashLookup(r1->extensions, key->name.value.string) != 0;
+        }
+        if (!common) {
+            return 0;
+        }
+    }
+    if (r2->methods >= 0) {
+        for (key = hashFirst(r2->methods); key; key = hashNext(r2->methods, key)) {
+            if (routeAllowsMethod(r1, key->name.value.string)) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    for (i = 0; safe[i]; i++) {
+        if (routeAllowsMethod(r1, safe[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Does holding every ability the first set requires satisfy the second? A "|" entry is met by any one alternative.
+ */
+static int abilitiesCover(WebsHash have, WebsHash need)
+{
+    WebsKey *key;
+    char    *copy, *ability, *tok;
+    int     met;
+
+    if (need < 0) {
+        return 1;
+    }
+    if (have < 0) {
+        return 0;
+    }
+    for (key = hashFirst(need); key; key = hashNext(need, key)) {
+        if (hashLookup(have, key->name.value.string)) {
+            continue;
+        }
+        met = 0;
+        if (strchr(key->name.value.string, '|')) {
+            copy = sclone(key->name.value.string);
+            for (ability = stok(copy, "|", &tok); ability && !met; ability = stok(NULL, "|", &tok)) {
+                met = hashLookup(have, ability) != 0;
+            }
+            wfree(copy);
+        }
+        if (!met) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+    Does a request the earlier route authorizes meet the later route's requirement?
+ */
+static int routeMeets(WebsRoute *earlier, WebsRoute *later)
+{
+    if (later->authType && !smatch(earlier->authType, later->authType)) {
+        return 0;
+    }
+    return abilitiesCover(earlier->abilities, later->abilities);
+}
+
+
 static int dirContains(cchar *dir, cchar *child);
 
 /*
@@ -18585,7 +18832,10 @@ static int checkRouteAuth(void)
             problems++;
         }
     }
-    /* Report nested public routes reachable through an authenticated route's unmatched selectors. */
+    /*
+        Check public routes missed by an authentication gate's selectors. Equal prefixes need this
+        check for protocol-only gates; methods and extensions are checked above.
+     */
     for (i = 0; i < routeCount; i++) {
         strict = routes[i];
         if (!strict->authType && strict->abilities < 0) {
@@ -18594,15 +18844,17 @@ static int checkRouteAuth(void)
         for (j = i + 1; j < routeCount; j++) {
             candidate = routes[j];
             if (routeRequiresAuth(candidate) || !routeServesContent(candidate) ||
-                candidate->prefixLen <= strict->prefixLen ||
+                candidate->prefixLen < strict->prefixLen ||
+                (candidate->prefixLen == strict->prefixLen && (strict->methods >= 0 || strict->extensions >= 0)) ||
                 matchRoutePrefix(candidate->prefix, strict->prefix, strict->prefixLen) != 0 ||
                 !regionsOverlap(strict, candidate)) {
                 continue;
             }
             if ((uncovered = gateUncovered(strict, candidate)) != 0) {
                 error("Security warning: route \"%s\" requires authentication only for some requests, but later "
-                      "route \"%s\" (handler=%s) under it also accepts %s, which reaches it without credentials. "
+                      "route \"%s\" (handler=%s) %s also accepts %s, which reaches it without credentials. "
                       "%s", strict->prefix, candidate->prefix, candidate->handler ? candidate->handler->name : "?",
+                      candidate->prefixLen == strict->prefixLen ? "on the same prefix" : "under it",
                       uncovered, strict->protocol ? "Drop protocol= from the authenticated route and redirect http "
                       "to https with a protocol=http redirect=https route instead." :
                       "Drop the selector from the authenticated route or give the later route the same one.");
@@ -18631,6 +18883,30 @@ static int checkRouteAuth(void)
                   "serves its requests without credentials. Put \"%s\" first.",
                   candidate->prefix, candidate->handler ? candidate->handler->name : "?", strict->prefix,
                   strict->prefix);
+            problems++;
+            break;
+        }
+    }
+    /*
+        Report earlier serving routes with weaker authentication or abilities. Gates pass requests on;
+        abilities-only routes without auth admit nobody.
+     */
+    for (i = 0; i < routeCount; i++) {
+        strict = routes[i];
+        if (!strict->authType && strict->abilities < 0) {
+            continue;
+        }
+        for (j = 0; j < i; j++) {
+            candidate = routes[j];
+            if (!candidate->authType || routeIsGate(candidate) || !routeServesContent(candidate) ||
+                matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0 ||
+                !regionsOverlap(strict, candidate) || !selectorsOverlap(candidate, strict) ||
+                routeMeets(candidate, strict)) {
+                continue;
+            }
+            error("Security warning: route \"%s\" (auth=%s) comes before route \"%s\" (auth=%s) and serves its "
+                  "requests under its own weaker requirement. Put \"%s\" first.", candidate->prefix,
+                  candidate->authType, strict->prefix, strict->authType ? strict->authType : "none", strict->prefix);
             problems++;
             break;
         }
@@ -18917,6 +19193,34 @@ static int dirContains(cchar *dir, cchar *child)
 
 
 /*
+    Report loaded configuration files inside served directories, where clients could fetch them.
+ */
+PUBLIC int websCheckConfigFiles(void)
+{
+    cchar *docs;
+    int   i, j, problems;
+
+    problems = 0;
+    for (i = 0; i < configFileCount; i++) {
+        for (j = -1; j < routeCount; j++) {
+            docs = (j < 0) ? websGetDocuments() : routes[j]->dir;
+            if (docs == 0 || *docs == '\0') {
+                continue;
+            }
+            if (dirContains(docs, configFiles[i])) {
+                error("Security error: the configuration file \"%s\" is inside the served directory \"%s\" and "
+                      "would be served to any client that names it. Move it outside the documents directory.",
+                      configFiles[i], docs);
+                problems++;
+                break;
+            }
+        }
+    }
+    return problems;
+}
+
+
+/*
     Audit the directories used to stage request data - CGI stdin and stdout, upload and PUT staging -
     against the served directories. A temporary file inside a served directory is fetchable over HTTP,
     so one client's in-flight request body or CGI response is readable by another. Returns the number of
@@ -19055,6 +19359,11 @@ PUBLIC void websCloseRoute(void)
     }
     retiredCount = 0;
     wfreeset(retiredRoutes);
+    for (i = 0; i < configFileCount; i++) {
+        wfreeset(configFiles[i]);
+    }
+    configFileCount = 0;
+    wfreeset(configFiles);
     routeCount = routeMax = 0;
     if (routeMethods >= 0) {
         hashFree(routeMethods);
@@ -19132,6 +19441,22 @@ static int rejectAuthDirective(cchar *directive)
 
 
 /*
+    Split key=value; report missing values and return null on error.
+ */
+static char *splitOption(cchar *kind, char *option, char **value)
+{
+    char *key;
+
+    key = stok(option, "=", value);
+    if (*value == 0 || **value == '\0') {
+        error("Bad %s keyword %s: it needs a value", kind, key);
+        return 0;
+    }
+    return key;
+}
+
+
+/*
     Load route and authentication configuration files
  */
 PUBLIC int websLoad(cchar *path)
@@ -19150,6 +19475,8 @@ PUBLIC int websLoad(cchar *path)
         error("Cannot open config file %s", path);
         return -1;
     }
+    configFiles = wrealloc(configFiles, sizeof(char*) * (configFileCount + 1));
+    configFiles[configFileCount++] = sclone(path);
     for (line = stok(buf, "\r\n", &token); line; line = stok(NULL, "\r\n", &token)) {
         kind = stok(line, " \t", &next);
         if (kind == 0 || *kind == '\0' || *kind == '#') {
@@ -19160,7 +19487,10 @@ PUBLIC int websLoad(cchar *path)
             abilities = extensions = methods = redirects = -1;
             flags = 0;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
-                key = stok(option, "=", &value);
+                if ((key = splitOption(kind, option, &value)) == 0) {
+                    badKeyword = 1;
+                    continue;
+                }
                 if (smatch(key, "abilities")) {
                     addOption(&abilities, value, " \t,", 0);
                 } else if (smatch(key, "auth")) {
@@ -19249,7 +19579,10 @@ PUBLIC int websLoad(cchar *path)
             char *name, *password, *roles;
             name = password = roles = 0;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
-                key = stok(option, "=", &value);
+                if ((key = splitOption(kind, option, &value)) == 0) {
+                    badKeyword = 1;
+                    continue;
+                }
                 if (smatch(key, "name")) {
                     name = value;
                 } else if (smatch(key, "password")) {
@@ -19280,7 +19613,10 @@ PUBLIC int websLoad(cchar *path)
             name = 0;
             abilities = -1;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
-                key = stok(option, "=", &value);
+                if ((key = splitOption(kind, option, &value)) == 0) {
+                    badKeyword = 1;
+                    continue;
+                }
                 if (smatch(key, "name")) {
                     name = value;
                 } else if (smatch(key, "abilities")) {
@@ -19991,12 +20327,6 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
 
             case 'X':
                 fmt.flags |= SPRINTF_UPPER_CASE;
-#if ME_64
-                fmt.flags &= ~(SPRINTF_SHORT | SPRINTF_LONG);
-                fmt.flags |= SPRINTF_INT64;
-#else
-                fmt.flags &= ~(SPRINTF_INT64);
-#endif
             /*  Fall through  */
             case 'o':
             case 'x':
@@ -20367,21 +20697,39 @@ PUBLIC int websStartLogFile(WebsLogFile *log, cchar *path)
 
 
 
+/*
+    Keep the open log until rotation succeeds, since privileges may no longer allow reopening it.
+    Retry failed rotations after another size limit of output.
+ */
 static void rotateLogFile(WebsLogFile *log)
 {
     char *old;
+    int  fd;
 
-    close(log->fd);
-    log->fd = -1;
     old = sfmt("%s.old", log->path);
 #if ME_WIN_LIKE
+    /* Windows cannot rename an open file, nor replace an existing one */
+    close(log->fd);
+    log->fd = -1;
     unlink(old);
 #endif
-    if (rename(log->path, old) != 0) {
-        unlink(log->path);
+    if (rename(log->path, old) == 0) {
+        if ((fd = websOpenLogFile(log->path)) >= 0) {
+            if (log->fd >= 0) {
+                close(log->fd);
+            }
+            log->fd = fd;
+        } else {
+            /* Put the log back so the next rotation finds it */
+            rename(old, log->path);
+        }
     }
+#if ME_WIN_LIKE
+    if (log->fd < 0) {
+        log->fd = websOpenLogFile(log->path);
+    }
+#endif
     wfree(old);
-    log->fd = websOpenLogFile(log->path);
     log->size = 0;
 }
 
@@ -21394,6 +21742,8 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
         if (bp->maxsize < 0 || bp->increment < bp->maxsize) {
             bp->increment = getBinBlockSize(2 * bp->increment);
         }
+    } else if (bp->maxsize >= 0 && room > bp->maxsize - bp->buflen) {
+        return 0;
     }
     len = bufLen(bp);
     if ((newbuf = walloc(bp->buflen + room)) == NULL) {
@@ -22304,6 +22654,7 @@ static int ipv6(cchar *ip);
 static void lingerExpired(void *data, int id);
 static void lingerRead(int sid, int mask, void *data);
 static bool socketDrain(int sid);
+static bool socketDue(WebsSocket *sp);
 static void socketAccept(WebsSocket *sp);
 static void socketDoEvent(WebsSocket *sp);
 
@@ -22646,11 +22997,12 @@ PUBLIC void socketRegisterInterest(int sid, int handlerMask)
         return;
     }
     sp->handlerMask = handlerMask;
-    if (sp->flags & SOCKET_BUFFERED_READ) {
-        sp->handlerMask |= SOCKET_READABLE;
-    }
-    if (sp->flags & SOCKET_BUFFERED_WRITE) {
-        sp->handlerMask |= SOCKET_WRITABLE;
+    /*
+        Service buffered TLS input only with read interest. Buffered output waits for a writable event;
+        never add interest beyond the caller's mask.
+     */
+    if ((sp->flags & SOCKET_BUFFERED_READ) && (handlerMask & SOCKET_READABLE)) {
+        sp->flags |= SOCKET_RESERVICE;
     }
 }
 
@@ -22685,7 +23037,7 @@ PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir)
 {
     if (len > 0) {
         sp->flags |= (dir == SOCKET_READABLE) ? SOCKET_BUFFERED_READ : SOCKET_BUFFERED_WRITE;
-        if (sp->handler) {
+        if (dir == SOCKET_READABLE && sp->handler && (sp->handlerMask & SOCKET_READABLE)) {
             socketReservice(sp->sid);
         }
     } else {
@@ -22695,14 +23047,27 @@ PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir)
 
 
 /*
+    Defer reservice until interest is registered to avoid waking select with nothing to run.
+ */
+static bool socketDue(WebsSocket *sp)
+{
+    return (sp->flags & SOCKET_RESERVICE) && (sp->handlerMask & (SOCKET_READABLE | SOCKET_WRITABLE));
+}
+
+
+/*
     Wait for a handle to become readable or writable and return a number of noticed events. Timeout is in milliseconds.
  */
 #if ME_WIN_LIKE
+/*
+    Keep large Windows fd_sets off the stack; the server is single threaded.
+ */
+static fd_set readFds, writeFds, exceptFds;
+
 PUBLIC int socketSelect(int sid, int timeout)
 {
     struct timeval tv;
     WebsSocket     *sp;
-    fd_set         readFds, writeFds, exceptFds;
     int            nEvents;
     int            all;
 
@@ -22743,7 +23108,7 @@ PUBLIC int socketSelect(int sid, int timeout)
             FD_SET(sp->sock, &exceptFds);
             nEvents++;
         }
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             tv.tv_sec = 0;
             tv.tv_usec = 0;
         }
@@ -22778,7 +23143,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         if ((sp = socketList[sid]) == NULL) {
             continue;
         }
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             if (sp->handlerMask & SOCKET_READABLE) {
                 sp->currentEvents |= SOCKET_READABLE;
             }
@@ -22867,7 +23232,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         if (sp->handlerMask & SOCKET_EXCEPTION) {
             exceptFds[index] |= bit;
         }
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             tv.tv_sec = 0;
             tv.tv_usec = 0;
         }
@@ -22900,7 +23265,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         index = sp->sock / (NBBY * sizeof(fd_mask));
         bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
 
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             if (sp->handlerMask & SOCKET_READABLE) {
                 sp->currentEvents |= SOCKET_READABLE;
             }
@@ -24709,7 +25074,7 @@ PUBLIC void websFreeUpload(Webs *wp)
     WebsUpload *up;
     WebsKey    *s;
 
-    //  Close the file being written first: Windows cannot remove a file that is still open
+    //  Windows requires closing the upload before removing it.
     if (wp->upfd >= 0) {
         close(wp->upfd);
         wp->upfd = -1;

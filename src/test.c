@@ -228,7 +228,6 @@ MAIN(goahead, int argc, char **argv, char **envp)
         return -1;
     }
 #else
-    /* A build without authentication has no users or roles to load */
     (void) auth;
 #endif
     if (argind < argc) {
@@ -393,8 +392,7 @@ static void usage(void)
 
 
 /*
-    The feature flags the test suite adapts to, as NAME=VALUE lines. test/utils/features.sh turns them into the
-    test environment and the header the C tests compile with, so both match this build.
+    Report build flags for the test environment and C test header.
  */
 static void printFeatures(void)
 {

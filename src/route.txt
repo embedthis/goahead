@@ -72,8 +72,8 @@
 #   A route without methods= serves only GET, HEAD and POST, but its auth= and abilities= apply to every
 #   method, so a gate also authenticates PUT and DELETE before a later route on its prefix serves them. HEAD
 #   follows GET: a route listing GET also accepts HEAD. A gate with methods=, protocol= or extensions= covers
-#   only the requests those match, so the server refuses a later unauthenticated route under the gate's prefix
-#   that accepts any other request.
+#   only the requests those match, so the server refuses a later unauthenticated route on or under the gate's
+#   prefix that accepts any other request.
 #
 #   The server warns at startup while no authenticated route is configured. It refuses to start when a
 #   route before or after an authenticated route can serve its requests, and when an action, template or CGI route
@@ -83,7 +83,9 @@
 #
 #   Standard routes
 #
-#   A route prefix is matched literally. End it with "/" to match a directory and nothing beside
+#   A route prefix is matched literally against the decoded, normalized request path, so write it in that
+#   form: beginning with "/", without empty, "." or ".." segments or percent escapes. Any other spelling
+#   matches nothing and is refused. End it with "/" to match a directory and nothing beside
 #   it: "/cgi-bin" would also match "/cgi-bin.bak/". Programs are run from the directory the prefix
 #   names, under the server's working directory: here ./cgi-bin.
 #

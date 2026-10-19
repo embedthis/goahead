@@ -34,6 +34,7 @@ static int ipv6(cchar *ip);
 static void lingerExpired(void *data, int id);
 static void lingerRead(int sid, int mask, void *data);
 static bool socketDrain(int sid);
+static bool socketDue(WebsSocket *sp);
 static void socketAccept(WebsSocket *sp);
 static void socketDoEvent(WebsSocket *sp);
 
@@ -376,11 +377,12 @@ PUBLIC void socketRegisterInterest(int sid, int handlerMask)
         return;
     }
     sp->handlerMask = handlerMask;
-    if (sp->flags & SOCKET_BUFFERED_READ) {
-        sp->handlerMask |= SOCKET_READABLE;
-    }
-    if (sp->flags & SOCKET_BUFFERED_WRITE) {
-        sp->handlerMask |= SOCKET_WRITABLE;
+    /*
+        Service buffered TLS input only with read interest. Buffered output waits for a writable event;
+        never add interest beyond the caller's mask.
+     */
+    if ((sp->flags & SOCKET_BUFFERED_READ) && (handlerMask & SOCKET_READABLE)) {
+        sp->flags |= SOCKET_RESERVICE;
     }
 }
 
@@ -415,7 +417,7 @@ PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir)
 {
     if (len > 0) {
         sp->flags |= (dir == SOCKET_READABLE) ? SOCKET_BUFFERED_READ : SOCKET_BUFFERED_WRITE;
-        if (sp->handler) {
+        if (dir == SOCKET_READABLE && sp->handler && (sp->handlerMask & SOCKET_READABLE)) {
             socketReservice(sp->sid);
         }
     } else {
@@ -425,14 +427,27 @@ PUBLIC void socketHiddenData(WebsSocket *sp, ssize len, int dir)
 
 
 /*
+    Defer reservice until interest is registered to avoid waking select with nothing to run.
+ */
+static bool socketDue(WebsSocket *sp)
+{
+    return (sp->flags & SOCKET_RESERVICE) && (sp->handlerMask & (SOCKET_READABLE | SOCKET_WRITABLE));
+}
+
+
+/*
     Wait for a handle to become readable or writable and return a number of noticed events. Timeout is in milliseconds.
  */
 #if ME_WIN_LIKE
+/*
+    Keep large Windows fd_sets off the stack; the server is single threaded.
+ */
+static fd_set readFds, writeFds, exceptFds;
+
 PUBLIC int socketSelect(int sid, int timeout)
 {
     struct timeval tv;
     WebsSocket     *sp;
-    fd_set         readFds, writeFds, exceptFds;
     int            nEvents;
     int            all;
 
@@ -473,7 +488,7 @@ PUBLIC int socketSelect(int sid, int timeout)
             FD_SET(sp->sock, &exceptFds);
             nEvents++;
         }
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             tv.tv_sec = 0;
             tv.tv_usec = 0;
         }
@@ -508,7 +523,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         if ((sp = socketList[sid]) == NULL) {
             continue;
         }
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             if (sp->handlerMask & SOCKET_READABLE) {
                 sp->currentEvents |= SOCKET_READABLE;
             }
@@ -597,7 +612,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         if (sp->handlerMask & SOCKET_EXCEPTION) {
             exceptFds[index] |= bit;
         }
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             tv.tv_sec = 0;
             tv.tv_usec = 0;
         }
@@ -630,7 +645,7 @@ PUBLIC int socketSelect(int sid, int timeout)
         index = sp->sock / (NBBY * sizeof(fd_mask));
         bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
 
-        if (sp->flags & SOCKET_RESERVICE) {
+        if (socketDue(sp)) {
             if (sp->handlerMask & SOCKET_READABLE) {
                 sp->currentEvents |= SOCKET_READABLE;
             }

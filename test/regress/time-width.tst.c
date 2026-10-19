@@ -254,8 +254,8 @@ static void testDigest(void)
     websFree(wp);
 
     tinfo("\n--- A failed clock refuses Digest ---\n");
-    ttrue(nonceStale(websTime() > 0 ? websTime() : 1), "every nonce is stale without a clock");
     wp = digestRequest(1, 5, "00000001");
+    ttrue(nonceStale(wp), "every nonce is stale without a clock");
     ttrue(!checkNonceCount(wp), "a nonce is refused without a clock");
     stale = (wp->flags & WEBS_NONCE_STALE) != 0;
     ttrue(stale, "the refusal is reported stale");

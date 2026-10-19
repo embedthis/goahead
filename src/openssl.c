@@ -651,7 +651,8 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
             rc = -1;
             sp->flags |= SOCKET_EOF;
         }
-    } else if (SSL_pending(wp->ssl) > 0) {
+    } else {
+        //  Report pending bytes after every read to clear the buffered-input mark when drained.
         socketHiddenData(sp, SSL_pending(wp->ssl), SOCKET_READABLE);
     }
     return rc;

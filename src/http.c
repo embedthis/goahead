@@ -561,7 +561,7 @@ static void termWebs(Webs *wp, int reuse)
     assert(wp);
 
 #if ME_GOAHEAD_UPLOAD
-    //  Remove staged files before the close, so a client that sees the connection end finds them gone
+    //  Remove staged files before the peer observes the connection close.
     if (wp->files >= 0) {
         websFreeUpload(wp);
     }
@@ -871,8 +871,7 @@ static int auditRoutes(void)
         error("Strict mode: refusing to start with an unsafe route configuration");
         return -1;
     }
-    /* Fail startup if request staging is inside a served directory. */
-    if (websCheckTempDirs() > 0) {
+    if (websCheckTempDirs() + websCheckConfigFiles() > 0) {
         return -1;
     }
     return 0;
@@ -1154,22 +1153,29 @@ static void readEvent(Webs *wp)
     }
     if (wp->flags & WEBS_CLOSED) {
         return;
-    } else if (nbytes < 0 && socketEof(wp->sid)) {
-        /* EOF or error. Allow running requests to continue. */
-        if (wp->state < WEBS_READY) {
-            if (wp->state > WEBS_BEGIN) {
-                websError(wp, HTTP_CODE_COMMS_ERROR | WEBS_CLOSE, "Read error: connection lost");
-                websPump(wp);
-            } else {
-                complete(wp, 0);
-            }
+    }
+    if (nbytes < 0 && socketEof(wp->sid) && wp->state < WEBS_READY) {
+        /* EOF or error before the request was received in full */
+        if (wp->state > WEBS_BEGIN) {
+            websError(wp, HTTP_CODE_COMMS_ERROR | WEBS_CLOSE, "Read error: connection lost");
+            websPump(wp);
         } else {
-            socketDeleteHandler(wp->sid);
+            complete(wp, 0);
         }
-    } else if (wp->state < WEBS_READY) {
-        if ((sp = socketPtr(wp->sid)) != NULL) {
-            socketCreateHandler(wp->sid, sp->handlerMask | SOCKET_READABLE, socketEvent, wp);
-        }
+        return;
+    }
+    if ((sp = socketPtr(wp->sid)) == NULL) {
+        return;
+    }
+    /*
+        Stop reading completed requests until reuseConn restores read interest. Further reads could buffer
+        pipelined input without bound, renew the idle timeout, or cancel pending output on EOF.
+        Already-decrypted TLS input may deliver one more callback per record.
+     */
+    if (wp->state < WEBS_READY) {
+        socketCreateHandler(wp->sid, sp->handlerMask | SOCKET_READABLE, socketEvent, wp);
+    } else {
+        socketCreateHandler(wp->sid, sp->handlerMask & ~SOCKET_READABLE, socketEvent, wp);
     }
 }
 
@@ -1181,10 +1187,16 @@ PUBLIC void websPump(Webs *wp)
     for (canProceed = 1; canProceed; ) {
         switch (wp->state) {
         case WEBS_BEGIN:
-            canProceed = parseIncoming(wp);
-            break;
         case WEBS_CONTENT:
-            canProceed = processContent(wp);
+            /*
+                A finalized response must drain through write interest, then close. Re-entering the body filter
+                can loop on refused input or remove the handler needed to drain the response.
+             */
+            if (wp->finalized) {
+                canProceed = concludeRequest(wp);
+                break;
+            }
+            canProceed = (wp->state == WEBS_BEGIN) ? parseIncoming(wp) : processContent(wp);
             break;
         case WEBS_READY:
             /*
@@ -2178,11 +2190,6 @@ static bool processContent(Webs *wp)
     }
     if (wp->eof) {
         wp->state = WEBS_READY;
-        /*
-            Prevent reading content from the next request
-            The handler may not have been created if all the content was read in the initial read. No matter.
-         */
-        socketDeleteHandler(wp->sid);
         canProceed = 1;
     }
     return canProceed;
@@ -2517,9 +2524,7 @@ PUBLIC void websSetEnv(Webs *wp)
      */
     websSetVarFmt(wp, "CONTENT_LENGTH", "%zd", wp->rxLen > 0 ? wp->rxLen : 0);
     websSetVar(wp, "CONTENT_TYPE", wp->contentType);
-    if (wp->route && wp->route->dir) {
-        websSetVar(wp, "DOCUMENT_ROOT", wp->route->dir);
-    }
+    websSetVar(wp, "DOCUMENT_ROOT", wp->route && wp->route->dir ? wp->route->dir : websGetDocuments());
     websSetVar(wp, "GATEWAY_INTERFACE", "CGI/1.1");
     websSetVar(wp, "PATH_INFO", wp->path);
     websSetVar(wp, "PATH_TRANSLATED", wp->filename);
@@ -3546,54 +3551,60 @@ PUBLIC int websFlush(Webs *wp, bool block)
         deadline = wp->flushDeadline;
     }
     op = &wp->output;
-    if (wp->flags & WEBS_CHUNKING) {
-        trace(6, "websFlush chunking finalized %d", wp->finalized);
-        if (flushChunkData(wp) && wp->finalized) {
-            trace(6, "websFlush: write chunk trailer");
-            bufPutStr(op, "\r\n0\r\n\r\n");
-            bufAddNull(op);
-            wp->flags &= ~WEBS_CHUNKING;
-        }
-    }
-    trace(6, "websFlush: buflen %zd", bufLen(op));
     written = 0;
-    //  Written a contiguous block at a time: the ring's data can wrap past the end of its allocation
-    while ((nbytes = bufGetBlkMax(op)) > 0) {
-        /*
-            Test the deadline on every pass, not just after a send timeout. A peer that accepts a
-            few bytes per slice makes progress without ever timing out a send and would otherwise
-            hold the event loop for as long as it cared to trickle.
-         */
-        if (bounded && ((now = websTime()) < 0 || now >= deadline)) {
-            trace(2, "websFlush: peer not reading, close connection");
-            written = -1;
-        } else if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
-            errCode = socketGetError(wp->sid);
-            if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
-                if (!bounded) {
-                    /* Not an error. Without a send timeout the wait cannot be bounded here */
-                    written = 0;
-                    break;
-                }
-                /* The send slice expired but the flush deadline has not. Retry */
-                continue;
+    do {
+        if (wp->flags & WEBS_CHUNKING) {
+            trace(6, "websFlush chunking finalized %d", wp->finalized);
+            if (flushChunkData(wp) && wp->finalized) {
+                trace(6, "websFlush: write chunk trailer");
+                bufPutStr(op, "\r\n0\r\n\r\n");
+                bufAddNull(op);
+                wp->flags &= ~WEBS_CHUNKING;
             }
         }
-        if (written < 0) {
+        trace(6, "websFlush: buflen %zd", bufLen(op));
+        //  Written a contiguous block at a time: the ring's data can wrap past the end of its allocation
+        while ((nbytes = bufGetBlkMax(op)) > 0) {
             /*
-                Connection Error
+                Test the deadline on every pass, not just after a send timeout. A peer that accepts a
+                few bytes per slice makes progress without ever timing out a send and would otherwise
+                hold the event loop for as long as it cared to trickle.
              */
-            wp->flags &= ~WEBS_KEEP_ALIVE;
-            bufFlush(op);
-            wp->state = WEBS_COMPLETE;
-            break;
-        } else if (written == 0) {
-            break;
+            if (bounded && ((now = websTime()) < 0 || now >= deadline)) {
+                trace(2, "websFlush: peer not reading, close connection");
+                written = -1;
+            } else if ((written = websWriteSocket(wp, op->servp, nbytes)) < 0) {
+                errCode = socketGetError(wp->sid);
+                if (errCode == EWOULDBLOCK || errCode == EAGAIN || errCode == ETIMEDOUT) {
+                    if (!bounded) {
+                        /* Not an error. Without a send timeout the wait cannot be bounded here */
+                        written = 0;
+                        break;
+                    }
+                    /* The send slice expired but the flush deadline has not. Retry */
+                    continue;
+                }
+            }
+            if (written < 0) {
+                /*
+                    Connection Error
+                 */
+                wp->flags &= ~WEBS_KEEP_ALIVE;
+                bufFlush(op);
+                wp->state = WEBS_COMPLETE;
+                break;
+            } else if (written == 0) {
+                break;
+            }
+            trace(6, "websFlush: wrote %zd to socket", written);
+            bufAdjustStart(op, written);
+            bufCompact(op);
         }
-        trace(6, "websFlush: wrote %zd to socket", written);
-        bufAdjustStart(op, written);
-        bufCompact(op);
-    }
+        /*
+            flushChunkData moves only what the output buffer can hold. Repeat while the socket drains it so
+            chunked data is never left behind with an empty output buffer.
+         */
+    } while (written >= 0 && bufLen(op) == 0 && (wp->flags & WEBS_CHUNKING) && bufLen(&wp->chunkbuf) > 0);
     assert(websValid(wp));
 
     if (bufLen(op) == 0 && wp->finalized) {
@@ -4673,6 +4684,23 @@ PUBLIC char *websValidateUriPath(cchar *uri)
 }
 
 
+PUBLIC bool websCanonicalUriPath(cchar *path)
+{
+    char *normalized;
+    bool canonical;
+
+    if (path == 0 || *path != '/' || strpbrk(path, "%\\?#")) {
+        return 0;
+    }
+    if ((normalized = websNormalizeUriPath(path)) == 0) {
+        return 0;
+    }
+    canonical = smatch(normalized, path) && validCanonicalPath(path);
+    wfree(normalized);
+    return canonical;
+}
+
+
 /*
     Reject remaining escapes for NUL, dot, and separators to prevent double-decoded traversal.
  */
@@ -4819,7 +4847,7 @@ PUBLIC bool websPageAllowed(Webs *wp)
 
 PUBLIC bool websPageContained(Webs *wp)
 {
-#if ME_GOAHEAD_CONTAIN_DOCUMENTS && ME_UNIX_LIKE
+#if ME_GOAHEAD_CONTAIN_DOCUMENTS && ME_UNIX_LIKE && !ME_ROM
     cchar *root;
     char  *path, *real, *realRoot, *sep;
     ssize len;

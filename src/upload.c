@@ -125,7 +125,7 @@ PUBLIC void websFreeUpload(Webs *wp)
     WebsUpload *up;
     WebsKey    *s;
 
-    //  Close the file being written first: Windows cannot remove a file that is still open
+    //  Windows requires closing the upload before removing it.
     if (wp->upfd >= 0) {
         close(wp->upfd);
         wp->upfd = -1;

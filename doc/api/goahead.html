@@ -132,10 +132,12 @@
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a2e7099150ce40f126e53901b37055164" class="nameRef">websAuthenticate</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Authenticate a user for the current request.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a4b9213d33c030e357c81a97765a83ab3" class="nameRef">websCan</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> ability)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a user possesses the required ability.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ad02e7e70e4f3b7bca1ee2a318a336e80" class="nameRef">websCancelTimeout</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Cancel the request timeout.</td></tr>
+<tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1aec406f2263eaa5aff42ae49d7aaf1a91" class="nameRef">websCanonicalUriPath</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test whether a decoded path is in canonical form.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a948de393139df0f83d12fc5fb7ec16ec" class="nameRef">websCgiDetach</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Detach a request from the CGI registry.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac05856f3dd04aeef0732570bedf044ad" class="nameRef">websCgiHandler</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>CGI handler service callback.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ae908f662db14b2f0571634f48dda790c" class="nameRef">websCgiOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the CGI handler.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac14f9e9acabae760c4225c6a372747a5" class="nameRef">websCgiPoll</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Poll for output from CGI processes and output.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac1e1f0b2c20f7a09b26f2e6185e47530" class="nameRef">websCheckConfigFiles</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the loaded route and credential files against the served directories.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a93ffe2fd6f833e223e48dac77c650daa" class="nameRef">websCheckPassword</a>(cchar *plainTextPassword, cchar *passwordHash)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Check a plain-text password against the defined hashed password.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a9b52c801466f2773eacbfcbffe9299fb" class="nameRef">websCheckRouteAuth</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the route table for a confidentiality boundary.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a74665a5a2b59bd9a7fa085d23ad6226e" class="nameRef">websCheckRoutes</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the route table for configurations that defeat the authentication gate.</td></tr>
@@ -3017,11 +3019,11 @@ This is a secure version of printf that can handle null args
   </div>
   <div class="apiDetail">
 <p>Indicate that the application layer has buffered data for the socket.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This is used by SSL and other network stacks that buffer pending data.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This is used by SSL and other network stacks that buffer pending data. Call it after every read or write with the amount still held, so the mark clears once the data is delivered. Buffered input is serviced at once while the handler has read interest. Buffered output waits for the socket to become writable.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">sp</td><td>Socket object returned from socketPtr.</td></tr>
-    <tr><td class="param">len</td><td>Length of buffered data in bytes.</td></tr>
+    <tr><td class="param">len</td><td>Length of buffered data in bytes. Zero clears the mark.</td></tr>
     <tr><td class="param">dir</td><td>Buffer direction. Set to SOCKET_READABLE for buffered read data and SOCKET_WRITABLE for buffered write data.</td></tr>
     </table></dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
@@ -3198,6 +3200,7 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Register interest in socket I/OEvents.</p>
+    <dl><dt><b>Description</b>:</dt><dd>The mask replaces the socket&apos;s interest exactly. Registering read interest on a socket that holds buffered input (see socketHiddenData) services it at once. Interest is never added to the mask.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">sid</td><td>Socket ID handle returned from socketConnect or socketAccept.</td></tr>
@@ -3827,7 +3830,7 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
 <p>Add a route to the routing tables.</p>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
-    <tr><td class="param">uri</td><td>Matching URI prefix.</td></tr>
+    <tr><td class="param">uri</td><td>Matching URI prefix. It is compared with the decoded, normalized request path and so must be written in that form (see websCanonicalUriPath); any other spelling is refused, because no request could match it.</td></tr>
     <tr><td class="param">handler</td><td>Request handler to service routed requests.</td></tr>
     <tr><td class="param">pos</td><td>Position in the list of routes. Zero inserts at the front of the list. A value of -1 will append to the end of the list.</td></tr>
     </table></dd></dl>
@@ -3945,6 +3948,24 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1aec406f2263eaa5aff42ae49d7aaf1a91"></a>
+<div class="api">
+  <div class="prototype">
+    bool
+    websCanonicalUriPath
+(cchar *path)
+  </div>
+  <div class="apiDetail">
+<p>Test whether a decoded path is in canonical form.</p>
+    <dl><dt><b>Description</b>:</dt><dd>A request path is produced by websValidateUriPath: it begins with &quot;/&quot;, has no empty, &quot;.&quot; or &quot;..&quot; segments, no percent escapes, and names no file system alias. A route prefix that is not in this form can never match a request.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">path</td><td>Decoded path to test.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>True if the path is in the form websValidateUriPath produces.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a948de393139df0f83d12fc5fb7ec16ec"></a>
 <div class="api">
   <div class="prototype">
@@ -4003,6 +4024,20 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
 <p>Poll for output from CGI processes and output.</p>
     <dl><dt>Returns:</dt><dd>Time delay till next poll.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1ac1e1f0b2c20f7a09b26f2e6185e47530"></a>
+<div class="api">
+  <div class="prototype">
+    int
+    websCheckConfigFiles
+(void )
+  </div>
+  <div class="apiDetail">
+<p>Audit the loaded route and credential files against the served directories.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Verify that no file read by websLoad lies inside the documents directory or a route&apos;s dir=. Such a file is fetchable over HTTP: the credential file holds user names and password hashes, and the route file the access control table. Emits an error naming each such file. This routine is called automatically by the first websListen(), after every configuration file is loaded, and websListen() refuses to start the server if it reports a problem.</dd></dl>
+    <dl><dt>Returns:</dt><dd>The number of problems found. Zero means no loaded configuration file is inside a served directory.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a93ffe2fd6f833e223e48dac77c650daa"></a>
@@ -5414,7 +5449,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
     <dl><dt><b>Description</b>:</dt><dd>Creates a listening socket on the specified network endpoint to accept incoming HTTP connections. The server will bind to the specified IP address and port and begin accepting connections from clients. Multiple endpoints can be created by calling this function multiple times with different addresses.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
-    <tr><td class="param">endpoint</td><td>Network endpoint specification in the format &quot;IP:PORT&quot;. Supported formats:<ul><li>&quot;127.0.0.1:8080&quot; - IPv4 address with port</li><li>&quot;:8080&quot; - All IPv4 interfaces on port 8080</li><li>&quot;*:8080&quot; - All interfaces on port 8080</li><li>&quot;[::1]:8080&quot; - IPv6 loopback with port</li><li>&quot;[::]:8080&quot; - All IPv6 interfaces on port 8080</li><li>&quot;192.168.1.100:80&quot; - Specific IPv4 interface A secure endpoint, prefixed with &quot;https://&quot;, is refused unless sslOpen loaded a certificate and key. The first call audits the complete route table with websCheckRoutes and websCheckTempDirs, so load every route and auth file and add every route before it. It fails if strict mode refuses the table or a staging directory is inside a served directory. </li></ul></td></tr>
+    <tr><td class="param">endpoint</td><td>Network endpoint specification in the format &quot;IP:PORT&quot;. Supported formats:<ul><li>&quot;127.0.0.1:8080&quot; - IPv4 address with port</li><li>&quot;:8080&quot; - All IPv4 interfaces on port 8080</li><li>&quot;*:8080&quot; - All interfaces on port 8080</li><li>&quot;[::1]:8080&quot; - IPv6 loopback with port</li><li>&quot;[::]:8080&quot; - All IPv6 interfaces on port 8080</li><li>&quot;192.168.1.100:80&quot; - Specific IPv4 interface A secure endpoint, prefixed with &quot;https://&quot;, is refused unless sslOpen loaded a certificate and key. The first call audits the complete route table with websCheckRoutes, websCheckTempDirs and websCheckConfigFiles, so load every route and auth file and add every route before it. It fails if strict mode refuses the table, or a staging directory or a loaded route or auth file is inside a served directory. </li></ul></td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Positive integer holding a Socket ID handle if successful, otherwise -1 on error. The socket ID can be used with other socket APIs for management.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
@@ -5823,7 +5858,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
   </div>
   <div class="apiDetail">
 <p>Test if the request&apos;s file resolves inside its document root.</p>
-    <dl><dt><b>Description</b>:</dt><dd>The file is resolved with its symbolic links followed and compared with the resolved root: the route&apos;s directory, or the documents directory. A file not yet created is judged by the directory it would be created in. A root that cannot be resolved, or a file or directory that cannot be resolved for any reason other than not existing, is refused. websPageAllowed applies it. Always true when ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, and on systems without realpath.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>The file is resolved with its symbolic links followed and compared with the resolved root: the route&apos;s directory, or the documents directory. A file not yet created is judged by the directory it would be created in. A root that cannot be resolved, or a file or directory that cannot be resolved for any reason other than not existing, is refused. websPageAllowed applies it. Always true when ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, on a ROM build, whose documents are the websRomIndex table rather than a file system, and on systems without realpath.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -6642,9 +6677,9 @@ debugger command line option. Debug mode should generally be disabled in product
 <p>Create CGI environment variables for the current request.</p>
     <dl><dt><b>Description</b>:</dt><dd>Sets up the standard CGI environment variables that are passed to CGI scripts and programs. This function creates environment variables based on the current HTTP request that follow the CGI 1.1 specification. The variables include information about the server, request method, headers, query parameters, and client details.</dd></dl>
 Standard CGI variables created include:
-<ul><li>SERVER_NAME, SERVER_PORT, SERVER_PROTOCOL</li><li>REQUEST_METHOD, REQUEST_URI, QUERY_STRING</li><li>CONTENT_TYPE, CONTENT_LENGTH</li><li>HTTP_* variables for all request headers</li><li>REMOTE_ADDR, REMOTE_HOST</li><li>SCRIPT_NAME, PATH_INFO</li></ul>
+<ul><li>SERVER_NAME, SERVER_PORT, SERVER_PROTOCOL</li><li>REQUEST_METHOD, REQUEST_URI, QUERY_STRING</li><li>CONTENT_TYPE, CONTENT_LENGTH</li><li>HTTP_* variables for all request headers</li><li>REMOTE_ADDR, REMOTE_HOST</li><li>SCRIPT_NAME, PATH_INFO</li><li>DOCUMENT_ROOT, the route directory or the documents directory</li></ul>
 AUTH_TYPE and REMOTE_USER are set only for a request authenticated on its route, and AUTH_TYPE names the protocol that authenticated it. CONTENT_LENGTH is the declared body length; for a CGI program the CGI handler replaces it with the number of bytes delivered on stdin, which is zero when an upload route parsed the body into files
-This function is automatically called by the CGI handler before executing CGI scripts. The CGI handler exports request variables under ME_GOAHEAD_CGI_VAR_PREFIX, and only those whose names are portable environment names, so the environment holds one entry per name. On Windows, where environment names are case-insensitive, names are compared case-insensitively
+This function is automatically called by the CGI handler before executing CGI scripts. The CGI handler exports request variables under ME_GOAHEAD_CGI_VAR_PREFIX, and only those whose names are portable environment names, so the environment holds one entry per name. With the prefix empty, a request variable in the CGI meta-variable namespace is not exported. On Windows, where environment names are case-insensitive, names are compared case-insensitively
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request.</td></tr>

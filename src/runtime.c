@@ -605,12 +605,6 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
 
             case 'X':
                 fmt.flags |= SPRINTF_UPPER_CASE;
-#if ME_64
-                fmt.flags &= ~(SPRINTF_SHORT | SPRINTF_LONG);
-                fmt.flags |= SPRINTF_INT64;
-#else
-                fmt.flags &= ~(SPRINTF_INT64);
-#endif
             /*  Fall through  */
             case 'o':
             case 'x':
@@ -981,21 +975,39 @@ PUBLIC int websStartLogFile(WebsLogFile *log, cchar *path)
 
 
 
+/*
+    Keep the open log until rotation succeeds, since privileges may no longer allow reopening it.
+    Retry failed rotations after another size limit of output.
+ */
 static void rotateLogFile(WebsLogFile *log)
 {
     char *old;
+    int  fd;
 
-    close(log->fd);
-    log->fd = -1;
     old = sfmt("%s.old", log->path);
 #if ME_WIN_LIKE
+    /* Windows cannot rename an open file, nor replace an existing one */
+    close(log->fd);
+    log->fd = -1;
     unlink(old);
 #endif
-    if (rename(log->path, old) != 0) {
-        unlink(log->path);
+    if (rename(log->path, old) == 0) {
+        if ((fd = websOpenLogFile(log->path)) >= 0) {
+            if (log->fd >= 0) {
+                close(log->fd);
+            }
+            log->fd = fd;
+        } else {
+            /* Put the log back so the next rotation finds it */
+            rename(old, log->path);
+        }
     }
+#if ME_WIN_LIKE
+    if (log->fd < 0) {
+        log->fd = websOpenLogFile(log->path);
+    }
+#endif
     wfree(old);
-    log->fd = websOpenLogFile(log->path);
     log->size = 0;
 }
 
@@ -2008,6 +2020,8 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
         if (bp->maxsize < 0 || bp->increment < bp->maxsize) {
             bp->increment = getBinBlockSize(2 * bp->increment);
         }
+    } else if (bp->maxsize >= 0 && room > bp->maxsize - bp->buflen) {
+        return 0;
     }
     len = bufLen(bp);
     if ((newbuf = walloc(bp->buflen + room)) == NULL) {

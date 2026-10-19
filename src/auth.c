@@ -39,8 +39,14 @@ static char       *masterSecret;
 static int        autoLogin = ME_GOAHEAD_AUTO_LOGIN;
 static WebsVerify verifyPassword;
 #if ME_GOAHEAD_DIGEST
-static WebsHash nonceCounts = -1;               /* Digest nonce -> issue time and last accepted nonce count */
-static WebsTime nonceFloor;                     /* Nonces issued at or before this time were evicted */
+typedef struct WebsNonce {
+    WebsTime when;                              /* Issue time carried by the nonce */
+    uint     nc;                                /* Last accepted nonce count */
+    char     *username;
+} WebsNonce;
+
+static WebsHash nonceCounts = -1;               /* Digest nonce -> WebsNonce */
+static WebsHash nonceFloors = -1;               /* Account -> issue time at or before which its nonces were evicted */
 static int      nonceTotal;                     /* Records in nonceCounts */
 static int      noncePruneId = -1;
 #endif
@@ -80,7 +86,9 @@ static void setUsername(Webs *wp, cchar *username);
 
 #if ME_GOAHEAD_DIGEST
 static bool checkNonceCount(Webs *wp);
+static void deleteNonce(WebsKey *key);
 static char *formatDigestNonce(WebsTime when, uint64 counter);
+static WebsTime nonceFloor(cchar *username);
 static uint64 parseHex64(cchar *str);
 static void pruneNonces(void *data, int id);
 static char *calcDigest(Webs *wp, char *username, char *password);
@@ -230,10 +238,9 @@ PUBLIC int websOpenAuth(int minimal)
         return -1;
     }
 #if ME_GOAHEAD_DIGEST
-    if ((nonceCounts = hashCreate(-1)) < 0) {
+    if ((nonceCounts = hashCreate(-1)) < 0 || (nonceFloors = hashCreate(-1)) < 0) {
         return -1;
     }
-    nonceFloor = 0;
     nonceTotal = 0;
     if (!minimal) {
         noncePruneId = websStartEvent(WEBS_SESSION_PRUNE, pruneNonces, 0);
@@ -306,8 +313,16 @@ PUBLIC void websCloseAuth(void)
         noncePruneId = -1;
     }
     if (nonceCounts >= 0) {
+        for (key = hashFirst(nonceCounts); key; key = next) {
+            next = hashNext(nonceCounts, key);
+            deleteNonce(key);
+        }
         hashFree(nonceCounts);
         nonceCounts = -1;
+    }
+    if (nonceFloors >= 0) {
+        hashFree(nonceFloors);
+        nonceFloors = -1;
     }
 #endif
     verifyPassword = 0;
@@ -981,10 +996,20 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     if ((res = pam_start("login", info.name, &conv, &pamh)) != PAM_SUCCESS) {
         return 0;
     }
+    pam_set_item(pamh, PAM_RHOST, wp->ipaddr);
     if ((res = pam_authenticate(pamh, PAM_DISALLOW_NULL_AUTHTOK)) != PAM_SUCCESS) {
-        pam_end(pamh, PAM_SUCCESS);
+        pam_end(pamh, res);
         trace(5, "httpPamVerifyUser failed to verify %s", wp->username);
         wp->authReason = "password does not match";
+        return 0;
+    }
+    /*
+        Reject expired, locked and restricted accounts, including passwords requiring a change.
+     */
+    if ((res = pam_acct_mgmt(pamh, 0)) != PAM_SUCCESS) {
+        pam_end(pamh, res);
+        trace(5, "httpPamVerifyUser account check refused %s", wp->username);
+        wp->authReason = "account is not permitted";
         return 0;
     }
     pam_end(pamh, PAM_SUCCESS);
@@ -1377,22 +1402,35 @@ static bool parseDigestDetails(Webs *wp)
 }
 
 
-static bool nonceStale(WebsTime when)
+/*
+    Return the account's nonce eviction cutoff; hash integers are 32 bits on Windows.
+ */
+static WebsTime nonceFloor(cchar *username)
+{
+    WebsKey *key;
+
+    return (key = hashLookup(nonceFloors, username)) != 0 ? (WebsTime) (uint) key->content.value.integer : 0;
+}
+
+
+static bool nonceStale(Webs *wp)
 {
     WebsTime now;
 
-    return (now = websTime()) < 0 || when + ME_GOAHEAD_NONCE_DURATION < now || when <= nonceFloor;
+    return (now = websTime()) < 0 || wp->nonceTime + ME_GOAHEAD_NONCE_DURATION < now ||
+           wp->nonceTime <= nonceFloor(wp->username);
 }
 
 
 /*
-    Check nonce freshness and increasing count without recording it until authorization succeeds. Pack issue time
-    and count into two 32-bit words for Windows compatibility.
+    Check nonce freshness and increasing count without recording it until authorization succeeds. A nonce belongs
+    to the account that first used it; any other account is offered a fresh one.
  */
 static bool checkNonceCount(Webs *wp)
 {
-    WebsKey *key;
-    cchar   *cp;
+    WebsNonce *np;
+    WebsKey   *key;
+    cchar     *cp;
 
     if (slen(wp->nc) != 8) {
         wp->authReason = "invalid nonce count";
@@ -1404,65 +1442,112 @@ static bool checkNonceCount(Webs *wp)
             return 0;
         }
     }
-    if (nonceStale(wp->nonceTime)) {
+    if (nonceStale(wp)) {
         wp->authReason = "nonce is stale";
         wp->flags |= WEBS_NONCE_STALE;
         return 0;
     }
-    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0 && (uint) hextoi(wp->nc) <= (uint) key->content.value.big[1]) {
-        wp->authReason = "nonce count already used";
-        return 0;
+    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0) {
+        np = key->content.value.symbol;
+        if (!smatch(np->username, wp->username)) {
+            wp->authReason = "nonce is in use by another account";
+            wp->flags |= WEBS_NONCE_STALE;
+            return 0;
+        }
+        if ((uint) hextoi(wp->nc) <= np->nc) {
+            wp->authReason = "nonce count already used";
+            return 0;
+        }
     }
     return 1;
 }
 
 
-/* Evict the oldest nonces and mark their issue times stale to prevent replay after eviction. */
+static void deleteNonce(WebsKey *key)
+{
+    WebsNonce *np;
+
+    np = key->content.value.symbol;
+    wfreeset(np->username);
+    wfree(np);
+    hashDelete(nonceCounts, key->name.value.string);
+    nonceTotal--;
+}
+
+
+/*
+    Evict from the account holding the most nonces. Its eviction cutoff prevents replay without
+    invalidating other accounts' nonces.
+ */
 static void evictNonces(void)
 {
-    WebsKey  *key, *next;
-    WebsTime when, oldest;
+    WebsNonce *np;
+    WebsKey   *key, *next, *kp;
+    WebsHash  counts;
+    WebsTime  oldest;
+    char      *account;
+    long      count, most;
 
     while (nonceTotal >= ME_GOAHEAD_LIMIT_NONCES) {
+        counts = hashCreate(-1);
+        account = 0;
+        most = 0;
+        for (key = hashFirst(nonceCounts); key; key = hashNext(nonceCounts, key)) {
+            np = key->content.value.symbol;
+            count = ((kp = hashLookup(counts, np->username)) != 0 ? kp->content.value.integer : 0) + 1;
+            hashEnter(counts, np->username, valueInteger(count), 0);
+            if (count > most) {
+                most = count;
+                account = np->username;
+            }
+        }
+        hashFree(counts);
+        if (account == 0) {
+            break;
+        }
+        account = sclone(account);
         oldest = 0;
         for (key = hashFirst(nonceCounts); key; key = hashNext(nonceCounts, key)) {
-            when = (WebsTime) (uint) key->content.value.big[0];
-            if (oldest == 0 || when < oldest) {
-                oldest = when;
+            np = key->content.value.symbol;
+            if (smatch(np->username, account) && (oldest == 0 || np->when < oldest)) {
+                oldest = np->when;
             }
         }
         for (key = hashFirst(nonceCounts); key; key = next) {
             next = hashNext(nonceCounts, key);
-            if ((WebsTime) (uint) key->content.value.big[0] <= oldest) {
-                hashDelete(nonceCounts, key->name.value.string);
-                nonceTotal--;
+            np = key->content.value.symbol;
+            if (smatch(np->username, account) && np->when <= oldest) {
+                deleteNonce(key);
             }
         }
-        if (oldest > nonceFloor) {
-            nonceFloor = oldest;
+        if (oldest > nonceFloor(account)) {
+            hashEnter(nonceFloors, account, valueInteger((long) (uint) oldest), 0);
         }
+        wfree(account);
     }
 }
 
 
 PUBLIC void websAcceptDigestCount(Webs *wp)
 {
-    WebsValue record;
+    WebsNonce *np;
+    WebsKey   *key;
 
     if (!(wp->flags & WEBS_AUTHENTICATED) || !wp->route || !smatch(wp->route->authType, "digest") || !wp->nonce ||
-        !wp->nc || nonceCounts < 0) {
+        !wp->nc || !wp->username || nonceCounts < 0) {
         return;
     }
-    if (!hashLookup(nonceCounts, wp->nonce)) {
+    if ((key = hashLookup(nonceCounts, wp->nonce)) != 0) {
+        np = key->content.value.symbol;
+    } else {
         evictNonces();
+        np = walloc(sizeof(WebsNonce));
+        np->when = wp->nonceTime;
+        np->username = sclone(wp->username);
+        hashEnter(nonceCounts, wp->nonce, valueSymbol(np), 0);
         nonceTotal++;
     }
-    memset(&record, 0, sizeof(record));
-    record.valid = 1;
-    record.type = big;
-    record.value.big[0] = (long) (uint) wp->nonceTime;
-    record.value.big[1] = (long) (uint) hextoi(wp->nc);
-    hashEnter(nonceCounts, wp->nonce, record, 0);
+    np->nc = (uint) hextoi(wp->nc);
 }
 
 
@@ -1474,9 +1559,8 @@ static void pruneNonces(void *data, int id)
     if (nonceCounts >= 0 && (now = websTime()) >= 0) {
         for (key = hashFirst(nonceCounts); key; key = next) {
             next = hashNext(nonceCounts, key);
-            if ((WebsTime) (uint) key->content.value.big[0] + ME_GOAHEAD_NONCE_DURATION < now) {
-                hashDelete(nonceCounts, key->name.value.string);
-                nonceTotal--;
+            if (((WebsNonce*) key->content.value.symbol)->when + ME_GOAHEAD_NONCE_DURATION < now) {
+                deleteNonce(key);
             }
         }
     }

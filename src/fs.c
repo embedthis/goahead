@@ -388,12 +388,18 @@ static RomFile *getRomFile(int fd)
 }
 
 
+/*
+    A trailing slash may name a directory, never a document.
+ */
 static WebsRomIndex *lookup(WebsHash fs, cchar *path)
 {
-    WebsKey *sp;
-    char    *name;
-    ssize   len;
+    WebsRomIndex *wip;
+    WebsKey      *sp;
+    char         *name;
+    ssize        len;
+    bool         trailing;
 
+    trailing = 0;
     if ((sp = hashLookup(fs, path)) == NULL) {
         if (path[0] != '/') {
             name = sfmt("/%s", path);
@@ -403,6 +409,7 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path)
         len = slen(name) - 1;
         if (name[len] == '/') {
             name[len] = '\0';
+            trailing = 1;
         }
         sp = hashLookup(fs, name);
         wfree(name);
@@ -410,7 +417,11 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path)
             return 0;
         }
     }
-    return (WebsRomIndex*) sp->content.value.symbol;
+    wip = (WebsRomIndex*) sp->content.value.symbol;
+    if (trailing && wip->page != NULL) {
+        return 0;
+    }
+    return wip;
 }
 #endif
 

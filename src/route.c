@@ -27,6 +27,8 @@ static int       routeMax = 0;
 static bool      strictMode = ME_GOAHEAD_STRICT;
 static WebsRoute **retiredRoutes;                  /* Removed routes still held by in-flight requests */
 static int       retiredCount;
+static char      **configFiles;                    /* Route and credential files websLoad has read */
+static int       configFileCount;
 static WebsHash  routeMethods = -1;                 /* Methods named by a route's methods= beyond the standard set */
 
 #define WEBS_MAX_ROUTE     16           /* Maximum passes over route set */
@@ -405,6 +407,13 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
         error("Route has bad URI");
         return 0;
     }
+    /* Request paths are decoded and normalized before matching, so a prefix in any other form never matches. */
+    if (!websCanonicalUriPath(uri)) {
+        error("Route \"%s\" is not a canonical path and never matches. Write the prefix as the decoded request path: "
+              "beginning with \"/\", without empty, \".\" or \"..\" segments, percent escapes or file system aliases.",
+              uri);
+        return 0;
+    }
     if ((route = walloc(sizeof(WebsRoute))) == 0) {
         return 0;
     }
@@ -719,6 +728,90 @@ static int prefixesNest(WebsRoute *r1, WebsRoute *r2)
 }
 
 
+/*
+    Can one request satisfy both routes' selectors? A route without methods= admits the safe methods.
+ */
+static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2)
+{
+    WebsKey *key;
+    cchar   *safe[] = { "GET", "HEAD", "POST", 0 };
+    int     i, common;
+
+    if (r1->protocol && r2->protocol && !smatch(r1->protocol, r2->protocol)) {
+        return 0;
+    }
+    if (r1->extensions >= 0 && r2->extensions >= 0) {
+        for (common = 0, key = hashFirst(r2->extensions); key && !common; key = hashNext(r2->extensions, key)) {
+            common = hashLookup(r1->extensions, key->name.value.string) != 0;
+        }
+        if (!common) {
+            return 0;
+        }
+    }
+    if (r2->methods >= 0) {
+        for (key = hashFirst(r2->methods); key; key = hashNext(r2->methods, key)) {
+            if (routeAllowsMethod(r1, key->name.value.string)) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    for (i = 0; safe[i]; i++) {
+        if (routeAllowsMethod(r1, safe[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Does holding every ability the first set requires satisfy the second? A "|" entry is met by any one alternative.
+ */
+static int abilitiesCover(WebsHash have, WebsHash need)
+{
+    WebsKey *key;
+    char    *copy, *ability, *tok;
+    int     met;
+
+    if (need < 0) {
+        return 1;
+    }
+    if (have < 0) {
+        return 0;
+    }
+    for (key = hashFirst(need); key; key = hashNext(need, key)) {
+        if (hashLookup(have, key->name.value.string)) {
+            continue;
+        }
+        met = 0;
+        if (strchr(key->name.value.string, '|')) {
+            copy = sclone(key->name.value.string);
+            for (ability = stok(copy, "|", &tok); ability && !met; ability = stok(NULL, "|", &tok)) {
+                met = hashLookup(have, ability) != 0;
+            }
+            wfree(copy);
+        }
+        if (!met) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+    Does a request the earlier route authorizes meet the later route's requirement?
+ */
+static int routeMeets(WebsRoute *earlier, WebsRoute *later)
+{
+    if (later->authType && !smatch(earlier->authType, later->authType)) {
+        return 0;
+    }
+    return abilitiesCover(earlier->abilities, later->abilities);
+}
+
+
 static int dirContains(cchar *dir, cchar *child);
 
 /*
@@ -823,7 +916,10 @@ static int checkRouteAuth(void)
             problems++;
         }
     }
-    /* Report nested public routes reachable through an authenticated route's unmatched selectors. */
+    /*
+        Check public routes missed by an authentication gate's selectors. Equal prefixes need this
+        check for protocol-only gates; methods and extensions are checked above.
+     */
     for (i = 0; i < routeCount; i++) {
         strict = routes[i];
         if (!strict->authType && strict->abilities < 0) {
@@ -832,15 +928,17 @@ static int checkRouteAuth(void)
         for (j = i + 1; j < routeCount; j++) {
             candidate = routes[j];
             if (routeRequiresAuth(candidate) || !routeServesContent(candidate) ||
-                candidate->prefixLen <= strict->prefixLen ||
+                candidate->prefixLen < strict->prefixLen ||
+                (candidate->prefixLen == strict->prefixLen && (strict->methods >= 0 || strict->extensions >= 0)) ||
                 matchRoutePrefix(candidate->prefix, strict->prefix, strict->prefixLen) != 0 ||
                 !regionsOverlap(strict, candidate)) {
                 continue;
             }
             if ((uncovered = gateUncovered(strict, candidate)) != 0) {
                 error("Security warning: route \"%s\" requires authentication only for some requests, but later "
-                      "route \"%s\" (handler=%s) under it also accepts %s, which reaches it without credentials. "
+                      "route \"%s\" (handler=%s) %s also accepts %s, which reaches it without credentials. "
                       "%s", strict->prefix, candidate->prefix, candidate->handler ? candidate->handler->name : "?",
+                      candidate->prefixLen == strict->prefixLen ? "on the same prefix" : "under it",
                       uncovered, strict->protocol ? "Drop protocol= from the authenticated route and redirect http "
                       "to https with a protocol=http redirect=https route instead." :
                       "Drop the selector from the authenticated route or give the later route the same one.");
@@ -869,6 +967,30 @@ static int checkRouteAuth(void)
                   "serves its requests without credentials. Put \"%s\" first.",
                   candidate->prefix, candidate->handler ? candidate->handler->name : "?", strict->prefix,
                   strict->prefix);
+            problems++;
+            break;
+        }
+    }
+    /*
+        Report earlier serving routes with weaker authentication or abilities. Gates pass requests on;
+        abilities-only routes without auth admit nobody.
+     */
+    for (i = 0; i < routeCount; i++) {
+        strict = routes[i];
+        if (!strict->authType && strict->abilities < 0) {
+            continue;
+        }
+        for (j = 0; j < i; j++) {
+            candidate = routes[j];
+            if (!candidate->authType || routeIsGate(candidate) || !routeServesContent(candidate) ||
+                matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0 ||
+                !regionsOverlap(strict, candidate) || !selectorsOverlap(candidate, strict) ||
+                routeMeets(candidate, strict)) {
+                continue;
+            }
+            error("Security warning: route \"%s\" (auth=%s) comes before route \"%s\" (auth=%s) and serves its "
+                  "requests under its own weaker requirement. Put \"%s\" first.", candidate->prefix,
+                  candidate->authType, strict->prefix, strict->authType ? strict->authType : "none", strict->prefix);
             problems++;
             break;
         }
@@ -1155,6 +1277,34 @@ static int dirContains(cchar *dir, cchar *child)
 
 
 /*
+    Report loaded configuration files inside served directories, where clients could fetch them.
+ */
+PUBLIC int websCheckConfigFiles(void)
+{
+    cchar *docs;
+    int   i, j, problems;
+
+    problems = 0;
+    for (i = 0; i < configFileCount; i++) {
+        for (j = -1; j < routeCount; j++) {
+            docs = (j < 0) ? websGetDocuments() : routes[j]->dir;
+            if (docs == 0 || *docs == '\0') {
+                continue;
+            }
+            if (dirContains(docs, configFiles[i])) {
+                error("Security error: the configuration file \"%s\" is inside the served directory \"%s\" and "
+                      "would be served to any client that names it. Move it outside the documents directory.",
+                      configFiles[i], docs);
+                problems++;
+                break;
+            }
+        }
+    }
+    return problems;
+}
+
+
+/*
     Audit the directories used to stage request data - CGI stdin and stdout, upload and PUT staging -
     against the served directories. A temporary file inside a served directory is fetchable over HTTP,
     so one client's in-flight request body or CGI response is readable by another. Returns the number of
@@ -1293,6 +1443,11 @@ PUBLIC void websCloseRoute(void)
     }
     retiredCount = 0;
     wfreeset(retiredRoutes);
+    for (i = 0; i < configFileCount; i++) {
+        wfreeset(configFiles[i]);
+    }
+    configFileCount = 0;
+    wfreeset(configFiles);
     routeCount = routeMax = 0;
     if (routeMethods >= 0) {
         hashFree(routeMethods);
@@ -1370,6 +1525,22 @@ static int rejectAuthDirective(cchar *directive)
 
 
 /*
+    Split key=value; report missing values and return null on error.
+ */
+static char *splitOption(cchar *kind, char *option, char **value)
+{
+    char *key;
+
+    key = stok(option, "=", value);
+    if (*value == 0 || **value == '\0') {
+        error("Bad %s keyword %s: it needs a value", kind, key);
+        return 0;
+    }
+    return key;
+}
+
+
+/*
     Load route and authentication configuration files
  */
 PUBLIC int websLoad(cchar *path)
@@ -1388,6 +1559,8 @@ PUBLIC int websLoad(cchar *path)
         error("Cannot open config file %s", path);
         return -1;
     }
+    configFiles = wrealloc(configFiles, sizeof(char*) * (configFileCount + 1));
+    configFiles[configFileCount++] = sclone(path);
     for (line = stok(buf, "\r\n", &token); line; line = stok(NULL, "\r\n", &token)) {
         kind = stok(line, " \t", &next);
         if (kind == 0 || *kind == '\0' || *kind == '#') {
@@ -1398,7 +1571,10 @@ PUBLIC int websLoad(cchar *path)
             abilities = extensions = methods = redirects = -1;
             flags = 0;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
-                key = stok(option, "=", &value);
+                if ((key = splitOption(kind, option, &value)) == 0) {
+                    badKeyword = 1;
+                    continue;
+                }
                 if (smatch(key, "abilities")) {
                     addOption(&abilities, value, " \t,", 0);
                 } else if (smatch(key, "auth")) {
@@ -1487,7 +1663,10 @@ PUBLIC int websLoad(cchar *path)
             char *name, *password, *roles;
             name = password = roles = 0;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
-                key = stok(option, "=", &value);
+                if ((key = splitOption(kind, option, &value)) == 0) {
+                    badKeyword = 1;
+                    continue;
+                }
                 if (smatch(key, "name")) {
                     name = value;
                 } else if (smatch(key, "password")) {
@@ -1518,7 +1697,10 @@ PUBLIC int websLoad(cchar *path)
             name = 0;
             abilities = -1;
             while ((option = stok(NULL, " \t\r\n", &next)) != 0) {
-                key = stok(option, "=", &value);
+                if ((key = splitOption(kind, option, &value)) == 0) {
+                    badKeyword = 1;
+                    continue;
+                }
                 if (smatch(key, "name")) {
                     name = value;
                 } else if (smatch(key, "abilities")) {

@@ -107,8 +107,10 @@
 #endif
 #ifndef ME_GOAHEAD_CGI_VAR_PREFIX
 /*
-        Prefix exported request variables with CGI_; do not leave it empty. Export portable names only. Server-
-        variable collisions are refused, case-insensitively on Windows.
+        Prefix exported request variables with CGI_; do not leave it empty. Export portable names only. With the
+        prefix empty, a request variable that collides with a server variable or lies in the CGI meta-variable
+        namespace (AUTH_, CONTENT_, DOCUMENT_, HTTPS, PATH_, REMOTE_, REQUEST_, SCRIPT_, SERVER_ and the other
+        RFC 3875 prefixes) is refused, case-insensitively on Windows.
      */
     #define ME_GOAHEAD_CGI_VAR_PREFIX        "CGI_"
 #endif
@@ -228,6 +230,12 @@
 #ifndef ME_GOAHEAD_LIMIT_BUFFER
     #define ME_GOAHEAD_LIMIT_BUFFER      1024
 #endif
+/*
+    Bytes a static file response writes per turn of the event loop before yielding to other connections.
+ */
+#ifndef ME_GOAHEAD_LIMIT_SLICE
+    #define ME_GOAHEAD_LIMIT_SLICE       (64 * 1024)
+#endif
 #ifndef ME_GOAHEAD_LIMIT_CGI_ARGS
     #define ME_GOAHEAD_LIMIT_CGI_ARGS    4096
 #endif
@@ -324,8 +332,9 @@
 #endif
 #ifndef ME_GOAHEAD_LIMIT_NONCES
 /*
-        Maximum Digest nonces whose counts are retained to refuse replays. When full, the oldest nonces are evicted
-        and refused as stale from then on.
+        Maximum Digest nonces whose counts are retained to refuse replays. When full, the oldest nonces of the
+        account holding the most are evicted and refused as stale from then on, so one account cannot invalidate
+        another account's nonces.
      */
     #define ME_GOAHEAD_LIMIT_NONCES             512
 #endif
@@ -402,6 +411,13 @@
  */
 #if defined(__APPLE__) && !defined(_DARWIN_UNLIMITED_SELECT)
     #define _DARWIN_UNLIMITED_SELECT            1
+#endif
+
+/*
+    Define FD_SETSIZE before the Winsock headers to match POSIX connection capacity.
+ */
+#if defined(_WIN32) && !defined(FD_SETSIZE)
+    #define FD_SETSIZE                          1024
 #endif
 
 /************************************ Includes ********************************/
@@ -1747,9 +1763,12 @@ PUBLIC bool socketHasIPv6(void);
 
 /**
     Indicate that the application layer has buffered data for the socket.
-    @description This is used by SSL and other network stacks that buffer pending data
+    @description This is used by SSL and other network stacks that buffer pending data. Call it after every read
+        or write with the amount still held, so the mark clears once the data is delivered. Buffered input is
+        serviced at once while the handler has read interest. Buffered output waits for the socket to become
+        writable.
     @param sp Socket object returned from #socketPtr
-    @param len Length of buffered data in bytes
+    @param len Length of buffered data in bytes. Zero clears the mark.
     @param dir Buffer direction. Set to SOCKET_READABLE for buffered read data and SOCKET_WRITABLE for buffered write data.
         @stability Stable
  */
@@ -1835,6 +1854,8 @@ PUBLIC ssize socketRead(int sid, void *buf, ssize len);
 
 /**
     Register interest in socket I/OEvents
+    @description The mask replaces the socket's interest exactly. Registering read interest on a socket that holds
+        buffered input (see #socketHiddenData) services it at once. Interest is never added to the mask.
     @param sid Socket ID handle returned from socketConnect or socketAccept.
     @param mask Mask of events of interest. Set to SOCKET_READABLE | SOCKET_WRITABLE | SOCKET_EXCEPTION.
         @stability Stable
@@ -3298,9 +3319,9 @@ PUBLIC cchar *websGetVar(Webs *wp, cchar *name, cchar *defaultValue);
         - "[::]:8080" - All IPv6 interfaces on port 8080
         - "192.168.1.100:80" - Specific IPv4 interface
         A secure endpoint, prefixed with "https://", is refused unless sslOpen loaded a certificate and key.
-        The first call audits the complete route table with websCheckRoutes and websCheckTempDirs, so load every
-        route and auth file and add every route before it. It fails if strict mode refuses the table or a staging
-        directory is inside a served directory.
+        The first call audits the complete route table with websCheckRoutes, websCheckTempDirs and
+        websCheckConfigFiles, so load every route and auth file and add every route before it. It fails if strict
+        mode refuses the table, or a staging directory or a loaded route or auth file is inside a served directory.
     @return Positive integer holding a Socket ID handle if successful, otherwise -1 on error.
         The socket ID can be used with other socket APIs for management.
     @see websOpen websServer socketClose socketFree
@@ -3486,7 +3507,8 @@ PUBLIC bool websPageAllowed(Webs *wp);
         route's directory, or the documents directory. A file not yet created is judged by the directory it would
         be created in. A root that cannot be resolved, or a file or directory that cannot be resolved for any reason
         other than not existing, is refused. websPageAllowed applies it. Always true when
-        ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, and on systems without realpath.
+        ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, on a ROM build, whose documents are the websRomIndex table rather than
+        a file system, and on systems without realpath.
     @param wp Webs request object
     @return True if the file is inside the document root, or neither the file nor its directory exists.
         @stability Evolving
@@ -3953,6 +3975,7 @@ PUBLIC void websSetDocuments(cchar *dir);
         - HTTP_* variables for all request headers
         - REMOTE_ADDR, REMOTE_HOST
         - SCRIPT_NAME, PATH_INFO
+        - DOCUMENT_ROOT, the route directory or the documents directory
 
         AUTH_TYPE and REMOTE_USER are set only for a request authenticated on its route, and AUTH_TYPE names the
         protocol that authenticated it. CONTENT_LENGTH is the declared body length; for a CGI program the CGI
@@ -3961,7 +3984,8 @@ PUBLIC void websSetDocuments(cchar *dir);
 
         This function is automatically called by the CGI handler before executing CGI scripts. The CGI handler
         exports request variables under ME_GOAHEAD_CGI_VAR_PREFIX, and only those whose names are portable
-        environment names, so the environment holds one entry per name. On Windows, where environment names are
+        environment names, so the environment holds one entry per name. With the prefix empty, a request variable
+        in the CGI meta-variable namespace is not exported. On Windows, where environment names are
         case-insensitive, names are compared case-insensitively.
     @param wp Webs request object representing the current HTTP request
     @see websSetFormVars websSetQueryVars
@@ -4349,6 +4373,17 @@ PUBLIC bool websValid(Webs *wp);
         @stability Stable
  */
 PUBLIC char *websValidateUriPath(cchar *uri);
+
+/**
+    Test whether a decoded path is in canonical form
+    @description A request path is produced by #websValidateUriPath: it begins with "/", has no empty, "." or ".."
+        segments, no percent escapes, and names no file system alias. A route prefix that is not in this form can
+        never match a request.
+    @param path Decoded path to test.
+    @return True if the path is in the form websValidateUriPath produces.
+        @stability Evolving
+ */
+PUBLIC bool websCanonicalUriPath(cchar *path);
 
 /**
     Test if a URI is using only valid characters
@@ -4916,7 +4951,8 @@ typedef struct WebsRoute {
 
 /**
     Add a route to the routing tables
-    @param uri Matching URI prefix
+    @param uri Matching URI prefix. It is compared with the decoded, normalized request path and so must be written
+        in that form (see #websCanonicalUriPath); any other spelling is refused, because no request could match it.
     @param handler Request handler to service routed requests
     @param pos Position in the list of routes. Zero inserts at the front of the list. A value of -1 will append to the
         end of the list.
@@ -4999,6 +5035,18 @@ PUBLIC bool websGetStrict(void);
     @stability Evolving
  */
 PUBLIC int websCheckTempDirs(void);
+
+/**
+    Audit the loaded route and credential files against the served directories
+    @description Verify that no file read by #websLoad lies inside the documents directory or a route's dir=. Such
+        a file is fetchable over HTTP: the credential file holds user names and password hashes, and the route file
+        the access control table. Emits an error naming each such file.
+        This routine is called automatically by the first websListen(), after every configuration file is loaded,
+        and websListen() refuses to start the server if it reports a problem.
+    @return The number of problems found. Zero means no loaded configuration file is inside a served directory.
+    @stability Evolving
+ */
+PUBLIC int websCheckConfigFiles(void);
 
 /**
     Audit the route table for a confidentiality boundary

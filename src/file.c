@@ -63,6 +63,13 @@ static bool fileHandler(Webs *wp)
             websError(wp, HTTP_CODE_NOT_FOUND, "Cannot put the URI");
             return 1;
         }
+        /*
+            Do not let PUT create templates that a later request could execute.
+         */
+        if (isTemplate(wp->ext)) {
+            websError(wp, HTTP_CODE_NOT_FOUND, "Cannot put a template: %s", wp->path);
+            return 1;
+        }
         existed = websPageStat(wp, &info) >= 0;
         if (commitPut(wp) < 0) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot save the put URI");
@@ -217,13 +224,13 @@ static bool notModified(Webs *wp, WebsFileInfo *info, cchar *etag)
 
 
 /*
-    Do output back to the browser in the background. This is a socket write handler.
-    This bypasses the output buffer and writes directly to the socket.
+    Write directly to the socket, bypassing the output buffer. Bound each call so a fast reader
+    cannot starve other connections.
  */
 static void fileWriteEvent(Webs *wp)
 {
     char  *buf;
-    ssize size, len, wrote;
+    ssize size, len, wrote, slice;
     int   err;
 
     assert(wp);
@@ -233,8 +240,9 @@ static void fileWriteEvent(Webs *wp)
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot get memory");
         return;
     }
-    while (wp->txRemaining > 0) {
-        size = (ssize) min(wp->txRemaining, ME_GOAHEAD_LIMIT_BUFFER);
+    slice = ME_GOAHEAD_LIMIT_SLICE;
+    while (wp->txRemaining > 0 && slice > 0) {
+        size = (ssize) min(wp->txRemaining, min(ME_GOAHEAD_LIMIT_BUFFER, slice));
         len = websPageReadData(wp, buf, size);
         if (len <= 0) {
             /*
@@ -258,6 +266,7 @@ static void fileWriteEvent(Webs *wp)
             break;
         }
         wp->txRemaining -= wrote;
+        slice -= wrote;
         if (wrote != len) {
             websPageSeek(wp, -(len - wrote), SEEK_CUR);
             break;
