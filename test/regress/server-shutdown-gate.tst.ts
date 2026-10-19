@@ -39,6 +39,6 @@ if (process.platform == 'win32') {
     tcontains(setup, 'STATUSFILE="../server-exit.txt"', 'test/setup.sh must record the status beside server-log.txt')
 
     let make = readFileSync(join(ROOT, 'Makefile'), 'utf8')
-    let gated = make.match(/check-server\.sh server-log\.txt server-exit\.txt \|\| rc=1/g) || []
+    let gated = make.match(/check-server\.sh server-log\.txt server-exit\.txt server-orphans\.txt \|\| rc=1/g) || []
     ttrue(gated.length == 2, 'the Makefile test and test-asan targets must both run check-server.sh')
 }

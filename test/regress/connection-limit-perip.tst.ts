@@ -27,9 +27,9 @@
 
 import { Config } from '@embedthis/ejscript'
 import { teq, tget, tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { connect } from 'node:net'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 /*
     TOTAL is deliberately only a little above PER_IP. If the total cap is generous, a flood from one
@@ -43,7 +43,6 @@ const PORT = 18082
 const V4 = '127.0.0.1'
 const V6 = '::1'
 const TESTDIR = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const SERVER = join(TESTDIR, '..', 'build', 'bin', 'goahead-test')
 
@@ -107,7 +106,7 @@ await new Promise<void>((resolve) => {
     setTimeout(() => { probe.destroy(); resolve() }, 1000)
 })
 
-let server = spawn(SERVER,
+let server = startServer(SERVER,
     ['--connections', String(TOTAL), '--connections-per-ip', String(PER_IP), '--route', ROUTES,
      'web', `${V4}:${PORT}`, `[${V6}]:${PORT}`],
     {cwd: TESTDIR, stdio: 'ignore'})
@@ -182,7 +181,7 @@ try {
     }
 } finally {
     for (let s of held) { try { s.destroy() } catch {} }
-    server.kill('SIGTERM')
+    await stopServer(server)
 }
 
 /*

@@ -7,7 +7,6 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 const cc = Cmd.locate('cc')
-//  The fixture links the built library, so it compiles with the library's feature flags
 const FEATURES = String(tget('TM_FEATURES_HEADER'))
 const pkg = spawnSync('pkg-config', ['--cflags', '--libs', 'mbedtls', 'mbedx509', 'mbedcrypto'], { encoding: 'utf8' })
 const openssl = spawnSync('openssl', ['version'], { encoding: 'utf8' })

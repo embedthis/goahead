@@ -1,9 +1,9 @@
 /* Exercise the shipped routing configuration, not the test server route file. */
 import {ttrue, thas, tskip} from '@embedthis/testme'
-import {spawn} from 'node:child_process'
 import {createServer} from 'node:net'
 import {get} from 'node:http'
 import {join} from 'node:path'
+import {startServer, stopServer} from '../utils/server'
 
 async function request(port: number, path: string): Promise<{status:number, body:string}> {
     return await new Promise((resolve, reject) => {
@@ -24,7 +24,7 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
     const port = (probe.address() as any).port
     await new Promise<void>(resolve => probe.close(() => resolve()))
     const root = join(import.meta.dir, '..', '..')
-    const child = spawn(join(root, 'build/bin/goahead-test'),
+    const child = startServer(join(root, 'build/bin/goahead-test'),
         ['--route', join(root, 'src/route.txt'), 'web', `http://127.0.0.1:${port}`],
         {cwd:join(root, 'test'), stdio:'ignore'})
     try {
@@ -41,7 +41,6 @@ if (!thas('ME_GOAHEAD_JAVASCRIPT')) {
             ttrue(response.body.includes(path == '/jst/text.jst' ? 'ABC' : 'rendered-template'))
         }
     } finally {
-        const stopped = new Promise<void>(resolve => child.once('exit', () => resolve()))
-        if (child.exitCode == null) { child.kill(); await stopped }
+        await stopServer(child)
     }
 }

@@ -2,11 +2,11 @@
 
 import { ByteArray, Socket, Uri } from '@embedthis/ejscript'
 import { thas, tget, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { startServer, stopServer } from '../utils/server'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:18080'
 const uri = new Uri(HTTP)
@@ -75,7 +75,7 @@ if (thas('ME_GOAHEAD_AUTH') && thas('ME_GOAHEAD_JAVASCRIPT')) {
     await new Promise<void>(resolve => probe.close(() => resolve()))
     const addr = '127.0.0.1:' + port
 
-    const server = spawn(join(ROOT, 'build', 'bin', 'goahead'), ['--route', 'route.txt', '--auth', 'auth.txt', 'web',
+    const server = startServer(join(ROOT, 'build', 'bin', 'goahead'), ['--route', 'route.txt', '--auth', 'auth.txt', 'web',
         addr], {cwd: dir, stdio: 'ignore'})
     try {
         let login = ''
@@ -94,11 +94,7 @@ if (thas('ME_GOAHEAD_AUTH') && thas('ME_GOAHEAD_JAVASCRIPT')) {
         ttrue(status(raw) == '404', `a template under /pub/ must be refused, got ${status(raw)}`)
         ttrue(!raw.contains('<%') && !raw.contains('pub-template'), 'the /pub/ template source must not be returned')
     } finally {
-        const stopped = new Promise<void>(resolve => server.once('exit', () => resolve()))
-        if (server.exitCode == null) {
-            server.kill()
-            await stopped
-        }
+        await stopServer(server)
         rmSync(dir, {recursive: true, force: true})
     }
 }

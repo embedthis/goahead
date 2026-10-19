@@ -2,9 +2,10 @@
     strict-mode.tst - goahead refuses to start with an unsafe route table unless started with --no-strict
  */
 import { tcontains, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const HOME = join(import.meta.dir, '..')
 const SHIPPED = join(import.meta.dir, '..', '..', 'src', 'route.txt')
@@ -25,7 +26,7 @@ function logged(output: string, text: string, message: string) {
 
 async function serves(args: string[], routes = ROUTES): Promise<{ up: boolean, log: string }> {
     let log = ''
-    let server = spawn('goahead', [...args, '--route', routes, 'web', ENDPOINT], { cwd: HOME })
+    let server = startServer('goahead', [...args, '--route', routes, 'web', ENDPOINT], { cwd: HOME })
     server.stderr.on('data', (data) => log += data)
     server.stdout.on('data', (data) => log += data)
     let up = false
@@ -38,7 +39,7 @@ async function serves(args: string[], routes = ROUTES): Promise<{ up: boolean, l
             } catch {}
         }
     } finally {
-        server.kill()
+        await stopServer(server)
     }
     return { up, log }
 }
@@ -96,7 +97,6 @@ if (!thas('ME_GOAHEAD_AUTH')) {
         result = await serves([])
         ttrue(result.up, 'a safe table starts')
 
-        //  The shipped table names the template handler
         if (thas('ME_GOAHEAD_JAVASCRIPT')) {
             result = await serves([], SHIPPED)
             ttrue(result.up, 'the shipped table, which authenticates nothing, starts')

@@ -34,15 +34,15 @@
 
 import { Config } from '@embedthis/ejscript'
 import { teq, tget, tskip, ttrue } from '@embedthis/testme'
-import { spawn, execSync } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import { connect } from 'node:net'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const LIMIT = 16
 const PORT = 18081
 const HOST = '127.0.0.1'
 const TESTDIR = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const SERVER = join(TESTDIR, '..', 'build', 'bin', 'goahead-test')
 
@@ -130,7 +130,7 @@ await new Promise<void>((resolve) => {
     setTimeout(() => { probe.destroy(); resolve() }, 1000)
 })
 
-let server = spawn(SERVER, ['--connections', String(LIMIT), '--route', ROUTES, 'web', `${HOST}:${PORT}`],
+let server = startServer(SERVER, ['--connections', String(LIMIT), '--route', ROUTES, 'web', `${HOST}:${PORT}`],
     {cwd: TESTDIR, stdio: 'ignore'})
 let held: any[] = []
 
@@ -236,7 +236,7 @@ try {
         server running holds the port and fails whatever runs next, not itself.
      */
     for (let s of held) { try { s.destroy() } catch {} }
-    server.kill('SIGTERM')
+    await stopServer(server)
 }
 
 }

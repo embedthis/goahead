@@ -2,12 +2,12 @@
     privilege-cli.tst - goahead --user and --group change the account after listening, or refuse to start
  */
 import { tcontains, tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { userInfo } from 'node:os'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const HOME = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const ENDPOINT = '127.0.0.1:18978'
 const ROOT_WARNING = 'running as root'
@@ -16,7 +16,7 @@ const CGI = thas('ME_GOAHEAD_CGI')
 
 async function serves(args: string[]): Promise<{ up: boolean, log: string, cgi: string }> {
     let log = '', cgi = ''
-    let server = spawn('goahead', ['--no-strict', '--route', ROUTES, '-v', ...args, 'web', ENDPOINT], { cwd: HOME })
+    let server = startServer('goahead', ['--no-strict', '--route', ROUTES, '-v', ...args, 'web', ENDPOINT], { cwd: HOME })
     server.stderr.on('data', (data) => log += data)
     server.stdout.on('data', (data) => log += data)
     let up = false
@@ -32,8 +32,7 @@ async function serves(args: string[]): Promise<{ up: boolean, log: string, cgi: 
             cgi = await (await fetch(`http://${ENDPOINT}/cgi-bin/cgitest`, { headers: { SWITCHES: '-S' } })).text()
         }
     } finally {
-        server.kill()
-        await new Promise(r => server.on('exit', r))
+        await stopServer(server)
     }
     return { up, log, cgi }
 }

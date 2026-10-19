@@ -1,10 +1,9 @@
 /* Behind a trusted TLS-terminating proxy the Origin check uses the client's scheme */
 import { tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const HOME = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const ENDPOINT = '127.0.0.1:18982'
 const URL = `http://${ENDPOINT}`
@@ -24,7 +23,7 @@ if (!thas('ME_GOAHEAD_AUTH')) {
     tskip('Authentication is not in this build')
 } else {
     let log = ''
-    let server = spawn('goahead-test', ['--proxy', '127.0.0.1', '--route', ROUTES, '--auth', 'auth.txt', 'web',
+    let server = startServer('goahead-test', ['--proxy', '127.0.0.1', '--route', ROUTES, '--auth', 'auth.txt', 'web',
         `http://${ENDPOINT}`], { cwd: HOME })
     server.stdout.on('data', (data) => log += data)
     server.stderr.on('data', (data) => log += data)
@@ -52,6 +51,6 @@ if (!thas('ME_GOAHEAD_AUTH')) {
         response = await post('/basicaction/showTest', null, 'https', { Authorization: BASIC, 'Sec-Fetch-Site': 'same-origin' })
         ttrue(response.status == 200, `with Origin stripped, Sec-Fetch-Site: same-origin must pass, got ${response.status}`)
     } finally {
-        server.kill()
+        await stopServer(server)
     }
 }

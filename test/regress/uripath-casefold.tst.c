@@ -54,7 +54,7 @@ static bool accepted(uint c)
 }
 
 /*
-    Name the websValidateUriPath stage that refuses the code point, and the bytes it saw, for the failure message
+    Include the rejecting validation stage and path bytes in failure messages.
  */
 static cchar *refusal(uint c)
 {

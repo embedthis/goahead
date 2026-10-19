@@ -2,14 +2,12 @@
     signal-cleanup.tst - SIGINT, SIGHUP and SIGTERM stop goahead through websClose
  */
 import { tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { startServer } from '../utils/server'
 
 const HOME = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
-//  A build without authentication has no --auth option
 const AUTH = thas('ME_GOAHEAD_AUTH') ? ['--auth', 'auth.txt'] : []
 const ENDPOINT = '127.0.0.1:18983'
 const TEMP = '/tmp'
@@ -25,7 +23,7 @@ function sleep(ms: number) {
 async function stopWith(signal: NodeJS.Signals) {
     let before = staged()
     let log = ''
-    let server = spawn('goahead', ['--no-strict', '--route', ROUTES, ...AUTH, 'web', ENDPOINT],
+    let server = startServer('goahead', ['--no-strict', '--route', ROUTES, ...AUTH, 'web', ENDPOINT],
         { cwd: HOME })
     server.stdout.on('data', (data) => log += data)
     server.stderr.on('data', (data) => log += data)

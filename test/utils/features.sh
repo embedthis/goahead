@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
 #
-#   features.sh - TestMe environment script. Report the feature set the build was compiled with.
-#
-#   The suite adapts to the build rather than to a second copy of its configuration: goahead-test,
-#   compiled with the same flags as the library, lists its feature flags. Each NAME=VALUE line goes to
-#   stdout, which tm adds to the environment of the services and the tests, so thas('NAME') skips a
-#   test whose feature is compiled out. The same values are written as a header that testme.json5
-#   force-includes into every C test, so a C test sees the goahead.h the library was built from.
-#   TM_FEATURES_HEADER names that header for the tests that compile their own fixtures.
-#
-#   It also assembles the route table for the build. route.txt names every handler and authentication
-#   directive the full feature set provides, and the server refuses a table naming one the build compiles
-#   out, so those routes are dropped; the tests that use them skip on the same flags. With every feature
-#   on, the table is route.txt unchanged. TM_ROUTES names it for setup.sh and the tests that start a
-#   server of their own.
-#
-#   tm decides whether to recompile a C test by comparing it with its source alone. After building a
-#   different feature set, run "tm --rebuild" so no C test keeps the previous build's flags.
+#   Export goahead-test build flags for TestMe and TM_FEATURES_HEADER for C tests.
+#   TM_ROUTES names route.txt with unsupported handlers and auth directives removed.
+#   Run tm --rebuild after changing build flags; C test caching does not track them.
 #
 OUT=../build/test
 HEADER="${OUT}/goahead-features.h"

@@ -41,7 +41,6 @@ static int checkedDhParams(mbedtls_ssl_config *conf, const unsigned char *p, siz
     return mbedtls_ssl_conf_dh_param_bin(conf, p, plen, g, glen);
 }
 static bool mismatchLogged, encryptedLogged;
-/* A build without logging reports nothing, so a check that a failure was logged holds trivially */
 #define LOGGED(flag) ((flag) || !ME_GOAHEAD_LOGGING)
 #if ME_GOAHEAD_LOGGING
 static char traced[80];

@@ -55,9 +55,7 @@ if (thas('ME_GOAHEAD_AUTH')) {
     ttrue(badCookie == 0, `${badCookie} of ${ATTEMPTS} failed logins consumed a session slot`)
 
     /*
-        Everything from here on holds sessions. A failed assertion ends the test, so it would leave the table
-        full and fail every later test that needs a session. Record the observations, drain the table, and
-        only then assert.
+        Record results and drain sessions before asserting; failed assertions exit immediately.
      */
     let observed: [boolean, string][] = []
     let expect = (ok: boolean, message: string) => { observed.push([ok, message]) }
@@ -121,9 +119,7 @@ if (thas('ME_GOAHEAD_AUTH')) {
     expect(notServed == 0, `${notServed} of ${filled} session requests were not served`)
 
     /*
-        A login on the full table cannot get a session. The account must hold no session of its own: an
-        account at its session limit retires its oldest session to make room, which frees a slot, and
-        earlier tests on the shared server leave sessions behind for joshua. Nothing else logs in as julie.
+        Use an account with no existing sessions so login cannot free a slot through per-account eviction.
      */
     http.reset()
     http.form(HTTP + "/action/login", {username: "julie", password: "pass4"})

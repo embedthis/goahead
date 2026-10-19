@@ -50,6 +50,10 @@ if [ -f "$PIDFILE" ] ; then
     rm -f "$PIDFILE"
 fi
 
+#   Stop private servers left by interrupted runs before they can block this run's ports.
+rm -f ../server-orphans.txt
+bash utils/reap-servers.sh .servers >&2
+
 # Keep the server log and exit status outside test/ so cleanup cannot remove shutdown failures.
 # check-server.sh checks both; readiness uses the healthcheck URL.
 # GOAHEAD_TEST_STACK_KB limits the server stack before launch to verify the documented minimum.
@@ -60,35 +64,46 @@ if [ -n "${GOAHEAD_TEST_STACK_KB:-}" ] ; then
     ulimit -s "$GOAHEAD_TEST_STACK_KB" || exit 1
 fi
 
-goahead-test -v --cert pki/self.crt --key pki/self.key --route "${TM_ROUTES}" > ../server-log.txt 2>&1 &
-PID=$!
-echo "$PID" > "$PIDFILE"
+#   An untrapped subshell owns the server and waits for its exit status. Ignore stop signals so
+#   process-group signals cannot interrupt that wait; goahead-test installs its own handlers.
+#   The parent traps stop the server, including when the parent exits first.
+(
+    trap '' SIGINT SIGTERM SIGHUP
+    goahead-test -v --cert pki/self.crt --key pki/self.key --route "${TM_ROUTES}" > ../server-log.txt 2>&1 &
+    PID=$!
+    echo "$PID" > "$PIDFILE"
+    wait $PID
+    STATUS=$?
+    echo "$STATUS" > "$STATUSFILE"
+) &
+RECORDER=$!
+until [ -s "$PIDFILE" ] || ! kill -0 $RECORDER 2>/dev/null ; do
+    sleep 0.05
+done
+PID=$(cat "$PIDFILE" 2>/dev/null)
 
-#   The trap only stops the server. Waiting for it inside the trap, while the main wait is interrupted, can
-#   return before bash has recorded the server's status. A trapped signal ends wait early with a status above
-#   128, so wait again until one completes uninterrupted. The EXIT trap stops the server if this script dies.
 STOPPED=0
 stop() {
     STOPPED=1
-    INTERRUPTED=1
     kill $PID 2>/dev/null
 }
 trap stop SIGINT SIGTERM SIGQUIT
 trap 'kill $PID 2>/dev/null' EXIT
 
-while : ; do
-    INTERRUPTED=0
-    wait $PID
-    STATUS=$?
-    [ "$INTERRUPTED" = 1 ] && [ "$STATUS" -gt 128 ] || break
+wait $RECORDER
+while kill -0 $RECORDER 2>/dev/null ; do
+    wait $RECORDER
 done
 trap - SIGINT SIGTERM SIGQUIT EXIT
 
-if [ "$STOPPED" = 0 ] && [ "$STATUS" != 0 ] ; then
-    #   The server stopped by itself. tm reports only this script's exit status, so say why.
+STATUS=$(cat "$STATUSFILE" 2>/dev/null)
+if [ -z "$STATUS" ] ; then
+    echo "goahead-test exit status was not recorded" >&2
+    STATUS=1
+elif [ "$STOPPED" = 0 ] && [ "$STATUS" != 0 ] ; then
+    #   tm sees only this script's status, so report an unexpected server exit.
     echo "goahead-test exited with status $STATUS; last lines of server-log.txt:" >&2
     tail -n 40 ../server-log.txt >&2
 fi
-echo "$STATUS" > "$STATUSFILE"
 rm -f "$PIDFILE"
 exit $STATUS

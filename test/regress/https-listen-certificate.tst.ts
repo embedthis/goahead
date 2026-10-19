@@ -2,13 +2,13 @@
     https-listen-certificate.tst - An HTTPS endpoint is refused without a certificate and key
  */
 import { tcontains, tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { connect } from 'node:tls'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const ENDPOINT = 'https://127.0.0.1:14977'
 const HOME = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const CERTS = join(HOME, 'pki')
 
@@ -33,7 +33,7 @@ if (!thas('ME_SSL')) {
             'the refusal must say the certificate and key are missing')
     }
 
-    let server = spawn('goahead', ['--no-strict', '--route', ROUTES, '--cert', join(CERTS, 'self.crt'),
+    let server = startServer('goahead', ['--no-strict', '--route', ROUTES, '--cert', join(CERTS, 'self.crt'),
         '--key', join(CERTS, 'self.key'), 'web', ENDPOINT], { cwd: HOME, stdio: 'ignore' })
     try {
         let ok = false
@@ -43,6 +43,6 @@ if (!thas('ME_SSL')) {
         }
         ttrue(ok, 'with a certificate and key the endpoint must listen and complete a handshake')
     } finally {
-        server.kill()
+        await stopServer(server)
     }
 }

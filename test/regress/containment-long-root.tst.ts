@@ -1,8 +1,9 @@
 /* Document containment fails closed when the root cannot be resolved */
 import { Config } from '@embedthis/ejscript'
 import { tskip, ttrue } from '@embedthis/testme'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const BASE = join(import.meta.dir, 'containment-long-root.dir')
 const ENDPOINT = '127.0.0.1:18980'
@@ -34,7 +35,7 @@ if (Config.OS == 'windows' || Config.OS == 'win32') {
     ttrue(parseInt(made.stdout) > 4096, `the home path must exceed PATH_MAX, got ${made.stdout.trim()} bytes`)
 
     let log = ''
-    let server = spawn('bash', ['-c', `cd '${BASE}' && ${cdHome} && exec goahead -v --route route.txt web ${ENDPOINT}`])
+    let server = startServer('bash', ['-c', `cd '${BASE}' && ${cdHome} && exec goahead -v --route route.txt web ${ENDPOINT}`])
     server.stdout.on('data', (data) => log += data)
     server.stderr.on('data', (data) => log += data)
     try {
@@ -51,7 +52,7 @@ if (Config.OS == 'windows' || Config.OS == 'win32') {
         ttrue(response.status == 404, `a symlink out of an unresolvable root must be refused, got ${response.status}`)
         ttrue(!text.includes('DEEP-SECRET'), 'the file outside the root must not be served')
     } finally {
-        server.kill()
+        await stopServer(server)
         removeHome()
     }
 }

@@ -71,7 +71,7 @@ clean:
 	rm -fr $(BUILD)
 
 test: build
-	tm $(if $(ARGS),$(ARGS),test) ; rc=$$? ; bash test/utils/check-server.sh server-log.txt server-exit.txt || rc=1 ; exit $$rc
+	tm $(if $(ARGS),$(ARGS),test) ; rc=$$? ; bash test/utils/check-server.sh server-log.txt server-exit.txt server-orphans.txt || rc=1 ; exit $$rc
 
 # Run Linux sanitizer builds with preloaded runtimes for unsanitized test programs. CC=clang selects the clang
 # runtimes and the clang-only integer and implicit-conversion checks. A canary proves the build reports before tm runs.
@@ -94,13 +94,9 @@ endif
 		ASAN_OPTIONS=detect_leaks=0:allocator_may_return_null=1:detect_stack_use_after_return=1:strict_string_checks=1 \
 		UBSAN_OPTIONS=print_stacktrace=1 \
 		bash -c 'test/utils/sanitizer-canary.sh && tm $(if $(ARGS),$(ARGS),test)' ; rc=$$? ; \
-		bash test/utils/check-server.sh server-log.txt server-exit.txt || rc=1 ; rm -fr $(BUILD)/bin ; exit $$rc
+		bash test/utils/check-server.sh server-log.txt server-exit.txt server-orphans.txt || rc=1 ; rm -fr $(BUILD)/bin ; exit $$rc
 
-#
-#   Build and run the suite under Linux in a container, on a macOS host. Verifies the tree it is run
-#   from: the working tree, or an unpacked release archive.
-#   ARGS is passed through to tm, so "make test-linux ARGS=auth" runs that subset.
-#
+#   Run the suite under Linux on macOS. ARGS passes through to tm, e.g. ARGS=auth.
 test-linux:
 	@bash bin/test-linux.sh $(ARGS)
 

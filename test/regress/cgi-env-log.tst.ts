@@ -1,11 +1,10 @@
 /* CGI environment values must never enter diagnostics, including debug logs. */
 import { tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { createServer, connect } from 'node:net'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const dir = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 async function request(port: number, path: string, headers = ''): Promise<string> {
@@ -29,7 +28,7 @@ if (!thas('ME_GOAHEAD_CGI')) {
         await new Promise<void>(resolve => probe.listen(0, '127.0.0.1', resolve))
         const port = (probe.address() as any).port
         await new Promise<void>(resolve => probe.close(() => resolve()))
-        const server = spawn(join(dir, '../build/bin/goahead'),
+        const server = startServer(join(dir, '../build/bin/goahead'),
             ['--no-strict', '--log', `stderr:${level}`, '--route', ROUTES, 'web', `127.0.0.1:${port}`],
             {cwd: dir, stdio: ['ignore', 'pipe', 'pipe']})
         let logs = ''
@@ -54,9 +53,7 @@ if (!thas('ME_GOAHEAD_CGI')) {
                 ttrue(!envLogs.includes(secret), 'environment diagnostics omit values')
             }
         } finally {
-            const exited = new Promise<void>(resolve => server.once('exit', () => resolve()))
-            server.kill()
-            await exited
+            await stopServer(server)
         }
     }
 }

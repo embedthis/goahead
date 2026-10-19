@@ -3,13 +3,13 @@
  */
 
 import { tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { get } from 'node:http'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { cc, compile, isWindows, ROOT } from '../utils/amalgamation'
+import { startServer, stopServer } from '../utils/server'
 
 async function request(port: number, path: string): Promise<{status: number, body: string}> {
     return await new Promise((resolve, reject) => {
@@ -46,7 +46,7 @@ if (isWindows) {
         const port = (probe.address() as any).port
         await new Promise<void>(resolve => probe.close(() => resolve()))
 
-        const server = spawn(exe, ['--route', 'route.txt', '--auth', 'auth.txt', 'web', `127.0.0.1:${port}`],
+        const server = startServer(exe, ['--route', 'route.txt', '--auth', 'auth.txt', 'web', `127.0.0.1:${port}`],
             {cwd: dir, stdio: 'ignore'})
         try {
             let ready = false
@@ -65,11 +65,7 @@ if (isWindows) {
                     `${path} must not return the template source`)
             }
         } finally {
-            const stopped = new Promise<void>(resolve => server.once('exit', () => resolve()))
-            if (server.exitCode == null) {
-                server.kill()
-                await stopped
-            }
+            await stopServer(server)
         }
     }
     rmSync(dir, {recursive: true, force: true})

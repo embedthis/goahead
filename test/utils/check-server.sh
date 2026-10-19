@@ -1,23 +1,17 @@
 #!/bin/bash
 #
-#   check-server.sh - Fail a test run on the test server's own failure
-#
-#   usage: check-server.sh LOG STATUSFILE
-#
-#   test/setup.sh writes the server's exit status to STATUSFILE once the server has stopped, which is
-#   after tm has stopped the service. A crash or sanitizer report during shutdown is visible only
-#   there and in the server's LOG, never in a test result. Wait for the status, then fail if it is
-#   missing or nonzero, or if the log holds a sanitizer report, and print the evidence.
-#
-#   Run by the Makefile test and test-asan targets after tm.
+#   Check server exit status, sanitizer reports and orphan servers after tm stops.
+#   Usage: check-server.sh LOG STATUSFILE [ORPHANS]
+#   Wait for setup.sh to record shutdown status; fail if missing or nonzero.
 #
 
 LOG="$1"
 STATUSFILE="$2"
+ORPHANS="$3"
 PATTERNS='ERROR: AddressSanitizer|ERROR: LeakSanitizer|runtime error:'
 
 if [ -z "${LOG}" ] || [ -z "${STATUSFILE}" ] ; then
-    echo "usage: check-server.sh LOG STATUSFILE" >&2
+    echo "usage: check-server.sh LOG STATUSFILE [ORPHANS]" >&2
     exit 2
 fi
 
@@ -37,6 +31,12 @@ else
         echo "      [Error] The test server exited with status ${status}" >&2
         failed=1
     fi
+fi
+
+if [ -n "${ORPHANS}" ] && [ -s "${ORPHANS}" ] ; then
+    echo "      [Error] Tests left servers running; they have been stopped:" >&2
+    cat "${ORPHANS}" >&2
+    failed=1
 fi
 
 if [ ! -f "${LOG}" ] ; then

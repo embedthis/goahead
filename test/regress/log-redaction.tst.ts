@@ -3,9 +3,9 @@
     level. Debug builds trace full values. The build under test reports its type in the level 2 startup banner.
  */
 import { tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { createServer, connect } from 'node:net'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const dir = join(import.meta.dir, '..')
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -30,7 +30,7 @@ if (!thas('ME_GOAHEAD_LOGGING') || !thas('ME_GOAHEAD_AUTH') || !thas('ME_GOAHEAD
     const port = (probe.address() as any).port
     await new Promise<void>(resolve => probe.close(() => resolve()))
 
-    const server = spawn(join(dir, '../build/bin/goahead'),
+    const server = startServer(join(dir, '../build/bin/goahead'),
         ['--no-strict', '--log', 'stderr:5', '--route', String(tget('TM_ROUTES')), 'web', `127.0.0.1:${port}`],
         {cwd: dir, stdio: ['ignore', 'pipe', 'pipe']})
     let logs = ''
@@ -95,8 +95,6 @@ if (!thas('ME_GOAHEAD_LOGGING') || !thas('ME_GOAHEAD_AUTH') || !thas('ME_GOAHEAD
         }
         ttrue(logs.split('\n').every(line => !/^(GET|POST) /.test(line)), 'the raw request header block is not dumped')
     } finally {
-        const exited = new Promise<void>(resolve => server.once('exit', () => resolve()))
-        server.kill()
-        await exited
+        await stopServer(server)
     }
 }

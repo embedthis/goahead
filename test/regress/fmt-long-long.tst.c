@@ -32,9 +32,23 @@ static void suiteB_arguments(void)
 }
 
 
+/*
+    %X and %x must read the same width, honoring the ll modifier on 32-bit builds.
+ */
+static void suiteC_upper(void)
+{
+    char buf[80];
+
+    tinfo("\n--- Suite C: upper case hex ---\n");
+    fmt(buf, sizeof(buf), "%02X:%llX:%s", 0x9fU, (long long) 0x100000002LL, "end");
+    ttrue(smatch(buf, "9F:100000002:end"), "%%X must read an unsigned int and %%llX a long long, got %s", buf);
+}
+
+
 int main(int argc, char **argv)
 {
     suiteA_wide();
     suiteB_arguments();
+    suiteC_upper();
     return 0;
 }

@@ -61,9 +61,8 @@
             TM_HTTPV6: 'http://[::1]:18090',
             TM_HTTPSV6: 'https://[::1]:14453',
             /*
-                The ME_GOAHEAD_* feature gates are not set here: services.environment reads them
-                from the build, so tests using thas('NAME') skip when the build compiles a feature
-                out. TLS is not reported by the build; set this to 0 for a build without it.
+                Feature gates come from the build via services.environment. TLS is configured separately;
+                set this to 0 for builds without TLS.
              */
             ME_SSL: '1',
             /*
@@ -79,9 +78,8 @@
     },
     services: {
         /*
-            Emits the build's ME_GOAHEAD_* feature flags into the test environment, and writes the
-            header force-included above, so the TS gates and the C tests both follow the build.
-            ME_GOAHEAD_STEALTH selects which behaviour basic/methods.tst.ts asserts.
+            Export build flags to TypeScript tests and the forced C header.
+            ME_GOAHEAD_STEALTH selects basic/methods.tst.ts expectations.
          */
         environment: './utils/features.sh',
         setup: './setup.sh',

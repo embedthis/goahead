@@ -1,10 +1,9 @@
 /* Behind a trusted TLS-terminating proxy the client's scheme drives routing and responses */
 import { tget, thas, tskip, ttrue } from '@embedthis/testme'
-import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { startServer, stopServer } from '../utils/server'
 
 const HOME = join(import.meta.dir, '..')
-//  The route table assembled for this build's feature set
 const ROUTES = String(tget('TM_ROUTES'))
 const ENDPOINT = '127.0.0.1:18981'
 const URL = `http://${ENDPOINT}`
@@ -14,7 +13,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 }
 
 let log = ''
-let server = spawn('goahead-test', ['--proxy', '127.0.0.1', '--route', ROUTES, '--auth', 'auth.txt', 'web',
+let server = startServer('goahead-test', ['--proxy', '127.0.0.1', '--route', ROUTES, '--auth', 'auth.txt', 'web',
     `http://${ENDPOINT}`], { cwd: HOME })
 server.stdout.on('data', (data) => log += data)
 server.stderr.on('data', (data) => log += data)
@@ -54,5 +53,5 @@ try {
         tskip('Authentication is not in this build')
     }
 } finally {
-    server.kill()
+    await stopServer(server)
 }
