@@ -200,7 +200,7 @@ if (thas('ME_GOAHEAD_CGI')) {
     }
 
     /*
-        Test httpoxy mitigation (CVE-2016-5385 family) and restored blacklist behaviour.
+        Test httpoxy mitigation (GOAHEAD-SA-2026-0003, CVE-2026-115882) and restored blacklist behaviour.
 
         The cgitest program prints every env variable in the "All Defined Environment
         Variables" section as <P>NAME=VALUE</P>. We assert absence by checking that the
