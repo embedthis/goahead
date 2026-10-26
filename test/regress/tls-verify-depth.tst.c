@@ -1,5 +1,7 @@
 /*
     tls-verify-depth.tst.c - A client certificate chain longer than ME_GOAHEAD_SSL_VERIFY_DEPTH is refused
+
+    Regression test for GOAHEAD-SA-2026-0004 (CVE-2026-115884).
  */
 
 #if defined(__GNUC__)
