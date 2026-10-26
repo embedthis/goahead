@@ -364,7 +364,7 @@ if (thas('ME_GOAHEAD_CGI')) {
     }
 
     /*
-        GOAHEAD-SA-2026-0009 (CWE-88) security tests. Each must fail against the pre-patch
+        GOAHEAD-SA-2026-0009 (CVE-2026-115880, CWE-88) security tests. Each must fail against the pre-patch
         binary (which delivered -leading and decoded-'=' tokens straight into the CGI argv)
         and pass post-patch (HTTP 400, no argv built).
      */
@@ -405,7 +405,7 @@ if (thas('ME_GOAHEAD_CGI')) {
     }
 
     /*
-        GOAHEAD-SA-2026-0009 regression / success-path tests: benign ISINDEX search terms
+        GOAHEAD-SA-2026-0009 (CVE-2026-115880) regression / success-path tests: benign ISINDEX search terms
         still reach the CGI as positional operands, and the literal-'=' and no-token paths
         are unchanged.
      */
