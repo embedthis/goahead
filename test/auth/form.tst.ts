@@ -80,7 +80,7 @@ if (!thas('ME_GOAHEAD_AUTH')) {
     await http.wait()
     ttrue(http.status == 200)
 
-    //  BF1 user with wrong password -> redirect to login page.
+    //  BF1 user with wrong password -> redirect to login page (GOAHEAD-SA-2026-0001, CVE-2026-115888).
     http.reset()
     http.form(HTTP + "/action/login", {username: "formbf1", password: "wrongpass"})
     await http.wait()
