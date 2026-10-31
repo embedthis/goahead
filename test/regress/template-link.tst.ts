@@ -1,7 +1,7 @@
 /*
     template-link.tst - A link that gives a template another extension does not serve its source
 
-    The file handler never serves template source (SI-20), and it judges that by the request's extension. A link
+    The file handler never serves template source, and it judges that by the request's extension. A link
     inside the documents whose name has another extension resolves to the stored template, so the file handler
     must judge the stored name too, as it already does for hidden and backup names. Starts a private server
     because the shared test server's documents are not to be linked into.

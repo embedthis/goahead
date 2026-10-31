@@ -82,7 +82,7 @@ static void testDeepWorkingDirectory(void)
     wfree(path);
 
     /*
-        SI-3: the audit compares the documents directory with the staging directories by their absolute spellings.
+        The audit compares the documents directory with the staging directories by their absolute spellings.
         With the documents directory "." the compiled-in upload directory (ME_GOAHEAD_UPLOAD_DIR, "tmp") and the
         PUT directory (ME_GOAHEAD_PUT_DIR, ".") lie inside it, and the audit must report that from any working
         directory.

@@ -4,8 +4,7 @@
     variables, the Java launcher option variables, the versioned Lua startup variables, PERL5SHELL and TCLLIBPATH.
 
     These are only reachable when ME_GOAHEAD_CGI_VAR_PREFIX is built empty; the default CGI_ prefix neutralises
-    every request variable name. Sibling of tickets 10094 and 10357, which established that the empty-prefix
-    build must hold its own.
+    every request variable name. The empty-prefix build must hold its own.
  */
 #define ME_GOAHEAD_CGI_VAR_PREFIX ""
 #include "cgi-handler-fixture.h"
