@@ -13,10 +13,20 @@ static WebsSocket *checkedSocket(int sid) { return &testSocket; }
 
 #include "mbedtls-pipe-fixture.h"
 
+static char handshakeLog[2048];
+
+static void captureLog(int flags, cchar *msg)
+{
+    ssize len;
+
+    len = slen(handshakeLog);
+    fmt(&handshakeLog[len], sizeof(handshakeLog) - (size_t) len, "%s%s", len ? " | " : "", msg);
+}
+
 /*
-    Issue a self-signed certificate for the key, valid only on 1 January 2020
+    Issue a self-signed certificate for the key, valid only from and to the given times
  */
-static int makeExpired(mbedtls_x509_crt *cert, mbedtls_pk_context *key)
+static int makeCert(mbedtls_x509_crt *cert, mbedtls_pk_context *key, cchar *from, cchar *to)
 {
     mbedtls_x509write_cert crt;
     uchar                  serial[] = { 1 };
@@ -31,7 +41,7 @@ static int makeExpired(mbedtls_x509_crt *cert, mbedtls_pk_context *key)
     mbedtls_x509write_crt_set_subject_name(&crt, "CN=localhost");
     mbedtls_x509write_crt_set_issuer_name(&crt, "CN=localhost");
     mbedtls_x509write_crt_set_serial_raw(&crt, serial, sizeof(serial));
-    mbedtls_x509write_crt_set_validity(&crt, "20200101000000", "20200102000000");
+    mbedtls_x509write_crt_set_validity(&crt, from, to);
     rc = mbedtls_x509write_crt_pem(&crt, pem, sizeof(pem), mbedtls_ctr_drbg_random, &cfg.ctr);
     mbedtls_x509write_crt_free(&crt);
     if (rc == 0) {
@@ -60,12 +70,13 @@ static cchar *handshake(cchar *certs, cchar *name)
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &cfg.ctr);
     mbedtls_x509_crt_init(&cert);
     mbedtls_pk_init(&key);
-    if (smatch(name, "expired")) {
+    if (smatch(name, "expired") || smatch(name, "future")) {
         fmt(path, sizeof(path), "%s/ec.key", certs);
         if (mbedtls_pk_parse_keyfile(&key, path, NULL, mbedtls_ctr_drbg_random, &cfg.ctr) != 0) {
             return "unreadable key";
         }
-        if (makeExpired(&cert, &key) != 0) {
+        if ((smatch(name, "expired") ? makeCert(&cert, &key, "20200101000000", "20200102000000") :
+             makeCert(&cert, &key, "20990101000000", "20990102000000")) != 0) {
             return "cannot issue certificate";
         }
         mbedtls_ssl_conf_own_cert(&conf, &cert, &key);
@@ -105,7 +116,8 @@ static cchar *handshake(cchar *certs, cchar *name)
 
 int main(int argc, char **argv)
 {
-    cchar *clients[] = { "none", "self", "test", "ec", "expired" };
+    cchar *clients[] = { "none", "self", "test", "ec", "expired", "future" };
+    cchar *outcome;
     char  path[1024];
     int   i;
 
@@ -122,8 +134,13 @@ int main(int argc, char **argv)
         return 1;
     }
     printf("certificate %s\n", sslHasCertificate() ? "installed" : "missing");
+    logSetHandler(captureLog);
+    websSetLogLevel(2);
     for (i = 0; i < (int) (sizeof(clients) / sizeof(clients[0])); i++) {
-        printf("%s %s\n", clients[i], handshake(argv[1], clients[i]));
+        handshakeLog[0] = '\0';
+        outcome = handshake(argv[1], clients[i]);
+        printf("%s %s\n", clients[i], outcome);
+        printf("%s log: %s\n", clients[i], handshakeLog);
     }
     sslClose();
     return 0;

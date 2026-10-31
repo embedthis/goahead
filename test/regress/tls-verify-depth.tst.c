@@ -33,22 +33,41 @@ static void quietLog(int level, cchar *msg)
 }
 #endif
 
-static int callback(X509 *cert, int error, int depth)
+/*
+    Run the callback on cert with the given error and depth. presented > 0 supplies the peer chain as the handshake
+    does: that many certificates, leaf included.
+ */
+static int presentedCallback(X509 *cert, int error, int depth, int presented)
 {
     X509_STORE     *store;
     X509_STORE_CTX *ctx;
-    int            rc;
+    STACK_OF(X509) *chain;
+    int            i, rc;
 
     store = X509_STORE_new();
     ctx = X509_STORE_CTX_new();
-    X509_STORE_CTX_init(ctx, store, cert, NULL);
+    chain = NULL;
+    if (presented > 0) {
+        chain = sk_X509_new_null();
+        for (i = 0; i < presented; i++) {
+            sk_X509_push(chain, cert);
+        }
+    }
+    X509_STORE_CTX_init(ctx, store, cert, chain);
     X509_STORE_CTX_set_current_cert(ctx, cert);
     X509_STORE_CTX_set_error(ctx, error);
     X509_STORE_CTX_set_error_depth(ctx, depth);
     rc = verifyClientCertificate(error == X509_V_OK, ctx);
     X509_STORE_CTX_free(ctx);
+    sk_X509_free(chain);
     X509_STORE_free(store);
     return rc;
+}
+
+
+static int callback(X509 *cert, int error, int depth)
+{
+    return presentedCallback(cert, error, depth, 0);
 }
 
 
@@ -78,6 +97,22 @@ static void suiteA_callback(X509 *cert)
 #if !ME_GOAHEAD_SSL_VERIFY_ISSUER
     ttrue(callback(cert, X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY, 1) == 1,
           "with issuer verification off, an unknown issuer within the limit is accepted");
+#endif
+
+    /*
+        A verifier that truncates the chain at the limit reports an unknown issuer at depth == limit, never a depth
+        past it. The presented chain decides.
+     */
+    ttrue(presentedCallback(cert, X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY, ME_GOAHEAD_SSL_VERIFY_DEPTH,
+          ME_GOAHEAD_SSL_VERIFY_DEPTH + 2) == 0, "a presented chain past the limit must be refused at depth == limit");
+    ttrue(presentedCallback(cert, X509_V_OK, 0, ME_GOAHEAD_SSL_VERIFY_DEPTH + 2) == 0,
+          "a presented chain past the limit must be refused at any depth");
+    ttrue(presentedCallback(cert, X509_V_OK, ME_GOAHEAD_SSL_VERIFY_DEPTH, ME_GOAHEAD_SSL_VERIFY_DEPTH + 1) == 1,
+          "a presented chain exactly at the limit is accepted");
+#if !ME_GOAHEAD_SSL_VERIFY_ISSUER
+    ttrue(presentedCallback(cert, X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY, ME_GOAHEAD_SSL_VERIFY_DEPTH,
+          ME_GOAHEAD_SSL_VERIFY_DEPTH + 1) == 1,
+          "with issuer verification off, an unknown issuer at the limit of a chain within it is accepted");
 #endif
 }
 

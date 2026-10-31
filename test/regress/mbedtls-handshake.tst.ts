@@ -2,7 +2,7 @@
     mbedtls-handshake.tst.ts - MbedTLS runtime certificates and client certificate validation
  */
 import { Cmd, Config } from '@embedthis/ejscript'
-import { tcontains, teq, tget, tskip } from '@embedthis/testme'
+import { tcontains, teq, tget, tskip, ttrue } from '@embedthis/testme'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -23,18 +23,18 @@ if (String(Config.OS).startsWith('win') || !cc || pkg.status !== 0) {
         {
             name: 'no client certificates',
             defines: ['-DME_GOAHEAD_SSL_VERIFY_PEER=0'],
-            expect: { none: 'accepted', self: 'accepted', test: 'accepted', ec: 'accepted', expired: 'accepted' },
+            expect: { none: 'accepted', self: 'accepted', test: 'accepted', ec: 'accepted', expired: 'accepted', future: 'accepted' },
         },
         {
             name: 'client certificates, any issuer',
             defines: ['-DME_GOAHEAD_SSL_VERIFY_PEER=1', '-DME_GOAHEAD_SSL_VERIFY_ISSUER=0'],
-            expect: { none: 'refused', self: 'accepted', test: 'accepted', ec: 'accepted', expired: 'refused' },
+            expect: { none: 'refused', self: 'accepted', test: 'accepted', ec: 'accepted', expired: 'refused', future: 'refused' },
         },
         {
             name: 'client certificates, trusted issuer',
             defines: ['-DME_GOAHEAD_SSL_VERIFY_PEER=1', '-DME_GOAHEAD_SSL_VERIFY_ISSUER=1',
                 `-DME_GOAHEAD_SSL_AUTHORITY="${join(certs, 'ca.crt')}"`],
-            expect: { none: 'refused', self: 'refused', test: 'accepted', ec: 'refused', expired: 'refused' },
+            expect: { none: 'refused', self: 'refused', test: 'accepted', ec: 'refused', expired: 'refused', future: 'refused' },
         },
     ]
     try {
@@ -56,6 +56,11 @@ if (String(Config.OS).startsWith('win') || !cc || pkg.status !== 0) {
             for (let [client, outcome] of Object.entries(setting.expect)) {
                 tcontains(result.stdout, `${client} ${outcome}`,
                     `with ${setting.name}, client "${client}" must be ${outcome}`)
+                const log = (result.stdout.match(new RegExp(`^${client} log: (.*)$`, 'm')) || ['', ''])[1]
+                ttrue(!log.includes('-0x0'), `with ${setting.name}, client "${client}" logs no empty error: ${log}`)
+                if (outcome == 'refused' && client == 'future') {
+                    tcontains(log, 'future', `with ${setting.name}, the refusal names the verification failure`)
+                }
             }
         }
     } finally {

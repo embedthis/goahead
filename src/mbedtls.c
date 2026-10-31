@@ -52,9 +52,20 @@ typedef struct MbedConfig {
 typedef struct MbedSocket {
     mbedtls_ssl_context ctx;                    /* SSL state */
     mbedtls_ssl_session session;                /* SSL sessions */
+    size_t              pending;                /* Length of a write MbedTLS holds unsent; its retry repeats it */
 } MbedSocket;
 
 static MbedConfig cfg;
+
+/*
+    Key exchange preference order. MbedTLS retains this array.
+ */
+static const uint16_t keyExchangeGroups[] = {
+    MBEDTLS_SSL_IANA_TLS_GROUP_X25519,
+    MBEDTLS_SSL_IANA_TLS_GROUP_SECP256R1,
+    MBEDTLS_SSL_IANA_TLS_GROUP_SECP384R1,
+    MBEDTLS_SSL_IANA_TLS_GROUP_NONE,
+};
 
 /*
     GoAhead Log level to start SSL tracing
@@ -73,6 +84,8 @@ static char *sslKeyPath;
 
 static int *getCipherSuite(cchar *ciphers);
 static int  mbedHandshake(Webs *wp);
+static int  mbedRecv(void *ctx, uchar *buf, size_t len);
+static int  mbedSend(void *ctx, const uchar *buf, size_t len);
 static int  parseCert(mbedtls_x509_crt *cert, char *file);
 static int  parseCrl(mbedtls_x509_crl *crl, char *path);
 static int  parseKey(mbedtls_pk_context *key, char *path);
@@ -80,6 +93,7 @@ static void merror(int rc, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3)
 static char *replaceHyphen(char *cipher, char from, char to);
 static void traceMbed(void *context, int level, cchar *file, int line, cchar *str);
 static bool sameName(mbedtls_x509_buf *a, mbedtls_x509_buf *b);
+static void logVerifyFailure(uint32_t flags);
 static int  verifyChain(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags);
 
 /************************************** Code **********************************/
@@ -113,7 +127,7 @@ PUBLIC int sslOpen()
 
     if ((rc =
              mbedtls_ctr_drbg_seed(&cfg.ctr, mbedtls_entropy_func, &cfg.entropy, (cuchar*) ME_NAME,
-                                   slen(ME_NAME))) < 0) {
+                                   (size_t) slen(ME_NAME))) < 0) {
         merror(rc, "Cannot seed rng");
         return -1;
     }
@@ -126,8 +140,10 @@ PUBLIC int sslOpen()
     certPath = sslCertPath ? sslCertPath : (char*) ME_GOAHEAD_SSL_CERTIFICATE;
     if (keyPath && *keyPath) {
         /*
-            Load a decrypted PEM format private key. The last arg is the private key.
+            Register the private key so websListen refuses it inside a served directory.
          */
+        websAddConfigFile(keyPath);
+        websCheckSecretFile(keyPath, "the TLS private key");
         if (parseKey(&cfg.pkey, keyPath) < 0) {
             return -1;
         }
@@ -176,6 +192,11 @@ PUBLIC int sslOpen()
     }
 
     /*
+        Exclude finite-field groups to avoid expensive server exponentiation on client-chosen TLS 1.3 groups.
+     */
+    mbedtls_ssl_conf_groups(conf, keyExchangeGroups);
+
+    /*
         Allow unknown issuers when configured, but still require a client certificate.
      */
     if (!ME_GOAHEAD_SSL_VERIFY_PEER) {
@@ -204,6 +225,10 @@ PUBLIC int sslOpen()
     }
     mbedtls_ssl_conf_min_tls_version(conf, minVersion);
     mbedtls_ssl_conf_max_tls_version(conf, maxVersion);
+#if defined(MBEDTLS_SSL_PROTO_TLS1_3)
+    //  Require ephemeral keys on TLS 1.3 resumption to preserve forward secrecy.
+    mbedtls_ssl_conf_tls13_key_exchange_modes(conf, MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ALL);
+#endif
 
     /*
         Disable resumption with client certificates so every connection verifies them.
@@ -255,10 +280,55 @@ PUBLIC int sslOpen()
         for (cp = mbedtls_ssl_list_ciphersuites(); *cp; cp++) {
             scopy(cipher, sizeof(cipher), (char*) mbedtls_ssl_get_ciphersuite_name(*cp));
             replaceHyphen(cipher, '-', '_');
-            trace(5, "mbedtls: %s (0x%04X)", cipher, *cp);
+            trace(5, "mbedtls: %s (0x%04X)", cipher, (uint) *cp);
         }
     }
     return 0;
+}
+
+
+/*
+    Retry blocked or timed-out sends as WANT_WRITE, including during bounded blocking flushes.
+ */
+static int mbedSend(void *ctx, const uchar *buf, size_t len)
+{
+    WebsSocket *sp;
+    ssize      rc;
+    int        err;
+
+    sp = ctx;
+    if ((rc = send(sp->sock, (char*) buf, (int) len, 0)) >= 0) {
+        return (int) rc;
+    }
+    err = socketGetError(sp->sid);
+    if (err == EAGAIN || err == EWOULDBLOCK || err == ETIMEDOUT || err == EINTR) {
+        return MBEDTLS_ERR_SSL_WANT_WRITE;
+    }
+    if (err == EPIPE || err == ECONNRESET) {
+        return MBEDTLS_ERR_NET_CONN_RESET;
+    }
+    return MBEDTLS_ERR_NET_SEND_FAILED;
+}
+
+
+static int mbedRecv(void *ctx, uchar *buf, size_t len)
+{
+    WebsSocket *sp;
+    ssize      rc;
+    int        err;
+
+    sp = ctx;
+    if ((rc = recv(sp->sock, (char*) buf, (int) len, 0)) >= 0) {
+        return (int) rc;
+    }
+    err = socketGetError(sp->sid);
+    if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) {
+        return MBEDTLS_ERR_SSL_WANT_READ;
+    }
+    if (err == EPIPE || err == ECONNRESET) {
+        return MBEDTLS_ERR_NET_CONN_RESET;
+    }
+    return MBEDTLS_ERR_NET_RECV_FAILED;
 }
 
 
@@ -282,6 +352,23 @@ static int verifyChain(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *f
         *flags |= MBEDTLS_X509_BADCRL_NOT_TRUSTED;
     }
     return 0;
+}
+
+
+static void logVerifyFailure(uint32_t flags)
+{
+    char info[512], *cp;
+
+    if (mbedtls_x509_crt_verify_info(info, sizeof(info), "", flags) <= 0) {
+        logmsg(2, "Certificate refused: verification flags 0x%x", (uint) flags);
+        return;
+    }
+    for (cp = info; *cp; cp++) {
+        if (*cp == '\n') {
+            *cp = cp[1] ? ';' : '\0';
+        }
+    }
+    logmsg(2, "Certificate refused: %s", info);
 }
 
 
@@ -361,11 +448,11 @@ PUBLIC int sslUpgrade(Webs *wp)
         wfreeset(wp->ssl);
         return -1;
     }
-    mbedtls_ssl_set_bio(ctx, &sp->sock, mbedtls_net_send, mbedtls_net_recv, 0);
-
-    if (mbedHandshake(wp) < 0) {
-        return -1;
-    }
+    mbedtls_ssl_set_bio(ctx, sp, mbedSend, mbedRecv, 0);
+    /*
+        Defer the handshake to sslRead so bad ClientHellos are reported as peer failures, not upgrade faults.
+     */
+    sp->flags |= SOCKET_HANDSHAKING;
     return 0;
 }
 
@@ -406,11 +493,14 @@ static int mbedHandshake(Webs *wp)
 
     while ((rc = mbedtls_ssl_handshake(&mb->ctx)) != 0) {
         if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) {
+            //  Handshake output the socket could not take is sent when the socket is next writable
+            socketHiddenData(sp, rc == MBEDTLS_ERR_SSL_WANT_WRITE ? 1 : 0, SOCKET_WRITABLE);
             return 0;
         }
         break;
     }
     sp->flags &= ~SOCKET_HANDSHAKING;
+    socketHiddenData(sp, 0, SOCKET_WRITABLE);
 
     /*
         Analyze the handshake result
@@ -420,10 +510,12 @@ static int mbedHandshake(Webs *wp)
             error("Missing required certificate and key");
         } else if (rc == MBEDTLS_ERR_SSL_CA_CHAIN_REQUIRED) {
             trace(2, "Server requires a client certificate");
+        } else if (rc == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED) {
+            logVerifyFailure(mbedtls_ssl_get_verify_result(&mb->ctx));
         } else {
             char ebuf[256];
             mbedtls_strerror(-rc, ebuf, sizeof(ebuf));
-            trace(2, "%s: error -0x%x", ebuf, -rc);
+            trace(2, "%s: error -0x%x", ebuf, (uint) -rc);
         }
         sp->flags |= SOCKET_EOF;
         errno = EPROTO;
@@ -466,12 +558,7 @@ static int mbedHandshake(Webs *wp)
             vrc = 0;
 
         } else {
-            if (rc == MBEDTLS_ERR_NET_CONN_RESET) {
-                logmsg(2, "Peer disconnected");
-
-            } else {
-                logmsg(2, "Cannot handshake: error -0x%x", -rc);
-            }
+            logVerifyFailure((uint32_t) vrc);
         }
         if (vrc != 0 && ME_GOAHEAD_SSL_VERIFY_PEER) {
             if (mbedtls_ssl_get_peer_cert(&mb->ctx) == 0) {
@@ -506,7 +593,7 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         }
     }
     while (1) {
-        rc = mbedtls_ssl_read(&mb->ctx, buf, (int) len);
+        rc = mbedtls_ssl_read(&mb->ctx, buf, (size_t) len);
         if (rc < 0) {
             if (rc == MBEDTLS_ERR_SSL_WANT_READ ||
                 rc == MBEDTLS_ERR_SSL_WANT_WRITE ||
@@ -523,7 +610,7 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
                 sp->flags |= SOCKET_EOF;
                 return -1;
             } else {
-                trace(4, "mbedtls: read error -0x%x", -rc);
+                trace(4, "mbedtls: read error -0x%x", (uint) -rc);
                 sp->flags |= SOCKET_EOF;
                 return -1;
             }
@@ -533,7 +620,7 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         }
         break;
     }
-    socketHiddenData(sp, mbedtls_ssl_get_bytes_avail(&mb->ctx), SOCKET_READABLE);
+    socketHiddenData(sp, (ssize) mbedtls_ssl_get_bytes_avail(&mb->ctx), SOCKET_READABLE);
     return rc;
 }
 
@@ -542,7 +629,7 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 {
     MbedSocket *mb;
     WebsSocket *sp;
-    ssize      totalWritten;
+    ssize      totalWritten, chunk;
     int        rc;
 
     if (wp->ssl == 0 || len <= 0) {
@@ -560,14 +647,21 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
     }
     totalWritten = 0;
     do {
-        rc = mbedtls_ssl_write(&mb->ctx, (uchar*) buf, (int) len);
-        trace(7, "mbedtls write: wrote %d of %zd", rc, len);
+        /*
+            MbedTLS keeps the record it built from a write it could not send and expects the retry to name the
+            same length, whatever the caller has appended since: it returns that length once the record is sent.
+         */
+        assert(mb->pending == 0 || (ssize) mb->pending <= len);
+        chunk = mb->pending ? (ssize) mb->pending : len;
+        rc = mbedtls_ssl_write(&mb->ctx, (uchar*) buf, (size_t) chunk);
+        trace(7, "mbedtls write: wrote %d of %zd", rc, chunk);
         if (rc <= 0) {
             if (rc == MBEDTLS_ERR_SSL_WANT_READ ||
                 rc == MBEDTLS_ERR_SSL_WANT_WRITE ||
                 rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET ||
                 rc == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS ||
                 rc == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS) {
+                mb->pending = (size_t) chunk;
                 break;
             }
             if (rc == MBEDTLS_ERR_NET_CONN_RESET) {
@@ -576,10 +670,12 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
                 trace(4, "mbedtls_ssl_write failed rc %d", rc);
             }
             /* Set a hard socket error so a stale EAGAIN cannot cause retries. */
+            mb->pending = 0;
             sp->flags |= SOCKET_EOF;
             socketSetError(ECONNRESET);
             return -1;
         } else {
+            mb->pending = 0;
             totalWritten += rc;
             buf = (void*) ((char*) buf + rc);
             len -= rc;
@@ -600,12 +696,14 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 
 
 /*
-    Reject static RSA, anonymous, null, DES, 3DES, RC4, and MD5 TLS 1.2 suites.
+    Reject static RSA, static ECDH, anonymous, null, DES, 3DES, RC4, and MD5 TLS 1.2 suites. OpenSSL has no static
+    ECDH suites at all, so both backends then offer forward secret key exchanges only.
     Inspect names because MbedTLS keeps cipher fields private.
  */
 static bool belowFloor(cchar *name)
 {
-    return sstarts(name, "TLS-RSA-WITH-") || strstr(name, "-anon-") || strstr(name, "-NULL-") ||
+    return sstarts(name, "TLS-RSA-WITH-") || sstarts(name, "TLS-ECDH-ECDSA-WITH-") ||
+           sstarts(name, "TLS-ECDH-RSA-WITH-") || strstr(name, "-anon-") || strstr(name, "-NULL-") ||
            strstr(name, "-DES-") || strstr(name, "-3DES-") || strstr(name, "-RC4-") || strstr(name, "-MD5");
 }
 
@@ -628,7 +726,7 @@ static int *getCipherSuite(cchar *ciphers)
             ntokens++;
         }
     }
-    result = walloc((ntokens + 1) * sizeof(int));
+    result = walloc((ntokens + 1) * (ssize) sizeof(int));
 
     next = list = sclone(ciphers);
     for (i = 0; (cipher = stok(next, ":, \t", &next)) != 0; ) {
@@ -676,8 +774,8 @@ static int parseCert(mbedtls_x509_crt *cert, char *path)
         /* Looks PEM encoded so count the null in the length */
         len++;
     }
-    rc = mbedtls_x509_crt_parse(cert, (uchar*) buf, len);
-    memset(buf, 0, len);
+    rc = mbedtls_x509_crt_parse(cert, (uchar*) buf, (size_t) len);
+    memset(buf, 0, (size_t) len);
     wfree(buf);
     if (rc != 0) {
         error("Unable to parse certificate %s", path);
@@ -702,8 +800,8 @@ static int parseKey(mbedtls_pk_context *key, char *path)
         len++;
     }
     //  The generator derives the public point of a key stored without it
-    rc = mbedtls_pk_parse_key(key, (uchar*) buf, len, NULL, 0, mbedtls_ctr_drbg_random, &cfg.ctr);
-    memset(buf, 0, len);
+    rc = mbedtls_pk_parse_key(key, (uchar*) buf, (size_t) len, NULL, 0, mbedtls_ctr_drbg_random, &cfg.ctr);
+    memset(buf, 0, (size_t) len);
     wfree(buf);
     if (rc != 0) {
         if (rc == MBEDTLS_ERR_PK_PASSWORD_REQUIRED) {
@@ -731,8 +829,8 @@ static int parseCrl(mbedtls_x509_crl *crl, char *path)
     if (strstr(buf, "-----BEGIN ")) {
         len++;
     }
-    rc = mbedtls_x509_crl_parse(crl, (uchar*) buf, len);
-    memset(buf, 0, len);
+    rc = mbedtls_x509_crl_parse(crl, (uchar*) buf, (size_t) len);
+    memset(buf, 0, (size_t) len);
     wfree(buf);
     if (rc != 0) {
         error("Unable to parse crl %s", path);
@@ -766,7 +864,7 @@ static void merror(int rc, PRINTF_FORMAT cchar *fmt, ...)
     msg = sfmtv(fmt, ap);
     va_end(ap);
     mbedtls_strerror(-rc, ebuf, sizeof(ebuf));
-    error("mbedtls error: -0x%x %s %s", -rc, msg, ebuf);
+    error("mbedtls error: -0x%x %s %s", (uint) -rc, msg, ebuf);
     wfree(msg);
 }
 

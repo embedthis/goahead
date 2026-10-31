@@ -209,7 +209,9 @@ int main(int argc, char **argv)
     failSetup = 0;
     rc = sslUpgrade(&wp);
     CHECK(rc == 0 && wp.ssl != NULL);
-    CHECK(bioCalls == 1 && handshakeCalls == 1);
+    //  The handshake is driven from the first read, so the upgrade itself performs none
+    CHECK(bioCalls == 1 && handshakeCalls == 0);
+    CHECK(testSocket.flags & SOCKET_HANDSHAKING);
     testSocket.flags |= SOCKET_EOF;
     sslFree(&wp);
     CHECK(freeCalls == 2 && wp.ssl == NULL);

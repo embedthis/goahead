@@ -275,9 +275,14 @@ PUBLIC int sslOpen()
         char *keyPath = sslKeyPath ? sslKeyPath : (char*) ME_GOAHEAD_SSL_KEY;
         char *certPath = sslCertPath ? sslCertPath : (char*) ME_GOAHEAD_SSL_CERTIFICATE;
 
-        if (keyPath && *keyPath && sslSetKeyFile(keyPath) < 0) {
-            sslClose();
-            return -1;
+        if (keyPath && *keyPath) {
+            //  Register the key for the served-directory check at websListen.
+            websAddConfigFile(keyPath);
+            websCheckSecretFile(keyPath, "the TLS private key");
+            if (sslSetKeyFile(keyPath) < 0) {
+                sslClose();
+                return -1;
+            }
         }
         if (certPath && *certPath && sslSetCertFile(certPath) < 0) {
             sslClose();
@@ -361,6 +366,7 @@ PUBLIC int sslOpen()
      */
     if (RAND_bytes(resume, sizeof(resume)) != 1) {
         error("Cannot get random bytes for the TLS session context");
+        sslClose();
         return -1;
     }
     SSL_CTX_set_session_id_context(sslctx, resume, sizeof(resume));
@@ -423,6 +429,7 @@ PUBLIC int sslOpen()
     SSL_CTX_set_timeout(sslctx, ME_GOAHEAD_SSL_TIMEOUT);
     if (rotateTicketKeys() < 0) {
         error("Cannot get random bytes for the session ticket key");
+        sslClose();
         return -1;
     }
     SSL_CTX_set_tlsext_ticket_key_evp_cb(sslctx, ticketKeyCallback);
@@ -551,6 +558,7 @@ PUBLIC int sslUpgrade(Webs *wp)
     SSL_set_bio(wp->ssl, bio, bio);
     SSL_set_accept_state(wp->ssl);
     SSL_set_app_data(wp->ssl, (void*) wp);
+    sptr->flags |= SOCKET_HANDSHAKING;
     if (ME_GOAHEAD_SSL_HANDSHAKES) {
         SSL_CTX_set_info_callback(sslctx, infoCallback);
     }
@@ -607,24 +615,22 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         return -1;
     }
     /*
-        Limit retries on WANT_READ. If non-blocking and no data, then this can spin forever.
+        Clear the thread-wide error queue so another connection cannot affect SSL_get_error.
+        Bound WANT_READ retries to avoid spinning on a nonblocking socket.
      */
+    ERR_clear_error();
     sp = socketPtr(wp->sid);
+    err = SSL_ERROR_NONE;
     retries = 5;
     for (i = 0; i < retries; i++) {
         rc = SSL_read(wp->ssl, buf, (int) len);
-        if (rc <= 0) {
-            err = SSL_get_error(wp->ssl, rc);
-            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_CONNECT || err == SSL_ERROR_WANT_ACCEPT) {
-                continue;
-            }
-            if (err != SSL_ERROR_ZERO_RETURN) {
-                serror = ERR_get_error();
-                ERR_error_string_n(serror, ebuf, sizeof(ebuf) - 1);
-                trace(5, "SSL_read %s", ebuf);
-            }
+        if (rc > 0) {
+            break;
         }
-        break;
+        err = SSL_get_error(wp->ssl, rc);
+        if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_CONNECT && err != SSL_ERROR_WANT_ACCEPT) {
+            break;
+        }
     }
     if (maxHandshakes && sp->handshakes > maxHandshakes) {
         error("TLS renegotiation attack");
@@ -633,10 +639,8 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         return -1;
     }
     if (rc <= 0) {
-        err = SSL_get_error(wp->ssl, rc);
-        if (err == SSL_ERROR_WANT_READ) {
-            rc = 0;
-        } else if (err == SSL_ERROR_WANT_WRITE) {
+        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_CONNECT ||
+            err == SSL_ERROR_WANT_ACCEPT) {
             rc = 0;
         } else if (err == SSL_ERROR_ZERO_RETURN) {
             sp->flags |= SOCKET_EOF;
@@ -648,12 +652,23 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
             serror = ERR_get_error();
             ERR_error_string_n(serror, ebuf, sizeof(ebuf) - 1);
             trace(4, "OpenSSL: connection with protocol error: %s", ebuf);
+            //  Clear all failure entries before another connection uses this thread.
+            ERR_clear_error();
             rc = -1;
             sp->flags |= SOCKET_EOF;
         }
     } else {
         //  Report pending bytes after every read to clear the buffered-input mark when drained.
         socketHiddenData(sp, SSL_pending(wp->ssl), SOCKET_READABLE);
+    }
+    if (sp->flags & SOCKET_HANDSHAKING) {
+        if (SSL_is_init_finished(wp->ssl)) {
+            sp->flags &= ~SOCKET_HANDSHAKING;
+            socketHiddenData(sp, 0, SOCKET_WRITABLE);
+        } else {
+            //  Handshake output the socket could not take is sent when the socket is next writable
+            socketHiddenData(sp, (rc == 0 && err == SSL_ERROR_WANT_WRITE) ? 1 : 0, SOCKET_WRITABLE);
+        }
     }
     return rc;
 }
@@ -823,7 +838,11 @@ static int sslSetKeyFile(char *keyFile)
     } else {
         rc = 0;
     }
-    wfree(buf);
+    if (buf) {
+        //  Erase plaintext key material before freeing it.
+        OPENSSL_cleanse(buf, slen(buf));
+        wfree(buf);
+    }
     if (bio) {
         BIO_free(bio);
     }
@@ -915,9 +934,10 @@ static int ticketKeyCallback(SSL *ssl, uchar *name, uchar *iv, EVP_CIPHER_CTX *c
 
 static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
 {
-    X509 *cert;
-    char subject[260], issuer[260];
-    int  error, depth;
+    X509            *cert;
+    STACK_OF(X509)  *untrusted;
+    char            subject[260], issuer[260];
+    int             error, depth, presented;
 
     subject[0] = issuer[0] = '\0';
 
@@ -937,22 +957,22 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
         issuer[0] = '\0';
     }
     /*
-        Enforce the configured chain depth limit unconditionally. The underlying verifier may surface an
-        over-depth chain under a variety of error codes (for example, some LibreSSL releases report the
-        chain as X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY instead of X509_V_ERR_CERT_CHAIN_TOO_LONG).
-        Rejecting here based on X509_STORE_CTX_get_error_depth avoids relying on backend-specific error
-        mapping.
+        Enforce depth independently of verifier error codes. Also count the presented chain: a verifier
+        may truncate it at the limit and report an unknown issuer without exceeding the callback depth.
      */
-    if (ME_GOAHEAD_SSL_VERIFY_DEPTH < depth) {
-        logmsg(3, "Certificate chain too long (depth %d exceeds limit %d)", depth, ME_GOAHEAD_SSL_VERIFY_DEPTH);
+    untrusted = X509_STORE_CTX_get0_untrusted(xContext);
+    presented = untrusted ? sk_X509_num(untrusted) - 1 : 0;
+    if (ME_GOAHEAD_SSL_VERIFY_DEPTH < depth || ME_GOAHEAD_SSL_VERIFY_DEPTH < presented) {
+        logmsg(3, "Certificate chain too long (depth %d exceeds limit %d)", max(depth, presented),
+               ME_GOAHEAD_SSL_VERIFY_DEPTH);
         trace(4, "OpenSSL: Subject: %s", subject);
         trace(4, "OpenSSL: Issuer: %s", issuer);
         return 0;
     }
     /*
         SECURITY Acceptable: ME_GOAHEAD_SSL_VERIFY_PEER requests certificates. Without VERIFY_ISSUER,
-        accept untrusted and forged-issuer certificates without revocation checks; only key possession is proven.
-        Still reject invalid dates, malformed certificates, and excessive chain depth.
+        accept untrusted and forged-issuer certificates; only key possession is proven. Still reject invalid dates,
+        malformed certificates, excessive chain depth and, when a revocation list is loaded, revoked certificates.
      */
     switch (error) {
     case X509_V_OK:
@@ -997,13 +1017,13 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
     if (ok) {
         trace(3, "OpenSSL: Certificate verified: subject %s", subject);
     } else {
-        trace(1, "OpenSSL: Certification failed: subject %s (more trace at level 4)", subject);
-        trace(4, "OpenSSL: Error: %d: %s", error, X509_verify_cert_error_string(error));
+        //  Peer-controlled subjects belong at diagnostic log levels.
+        trace(2, "OpenSSL: Certificate verification failed (more trace at level 4)");
+        trace(4, "OpenSSL: Error: %d: %s for subject %s", error, X509_verify_cert_error_string(error), subject);
     }
     trace(4, "OpenSSL: Issuer: %s", issuer);
     return ok;
 }
-
 
 
 /*
@@ -1030,16 +1050,27 @@ static int setCiphers(cchar *ciphers)
         }
     }
     wfree(list);
-    bufPut(&legacy, "%s%s", bufLen(&legacy) ? "" : "DEFAULT:", OPENSSL_CIPHER_FLOOR);
 
     rc = 0;
     if (bufLen(&tls13) && SSL_CTX_set_ciphersuites(sslctx, bufStart(&tls13)) != 1) {
         error("Unable to set TLS 1.3 ciphers \"%s\"", bufStart(&tls13));
         rc = -1;
     }
-    if (rc == 0 && SSL_CTX_set_cipher_list(sslctx, bufStart(&legacy)) != 1) {
-        error("Unable to set cipher list \"%s\"", bufStart(&legacy));
-        rc = -1;
+    if (bufLen(&legacy) == 0) {
+        /*
+            A TLS 1.3-only cipher list must disable TLS 1.2 rather than use its default suites.
+         */
+        if (rc == 0 && SSL_CTX_set_min_proto_version(sslctx, TLS1_3_VERSION) != 1) {
+            error("Unable to limit the protocol to TLS 1.3");
+            rc = -1;
+        }
+        trace(2, "Cipher list names no TLS 1.2 suite, so TLS 1.2 is not offered");
+    } else {
+        bufPut(&legacy, "%s", OPENSSL_CIPHER_FLOOR);
+        if (rc == 0 && SSL_CTX_set_cipher_list(sslctx, bufStart(&legacy)) != 1) {
+            error("Unable to set cipher list \"%s\"", bufStart(&legacy));
+            rc = -1;
+        }
     }
     bufFree(&tls13);
     bufFree(&legacy);
