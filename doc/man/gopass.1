@@ -6,6 +6,7 @@ gopass \- Create and manage passwords
 [\fI--cipher blowfish|md5\fR]
 [\fI--file filename\fR]
 [\fI--password password\fR] 
+[\fI--rounds count\fR]
 realm username roles...
 
 .SH DESCRIPTION
@@ -36,6 +37,11 @@ line can be seen by other local users in the process list and is kept in the she
 .TP
 \fB\--file filename\fR 
 Update the specified password configuration file.
+.TP
+\fB\--rounds count\fR
+Sets how many times a Blowfish hash runs the Blowfish key schedule, from 1 to 65536. Default is 128. The time to check
+the password, at each login and for anyone guessing it from a copy of the file, grows in proportion. GoAhead is single
+threaded, so each login holds other requests for that time.
 .PP
 .SH DESCRIPTION
 The gopass program is used to create and manage user passwords.

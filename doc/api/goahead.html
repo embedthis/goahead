@@ -123,6 +123,7 @@
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1aa7984b6ffdd01c9e44ee66aaad7fc2e2" class="nameRef">websAbsolutePath</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the absolute form of a path.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a0a02508940140401b730219dba7295d5" class="nameRef">websAccept</a>(int sid, cchar *ipaddr, int port, int listenSid)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Accept a new connection.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1af903a6d7928616f803d294de73f8cd11" class="nameRef">websActionOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the action handler.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a892eed40afe2eae3f39e36e38303548d" class="nameRef">websAddConfigFile</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Record a file the server reads or writes for itself.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1ace881f67983a9fee7352587b446727f0" class="nameRef">websAddResponseHeader</a>(cchar *key, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Add a header to every response.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_role" class="ref">WebsRole</a> *</td><td><a href="#goahead_8h_1a0409e3a0a7c0cc9db980e7801fda3112" class="nameRef">websAddRole</a>(cchar *role, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> abilities)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Add a role.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_route" class="ref">WebsRoute</a> *</td><td><a href="#goahead_8h_1aad89a24834ff5442cac949bc36818489" class="nameRef">websAddRoute</a>(cchar *uri, cchar *handler, int pos)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Add a route to the routing tables.</td></tr>
@@ -137,10 +138,11 @@
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac05856f3dd04aeef0732570bedf044ad" class="nameRef">websCgiHandler</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>CGI handler service callback.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ae908f662db14b2f0571634f48dda790c" class="nameRef">websCgiOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the CGI handler.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac14f9e9acabae760c4225c6a372747a5" class="nameRef">websCgiPoll</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Poll for output from CGI processes and output.</td></tr>
-<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac1e1f0b2c20f7a09b26f2e6185e47530" class="nameRef">websCheckConfigFiles</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the loaded route and credential files against the served directories.</td></tr>
+<tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ac1e1f0b2c20f7a09b26f2e6185e47530" class="nameRef">websCheckConfigFiles</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the server&apos;s own files against the served directories.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a93ffe2fd6f833e223e48dac77c650daa" class="nameRef">websCheckPassword</a>(cchar *plainTextPassword, cchar *passwordHash)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Check a plain-text password against the defined hashed password.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a9b52c801466f2773eacbfcbffe9299fb" class="nameRef">websCheckRouteAuth</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the route table for a confidentiality boundary.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a74665a5a2b59bd9a7fa085d23ad6226e" class="nameRef">websCheckRoutes</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the route table for configurations that defeat the authentication gate.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1aa1a8eb0dd9ab156ec8ea24562b09aff6" class="nameRef">websCheckSecretFile</a>(cchar *path, cchar *holds)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Warn when a file holding a secret is readable or writable by other accounts.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a1d7c74aaa238a802aa601fb869dc2e25" class="nameRef">websCheckTempDirs</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Audit the temporary directories against the served directories.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a94471225b733c21ebe13449aed71cf98" class="nameRef">websClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the core GoAhead web server module.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1afd247c60a4a156f514fae54aba5c95af" class="nameRef">websCloseAuth</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the authentication module.</td></tr>
@@ -218,6 +220,7 @@
 <tr class="apiDef"><td class="apiType">cchar *</td><td><a href="#goahead_8h_1a9ff72cba5d31a046a3f5bdebe70d7f4a" class="nameRef">websGetVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *defaultValue)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get a request variable.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a1a9355e32831b9fe6570963dfdd5ef9f" class="nameRef">websHardenProcess</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Restrict the process-wide DLL search path.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a7c6775cf7ff4fb5a218753f24491f62f" class="nameRef">websIsReservedDevice</a>(cchar *path)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a path names a Windows reserved device.</td></tr>
+<tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a6e7509099835fae4a37aa149aa4579af" class="nameRef">websIsTemplate</a>(cchar *ext)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if an extension names a template.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a67a0cde8e2940995fd86672db47bee4a" class="nameRef">websIsTrustedProxy</a>(cchar *ipaddr)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a peer address is a trusted proxy.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1af14a10e173289d09a4c377fa559fc366" class="nameRef">websIsUploadVar</a>(cchar *name)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a name is in the upload variable namespace that websUploadOpen describes.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a75e53757d82543b1b27797967c0aefb6" class="nameRef">websJstOpen</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the Javascript module.</td></tr>
@@ -229,7 +232,7 @@
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_session" class="ref">WebsSession</a> *</td><td><a href="#goahead_8h_1a940428a2e485ecd36a033a9d63c0f2d4" class="nameRef">websLoginSession</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *authType)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Bind an authenticated user to a new session.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a0359ac96f9112adc03baa0ed6d4740d6" class="nameRef">websLoginUser</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *username, cchar *password)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Login a user by verifying the login credentials.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a2ce714b242d8f8d184daaa82eadb1aaf" class="nameRef">websLogoutUser</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Logout a user and remove the user login session.</td></tr>
-<tr class="apiDef"><td class="apiType"><a href="#struct_webs_upload" class="ref">WebsUpload</a> *</td><td><a href="#goahead_8h_1ade70d1dc7b947e06cdff592420ddb7e7" class="nameRef">websLookupUpload</a>(struct Webs *wp, cchar *key)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Open the file upload filter.</td></tr>
+<tr class="apiDef"><td class="apiType"><a href="#struct_webs_upload" class="ref">WebsUpload</a> *</td><td><a href="#goahead_8h_1ade70d1dc7b947e06cdff592420ddb7e7" class="nameRef">websLookupUpload</a>(struct Webs *wp, cchar *key)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Look up an uploaded file by its form name.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_user" class="ref">WebsUser</a> *</td><td><a href="#goahead_8h_1afb136123b24cc1793e1cd407b97756d6" class="nameRef">websLookupUser</a>(cchar *username)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Lookup if a user exists.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a8d6e37e4e985ee9474de5f01a89c2aa4" class="nameRef">websMD5</a>(cchar *str)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get an MD5 digest of a string.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a290a5143ed17538273e3439fed007b09" class="nameRef">websMD5Block</a>(cchar *buf, ssize length, cchar *prefix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get an MD5 digest of a block and optionally prepend a prefix.</td></tr>
@@ -305,6 +308,7 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a33deacae630367486fbd7cd97c58789e" class="nameRef">websSetPostLimit</a>(ssize limit)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the runtime POST body size cap.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a2a2705697be532c4270e7d072634e09f" class="nameRef">websSetQueryVars</a>(<a href="#struct_webs" class="ref">Webs</a> *wp)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create request variables for query string data.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> *</td><td><a href="#goahead_8h_1a286f1aaae26d3cc193110fcd7dfa6c67" class="nameRef">websSetRequestVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value, int origin)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a request variable from a client parameter.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a3a9f72723eb9f4e6c3810554fbb31a55" class="nameRef">websSetRequestVarPairs</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar **pairs, int count, int origin)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set request variables from a list of client parameters.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a0326b013f41e0911bfd8c28f7041f209" class="nameRef">websSetRouteAuth</a>(<a href="#struct_webs_route" class="ref">WebsRoute</a> *route, cchar *authType)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set route authentication scheme.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a02ded6cfc279652c2dca6d86f2adc8d8" class="nameRef">websSetRouteMatch</a>(<a href="#struct_webs_route" class="ref">WebsRoute</a> *route, cchar *dir, cchar *protocol, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> methods, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> extensions, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> abilities, <a href="#goahead_8h_1a8b29ad60e66971115b4c4dbbc655ae67" class="ref">WebsHash</a> redirects)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Configure a route by adding matching criteria.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1a7392f09b1b9c7d9d230701d6d2636a5e" class="nameRef">websSetSessionVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a session variable name value.</td></tr>
@@ -314,6 +318,7 @@
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a0d4dd4fae791ed984f13c926b0462427" class="nameRef">websSetStrict</a>(bool on)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set strict mode.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1adce18a28ec372ab9a74fcb52b38bc0b7" class="nameRef">websSetTrustedProxies</a>(cchar *addresses)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Define the reverse proxies whose forwarded scheme is trusted.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a2fe70d48296d91e9e36406bdaaf728ed" class="nameRef">websSetTxLength</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, <a href="#goahead_8h_1a7bac74916a564105339bcd5a9323c366" class="ref">Offset</a> length)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set the response body content length.</td></tr>
+<tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a05d1449ab9fb886f49a7ba2070b73a2d" class="nameRef">websSetUploadLimit</a>(ssize limit)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Override the runtime multipart upload body size cap.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1abf304efa46ec70b19997a6587344c6d1" class="nameRef">websSetUserPassword</a>(cchar *username, cchar *password)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a password for the user.</td></tr>
 <tr class="apiDef"><td class="apiType">int</td><td><a href="#goahead_8h_1ad77d33b025ea6680b2172f2dac62639b" class="nameRef">websSetUserRoles</a>(cchar *username, cchar *roles)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Define the set of roles for a user.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#struct_webs_key" class="ref">WebsKey</a> WebsKey,*</td><td><a href="#goahead_8h_1a8b6b87fae3b1234fdf3f550c334a29ce" class="nameRef">websSetVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name, cchar *value)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Set a request variable to a string value.</td></tr>
@@ -324,6 +329,7 @@
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1a40bc46b78be838ec12ca5d6acefc2cf4" class="nameRef">websStatusHasNoBody</a>(int code)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a status code defines a response that carries no body.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1a9a6524bc11288246c84651f99fd24425" class="nameRef">websStopEvent</a>(int id)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Stop an event.</td></tr>
 <tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a6a9c3b30f23d8eec41ff6b261fa35105" class="nameRef">websTempFile</a>(cchar *dir, cchar *prefix)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a temporary file.</td></tr>
+<tr class="apiDef"><td class="apiType">char *</td><td><a href="#goahead_8h_1a6392cb4a8226a9b32804ec6c46caeade" class="nameRef">websTempFileOpen</a>(cchar *dir, cchar *prefix, int *fd)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Create a temporary file and keep it open.</td></tr>
 <tr class="apiDef"><td class="apiType">bool</td><td><a href="#goahead_8h_1ab42afeb8b16720903e8289fcb9c072ba" class="nameRef">websTestVar</a>(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar *name)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Test if a request variable is defined.</td></tr>
 <tr class="apiDef"><td class="apiType"><a href="#goahead_8h_1ad2f1dd988fc5bc99224bb2f99176e497" class="ref">WebsTime</a></td><td><a href="#goahead_8h_1a4d41990ec205c5edd93796d7b8de74aa" class="nameRef">websTime</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Get the current time.</td></tr>
 <tr class="apiDef"><td class="apiType">void</td><td><a href="#goahead_8h_1afc3db65ebb5f3a86ec0e3ccde56c1f31" class="nameRef">websTimeClose</a>(void)</td></tr><tr class="apiBrief"><td>&nbsp;</td><td>Close the date/time parsing module.</td></tr>
@@ -744,6 +750,10 @@
 </tr>
 <tr class="apiBrief"><td>&nbsp;</td><td>Decode base 64 blocks up to a NULL or equals.</td></tr>
 <tr class="apiDef">
+<td>#define</td><td><a href="#goahead_8h_1a267d9b83eb922e74b44fd444199e76ba" class="nameRef">WEBS_DOCUMENT_HANDLER</a>&nbsp;&nbsp;&nbsp;0x2</td>
+</tr>
+<tr class="apiBrief"><td>&nbsp;</td><td>The handler serves the request path, so its extension types the body.</td></tr>
+<tr class="apiDef">
 <td>#define</td><td><a href="#goahead_8h_1abe62c79451680724ff4cb5d15c8eb4d0" class="nameRef">WEBS_ERROR</a>&nbsp;&nbsp;&nbsp;1</td>
 </tr>
 <tr class="apiBrief"><td>&nbsp;</td><td>Standard logging trace levels are 0 to 9 with 0 being the most verbose.</td></tr>
@@ -835,6 +845,10 @@
 <td>#define</td><td><a href="#goahead_8h_1ad185deb88c41c92632f330d3191f73af" class="nameRef">WEBS_TRIM_START</a>&nbsp;&nbsp;&nbsp;0x1</td>
 </tr>
 <tr class="apiBrief"><td>&nbsp;</td><td>Flag for strim to trim from the start of the string.</td></tr>
+<tr class="apiDef">
+<td>#define</td><td><a href="#goahead_8h_1aae467286efcaff858ab4adced9bd6c5f" class="nameRef">WEBS_USER_PAM</a>&nbsp;&nbsp;&nbsp;0x1</td>
+</tr>
+<tr class="apiBrief"><td>&nbsp;</td><td>PAM-created user whose group roles are refreshed at each login.</td></tr>
 <tr class="apiDef">
 <td>#define</td><td><a href="#goahead_8h_1af5044a854a9e37b9bac8f6a3506fa265" class="nameRef">WEBS_VAR_BODY</a>&nbsp;&nbsp;&nbsp;2</td>
 </tr>
@@ -1031,6 +1045,7 @@ This is always a signed 64 bit value, independent of the platform time_t, so exp
   </div>
   <div class="apiDetail">
 <p>Callback to verify the username and password.</p>
+    <dl><dt><b>Description</b>:</dt><dd>The credential the request carries depends on the route&apos;s authentication scheme. For Basic and form authentication wp-&gt;password is the plaintext password and wp-&gt;encoded is zero. For Digest authentication wp-&gt;password is the client&apos;s response hash, wp-&gt;encoded is set and wp-&gt;digest holds the response the server computed from the stored MD5 HA1: a verifier must then compare wp-&gt;digest with wp-&gt;password in constant time and must never pass wp-&gt;password to a store as a plaintext password. A verifier that cannot verify a Digest response must return false when wp-&gt;digest is set, as websVerifyPasswordFromPam does.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -1072,6 +1087,9 @@ Resolved role abilities.
     <table class="parameters" title="Parameters">
 <tr><td class="param">WebsHash</td><td>abilities</td><td>
 Resolved user abilities.
+</td></tr>
+<tr><td class="param">int</td><td>flags</td><td>
+User control flags: WEBS_USER_PAM.
 </td></tr>
 <tr><td class="param">char *</td><td>name</td><td>
 User name.
@@ -1147,7 +1165,7 @@ Order of the session&apos;s last use, for least recently used eviction.
     <table class="parameters" title="Parameters">
 <tr><td class="param">char *</td><td>clientFilename</td><td>
 Client side name of the file, exactly as the client sent it. 
-It is empty if the client selected no file. Otherwise it is one name: no separators, no leading or trailing dot, and on Windows no reserved device name. A request with any other filename is refused with 400. Applications should still not use it as a storage path.
+It is empty if the client selected no file. Otherwise it is one name of ASCII letters, digits and the characters - . _ [ ] @ ! $ &amp; ( ) + , ; = #, that neither begins nor ends with a dot, and on Windows is not a reserved device name. Spaces, separators, controls, bytes outside ASCII, and : * ? &lt; &gt; | ~ " &apos; % ` ^ are refused. A request with any other filename is refused with 400. Applications should still not use it as a storage path.
 </td></tr>
 <tr><td class="param">char *</td><td>contentType</td><td>
 Content type.
@@ -1474,6 +1492,9 @@ Connecting ipaddress.
 <tr><td class="param">ssize</td><td>lastRead</td><td>
 Number of bytes last read from the socket.
 </td></tr>
+<tr><td class="param">ssize</td><td>lineScan</td><td>
+Offset in the input where the next multipart line scan resumes.
+</td></tr>
 <tr><td class="param">int</td><td>listenSid</td><td>
 Listen Socket id.
 </td></tr>
@@ -1600,6 +1621,12 @@ Remaining content to write.
 </td></tr>
 <tr><td class="param">int</td><td>upfd</td><td>
 Upload file handle.
+</td></tr>
+<tr><td class="param">int</td><td>uploadFieldCount</td><td>
+Text fields held in uploadFields.
+</td></tr>
+<tr><td class="param">char **</td><td>uploadFields</td><td>
+Text field names and values, in pairs, until the body completes.
 </td></tr>
 <tr><td class="param">int</td><td>uploadFiles</td><td>
 Files staged for the upload body so far.
@@ -3782,6 +3809,23 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a892eed40afe2eae3f39e36e38303548d"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websAddConfigFile
+(cchar *path)
+  </div>
+  <div class="apiDetail">
+<p>Record a file the server reads or writes for itself.</p>
+    <dl><dt><b>Description</b>:</dt><dd>The route and credential files websLoad reads, the TLS private key sslOpen loads and the log file logOpen writes are recorded automatically. An application that reads a private file of its own from a path an operator configures may record it too, so websCheckConfigFiles refuses to start when it lies inside a served directory. A path already recorded is not recorded again.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">path</td><td>File name as configured, absolute or relative to the working directory.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1ace881f67983a9fee7352587b446727f0"></a>
 <div class="api">
   <div class="prototype">
@@ -3813,9 +3857,9 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">role</td><td>Role name.</td></tr>
-    <tr><td class="param">abilities</td><td>Hash of abilities for the role.</td></tr>
+    <tr><td class="param">abilities</td><td>Hash of abilities for the role. The role takes ownership of the table on every path, so it is released when the role cannot be added.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>The allocated role.</dd></dl>
+    <dl><dt>Returns:</dt><dd>The allocated role, or NULL if the role has no name or already exists.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -3922,12 +3966,13 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Test if a user possesses the required ability.</p>
+    <dl><dt><b>Description</b>:</dt><dd>On failure this routine writes the response: 401 when the request has no verified user, so it must authenticate first, and 403 when the verified user lacks a required ability.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
     <tr><td class="param">ability</td><td>Set of required abilities. Each key is required; a key holding &quot;|&quot; separated abilities is satisfied by any one of them.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>True if the user has the required ability.</dd></dl>
+    <dl><dt>Returns:</dt><dd>True if the user has the required ability, false if the request was refused and a response written.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -3940,7 +3985,7 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Cancel the request timeout.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Handlers may choose to manually manage the request timeout. This routine will disable the centralized management of the timeout for this request.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>Handlers may choose to manually manage the request timeout. This routine will disable the centralized management of the timeout for this request only. When a keep-alive connection is reused for its next request, the timeout is restored.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -4034,9 +4079,9 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
 (void )
   </div>
   <div class="apiDetail">
-<p>Audit the loaded route and credential files against the served directories.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Verify that no file read by websLoad lies inside the documents directory or a route&apos;s dir=. Such a file is fetchable over HTTP: the credential file holds user names and password hashes, and the route file the access control table. Emits an error naming each such file. This routine is called automatically by the first websListen(), after every configuration file is loaded, and websListen() refuses to start the server if it reports a problem.</dd></dl>
-    <dl><dt>Returns:</dt><dd>The number of problems found. Zero means no loaded configuration file is inside a served directory.</dd></dl>
+<p>Audit the server&apos;s own files against the served directories.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Verify that no file recorded by websAddConfigFile lies inside the documents directory or a route&apos;s dir=. Such a file is fetchable over HTTP: the credential file holds user names and password hashes, the route file the access control table, the TLS key file the server&apos;s private key and the log file every client&apos;s requests. Emits an error naming each such file. This routine is called automatically by the first websListen(), after every configuration file is loaded, and websListen() refuses to start the server if it reports a problem.</dd></dl>
+    <dl><dt>Returns:</dt><dd>The number of problems found. Zero means none of the server&apos;s own files is inside a served directory.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
   </div>
 </div>
@@ -4084,6 +4129,24 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
     <dl><dt><b>Description</b>:</dt><dd>Emit a warning if no configured route requires authentication or abilities, and a warning for each unauthenticated route that shadows an authenticated route earlier in the table. Routes are matched in order and a request that misses its protected route falls through to the next match rather than being denied, so any spelling the file system folds to a protected name - ASCII case, Unicode normalization, Unicode case, Win32 trailing dot or space - misses the strict route and is served by the permissive one. Rejecting the shadowing configuration closes every such folding axis at once because the check never reasons about folding. Also warn for each authenticated route that an earlier unauthenticated route serving content claims the requests of, such as a catch-all placed first, and for each unauthenticated route that runs every action, template or CGI program under its prefix and comes before an authenticated route covering it, since both take those requests before they can be protected. Also warn for each later unauthenticated route nested under an authenticated route&apos;s prefix that accepts a method, protocol or extension the authenticated route declines, since those requests reach it without credentials. HEAD follows GET in methods=. A handler=continue gate serves nothing, so its dir= does not narrow what it protects. When ME_GOAHEAD_CASE_INSENSITIVE_FS is 0, also report the documents directory and each route dir= whose file system ignores letter case, since a request spelled in another case then misses its route and the same file is served by a broader one. A build with ME_GOAHEAD_AUTH=0 cannot authenticate, so it warns that every route is served to unauthenticated clients, naming the first route that runs code or accepts writes, and counts no authentication problem. This routine is called automatically by the first websListen(), after every configuration file is loaded and before the server accepts a request. Routes added after the first websListen() are not checked.</dd></dl>
     <dl><dt>Returns:</dt><dd>The number of problems found. Zero means no route can be bypassed. A table with no authenticated route is warned about but not counted, as it has no authentication boundary to bypass.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1aa1a8eb0dd9ab156ec8ea24562b09aff6"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websCheckSecretFile
+(cchar *path, cchar *holds)
+  </div>
+  <div class="apiDetail">
+<p>Warn when a file holding a secret is readable or writable by other accounts.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Logs a security warning when the file&apos;s mode grants any group or other permission. Used for the password files and the TLS private key. Only POSIX file modes are checked.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">path</td><td>File path to check.</td></tr>
+    <tr><td class="param">holds</td><td>What the file holds, for the message, such as &quot;passwords&quot;.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a1d7c74aaa238a802aa601fb869dc2e25"></a>
@@ -4324,14 +4387,14 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Define a custom request handler.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Registers a custom handler to process specific types of HTTP requests. Handlers are responsible for generating responses to HTTP requests. GoAhead comes with built-in handlers for static files, CGI, and actions, but you can create custom handlers for specialized processing. A handler is bound to routes by name (handler= in route.txt or websAddRoute) and is only offered requests that select one of those routes. Routes are tried in table order; the route&apos;s protocol, method and extension selectors, then its authentication and abilities, are checked before the handler&apos;s match procedure runs.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>Binds a handler to routes by name (handler= in route.txt or websAddRoute). Routes are tried in table order. Protocol, method and extension selectors, then authentication and abilities, are checked before the match callback runs.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">name</td><td>Unique name for the handler (e.g., &quot;myHandler&quot;, &quot;apiHandler&quot;).</td></tr>
     <tr><td class="param">match</td><td>Handler callback match procedure. Called after the route&apos;s authentication and abilities have passed, to decide whether this handler serves the request. Return true to accept it. Return false to resume route selection at the next route in the table, which is checked with its own authentication, so it may have none. May be NULL to accept every request on the route. Signature: bool match(Webs *wp).</td></tr>
-    <tr><td class="param">service</td><td>Handler callback service procedure. This function is called to generate the response for requests accepted by the match function. This is where you implement your custom logic. Signature: bool service(Webs *wp).</td></tr>
+    <tr><td class="param">service</td><td>Generates the response for requests accepted by match. Signature: bool service(Webs *wp).</td></tr>
     <tr><td class="param">close</td><td>Handler callback close procedure. Called when GoAhead is shutting down to allow cleanup of handler-specific resources. Can be NULL if no cleanup needed. Signature: void close(void).</td></tr>
-    <tr><td class="param">flags</td><td>Handler control flags. Set to WEBS_LEGACY_HANDLER to support the legacy handler API calling sequence, or 0 for standard handlers.</td></tr>
+    <tr><td class="param">flags</td><td>WEBS_LEGACY_HANDLER selects the legacy calling sequence; 0 selects standard handlers. WEBS_DOCUMENT_HANDLER allows websWriteEndHeaders to infer an untyped response&apos;s Content-Type from the path extension. Computed responses default to application/octet-stream; their handlers should write the required Content-Type explicitly.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if successful, otherwise -1 on error.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
@@ -4400,7 +4463,7 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Complete a request.</p>
-    <dl><dt><b>Description</b>:</dt><dd>A handler should call websDone() to complete the request.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>A handler should call websDone() to complete the request. Completing a multipart request releases its <a class="ref" href="#struct_webs_upload">WebsUpload</a> records and removes their staging files, so a handler must copy or move whatever it needs from an upload before it calls websDone. After websDone, websGetUpload returns -1 and websLookupUpload returns NULL.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
@@ -4417,10 +4480,10 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Run as a less privileged user and group.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Call once the server has listened on its endpoints and opened its log, certificate and configuration files, and before it serves requests. Supplementary groups are replaced by the user&apos;s group memberships, or by the group alone when no user is given, then the group and user are changed. The change is verified to be complete and irreversible. When the process is not running as root, nothing is changed and the call succeeds only if the process already runs as the requested user and group. Unix-like systems only: elsewhere a request to change fails.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>Call once the server has listened on its endpoints and opened its log, certificate and configuration files, and before it serves requests. Supplementary groups are replaced by the user&apos;s group memberships, or by the group alone when no user is given, then the group and user are changed. The change is verified to be complete and irreversible. When the process is not running as root, nothing is changed and the call succeeds only if the process already runs as the requested user and group. A root process given a group and no non-root user is refused before anything changes, as it would stay root. Unix-like systems only: elsewhere a request to change fails.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
-    <tr><td class="param">user</td><td>User name to run as. NULL or empty keeps the current user.</td></tr>
+    <tr><td class="param">user</td><td>User name to run as. NULL or empty keeps the current user, which a root process may not do when a group is given.</td></tr>
     <tr><td class="param">group</td><td>Group name to run as. NULL or empty uses the user&apos;s primary group, or keeps the current group when no user is given.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>Zero if the process runs as the requested user and group. Otherwise a negative value, and the process must not go on to serve requests.</dd></dl>
@@ -4509,7 +4572,7 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Escape control characters in a string as \xHH.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Escapes every byte below 0x20, and 0x7F, so request data written to a log cannot start a new line, overwrite a line or send terminal escapes. All log messages pass through this before the log handler. A null string yields an empty one.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>Escapes every byte below 0x20, and from 0x7F up, so request data written to a log cannot start a new line, overwrite a line or send terminal escapes, including the C1 controls an 8-bit terminal acts on. All log messages pass through this before the log handler, with the backslash also escaped so an escape in the log cannot be forged by the request. A null string yields an empty one.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">str</td><td>String to escape.</td></tr>
@@ -5225,11 +5288,12 @@ If supplied an IPv6 address, the backets are stripped in the returned IP address
   </div>
   <div class="apiDetail">
 <p>Get the hash of uploaded files for the request.</p>
+    <dl><dt><b>Description</b>:</dt><dd>The hash and its <a class="ref" href="#struct_webs_upload">WebsUpload</a> records belong to the request and are released, with their staging files, when the request completes: by websDone, or by the connection closing before the handler completes it. Move or copy a staged file before websDone; a <a class="ref" href="#struct_webs_upload">WebsUpload</a> pointer or a filename kept past it is invalid.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>Hash table of uploaded files.</dd></dl>
+    <dl><dt>Returns:</dt><dd>Hash table of uploaded files, or -1 when the request carried no multipart body or the request has completed. The hash exists, empty or not, for every multipart request that reaches a handler. Test for -1 before iterating a request that may not be multipart.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -5351,6 +5415,24 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
     <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a6e7509099835fae4a37aa149aa4579af"></a>
+<div class="api">
+  <div class="prototype">
+    bool
+    websIsTemplate
+(cchar *ext)
+  </div>
+  <div class="apiDetail">
+<p>Test if an extension names a template.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Templates run in the template handler and are never served as source by the file handler.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">ext</td><td>Extension with its leading dot, in any letter case.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>True for a template extension.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1a67a0cde8e2940995fd86672db47bee4a"></a>
 <div class="api">
   <div class="prototype">
@@ -5446,7 +5528,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
   </div>
   <div class="apiDetail">
 <p>Listen on a TCP/IP address endpoint.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Creates a listening socket on the specified network endpoint to accept incoming HTTP connections. The server will bind to the specified IP address and port and begin accepting connections from clients. Multiple endpoints can be created by calling this function multiple times with different addresses.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>Creates a listening socket on the specified network endpoint to accept incoming HTTP connections. The server will bind to the specified IP address and port and begin accepting connections from clients. Multiple endpoints can be created by calling this function multiple times with different addresses. The listening socket sets SO_REUSEADDR so the server can restart while earlier connections are still in TIME_WAIT. On BSD-derived network stacks (macOS, FreeBSD, VxWorks) that option also lets any local process bind the same port on a specific address, such as 127.0.0.1, while this server listens on all interfaces, and connections to that address then go to the other process. On a host that runs untrusted local processes, give each endpoint a specific IP address rather than a wildcard. Linux refuses the second bind while the listener exists.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">endpoint</td><td>Network endpoint specification in the format &quot;IP:PORT&quot;. Supported formats:<ul><li>&quot;127.0.0.1:8080&quot; - IPv4 address with port</li><li>&quot;:8080&quot; - All IPv4 interfaces on port 8080</li><li>&quot;*:8080&quot; - All interfaces on port 8080</li><li>&quot;[::1]:8080&quot; - IPv6 loopback with port</li><li>&quot;[::]:8080&quot; - All IPv6 interfaces on port 8080</li><li>&quot;192.168.1.100:80&quot; - Specific IPv4 interface A secure endpoint, prefixed with &quot;https://&quot;, is refused unless sslOpen loaded a certificate and key. The first call audits the complete route table with websCheckRoutes, websCheckTempDirs and websCheckConfigFiles, so load every route and auth file and add every route before it. It fails if strict mode refuses the table, or a staging directory or a loaded route or auth file is inside a served directory. </li></ul></td></tr>
@@ -5556,13 +5638,14 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
 (struct Webs *wp, cchar *key)
   </div>
   <div class="apiDetail">
-<p>Open the file upload filter.</p>
+<p>Look up an uploaded file by its form name.</p>
+    <dl><dt><b>Description</b>:</dt><dd>The returned record is owned by the request and is released, with its staging file, when the request completes (see websGetUpload). Use it before calling websDone.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
     <tr><td class="param">key</td><td>Form upload name.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>Upload object for the uploaded file.</dd></dl>
+    <dl><dt>Returns:</dt><dd>Upload object for the uploaded file, or NULL if there is none or the request has completed.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
@@ -5597,7 +5680,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
     <table class="parameters" title="Parameters">
     <tr><td class="param">password</td><td>User&apos;s password to encrypt.</td></tr>
     <tr><td class="param">saltLength</td><td>Length of salt text to add to password. Helps to make each user&apos;s password unique.</td></tr>
-    <tr><td class="param">rounds</td><td>Number of times to encrypt. More times, makes the routine slower and passwords harder to crack.</td></tr>
+    <tr><td class="param">rounds</td><td>Number of Blowfish key schedules to run, or zero for the default of 128. The time to compute the hash, at login and for anyone guessing the password, grows in proportion.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>The encrypted password. Caller must free. Returns null if the password is too long, the salt cannot be generated, or the requested salt length would not leave room for the digest.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
@@ -5700,7 +5783,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
   </div>
   <div class="apiDetail">
 <p>Open the web server.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This initializes the GoAhead web server subsystem and prepares it to handle HTTP requests. This function must be called before any other GoAhead APIs. It initializes internal data structures, sets up the document root directory, and optionally loads routing configuration. The server need not be able to resolve its own host name. If it cannot, it logs an error and names itself 127.0.0.1 in redirects and the CGI SERVER_NAME variable. On POSIX systems, if descriptors 0-2 are closed when websOpen is called, it opens them on /dev/null so that no socket or file can take them and receive log output written to stderr. An application that opens files or sockets before websOpen with stdio closed must reserve these descriptors itself. On POSIX systems, if SIGPIPE is at its default disposition, websOpen ignores it so that a write to a peer that has closed fails with EPIPE rather than killing the process, and websClose restores the default. An application that installs its own SIGPIPE handler before websOpen keeps it.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This initializes the GoAhead web server subsystem and prepares it to handle HTTP requests. This function must be called before any other GoAhead APIs. It initializes internal data structures, sets up the document root directory, and optionally loads routing configuration. The server need not be able to resolve its own host name. If it cannot, it logs an error and names itself 127.0.0.1 in redirects and the CGI SERVER_NAME variable. On POSIX systems, if descriptors 0-2 are closed when websOpen is called, it opens them on /dev/null so that no socket or file can take them and receive log output written to stderr. An application that opens files or sockets before websOpen with stdio closed must reserve these descriptors itself. On POSIX systems, if SIGPIPE or SIGXFSZ is at its default disposition, websOpen ignores it so that a write to a peer that has closed fails with EPIPE, and a write to a log or staging file that has reached the process file size limit fails with EFBIG, rather than killing the process; websClose restores the defaults. An application that installs its own handler for either signal before websOpen keeps it.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">documents</td><td>Optional web documents directory path. This becomes the document root where web files are served from. If set to NULL, the build-time default ME_GOAHEAD_DOCUMENTS value is used. The directory should contain your web content (HTML, CSS, JS, images, etc.).</td></tr>
@@ -5858,12 +5941,12 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
   </div>
   <div class="apiDetail">
 <p>Test if the request&apos;s file resolves inside its document root.</p>
-    <dl><dt><b>Description</b>:</dt><dd>The file is resolved with its symbolic links followed and compared with the resolved root: the route&apos;s directory, or the documents directory. A file not yet created is judged by the directory it would be created in. A root that cannot be resolved, or a file or directory that cannot be resolved for any reason other than not existing, is refused. websPageAllowed applies it. Always true when ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, on a ROM build, whose documents are the websRomIndex table rather than a file system, and on systems without realpath.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>The file is resolved with its symbolic links followed and compared with the resolved root: the route&apos;s directory, or the documents directory. A file not yet created is judged by the directory it would be created in. A root that cannot be resolved, a file that cannot be resolved for any reason other than not existing, and a directory that cannot be resolved are refused, so the answer for a missing file is the same whether its directory is missing or resolves outside the root. websPageAllowed applies it. Always true when ME_GOAHEAD_CONTAIN_DOCUMENTS is 0, on a ROM build, whose documents are the websRomIndex table rather than a file system, and on systems without realpath.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>True if the file is inside the document root, or neither the file nor its directory exists.</dd></dl>
+    <dl><dt>Returns:</dt><dd>True if the file, or the directory of a file that does not exist, resolves inside the document root.</dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
   </div>
 </div>
@@ -5992,7 +6075,7 @@ Variable names are case-sensitive. HTTP headers are converted to uppercase with 
     <tr><td class="param">contentType</td><td>Content-Type header value.</td></tr>
     <tr><td class="param">param</td><td>Parameter name, or null for the media type.</td></tr>
     </table></dd></dl>
-    <dl><dt>Returns:</dt><dd>Allocated string, or null if the parameter is absent or the parameter list is malformed. Caller must free.</dd></dl>
+    <dl><dt>Returns:</dt><dd>Allocated string, or null if the parameter is absent or repeated or the parameter list is malformed. Caller must free.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1ac893e2749beee259505e673c4e551f04"></a>
@@ -6223,6 +6306,7 @@ The function automatically calls websDone() to complete the response, so no addi
   </div>
   <div class="apiDetail">
 <p>Remove a role from the system.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Every user&apos;s abilities are recomputed, so a user that held the role loses the abilities it granted at once. The user&apos;s roles string is unchanged: the removed role&apos;s name then counts as a literal ability, as any name that is not a role does.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">role</td><td>Role name.</td></tr>
@@ -6509,7 +6593,7 @@ The function automatically calls websDone() to complete the response, so no addi
   </div>
   <div class="apiDetail">
 <p>One line embedding API.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This is the simplest way to create a GoAhead web server. This call will automatically:<ul><li>Initialize the web server</li><li>Load authentication configuration from auth.txt</li><li>Load routing configuration from route.txt</li><li>Start listening on the specified endpoint</li><li>Set the document root directory This function is ideal for simple embedded applications that need a quick web server setup. It calls websOpen, which reserves closed stdio descriptors and ignores SIGPIPE when it is at its default. </li></ul></dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This is the simplest way to create a GoAhead web server. This call will automatically:<ul><li>Initialize the web server</li><li>Load authentication configuration from auth.txt</li><li>Load routing configuration from route.txt</li><li>Start listening on the specified endpoint</li><li>Set the document root directory This function is ideal for simple embedded applications that need a quick web server setup. It calls websOpen, which reserves closed stdio descriptors and ignores SIGPIPE and SIGXFSZ when they are at their default. </li></ul></dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">endpoint</td><td>IP:PORT address on which to listen. Format examples:<ul><li>&quot;127.0.0.1:8080&quot; (IPv4)</li><li>&quot;[::1]:8080&quot; (IPv6)</li><li>&quot;:8080&quot; (all interfaces)</li><li>&quot;192.168.1.100:80&quot; (specific interface) </li></ul></td></tr>
@@ -6675,11 +6759,9 @@ debugger command line option. Debug mode should generally be disabled in product
   </div>
   <div class="apiDetail">
 <p>Create CGI environment variables for the current request.</p>
-    <dl><dt><b>Description</b>:</dt><dd>Sets up the standard CGI environment variables that are passed to CGI scripts and programs. This function creates environment variables based on the current HTTP request that follow the CGI 1.1 specification. The variables include information about the server, request method, headers, query parameters, and client details.</dd></dl>
-Standard CGI variables created include:
-<ul><li>SERVER_NAME, SERVER_PORT, SERVER_PROTOCOL</li><li>REQUEST_METHOD, REQUEST_URI, QUERY_STRING</li><li>CONTENT_TYPE, CONTENT_LENGTH</li><li>HTTP_* variables for all request headers</li><li>REMOTE_ADDR, REMOTE_HOST</li><li>SCRIPT_NAME, PATH_INFO</li><li>DOCUMENT_ROOT, the route directory or the documents directory</li></ul>
+    <dl><dt><b>Description</b>:</dt><dd>Defines CGI 1.1 variables from the current request, including:<ul><li>SERVER_NAME, SERVER_PORT, SERVER_PROTOCOL</li><li>REQUEST_METHOD, REQUEST_URI, QUERY_STRING</li><li>CONTENT_TYPE, CONTENT_LENGTH</li><li>HTTP_* variables for all request headers</li><li>REMOTE_ADDR, REMOTE_HOST</li><li>SCRIPT_NAME, PATH_INFO</li><li>DOCUMENT_ROOT, the route directory or the documents directory</li></ul></dd></dl>
 AUTH_TYPE and REMOTE_USER are set only for a request authenticated on its route, and AUTH_TYPE names the protocol that authenticated it. CONTENT_LENGTH is the declared body length; for a CGI program the CGI handler replaces it with the number of bytes delivered on stdin, which is zero when an upload route parsed the body into files
-This function is automatically called by the CGI handler before executing CGI scripts. The CGI handler exports request variables under ME_GOAHEAD_CGI_VAR_PREFIX, and only those whose names are portable environment names, so the environment holds one entry per name. With the prefix empty, a request variable in the CGI meta-variable namespace is not exported. On Windows, where environment names are case-insensitive, names are compared case-insensitively
+websRunRequest calls this before storing query and form parameters, reserving these names for every handler. CGI calls it again before launch and exports request variables with portable names under ME_GOAHEAD_CGI_VAR_PREFIX, with one entry per name. An empty prefix still excludes CGI meta-variable names. Environment names are compared case-insensitively on Windows
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object representing the current HTTP request.</td></tr>
@@ -6819,7 +6901,7 @@ The IP address should match one of the network interfaces on the server. Common 
   </div>
   <div class="apiDetail">
 <p>Set the password store verify callback.</p>
-    <dl><dt><b>Description</b>:</dt><dd>The verifier applies at once to every route that has not set its own verify callback, including routes already loaded. It may be called before or after websOpen: one set before is kept in place of the ME_GOAHEAD_AUTH_STORE default.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>The verifier applies at once to every route that has not set its own verify callback, including routes already loaded. It may be called before or after websOpen: one set before is kept in place of the ME_GOAHEAD_AUTH_STORE default. The verifier serves every scheme a route may select, Digest included: see WebsVerify for the credential it receives under each scheme.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">verify</td><td>WebsVerify callback function.</td></tr>
@@ -6883,6 +6965,25 @@ Query variables are automatically URL-decoded, so &quot;%20&quot; becomes a spac
     <tr><td class="param">origin</td><td>WEBS_VAR_QUERY or WEBS_VAR_BODY.</td></tr>
     </table></dd></dl>
     <dl><dt>Returns:</dt><dd>The variable, or NULL if the name is refused.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a3a9f72723eb9f4e6c3810554fbb31a55"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetRequestVarPairs
+(<a href="#struct_webs" class="ref">Webs</a> *wp, cchar **pairs, int count, int origin)
+  </div>
+  <div class="apiDetail">
+<p>Set request variables from a list of client parameters.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Stores each name once through websSetRequestVar, with the values of a repeated name joined in order with a space. Each joined value is sized first and built once, so the cost is linear in the total size of the list however often a name repeats.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>
+    <tr><td class="param">pairs</td><td>Names and values, interleaved: pairs[2i] is a name and pairs[2i + 1] its value.</td></tr>
+    <tr><td class="param">count</td><td>Number of name and value pairs.</td></tr>
+    <tr><td class="param">origin</td><td>WEBS_VAR_QUERY or WEBS_VAR_BODY.</td></tr>
+    </table></dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1a0326b013f41e0911bfd8c28f7041f209"></a>
@@ -7054,6 +7155,23 @@ If the content length is not set, GoAhead may use chunked transfer encoding or c
     <tr><td class="param">length</td><td>Size of the response body in bytes. Use 0 for empty responses, or -1 to indicate that the content length is unknown (will use chunked encoding or connection close).</td></tr>
     </table></dd></dl>
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
+  </div>
+</div>
+<a name="goahead_8h_1a05d1449ab9fb886f49a7ba2070b73a2d"></a>
+<div class="api">
+  <div class="prototype">
+    void
+    websSetUploadLimit
+(ssize limit)
+  </div>
+  <div class="apiDetail">
+<p>Override the runtime multipart upload body size cap.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Replaces the compile-time ME_GOAHEAD_LIMIT_UPLOAD_BODY default with a runtime-chosen value. It bounds a multipart body only on a route that accepts uploads; other bodies stay under the POST limit. Pass 0 (or a negative value) to restore the compile-time default.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">limit</td><td>Maximum permitted multipart upload body size in bytes.</td></tr>
+    </table></dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Prototype.</dd></dl>
   </div>
 </div>
 <a name="goahead_8h_1abf304efa46ec70b19997a6587344c6d1"></a>
@@ -7237,6 +7355,26 @@ Variable names should follow these conventions:
     <dl><dt><b>API</b> Stability:</dt><dd>Stable.</dd></dl>
   </div>
 </div>
+<a name="goahead_8h_1a6392cb4a8226a9b32804ec6c46caeade"></a>
+<div class="api">
+  <div class="prototype">
+    char *
+    websTempFileOpen
+(cchar *dir, cchar *prefix, int *fd)
+  </div>
+  <div class="apiDetail">
+<p>Create a temporary file and keep it open.</p>
+    <dl><dt><b>Description</b>:</dt><dd>Creates the file as websTempFile does and returns the descriptor of the exclusive create, open for reading and writing. Writing through it writes the file that was created, even if its path is later replaced. The caller must close the descriptor, unlink the file and free the returned name when done.</dd></dl>
+    <dl><dt>Parameters:</dt><dd>
+    <table class="parameters" title="Parameters">
+    <tr><td class="param">dir</td><td>Directory to hold the temp file. Defaults to websGetTempDir.</td></tr>
+    <tr><td class="param">prefix</td><td>Filename prefix.</td></tr>
+    <tr><td class="param">fd</td><td>Set to the open descriptor, or to -1 if the file could not be created.</td></tr>
+    </table></dd></dl>
+    <dl><dt>Returns:</dt><dd>An allocated filename string, or NULL if the file could not be created.</dd></dl>
+    <dl><dt><b>API</b> Stability:</dt><dd>Evolving.</dd></dl>
+  </div>
+</div>
 <a name="goahead_8h_1ab42afeb8b16720903e8289fcb9c072ba"></a>
 <div class="api">
   <div class="prototype">
@@ -7359,7 +7497,7 @@ Variable names should follow these conventions:
   </div>
   <div class="apiDetail">
 <p>Validate a URI path as expected in a HTTP request line.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This expects a URI beginning with &quot;/&quot; and containing only valid URI characters. The URI is decoded, and normalized removing &quot;../&quot; and &quot;.&quot; segments. The URI must begin with a &quot;/&quot; both before and after decoding and normalization.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This expects a URI beginning with &quot;/&quot; and containing only valid URI characters. The URI is decoded, and normalized removing &quot;../&quot; and &quot;.&quot; segments. The URI must begin with a &quot;/&quot; both before and after decoding and normalization. A path that names a file system alias is refused: a segment ending in a dot or space, a colon (drive letter or stream), an 8.3 short name, a code point that is not NFC or that folds to ASCII on a case-insensitive file system, and on Windows a character Win32 refuses in a file name.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">uri</td><td>URI to validate.</td></tr>
@@ -7503,7 +7641,7 @@ Some components of the URI have restricted character sets that this routine does
   </div>
   <div class="apiDetail">
 <p>Signify the end of the response headers.</p>
-    <dl><dt><b>Description</b>:</dt><dd>This call concludes the response headers and writes a blank line to the response. If no Content-Type header has been written, it first writes the default: text/html for an error page, else the type of the request&apos;s extension, else application/octet-stream when the response has a body. A handler that sets its own type writes it with websWriteHeader between websWriteHeaders and this call.</dd></dl>
+    <dl><dt><b>Description</b>:</dt><dd>This call concludes the response headers and writes a blank line to the response. If no Content-Type header has been written, it first writes the default: text/html for an error page, else the type of the request&apos;s extension when the route&apos;s handler serves the request path (WEBS_DOCUMENT_HANDLER), else application/octet-stream when the response has a body. A handler that computes its response writes the type it needs with websWriteHeader between websWriteHeaders and this call; the path&apos;s extension is not consulted for it, as the client chooses the trailing path segments of such a request.</dd></dl>
     <dl><dt>Parameters:</dt><dd>
     <table class="parameters" title="Parameters">
     <tr><td class="param">wp</td><td><a class="ref" href="#struct_webs">Webs</a> request object.</td></tr>

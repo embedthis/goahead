@@ -242,6 +242,13 @@
       <arglist></arglist>
     </member>
     <member kind="variable">
+      <type>ssize</type>
+      <name>lineScan</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>af74e1ffafdef90da59049383c08971e4</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
       <type>int</type>
       <name>listenSid</name>
       <anchorfile>struct_webs.html</anchorfile>
@@ -526,6 +533,20 @@
       <name>upfd</name>
       <anchorfile>struct_webs.html</anchorfile>
       <anchor>aa20891b8f5a0e1ddd490e3a3bb0531c2</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>uploadFieldCount</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>aeaf3271db5a2538e83a7e60b9328796a</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>char **</type>
+      <name>uploadFields</name>
+      <anchorfile>struct_webs.html</anchorfile>
+      <anchor>ab09266dfbc2b127dd24c440925bfcfa6</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">
@@ -1159,6 +1180,13 @@
       <name>abilities</name>
       <anchorfile>struct_webs_user.html</anchorfile>
       <anchor>a2dd70acb96fa18a207458670ba5874fa</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable">
+      <type>int</type>
+      <name>flags</name>
+      <anchorfile>struct_webs_user.html</anchorfile>
+      <anchor>ab4bf6deea97efe867cdbfcde6e609334</anchor>
       <arglist></arglist>
     </member>
     <member kind="variable">

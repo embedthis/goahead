@@ -1,7 +1,7 @@
 
 <PRE>
 <!-- Manpage converted by man2html 3.0.1 -->
-       realm username roles...
+       [--rounds count] realm username roles...
 
 
 DESCRIPTION
@@ -34,6 +34,13 @@ OPTIONS
 
        --file filename
               Update the specified password configuration file.
+
+       --rounds count
+              Sets how many times a Blowfish hash runs the Blowfish key
+              schedule, from 1 to 65536. Default is 128. The time to check the
+              password, at each login and for anyone guessing it from a copy
+              of the file, grows in proportion. GoAhead is single threaded, so
+              each login holds other requests for that time.
 
 DESCRIPTION
        The gopass program is used to create and manage user passwords.

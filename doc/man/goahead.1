@@ -35,6 +35,12 @@ if goahead is invoked with an IP address or port number on the command line, GoA
 If the PORT component is omitted, GoAhead will listen
 on port 80. If the IP address is omitted and a port is supplied, GoAhead will listen on all network interfaces.
 .P
+On BSD-derived network stacks (macOS, FreeBSD, VxWorks) a listener bound to all interfaces can be shadowed: any
+local process may bind the same port on a specific address, such as 127.0.0.1, and receive the connections made to
+that address, because the listening socket sets SO_REUSEADDR to allow a restart while earlier connections are in
+TIME_WAIT. On a host that runs untrusted local processes, give each endpoint a specific IP address instead of a
+wildcard. Linux refuses the second bind while the listener exists.
+.P
 An https endpoint, such as https://*:443, needs a certificate and key, given by \fB--cert\fR and \fB--key\fR or
 configured when GoAhead is built. Without them, GoAhead refuses to listen on the endpoint and exits.
 .P

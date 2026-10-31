@@ -20,13 +20,16 @@ When GoAhead is built with ME_ROM enabled, it serves documents from the compiled
 Specifies a prefix to remove from each of the compiled file names. The \fB--prefix\fR option is an alias for --strip.
 .PP
 .SH "EXAMPLE"
-This example will create a list of web files and then convert these
-files into C structures in the file romFiles.c.
+This example lists the documents directory, its subdirectories and files, and the route and authentication
+files, and converts them into C structures in the file romFiles.c. A ROM build reads route.txt and auth.txt
+from the compiled files too, so list them. List each path as the server names it: the documents under the
+documents directory, here web, and the configuration files relative to the directory the server runs in. Do not
+strip the documents directory, since the server looks documents up beneath it.
 
 .PP
-    find web -type f -print >fileList
+    find web route.txt auth.txt -print >fileList
 .PP
-    webcomp --strip web fileList >romFiles.c
+    webcomp fileList >romFiles.c
 .PP
     cc -o romFiles.o romFiles.c
 

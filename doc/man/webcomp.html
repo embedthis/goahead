@@ -26,13 +26,19 @@ OPTIONS
               names. The --prefix option is an alias for --strip.
 
 EXAMPLE
-       This example will create a list of web files and then convert these
-       files into C structures in the file romFiles.c.
+       This example lists the documents directory, its subdirectories and
+       files, and the route and authentication files, and converts them into C
+       structures in the file romFiles.c. A ROM build reads route.txt and
+       auth.txt from the compiled files too, so list them. List each path as
+       the server names it: the documents under the documents directory, here
+       web, and the configuration files relative to the directory the server
+       runs in. Do not strip the documents directory, since the server looks
+       documents up beneath it.
 
 
-           find web -type f -print &gt;fileList
+           find web route.txt auth.txt -print &gt;fileList
 
-           webcomp --strip web fileList &gt;romFiles.c
+           webcomp fileList &gt;romFiles.c
 
            cc -o romFiles.o romFiles.c
 
