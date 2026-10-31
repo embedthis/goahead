@@ -79,8 +79,13 @@ if (thas('ME_GOAHEAD_UPLOAD')) {
     }
 
     //  Plain names, including a no-file-selected input, are unchanged
-    for (let name of ['small.dat', 'a.tar.gz', '']) {
+    for (let name of ['small.dat', 'a.tar.gz', '', 'a-b_c[1]@!$&(2)+,;=#.txt']) {
         await accepted(name)
+    }
+
+    //  Spaces and the documented reserved characters are refused
+    for (let name of ['my file.txt', 'a:b', 'a*b', 'a?b', 'a<b', 'a>b', 'a|b', 'a~b', "a'b", 'a%41', 'a`b', 'a^b']) {
+        await refused(name)
     }
 
     //  Windows device names are reserved only on Windows, where they would open a device

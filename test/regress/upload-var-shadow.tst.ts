@@ -25,12 +25,14 @@ async function upload(fieldName: string, value: string, query: string = ''): Pro
 }
 
 function check(text: string, why: string, literal: string = '') {
+    //  QUERY_STRING and REQUEST_URI echo the query's text, so they cannot count as variables holding it
+    text = text.replace(/^(QUERY_STRING|REQUEST_URI)=.*\r\n/mg, '')
     let staged = (text.match(/FILENAME=(.*)\r\n/) || [])[1]
     ttrue(!!staged, `${why}: the upload must list the staged file`)
     ttrue(text.includes(`FILE_FILENAME_f=${staged}\r\n`), `${why}: FILE_FILENAME_f must name the staged file`)
     ttrue(text.includes('FILE_SIZE_f=8\r\n'), `${why}: FILE_SIZE_f must be the real size`)
     ttrue(!text.includes('UPLOAD_DIR=/\r\n'), `${why}: UPLOAD_DIR must be the server's directory`)
-    ttrue(!text.includes('FILE_FILENAME_g='), `${why}: a client name must not create an upload variable`)
+    ttrue(!text.includes('\nFILE_FILENAME_g='), `${why}: a client name must not create an upload variable`)
     if (literal) {
         ttrue(text.includes(`${literal}=/etc/passwd\r\n`), `${why}: the name must be stored as sent`)
         text = text.replace(`${literal}=/etc/passwd\r\n`, '')
