@@ -97,6 +97,7 @@ static bool actionHandler(Webs *wp)
         if (sp->arg) {
             proc = (WebsProc) sp->content.value.symbol;
             (*proc)(wp, actionName, wp->query);
+            wfree(actionName);
             return 1;
         }
 #endif
@@ -163,6 +164,7 @@ PUBLIC void websHeader(Webs *wp)
     assert(websValid(wp));
 
     websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
     websWriteEndHeaders(wp);
     websWrite(wp, "<html>\n");
 }

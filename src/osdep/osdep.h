@@ -1740,14 +1740,15 @@ typedef int64 Ticks;
 #if ME_WIN_LIKE
     /*
         Use PUBLIC on declarations and definitions. DLL consumers define ME_DLL_IMPORT for correct function
-        addresses and data access.
+        addresses and data access. PUBLIC_DATA declares a variable in a header and carries extern, as on Unix,
+        so each unit that includes the header references the one definition instead of defining its own.
      */
     #if ME_DLL_IMPORT
         #define PUBLIC      __declspec(dllimport)
-        #define PUBLIC_DATA __declspec(dllimport)
+        #define PUBLIC_DATA extern __declspec(dllimport)
     #else
         #define PUBLIC      __declspec(dllexport)
-        #define PUBLIC_DATA __declspec(dllexport)
+        #define PUBLIC_DATA extern __declspec(dllexport)
     #endif
     #define PRIVATE     static
 #else

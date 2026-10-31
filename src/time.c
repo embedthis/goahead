@@ -255,8 +255,6 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
     char *cp;
     int  num;
 
-    assert(token && *token);
-
     /*
         Define the out-parameter on every path. The caller branches on it, and an early return here
         would otherwise leave it indeterminate for a date string that runs out of tokens.
@@ -718,13 +716,6 @@ static void validateTime(struct tm *tp, struct tm *defaults)
     if (tp->tm_year != -MAXINT && (tp->tm_year < -1900 || tp->tm_year > 8099)) {
         tp->tm_year = -MAXINT;
     }
-
-#if UNUSED
-    if (tp->tm_year != -MAXINT && tp->tm_mon >= 0 && tp->tm_mday >= 0 && tp->tm_hour >= 0) {
-        /*  Everything defined */
-        return;
-    }
-#endif
 
     /*
         Use empty time if missing

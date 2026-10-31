@@ -31,7 +31,7 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path);
 static RomFile *getRomFile(int fd);
 #endif
 
-#if !ME_ROM && ME_WIN_LIKE
+#if ME_WIN_LIKE
 /* Refuse Windows device names before opening: opening a console or serial device can block the event loop. */
 static cchar *reservedDevices[] = {
     "con", "prn", "aux", "nul", "conin$", "conout$",
@@ -51,7 +51,7 @@ static cchar *reservedDevices[] = {
  */
 PUBLIC bool websIsReservedDevice(cchar *path)
 {
-#if !ME_ROM && ME_WIN_LIKE
+#if ME_WIN_LIKE
     cchar *start, *cp;
     char  stem[ME_GOAHEAD_LIMIT_FILENAME];
     ssize len;
@@ -325,6 +325,22 @@ PUBLIC char *websReadWholeFile(cchar *path)
     buf[nbytes > 0 ? nbytes : 0] = '\0';
     websCloseFile(fd);
     return buf;
+}
+
+
+PUBLIC void websCheckSecretFile(cchar *path, cchar *holds)
+{
+#if ME_UNIX_LIKE && !ME_ROM
+    struct stat sbuf;
+
+    if (path && stat(path, &sbuf) == 0 && (sbuf.st_mode & (S_IRWXG | S_IRWXO))) {
+        error("Security warning: \"%s\" holds %s and is readable or writable by other accounts (mode %04o). "
+              "Set its mode to 0600.", path, holds, (uint) (sbuf.st_mode & 07777));
+    }
+#else
+    (void) path;
+    (void) holds;
+#endif
 }
 
 

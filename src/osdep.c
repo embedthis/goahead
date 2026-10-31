@@ -55,7 +55,7 @@ PUBLIC int websOsOpen(void)
  */
 PUBLIC void websHardenProcess(void)
 {
-#if ME_WIN_LIKE && !WINCE
+#if ME_WIN_LIKE
     typedef BOOL (WINAPI *SetDefaultDllDirectoriesProc)(DWORD flags);
     SetDefaultDllDirectoriesProc setDefaultDllDirectories;
     HMODULE                      kernel;
@@ -100,14 +100,14 @@ PUBLIC cchar *websGetTempDir(void)
 {
     cchar *dir;
 
-#if ME_WIN_LIKE && !WINCE
+#if ME_WIN_LIKE
     char  buf[MAX_PATH + 1];
     DWORD len;
 #endif
 
     if (!tempDir) {
         dir = ME_GOAHEAD_TEMP_DIR;
-#if ME_WIN_LIKE && !WINCE
+#if ME_WIN_LIKE
         if (*dir == '\0') {
             len = GetTempPathA((DWORD) sizeof(buf), buf);
             if (len > 0 && len < sizeof(buf)) {
@@ -115,25 +115,41 @@ PUBLIC cchar *websGetTempDir(void)
             }
         }
 #endif
-        tempDir = websAbsolutePath(dir);
+        /*
+            An empty name would resolve to the working directory. Keep it empty so websCheckTempDirs reports it
+            and websTempFile refuses it.
+         */
+        if (*dir == '\0') {
+            error("No temporary directory: set ME_GOAHEAD_TEMP_DIR to a directory outside the documents directory");
+            tempDir = sclone("");
+        } else {
+            tempDir = websAbsolutePath(dir);
+        }
     }
     return tempDir;
 }
 
 
 /*
-    Create a temporary file and return its allocated path name.
-
-    The file is created here, empty and private, before the name is returned. The name carries 64 bits
-    from the system CSPRNG so a client cannot predict where another request's data is staged, and the
-    create is exclusive and refuses a symlink so a local attacker can neither pre-create the path nor
-    aim it at a file the server may not write. The caller opens the returned path, and must unlink the
-    file and free the name when done.
-
-    Returns NULL if no temporary file could be created. Callers must fail the request rather than
-    proceed with an unnamed staging file.
+    Create an empty private file with an unpredictable name and exclusive, no-follow creation.
+    The caller must unlink the file and free its allocated path. Return NULL on failure.
  */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
+{
+    char *path;
+    int  fd;
+
+    if ((path = websTempFileOpen(dir, prefix, &fd)) != 0) {
+        close(fd);
+    }
+    return path;
+}
+
+
+/*
+    Return the exclusive-create descriptor in *fdp, open for reading and writing, to avoid reopening by name.
+ */
+PUBLIC char *websTempFileOpen(cchar *dir, cchar *prefix, int *fdp)
 {
     cchar *hexDigits = "0123456789abcdef";
     uchar randomBytes[8];
@@ -141,9 +157,8 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
     char  sep;
     int   fd, i, tries;
 
-#if WINCE
-    sep = '\\';
-#elif ME_WIN_LIKE
+    *fdp = -1;
+#if ME_WIN_LIKE
     sep = '\\';
 #else
     sep = '/';
@@ -153,6 +168,10 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
      */
     if (!dir || *dir == '\0') {
         dir = websGetTempDir();
+    }
+    if (!dir || *dir == '\0') {
+        error("Cannot create a temp file: no temporary directory is configured");
+        return 0;
     }
     if (!prefix) {
         prefix = "tmp";
@@ -169,7 +188,7 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
         name[sizeof(name) - 1] = '\0';
         path = sfmt("%s%c%s-%s.tmp", dir, sep, prefix, name);
         if ((fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_BINARY | O_NOFOLLOW, 0600)) >= 0) {
-            close(fd);
+            *fdp = fd;
             return path;
         }
         wfree(path);

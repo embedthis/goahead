@@ -94,14 +94,16 @@ int main(int argc, char **argv)
     for (i = 0; i < (int) (sizeof(folding) / sizeof(folding[0])); i++) {
         if (ME_GOAHEAD_CASE_INSENSITIVE_FS) {
             ttrue(!accepted(folding[i]), "U+%04X folds to ASCII and must be refused", folding[i]);
+        } else if (folding[i] == 0x212A) {
+            ttrue(!accepted(folding[i]), "U+212A is not NFC (it composes to K) and is refused on every file system");
         } else {
             ttrue(accepted(folding[i]), "U+%04X names a distinct file and must be accepted, refused by %s", folding[i],
                   refusal(folding[i]));
         }
     }
     ttrue(accepted(0x00E9), "U+00E9 does not fold to ASCII and must be accepted, refused by %s", refusal(0x00E9));
-    ttrue(accepted(0x212B), "U+212B, the Angstrom sign, does not fold to ASCII and must be accepted, refused by %s",
-          refusal(0x212B));
+    ttrue(accepted(0x00C5), "U+00C5 does not fold to ASCII and must be accepted, refused by %s", refusal(0x00C5));
+    ttrue(!accepted(0x212B), "U+212B, the Angstrom sign, is not NFC (it composes to U+00C5) and must be refused");
     ttrue(accepted(0x0100), "U+0100 does not fold to ASCII and must be accepted, refused by %s", refusal(0x0100));
     return 0;
 }

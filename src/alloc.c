@@ -72,6 +72,7 @@ static int       wopenCount = 0;                        /* Num tasks using wallo
 static int wallocGetSize(ssize size, int *q);
 
 #define WEBS_MAX_BLOCK (1 << 30)
+#define WEBS_ALIGN     16
 
 #endif /* ME_GOAHEAD_REPLACE_MALLOC */
 
@@ -87,6 +88,8 @@ static int wallocGetSize(ssize size, int *q);
 PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
 {
 #if ME_GOAHEAD_REPLACE_MALLOC
+    char *aligned;
+
     controlFlags = flags;
 
     /*
@@ -108,6 +111,17 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
             return -1;
         }
     } else {
+        /*
+            Align the arena as malloc would. The caller's buffer may be a plain char array starting on any byte, and
+            every block header and block carved from it inherits its alignment.
+         */
+        aligned = (char*) (((uintptr_t) buf + WEBS_ALIGN - 1) & ~((uintptr_t) WEBS_ALIGN - 1));
+        bufsize -= (int) (aligned - (char*) buf);
+        if (bufsize <= 0) {
+            --wopenCount;
+            return -1;
+        }
+        buf = aligned;
         controlFlags |= WEBS_USER_BUF;
     }
     freeSize = freeLeft = bufsize;
@@ -296,12 +310,17 @@ static int wallocGetSize(ssize size, int *q)
 }
 
 
+/*
+    Check a block in every build, so the check does not vanish with assert in release and logging-free builds
+ */
 PUBLIC void wvalid(cvoid *mp)
 {
     WebsAlloc *bp;
 
     bp = (WebsAlloc*) ((char*) mp - sizeof(WebsAlloc));
-    assert(bp->flags & WEBS_INTEGRITY);
+    if ((bp->flags & WEBS_INTEGRITY_MASK) != WEBS_INTEGRITY) {
+        error("Invalid memory block");
+    }
 }
 
 #else /* !ME_GOAHEAD_REPLACE_MALLOC */

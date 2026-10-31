@@ -225,8 +225,20 @@ PUBLIC int websRuntimeOpen(void)
 }
 
 
+/*
+    Release the events still pending at close. The callback table is not reset by websOpen, so an event left here
+    would run in a reopened server with arguments that belonged to the closed one.
+ */
 PUBLIC void websRuntimeClose(void)
 {
+    int i;
+
+    for (i = 0; callbacks && i < callbackMax; i++) {
+        if (callbacks[i]) {
+            websStopEvent(i);
+        }
+    }
+    callbackMax = 0;
 }
 
 
@@ -319,7 +331,14 @@ int websRunEvents(void)
     for (i = 0; i < callbackMax; i++) {
         if ((s = callbacks[i]) != NULL) {
             if (s->at <= now) {
+                /*
+                    Mark the event inactive before calling it; release it unless the callback stops or restarts it.
+                 */
+                s->at = MAXINT64;
                 callEvent(i);
+                if (i < callbackMax && (s = callbacks[i]) != NULL && s->at == MAXINT64) {
+                    websStopEvent(i);
+                }
                 delay = MAXINT / 1000;
                 /* Rescan in case event scheduled or modified an event */
                 i = -1;
@@ -592,23 +611,24 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                 }
                 if (iValue >= 0) {
                     if (fmt.flags & SPRINTF_LEAD_SPACE) {
-                        outNum(&fmt, " ", iValue);
+                        outNum(&fmt, " ", (uint64) iValue);
                     } else if (fmt.flags & SPRINTF_SIGN) {
-                        outNum(&fmt, "+", iValue);
+                        outNum(&fmt, "+", (uint64) iValue);
                     } else {
-                        outNum(&fmt, 0, iValue);
+                        outNum(&fmt, 0, (uint64) iValue);
                     }
                 } else {
-                    outNum(&fmt, "-", -iValue);
+                    outNum(&fmt, "-", (uint64) -(iValue + 1) + 1);
                 }
                 break;
 
             case 'X':
-                fmt.flags |= SPRINTF_UPPER_CASE;
-            /*  Fall through  */
             case 'o':
             case 'x':
             case 'u':
+                if (c == 'X') {
+                    fmt.flags |= SPRINTF_UPPER_CASE;
+                }
                 if (fmt.flags & SPRINTF_SHORT) {
                     uValue = (ushort) va_arg(args, uint);
                 } else if (fmt.flags & SPRINTF_LONG) {
@@ -726,7 +746,7 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
      */
     if (fmt->radix == 16) {
         do {
-            letter = (int) (value % fmt->radix);
+            letter = (int) (value % (uint64) fmt->radix);
             if (letter > 9) {
                 if (fmt->flags & SPRINTF_UPPER_CASE) {
                     letter = 'A' + letter - 10;
@@ -737,22 +757,22 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
                 letter += '0';
             }
             *--cp = (char) letter;
-            value /= fmt->radix;
+            value /= (uint64) fmt->radix;
         } while (value > 0);
 
     } else if (fmt->flags & SPRINTF_COMMA) {
         i = 1;
         do {
-            *--cp = (char) ('0' + (int) (value % fmt->radix));
-            value /= fmt->radix;
+            *--cp = (char) ('0' + (int) (value % (uint64) fmt->radix));
+            value /= (uint64) fmt->radix;
             if ((i++ % 3) == 0 && value > 0) {
                 *--cp = ',';
             }
         } while (value > 0);
     } else {
         do {
-            *--cp = (char) ('0' + (int) (value % fmt->radix));
-            value /= fmt->radix;
+            *--cp = (char) ('0' + (int) (value % (uint64) fmt->radix));
+            value /= (uint64) fmt->radix;
         } while (value > 0);
     }
 
@@ -875,7 +895,7 @@ static int growBuf(Format *fmt)
     endOffset = fmt->end - fmt->buf;
     startOffset = fmt->start - fmt->buf;
     if (fmt->buf) {
-        memcpy(newbuf, fmt->buf, buflen);
+        memcpy(newbuf, fmt->buf, (size_t) buflen);
         wfreeset(fmt->buf);
     }
     buflen += fmt->growBy;
@@ -972,7 +992,6 @@ PUBLIC int websStartLogFile(WebsLogFile *log, cchar *path)
     log->size = (ssize) lseek(log->fd, 0, SEEK_END);
     return 0;
 }
-
 
 
 /*
@@ -1092,12 +1111,15 @@ static void defaultLogHandler(int flags, cchar *buf)
 }
 
 
-/* Escape request-controlled log bytes in every handler. Raw messages retain newlines, CRs and tabs. */
+/*
+    Escape request-controlled log bytes, including backslashes so literal escapes cannot be forged.
+    Raw messages retain newlines, CRs and tabs.
+ */
 static void logOutput(int flags, cchar *message)
 {
     char *escaped;
 
-    escaped = websEscapeControl(message, (flags & WEBS_RAW_MSG) ? "\n\r\t" : NULL, NULL);
+    escaped = websEscapeControl(message, (flags & WEBS_RAW_MSG) ? "\n\r\t" : NULL, "\\");
     logHandler(flags, escaped);
     wfree(escaped);
 }
@@ -1213,8 +1235,16 @@ PUBLIC int logOpen(void)
         logFd = 1;
     } else if (smatch(logPath, "stderr")) {
         logFd = 2;
-#if !ME_ROM
     } else {
+#if ME_ROM
+        /*
+            A ROM build has no log files. Refuse the path rather than write to stderr as if it had opened.
+         */
+        error("Cannot open the log file %s: a ROM build logs only to stdout or stderr", logPath);
+        return -1;
+#else
+        //  Register the log for the served-directory check at websListen.
+        websAddConfigFile(logPath);
         if (websStartLogFile(&logFile, logPath) < 0) {
             return -1;
         }
@@ -1245,7 +1275,10 @@ PUBLIC void logSetPath(cchar *path)
 
     wfree(logPath);
     logPath = sclone(path);
-    if ((lp = strchr(logPath, ':')) != 0) {
+    /*
+        Only a numeric suffix is a log level; preserve drive letters and colons in file names.
+     */
+    if ((lp = strrchr(logPath, ':')) != 0 && (lp[1] == '\0' || (ssize) strspn(&lp[1], "0123456789") == slen(&lp[1]))) {
         *lp++ = '\0';
         logLevel = atoi(lp);
     }
@@ -1334,7 +1367,7 @@ PUBLIC char *itosbuf(char *buf, ssize size, int64 value, int radix)
     }
     if (buf < cp) {
         /* Move the null too */
-        memmove(buf, cp, end - cp);
+        memmove(buf, cp, (size_t) (end - cp));
     }
     return buf;
 }
@@ -1355,11 +1388,11 @@ PUBLIC int wallocHandle(void *mapArg)
 
     if (*map == NULL) {
         incr = H_INCR;
-        memsize = (incr + H_OFFSET) * sizeof(void*);
+        memsize = (incr + H_OFFSET) * (int) sizeof(void*);
         if ((mp = walloc(memsize)) == NULL) {
             return -1;
         }
-        memset(mp, 0, memsize);
+        memset(mp, 0, (size_t) memsize);
         mp[H_LEN] = incr;
         mp[H_USED] = 0;
         *map = (void*) &mp[H_OFFSET];
@@ -1386,7 +1419,7 @@ PUBLIC int wallocHandle(void *mapArg)
         No free handle so grow the handle list. Grow list in chunks of H_INCR.
      */
     len += H_INCR;
-    memsize = (len + H_OFFSET) * sizeof(void*);
+    memsize = (len + H_OFFSET) * (int) sizeof(void*);
     if ((mp = wrealloc(mp, memsize)) == NULL) {
         return -1;
     }
@@ -1461,7 +1494,7 @@ PUBLIC int wallocObject(void *listArg, int *max, int size)
             return -1;
         }
         assert(cp);
-        memset(cp, 0, size);
+        memset(cp, 0, (size_t) size);
         (*list)[id] = (void*) cp;
     }
     if (id >= *max) {
@@ -1563,9 +1596,9 @@ PUBLIC char *bufStart(WebsBuf *bp)
         len = bufLen(bp);
         head = bp->endbuf - bp->servp;
         data = walloc(len);
-        memcpy(data, bp->servp, head);
-        memcpy(&data[head], bp->buf, len - head);
-        memcpy(bp->buf, data, len);
+        memcpy(data, bp->servp, (size_t) head);
+        memcpy(&data[head], bp->buf, (size_t) (len - head));
+        memcpy(bp->buf, data, (size_t) len);
         wfree(data);
         bp->servp = bp->buf;
         bp->endp = bp->buf + len;
@@ -1663,7 +1696,7 @@ PUBLIC ssize bufPut(WebsBuf *bp, cchar *fmt, ...)
     str = sfmtv(fmt, ap);
     va_end(ap);
 
-    rc = bufPutBlk(bp, str, strlen(str) * sizeof(char));
+    rc = bufPutBlk(bp, str, (ssize) (strlen(str) * sizeof(char)));
     wfree(str);
     if (rc) {
         *((char*) bp->endp) = (char) '\0';
@@ -1683,7 +1716,7 @@ PUBLIC ssize bufPutStr(WebsBuf *bp, cchar *str)
     assert(str);
     assert(bp->buflen == (bp->endbuf - bp->buf));
 
-    rc = bufPutBlk(bp, str, strlen(str) * sizeof(char));
+    rc = bufPutBlk(bp, str, (ssize) (strlen(str) * sizeof(char)));
     if (rc) {
         *((char*) bp->endp) = (char) '\0';
     }
@@ -1814,7 +1847,7 @@ PUBLIC ssize bufPutBlk(WebsBuf *bp, cchar *buf, ssize size)
             }
             this = min(bufRoom(bp), size);
         }
-        memcpy(bp->endp, buf, this);
+        memcpy(bp->endp, buf, (size_t) this);
         buf += this;
         bp->endp += this;
         size -= this;
@@ -1849,7 +1882,7 @@ PUBLIC ssize bufGetBlk(WebsBuf *bp, char *buf, ssize size)
         if (this <= 0) {
             break;
         }
-        memcpy(buf, bp->servp, this);
+        memcpy(buf, bp->servp, (size_t) this);
         buf += this;
         bp->servp += this;
         size -= this;
@@ -1971,7 +2004,7 @@ PUBLIC void bufCompact(WebsBuf *bp)
         if ((len = bufLen(bp)) > 0) {
             if (bp->servp < bp->endp && bp->servp > bp->buf) {
                 bufAddNull(bp);
-                memmove(bp->buf, bp->servp, len + 1);
+                memmove(bp->buf, bp->servp, (size_t) len + 1);
                 bp->endp -= bp->servp - bp->buf;
                 bp->servp = bp->buf;
             }
@@ -2008,9 +2041,6 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
 
     if (room == 0) {
         if (bp->maxsize >= 0 && bp->buflen >= bp->maxsize) {
-#if BLD_DEBUG
-            error("Cannot grow buf. Needed %d, max %d", room, bp->maxsize);
-#endif
             return 0;
         }
         room = bp->increment;
@@ -2018,7 +2048,11 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
             Double growth increments only while below the limit.
          */
         if (bp->maxsize < 0 || bp->increment < bp->maxsize) {
-            bp->increment = getBinBlockSize(2 * bp->increment);
+            bp->increment *= 2;
+        }
+        //  Implicit growth fills up to the limit. Explicit growth is all or nothing: callers rely on the room.
+        if (bp->maxsize >= 0 && room > bp->maxsize - bp->buflen) {
+            room = bp->maxsize - bp->buflen;
         }
     } else if (bp->maxsize >= 0 && room > bp->maxsize - bp->buflen) {
         return 0;
@@ -2091,13 +2125,13 @@ WebsHash hashCreate(int size)
         Now create the hash table for fast indexing.
      */
     tp->size = calcPrime(size);
-    if ((tp->hash_table = (WebsKey**) walloc(tp->size * sizeof(WebsKey*))) == 0) {
+    if ((tp->hash_table = (WebsKey**) walloc(tp->size * (ssize) sizeof(WebsKey*))) == 0) {
         wfreeHandle(&sym, sd);
         wfree(tp);
         return -1;
     }
     assert(tp->hash_table);
-    memset(tp->hash_table, 0, tp->size * sizeof(WebsKey*));
+    memset(tp->hash_table, 0, (size_t) tp->size * sizeof(WebsKey*));
     return sd;
 }
 
@@ -2400,10 +2434,10 @@ static ME_NO_SANITIZE_WRAP int hashIndex(HashTable *tp, cchar *name)
     i = 0;
     sum = 0;
     while (*name) {
-        sum += (((int) (uchar) *name++) << i);
+        sum += (((uint) (uchar) *name++) << i);
         i = (i + 7) % (BITS(int) - BITSPERBYTE);
     }
-    return sum % tp->size;
+    return (int) (sum % (uint) tp->size);
 }
 
 
@@ -2492,13 +2526,12 @@ PUBLIC char *sclone(cchar *s)
     if (s == NULL) {
         s = "";
     }
-    len = strlen(s) + 1;
+    len = (ssize) strlen(s) + 1;
     if ((buf = walloc(len)) != 0) {
         scopy(buf, len, s);
     }
     return buf;
 }
-
 
 
 /*
@@ -2517,7 +2550,7 @@ PUBLIC char *snclone(cchar *str, ssize len)
     len = min(l, len);
     size = len + 1;
     if ((ptr = walloc(size)) != 0) {
-        memcpy(ptr, str, len);
+        memcpy(ptr, str, (size_t) len);
         ptr[len] = '\0';
     }
     return ptr;
@@ -2545,7 +2578,7 @@ uint strtoi(char *s)
         s += 2;
         return hextoi(s);
     }
-    return atoi(s);
+    return (uint) atoi(s);
 }
 
 
@@ -2577,7 +2610,7 @@ PUBLIC bool sstarts(cchar *str, cchar *prefix)
     if (str == 0 || prefix == 0) {
         return 0;
     }
-    if (strncmp(str, prefix, slen(prefix)) == 0) {
+    if (strncmp(str, prefix, (size_t) slen(prefix)) == 0) {
         return 1;
     }
     return 0;
@@ -2599,7 +2632,7 @@ PUBLIC int scmp(cchar *s1, cchar *s2)
 
 PUBLIC ssize slen(cchar *s)
 {
-    return s ? strlen(s) : 0;
+    return s ? (ssize) strlen(s) : 0;
 }
 
 
@@ -2647,7 +2680,7 @@ PUBLIC ssize sncopy(char *dest, ssize destMax, cchar *src, ssize count)
         return -1;
     }
     if (len > 0) {
-        memcpy(dest, src, len);
+        memcpy(dest, src, (size_t) len);
         dest[len] = '\0';
     } else {
         *dest = '\0';
@@ -2766,7 +2799,7 @@ PUBLIC char *stok(char *str, cchar *delim, char **last)
         *last = 0;
         return 0;
     }
-    i = strspn(start, delim);
+    i = (ssize) strspn(start, delim);
     start += i;
     if (*start == '\0') {
         *last = 0;
@@ -2775,7 +2808,7 @@ PUBLIC char *stok(char *str, cchar *delim, char **last)
     end = strpbrk(start, delim);
     if (end) {
         *end++ = '\0';
-        i = strspn(end, delim);
+        i = (ssize) strspn(end, delim);
         end += i;
     }
     *last = end;
@@ -2792,13 +2825,13 @@ PUBLIC char *strim(char *str, cchar *set, int where)
         return 0;
     }
     if (where & WEBS_TRIM_START) {
-        i = strspn(str, set);
+        i = (ssize) strspn(str, set);
     } else {
         i = 0;
     }
     s = (char*) &str[i];
     if (where & WEBS_TRIM_END) {
-        len = strlen(s);
+        len = (ssize) strlen(s);
         while (len > 0 && strspn(&s[len - 1], set) > 0) {
             s[len - 1] = '\0';
             len--;

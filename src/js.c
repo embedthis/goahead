@@ -72,7 +72,7 @@ static int pushFrame(Js *ep, WebsHash variables)
 {
     assert(ep);
 
-    ep->variables = wrealloc(ep->variables, sizeof(WebsHash) * (ep->variableMax + 1));
+    ep->variables = wrealloc(ep->variables, (ssize) sizeof(WebsHash) * (ep->variableMax + 1));
     ep->variables[ep->variableMax] = variables + JS_OFFSET;
     return ep->variableMax++;
 }
@@ -221,6 +221,7 @@ PUBLIC char *jsEval(int jid, cchar *script, char **emsg)
     if ((ep = jsPtr(jid)) == NULL) {
         return NULL;
     }
+    wfreeset(ep->error);
     setString(&ep->result, "");
 
     /*
@@ -810,7 +811,7 @@ static int parseStmt(Js *ep, int state, int flags)
 
     if (expectSemi) {
         tid = jsLexGetToken(ep, state);
-        if (tid != TOK_SEMI && tid != TOK_NEWLINE) {
+        if (tid != TOK_SEMI && tid != TOK_NEWLINE && tid != TOK_EOF) {
             goto error;
         }
         /*
@@ -1118,7 +1119,8 @@ static int isTrue(Js *ep, cchar *value, int flags, bool *truth)
         return 0;
     }
     if (!isNumber(value)) {
-        jsError(ep, "Condition must be numeric: %s", value);
+        //  The value may be request data: report its length, not its text
+        jsError(ep, "Condition must be numeric: %d byte value", (int) slen(value));
         return -1;
     }
     if (parseInteger(ep, value, &number) < 0) {
@@ -1183,7 +1185,7 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
     rnum = isNumber(rhs);
     numeric = (lnum || !*lhs) && (rnum || !*rhs);
     if (!numeric && (lnum || rnum) && rel != EXPR_PLUS) {
-        jsError(ep, "Operand is not a number: %s", lnum ? rhs : lhs);
+        jsError(ep, "Operand is not a number: %d byte value", (int) slen(lnum ? rhs : lhs));
         return -1;
     }
     if (numeric) {
@@ -1474,7 +1476,7 @@ PUBLIC int jsArgs(int argc, char **argv, cchar *fmt, ...)
     }
 
     va_start(vargs, fmt);
-    for (argn = 0, cp = fmt; cp && *cp && argv[argn]; ) {
+    for (argn = 0, cp = fmt; cp && *cp && argn < argc && argv[argn]; ) {
         if (*cp++ != '%') {
             continue;
         }
@@ -1818,7 +1820,7 @@ PUBLIC void jsLexSaveInputState(Js *ep, JsInput *state)
     if (ip->line) {
         //  The line is terminated at lineColumn, but may hold earlier nulls from the script
         state->line = walloc(ip->lineColumn + 1);
-        memcpy(state->line, ip->line, ip->lineColumn + 1);
+        memcpy(state->line, ip->line, (size_t) ip->lineColumn + 1);
     }
 }
 
@@ -1844,7 +1846,7 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
     ip->lineNumber = state->lineNumber;
     ip->lineColumn = state->lineColumn;
     if (ip->line) {
-        memcpy(ip->line, state->line ? state->line : "", state->lineColumn + 1);
+        memcpy(ip->line, state->line ? state->line : "", (size_t) state->lineColumn + 1);
     }
 }
 
@@ -2178,7 +2180,7 @@ static int getLexicalToken(Js *ep, int state)
                         just ignore any \ characters.
                      */
                 } else if (tokenAddChar(ep, c) < 0) {
-                    break;
+                    return TOK_ERR;
                 }
                 if ((c = inputGetc(ep)) < 0) {
                     break;
@@ -2285,7 +2287,7 @@ static int inputGetc(Js *ep)
     } else {
         if ((ip->lineColumn + 2) >= ip->lineLength) {
             ip->lineLength += JS_INC;
-            ip->line = wrealloc(ip->line, ip->lineLength * sizeof(char));
+            ip->line = wrealloc(ip->line, ip->lineLength * (ssize) sizeof(char));
         }
         ip->line[ip->lineColumn++] = (char) c;
         ip->line[ip->lineColumn] = '\0';
@@ -2299,6 +2301,13 @@ static void inputPutback(Js *ep, int c)
     JsInput *ip;
 
     assert(ep);
+
+    /*
+        End of input is not a character. Putting it back would insert a byte the script never held.
+     */
+    if (c < 0) {
+        return;
+    }
 
     ip = ep->input;
     bufInsertc(&ip->script, (char) c);

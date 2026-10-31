@@ -114,6 +114,7 @@ static bool actionHandler(Webs *wp)
         if (sp->arg) {
             proc = (WebsProc) sp->content.value.symbol;
             (*proc)(wp, actionName, wp->query);
+            wfree(actionName);
             return 1;
         }
 #endif
@@ -180,6 +181,7 @@ PUBLIC void websHeader(Webs *wp)
     assert(websValid(wp));
 
     websWriteHeaders(wp, -1, 0);
+    websWriteHeader(wp, "Content-Type", "text/html");
     websWriteEndHeaders(wp);
     websWrite(wp, "<html>\n");
 }
@@ -275,6 +277,7 @@ static int       wopenCount = 0;                        /* Num tasks using wallo
 static int wallocGetSize(ssize size, int *q);
 
 #define WEBS_MAX_BLOCK (1 << 30)
+#define WEBS_ALIGN     16
 
 #endif /* ME_GOAHEAD_REPLACE_MALLOC */
 
@@ -290,6 +293,8 @@ static int wallocGetSize(ssize size, int *q);
 PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
 {
 #if ME_GOAHEAD_REPLACE_MALLOC
+    char *aligned;
+
     controlFlags = flags;
 
     /*
@@ -311,6 +316,17 @@ PUBLIC int wopenAlloc(void *buf, int bufsize, int flags)
             return -1;
         }
     } else {
+        /*
+            Align the arena as malloc would. The caller's buffer may be a plain char array starting on any byte, and
+            every block header and block carved from it inherits its alignment.
+         */
+        aligned = (char*) (((uintptr_t) buf + WEBS_ALIGN - 1) & ~((uintptr_t) WEBS_ALIGN - 1));
+        bufsize -= (int) (aligned - (char*) buf);
+        if (bufsize <= 0) {
+            --wopenCount;
+            return -1;
+        }
+        buf = aligned;
         controlFlags |= WEBS_USER_BUF;
     }
     freeSize = freeLeft = bufsize;
@@ -499,12 +515,17 @@ static int wallocGetSize(ssize size, int *q)
 }
 
 
+/*
+    Check a block in every build, so the check does not vanish with assert in release and logging-free builds
+ */
 PUBLIC void wvalid(cvoid *mp)
 {
     WebsAlloc *bp;
 
     bp = (WebsAlloc*) ((char*) mp - sizeof(WebsAlloc));
-    assert(bp->flags & WEBS_INTEGRITY);
+    if ((bp->flags & WEBS_INTEGRITY_MASK) != WEBS_INTEGRITY) {
+        error("Invalid memory block");
+    }
 }
 
 #else /* !ME_GOAHEAD_REPLACE_MALLOC */
@@ -640,6 +661,7 @@ static bool isBlowfishHash(cchar *password);
 static bool isMd5Hash(cchar *password);
 static bool isCompleteHash(cchar *hash);
 static void verifyUnknownUser(Webs *wp);
+static void decoyBlowfish(cchar *passbuf);
 static void logoutServiceProc(Webs *wp);
 static void loginServiceProc(Webs *wp);
 static void reportPasswordBudget(cchar *username, cchar *password);
@@ -728,8 +750,16 @@ PUBLIC bool websAuthenticate(Webs *wp)
     }
     if (!cached) {
         if (wp->authType && !smatch(wp->authType, route->authType)) {
+            /*
+                Credentials of another scheme are refused like no credentials: a 401 must carry the route's
+                challenge (RFC 9110 15.5.2) so the client can authenticate the way the route requires, and the
+                route's 401 redirect applies.
+             */
             logAuth(wp, 0, route->authType, "failed", "wrong authentication scheme");
-            websError(wp, HTTP_CODE_UNAUTHORIZED, "Access denied. Wrong authentication protocol type.");
+            if (route->askLogin) {
+                (route->askLogin)(wp);
+            }
+            websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
             return 0;
         }
         /*
@@ -772,10 +802,11 @@ PUBLIC bool websAuthenticate(Webs *wp)
         wp->flags |= WEBS_AUTHENTICATED;
         logAuth(wp, 2, route->authType, "succeeded", 0);
         /*
-            Cache verified credentials only in an existing client session, rotating its ID first. Authentication
-            still succeeds if rotation fails; creating sessions here could exhaust the table.
+            Cache credentials only in an existing session, rotating its ID first. Rotation failure does not fail
+            authentication; creating sessions here could exhaust the table. Cross-site requests must not rebind a
+            session: browsers can send cached credentials and session cookies on cross-site GET navigations.
          */
-        if (wp->session) {
+        if (wp->session && websSameOrigin(wp)) {
             websLoginSession(wp, route->authType);
         }
     }
@@ -903,6 +934,7 @@ static WebsUser *createUser(cchar *username, cchar *password, cchar *roles)
     user->roles = sclone(roles);
     user->password = sclone(password);
     user->abilities = -1;
+    user->flags = 0;
     return user;
 }
 
@@ -990,6 +1022,7 @@ WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles)
         return 0;
     }
     if (hashEnter(users, username, valueSymbol(user), 0) == 0) {
+        freeUser(user);
         return 0;
     }
     return user;
@@ -1078,7 +1111,7 @@ static void computeAbilities(WebsHash abilities, cchar *role, int depth)
         if ((key = hashLookup(roleTable, role)) != 0) {
             rp = (WebsRole*) key->content.value.symbol;
             for (key = hashFirst(rp->abilities); key; key = hashNext(rp->abilities, key)) {
-                computeAbilities(abilities, key->name.value.string, ++depth);
+                computeAbilities(abilities, key->name.value.string, depth + 1);
             }
         } else {
             hashEnter(abilities, role, valueInteger(0), 0);
@@ -1100,21 +1133,6 @@ static void computeUserAbilities(WebsUser *user)
     for (ability = stok(roles, " \t,", &tok); ability; ability = stok(NULL, " \t,", &tok)) {
         computeAbilities(user->abilities, ability, 0);
     }
-#if ME_DEBUG && DISABLE
-    /*
-        SECURITY Acceptable: - Debug trace of user abilities
-        Do not enable in production
-     */
-    {
-        WebsKey *key;
-        trace(5 | WEBS_RAW_MSG, "User \"%s\" has abilities: ", user->name);
-        for (key = hashFirst(user->abilities); key; key = hashNext(user->abilities, key)) {
-            trace(5 | WEBS_RAW_MSG, "%s ", key->name.value.string);
-            ability = key->name.value.string;
-        }
-        trace(5, "");
-    }
-#endif
     wfree(roles);
 }
 
@@ -1124,7 +1142,8 @@ PUBLIC void websComputeAllUserAbilities(void)
     WebsUser *user;
     WebsKey  *sym;
 
-    if (users) {
+    /* A hash handle is zero or positive; the first hash of the process, or a recycled handle, is zero */
+    if (users >= 0) {
         for (sym = hashFirst(users); sym; sym = hashNext(users, sym)) {
             user = (WebsUser*) sym->content.value.symbol;
             computeUserAbilities(user);
@@ -1133,24 +1152,30 @@ PUBLIC void websComputeAllUserAbilities(void)
 }
 
 
+/*
+    The role owns the abilities table from here on, so it is released when the role cannot be added.
+ */
 WebsRole *websAddRole(cchar *name, WebsHash abilities)
 {
     WebsRole *rp;
 
     if (!name) {
         error("Role is missing name");
+        hashFree(abilities);
         return 0;
     }
     if (hashLookup(roleTable, name)) {
         error("Role %s already exists", name);
-        /* Already exists */
+        hashFree(abilities);
         return 0;
     }
     if ((rp = walloc(sizeof(WebsRole))) == 0) {
+        hashFree(abilities);
         return 0;
     }
     rp->abilities = abilities;
     if (hashEnter(roleTable, name, valueSymbol(rp), 0) == 0) {
+        freeRole(rp);
         return 0;
     }
     return rp;
@@ -1166,12 +1191,13 @@ static void freeRole(WebsRole *rp)
 
 
 /*
-    Does not recompute abilities for users that use this role
+    Recompute every user's abilities, as websSetUserRoles does, so no user keeps the removed role's abilities
  */
 PUBLIC int websRemoveRole(cchar *name)
 {
     WebsRole *rp;
     WebsKey  *sym;
+    int      rc;
 
     assert(name && *name);
     if (roleTable >= 0) {
@@ -1181,7 +1207,9 @@ PUBLIC int websRemoveRole(cchar *name)
         rp = sym->content.value.symbol;
         hashFree(rp->abilities);
         wfree(rp);
-        return hashDelete(roleTable, name);
+        rc = hashDelete(roleTable, name);
+        websComputeAllUserAbilities();
+        return rc;
     }
     return -1;
 }
@@ -1250,7 +1278,16 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
 
 PUBLIC bool websLogoutUser(Webs *wp)
 {
+    cchar *username;
+
     assert(wp);
+    /*
+        The logout action runs on a public route, so the request carries no identity of its own. Name the
+        session's user in the audit line before the session is torn down.
+     */
+    if (!wp->username && (username = websGetSessionVar(wp, WEBS_SESSION_USERNAME, 0)) != 0) {
+        setUsername(wp, username);
+    }
     logAuth(wp, 0, "form", "logout", 0);
     websRemoveSessionVar(wp, WEBS_SESSION_USERNAME);
     websRemoveSessionVar(wp, WEBS_SESSION_AUTHTYPE);
@@ -1383,7 +1420,7 @@ static bool makePasswordPreimage(char *buf, ssize bufsize, cchar *username, ccha
 PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 {
     char passbuf[WEBS_MAX_PASSWORD_BUFFER];
-    bool success;
+    bool success, plaintext;
 
     assert(wp);
     if (!wp->user && (wp->user = websLookupUser(wp->username)) == 0) {
@@ -1428,7 +1465,8 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
         success = websCheckPassword(passbuf, wp->user->password);
     } else {
         // Legacy MD5 stored hash: MD5(username:realm:password).
-        if (!wp->encoded) {
+        plaintext = !wp->encoded;
+        if (plaintext) {
             /*
                 wp->password is plaintext from Basic auth. Encode to MD5 and cache by setting wp->encoded
                 so subsequent calls on the same request skip the rehash.
@@ -1445,6 +1483,12 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
             wp->encoded = 1;
         }
         success = pmatch(wp->password, wp->user->password);
+        if (!success && plaintext) {
+            /*
+                Run the Blowfish decoy for refused plaintext MD5 logins to reduce account timing differences.
+             */
+            decoyBlowfish(passbuf);
+        }
     }
     if (success) {
         trace(5, "User \"%s\" authenticated", wp->username);
@@ -1457,25 +1501,46 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 
 
 /*
+    Use the costliest configured Blowfish hash for refused-login decoys. BF2 costs more than BF1;
+    within each format, cost increases with rounds. Ignore the result.
+ */
+static void decoyBlowfish(cchar *passbuf)
+{
+    WebsKey  *key;
+    WebsUser *user;
+    cchar    *decoy;
+    int      cost, highest;
+
+    decoy = 0;
+    highest = -1;
+    for (key = hashFirst(users); key; key = hashNext(users, key)) {
+        user = key->content.value.symbol;
+        if (isBlowfishHash(user->password) && isCompleteHash(user->password)) {
+            cost = sstarts(user->password, WEBS_CRYPT_BLOWFISH2 ":") ? atoi(&user->password[4]) : 0;
+            if (cost > highest) {
+                highest = cost;
+                decoy = user->password;
+            }
+        }
+    }
+    if (decoy) {
+        websCheckPassword(passbuf, decoy);
+    }
+}
+
+
+/*
     Check a configured Blowfish hash for unknown users to reduce timing differences. Ignore the result.
  */
 static void verifyUnknownUser(Webs *wp)
 {
-    WebsKey  *key;
-    WebsUser *user;
-    char     passbuf[WEBS_MAX_PASSWORD_BUFFER];
+    char passbuf[WEBS_MAX_PASSWORD_BUFFER];
 
     if (wp->encoded || slen(wp->password) > WEBS_MAX_PASSWORD ||
         !makePasswordPreimage(passbuf, sizeof(passbuf), wp->username, wp->password)) {
         return;
     }
-    for (key = hashFirst(users); key; key = hashNext(users, key)) {
-        user = key->content.value.symbol;
-        if (isBlowfishHash(user->password) && isCompleteHash(user->password)) {
-            websCheckPassword(passbuf, user->password);
-            return;
-        }
-    }
+    decoyBlowfish(passbuf);
 }
 
 
@@ -1528,19 +1593,65 @@ static bool pmatch(cchar *s1, cchar *s2)
 
 #if ME_COMPILER_HAS_PAM
 /*
+    Return allocated group names, including the primary group, or NULL if the account or groups cannot be read.
+ */
+static char *pamGroupRoles(cchar *username)
+{
+    WebsBuf       roles;
+    struct passwd *pw;
+    struct group  *gp;
+    Gid           *groups;
+    char          *result;
+    int           ngroups, size, i;
+
+    if ((pw = getpwnam(username)) == 0) {
+        return 0;
+    }
+    /*
+        Retry with larger arrays: Linux reports the required size, while macOS reports the number filled.
+     */
+    groups = 0;
+    ngroups = -1;
+    for (size = 32; size <= 1024; size *= 2) {
+        groups = wrealloc(groups, (ssize) sizeof(Gid) * size);
+        ngroups = size;
+        if (getgrouplist(username, (Gid) pw->pw_gid, groups, &ngroups) >= 0) {
+            break;
+        }
+        ngroups = -1;
+    }
+    if (ngroups < 0) {
+        wfree(groups);
+        return 0;
+    }
+    bufCreate(&roles, 128, -1);
+    for (i = 0; i < ngroups; i++) {
+        if ((gp = getgrgid((gid_t) groups[i])) != 0) {
+            bufPutStr(&roles, gp->gr_name);
+            bufPutc(&roles, ' ');
+        }
+    }
+    bufAddNull(&roles);
+    result = sclone(roles.servp);
+    bufFree(&roles);
+    wfree(groups);
+    return result;
+}
+
+
+/*
     Copy this routine if creating your own custom password store back end
  */
 PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
 {
-    WebsBuf         abilities;
     pam_handle_t    *pamh;
     UserInfo        info;
     struct pam_conv conv = { pamChat, &info };
-    struct group    *gp;
-    int             res, i;
+    char            *roles;
+    int             res;
 
     assert(wp);
-    assert(wp->username && wp->username);
+    assert(wp->username && *wp->username);
     assert(wp->password);
 
     /*
@@ -1554,7 +1665,7 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     info.name = (char*) wp->username;
     info.password = (char*) wp->password;
     pamh = NULL;
-    if ((res = pam_start("login", info.name, &conv, &pamh)) != PAM_SUCCESS) {
+    if (pam_start("login", info.name, &conv, &pamh) != PAM_SUCCESS) {
         return 0;
     }
     pam_set_item(pamh, PAM_RHOST, wp->ipaddr);
@@ -1579,36 +1690,26 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     if (!wp->user) {
         wp->user = websLookupUser(wp->username);
     }
-    if (!wp->user) {
-        Gid groups[32];
-        int ngroups;
-        /*
-            Create a temporary user with a abilities set to the groups
-         */
-        ngroups = sizeof(groups) / sizeof(Gid);
-        if ((i = getgrouplist(wp->username, 99999, groups, &ngroups)) >= 0) {
-            bufCreate(&abilities, 128, -1);
-            for (i = 0; i < ngroups; i++) {
-                if ((gp = getgrgid(groups[i])) != 0) {
-                    bufPutStr(&abilities, gp->gr_name);
-                    bufPutc(&abilities, ' ');
-                }
-            }
-            bufAddNull(&abilities);
-            trace(5, "Create temp user \"%s\" with abilities: %s", wp->username, abilities.servp);
-            /*
-                websAddUser copies the ability string, so the buffer is done with either way. Free
-                it on both paths: this runs once per authentication of a user not already in the
-                user table, so leaking it here is a remote-request-driven leak on a long-running
-                device.
-             */
-            wp->user = websAddUser(wp->username, 0, abilities.servp);
-            bufFree(&abilities);
-            if (wp->user == 0) {
+    /*
+        Refresh group roles at each login for PAM-created users; preserve application-configured roles.
+        Without readable groups, a new account gets no user record or abilities.
+     */
+    if (wp->user == 0 || (wp->user->flags & WEBS_USER_PAM)) {
+        if ((roles = pamGroupRoles(wp->username)) == 0) {
+            trace(5, "Cannot read the groups of account \"%s\"", wp->username);
+        } else if (wp->user == 0) {
+            trace(5, "Create temp user \"%s\" with abilities: %s", wp->username, roles);
+            if ((wp->user = websAddUser(wp->username, 0, roles)) == 0) {
+                wfree(roles);
                 return 0;
             }
+            wp->user->flags |= WEBS_USER_PAM;
             computeUserAbilities(wp->user);
+        } else if (!smatch(wp->user->roles, roles)) {
+            trace(5, "Refresh user \"%s\" abilities: %s", wp->username, roles);
+            websSetUserRoles(wp->username, roles);
         }
+        wfree(roles);
     }
     return 1;
 }
@@ -1623,14 +1724,13 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
     struct pam_response *reply;
     int                 i, j;
 
-    i = 0;
     reply = 0;
     info = (UserInfo*) data;
 
     if (resp == 0 || msg == 0 || info == 0) {
         return PAM_CONV_ERR;
     }
-    if ((reply = calloc(msgCount, sizeof(struct pam_response))) == 0) {
+    if ((reply = calloc((size_t) msgCount, sizeof(struct pam_response))) == 0) {
         return PAM_CONV_ERR;
     }
     for (i = 0; i < msgCount; i++) {
@@ -2348,6 +2448,7 @@ typedef pid_t CgiPid;
 
 #if WINDOWS
     #define CGI_OUTPUT_GRACE 1000   /* Msec to wait for the output of an exited CGI to appear */
+    #define CGI_KILL_WAIT    5000   /* Msec to wait for a terminated CGI to release its staging files */
 #endif
 
 typedef struct Cgi {            /* Struct for CGI tasks which have completed */
@@ -2366,12 +2467,14 @@ typedef struct Cgi {            /* Struct for CGI tasks which have completed */
     bool txSuppress;            /* Response carries no body at all, whatever the CGI writes */
 #if WINDOWS
     uint64 outputDeadline;      /* Tick after which an exited CGI that wrote nothing has no output coming */
+    HANDLE job;                 /* Job holding the CGI and every process it starts, so an abort ends them all */
 #endif
 #if VXWORKS
     char *vxName;               /* Unique task name, so a reused task ID is not mistaken for this task */
     int fdin;                   /* Task stdin, owned by the server so an aborted task cannot leak it */
     int fdout;                  /* Task stdout, owned by the server */
     struct CgiModule *module;   /* Loaded module the task executes, or NULL for an entry linked into the image */
+    bool missing;               /* Requested VxWorks entry point is absent */
 #endif
 } Cgi;
 
@@ -2383,6 +2486,7 @@ static int cgiMax;              /* Size of walloc list */
     insensitively.
  */
 static cchar *envBlackList[] = {
+    "ALL_PROXY",
     "AUTHSTATE",
     "BASHOPTS",
     "BASH_ENV",
@@ -2391,17 +2495,24 @@ static cchar *envBlackList[] = {
     "COMSPEC",
     "ENV",
     "FPATH",
+    "FTP_PROXY",
     "GEM_HOME",
     "GEM_PATH",
     "GLIBC_TUNABLES",
     "GLOBIGNORE",
     "GOPATH",
+    "HOME",
     "HOSTALIASES",
     "HTTP_AUTHORIZATION",
     "HTTP_PROXY",
+    "HTTP_PROXY_AUTHORIZATION",
+    "HTTPS_PROXY",
+    /* The server decodes the transfer coding; CONTENT_LENGTH describes what reaches stdin */
+    "HTTP_TRANSFER_ENCODING",
     "IFS",
     "JAVA_HOME",
     "JAVA_TOOL_OPTIONS",
+    "JDK_JAVA_OPTIONS",
     "LIBPATH",
     "LOCALDOMAIN",
     "LUA_CPATH",
@@ -2410,13 +2521,18 @@ static cchar *envBlackList[] = {
     "NLSPATH",
     "NODE_OPTIONS",
     "NODE_PATH",
+    "NO_PROXY",
     "NULLCMD",
+    "OPENSSL_CONF",
+    "OPENSSL_ENGINES",
+    "OPENSSL_MODULES",
     "PATH",
     "PATHEXT",
     "PATH_LOCALE",
     "PERL5DB",
     "PERL5LIB",
     "PERL5OPT",
+    "PERL5SHELL",
     "PERLIO_DEBUG",
     "PERLLIB",
     "PHPRC",
@@ -2433,16 +2549,41 @@ static cchar *envBlackList[] = {
     "SHELLOPTS",
     "SHLIB_PATH",
     "SYSTEMROOT",
+    "TCLLIBPATH",
     "TERMCAP",
     "TERMINFO",
     "TERMINFO_DIRS",
     "TEMP",
     "TERMPATH",
     "TMP",
+    "TMPDIR",
     "TMPPREFIX",
     "WINDIR",
     "ZDOTDIR",
+    "_JAVA_OPTIONS",
     "__COMPAT_LAYER",
+    /*
+        POSIX environment names are case-sensitive; proxy consumers also read lowercase names.
+     */
+    "all_proxy",
+    "ftp_proxy",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    NULL
+};
+
+/*
+    Loader and interpreter startup variables that carry a version suffix, such as LUA_INIT_5_4.
+ */
+static cchar *envBlackPrefixes[] = {
+    "LD_",
+    "LDR_",
+    "_RLD",
+    "DYLD_",
+    "LUA_INIT_",
+    "LUA_PATH_",
+    "LUA_CPATH_",
     NULL
 };
 
@@ -2475,16 +2616,22 @@ static bool inBlackList(cchar *name)
             return 1;
         }
     }
+    for (bp = envBlackPrefixes; *bp; bp++) {
+        if (envNameStarts(name, *bp)) {
+            return 1;
+        }
+    }
     return 0;
 }
 
 
 /*
-    Reserve CGI meta-variable names even when the server leaves them unset on this request.
+    Reserve CGI and runtime meta-variables even when unset. Include HTTP_ case variants because Windows
+    environment lookups are case-insensitive (RFC 3875 4.1.18).
  */
 static cchar *metaPrefixes[] = {
-    "AUTH_", "CONTENT_", "CONTEXT_", "DOCUMENT_", "GATEWAY_", "HTTPS", "PATH_", "QUERY_", "REDIRECT_", "REMOTE_",
-    "REQUEST_", "SCRIPT_", "SERVER_", "SSL_", "TLS_", NULL
+    "AUTH_", "CONTENT_", "CONTEXT_", "DOCUMENT_", "GATEWAY_", "HTTP_", "HTTPS", "ORIG_", "PATH_", "PHP_",
+    "QUERY_", "REDIRECT_", "REMOTE_", "REQUEST_", "SCRIPT_", "SERVER_", "SSL_", "TLS_", "UNIQUE_ID", NULL
 };
 
 static bool isMetaVarName(cchar *name)
@@ -2578,7 +2725,7 @@ PUBLIC ssize appendWinArg(char *dp, ssize destMax, cchar *arg)
         if ((len = slen(arg)) > end - dp) {
             return -1;
         }
-        memcpy(dp, arg, len);
+        memcpy(dp, arg, (size_t) len);
         return len;
     }
     if (end - dp < 1) {
@@ -2746,7 +2893,7 @@ static char **buildCgiArgs(cchar *cgiPath, cchar *query, char **backing, int *st
     *backing = 0;
     *status = HTTP_CODE_INTERNAL_SERVER_ERROR;
     argpsize = 10;
-    if ((argp = walloc(argpsize * sizeof(char*))) == 0) {
+    if ((argp = walloc(argpsize * (ssize) sizeof(char*))) == 0) {
         *status = HTTP_CODE_NOT_FOUND;
         return 0;
     }
@@ -2790,7 +2937,7 @@ static char **buildCgiArgs(cchar *cgiPath, cchar *query, char **backing, int *st
                     wfree(copy);
                     return 0;
                 }
-                argp = wrealloc(argp, argpsize * sizeof(char*));
+                argp = wrealloc(argp, argpsize * (ssize) sizeof(char*));
             }
             cp = stok(NULL, "+", &tok);
         }
@@ -2812,7 +2959,7 @@ static char **buildCgiEnv(Webs *wp)
     int     n, envpsize;
 
     envpsize = 64;
-    envp = walloc(envpsize * sizeof(char*));
+    envp = walloc(envpsize * (ssize) sizeof(char*));
     n = 0;
     if (wp->vars >= 0) {
         for (s = hashFirst(wp->vars); s != NULL; s = hashNext(wp->vars, s)) {
@@ -2827,10 +2974,6 @@ static char **buildCgiEnv(Webs *wp)
                     continue;
                 }
                 if (inBlackList(name)) {
-                    continue;
-                }
-                if (envNameStarts(name, "LD_") || envNameStarts(name, "LDR_") || envNameStarts(name, "_RLD") ||
-                    envNameStarts(name, "DYLD_")) {
                     continue;
                 }
                 /*
@@ -2851,7 +2994,7 @@ static char **buildCgiEnv(Webs *wp)
                 trace(5, "Env[%d] %s (value omitted)", n, s->name.value.string);
                 if (n >= envpsize) {
                     envpsize *= 2;
-                    envp = wrealloc(envp, envpsize * sizeof(char*));
+                    envp = wrealloc(envp, envpsize * (ssize) sizeof(char*));
                 }
             }
         }
@@ -2865,18 +3008,19 @@ PUBLIC bool cgiHandler(Webs *wp)
 {
     Cgi   *cgip;
     char  cgiPrefix[ME_GOAHEAD_LIMIT_FILENAME], *stdIn, *stdOut, cwd[ME_GOAHEAD_LIMIT_FILENAME];
-    char  *cp, *cgiName, *cgiPath, **argp, **envp, *query, *dir, *extraPath, *exe;
+    char  *cp, *cgiName, *cgiPath, **argp, **envp, *query, *dir, *documents, *exe;
     ssize len, stdinLen;
+    bool  missing;
     int   status, cid;
 
     assert(websValid(wp));
 
+    missing = 0;
     websSetEnv(wp);
 
     /* Stage buffered input when rerouting after the body has already been read. */
     if (wp->cgiStdin == NULL && bufLen(&wp->input) > 0) {
-        if ((wp->cgiStdin = websGetCgiCommName()) == 0 ||
-            (wp->cgifd = open(wp->cgiStdin, O_WRONLY | O_BINARY | O_TRUNC | O_NOFOLLOW, 0600)) < 0) {
+        if ((wp->cgiStdin = websTempFileOpen(NULL, "cgi", &wp->cgifd)) == 0) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create CGI file");
             return 1;
         }
@@ -2923,20 +3067,27 @@ PUBLIC bool cgiHandler(Webs *wp)
      */
     dir = wp->route->dir ? websAbsolutePath(wp->route->dir) : sclone(cwd);
 
-    extraPath = 0;
     if ((cp = strchr(cgiName, '/')) != NULL) {
-        extraPath = sclone(cp);
+        //  PATH_INFO is a URI path, so it is translated under the documents directory
+        documents = websAbsolutePath(websGetDocuments());
+        websSetVar(wp, "PATH_INFO", cp);
+        websSetVarFmt(wp, "PATH_TRANSLATED", "%s%s", documents, cp);
+        wfree(documents);
         *cp = '\0';
-        websSetVar(wp, "PATH_INFO", extraPath);
-        websSetVarFmt(wp, "PATH_TRANSLATED", "%s%s%s", dir, cgiPrefix, extraPath);
-        wfree(extraPath);
     } else {
         websSetVar(wp, "PATH_INFO", "");
         websSetVar(wp, "PATH_TRANSLATED", "");
     }
     cgiPath = sfmt("%s%s/%s", dir, cgiPrefix, cgiName);
     websSetVarFmt(wp, "SCRIPT_NAME", "%s/%s", cgiPrefix, cgiName);
-    websSetVar(wp, "SCRIPT_FILENAME", cgiPath);
+
+    //  Reject device names before program lookup can open them.
+    if (websIsReservedDevice(cgiName)) {
+        trace(2, "Refusing %s: reserved device name", cgiPath);
+        websError(wp, HTTP_CODE_NOT_FOUND, "CGI program file does not exist");
+        wfree(cgiPath);
+        goto done;
+    }
 
 /*
     See if the file exists and is executable.  If not error out.  Don't do this step for VxWorks, since the module
@@ -2984,6 +3135,7 @@ PUBLIC bool cgiHandler(Webs *wp)
         }
     }
 #endif /* ! VXWORKS */
+    websSetVar(wp, "SCRIPT_FILENAME", cgiPath);
     if (!cgiExtensionAllowed(wp->route, cgiPath)) {
         trace(5, "CGI program %s does not have an extension the route permits", cgiPath);
         websError(wp, HTTP_CODE_NOT_FOUND, "CGI program file does not exist");
@@ -3022,16 +3174,27 @@ PUBLIC bool cgiHandler(Webs *wp)
     cgip->txBytes = 0;
     cgip->txExcess = 0;
     cgip->txSuppress = 0;
+#if WINDOWS
+    cgip->job = NULL;
+#endif
 #if VXWORKS
     cgip->fdin = cgip->fdout = -1;
+    cgip->missing = 0;
 #endif
     if (!stdIn || !stdOut || (cgip->handle = launchCgi(cgip, dir)) == (CgiPid) - 1) {
+#if VXWORKS
+        missing = cgip->missing;
+#endif
         /*
             Release the registry slot before error handling can tear down the request. cgiCleanup removes staging files.
          */
         cgip->handle = 0;
         cgiCleanup(cgip, cid);
-        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
+        if (missing) {
+            websError(wp, HTTP_CODE_NOT_FOUND, "CGI program file does not exist");
+        } else {
+            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
+        }
     }
 done:
     wfree(dir);
@@ -3073,6 +3236,12 @@ static void cgiCleanup(Cgi *cgip, int cid)
     wfreeset(cgip->query);
     wfreeset(cgip->argp);
     wfreeset(cgip->envp);
+#if WINDOWS
+    if (cgip->job) {
+        CloseHandle(cgip->job);
+        cgip->job = NULL;
+    }
+#endif
     wfree(cgip);
 }
 
@@ -3244,10 +3413,11 @@ static char *getCgiLine(char **next, int *malformed)
 
 
 /*
-    Parse CGI headers. Return bytes consumed, zero if incomplete, or -1 to defer.
+    Parse CGI headers from the nbytes read into buf. Return bytes consumed, zero if incomplete, or -1 to defer.
     Deferral leaves state unchanged; staged counts unread output bytes on disk.
+    A NUL byte inside the header block is a malformed response.
  */
-static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
+static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize nbytes, ssize staged)
 {
     CgiHeader *headers;
     Webs      *wp;
@@ -3264,25 +3434,32 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
     contentType = 0;
     location = 0;
 
-    /* The first blank line ends the headers, including an empty header block. */
+    /* The first blank line ends the headers, including an empty header block. Scan by length, so a NUL cannot hide it. */
     for (cp = buf; ; cp = end + 1) {
         if (cp[0] == '\n' || (cp[0] == '\r' && cp[1] == '\n')) {
             end = cp;
             len = (cp[0] == '\n') ? 1 : 2;
             break;
         }
-        if ((end = strchr(cp, '\n')) == NULL) {
+        if ((end = memchr(cp, '\n', (size_t) (nbytes - (cp - buf)))) == NULL) {
             return 0;
         }
     }
     /*
-        Test for a header block before terminating it. Returning zero after writing the NUL would hand
-        the caller a buffer with the first byte of the separator destroyed, and the caller emits that
-        buffer verbatim as the response body.
+        Detect headers before modifying the separator; headerless output is returned verbatim as the body.
+        An nph status line alone also forms a header block.
      */
-    if (memchr(buf, ':', end - buf) == NULL) {
+    if (memchr(buf, ':', (size_t) (end - buf)) == NULL && strncmp(buf, "HTTP/1.", 7) != 0) {
         /* No headers found */
         return 0;
+    }
+    /*
+        The tokenizer below works on strings, so a NUL would truncate the block and drop the headers after it,
+        the Status among them. Answer on the gateway's behalf instead.
+     */
+    if (memchr(buf, '\0', (size_t) (end - buf)) != NULL) {
+        trace(5, "cgi: NUL byte in response header block");
+        malformed = 1;
     }
     *end = '\0';
     end += len;
@@ -3304,7 +3481,7 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
     for (line = cp; (line = strchr(line, '\n')) != 0; line++) {
         nlines++;
     }
-    headers = walloc(nlines * sizeof(CgiHeader));
+    headers = walloc(nlines * (ssize) sizeof(CgiHeader));
     count = 0;
     while (count < nlines && (line = getCgiLine(&cp, &malformed)) != NULL) {
         /*
@@ -3328,7 +3505,11 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
     for (i = 0; i < count; i++) {
         if (strcmp(headers[i].key, "location") == 0) {
             location = headers[i].value;
-            if (!websValidHeaderValue(location)) {
+            /*
+                RFC 3875 6.2 requires a URI. An empty value is a malformed response, not a redirect to the
+                request's own URL.
+             */
+            if (*location == '\0' || !websValidHeaderValue(location)) {
                 trace(5, "cgi: bad Location");
                 malformed = 1;
             }
@@ -3340,7 +3521,8 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
             statusSeen = 1;
         } else if (strcmp(headers[i].key, "content-type") == 0) {
             contentType = headers[i].value;
-            if (!websValidHeaderValue(contentType)) {
+
+            if (*contentType == '\0' || !websValidHeaderValue(contentType)) {
                 trace(5, "cgi: bad Content-Type");
                 malformed = 1;
             }
@@ -3389,15 +3571,16 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
         Decide whether this response may carry a body at all, before any of it is written. Body bytes
         after a bodyless status are unframed data the client reads as the next response. txSuppress
         marks honest suppression, distinct from a CGI over-writing its declared length, so the caller
-        neither reports it nor closes. A HEAD keeps the length an equivalent GET would return; every
-        other case declares zero, never unknown, as unknown selects chunked framing whose trailer is
-        itself a body byte.
+        neither reports it nor closes. A HEAD keeps the framing an equivalent GET would use, a declared
+        length or chunked, and websWriteEndHeaders writes no chunk trailer for a HEAD; every other
+        case declares zero, never unknown, as unknown selects chunked framing whose trailer is itself
+        a body byte.
      */
     bodyLimit = contentLength;
     if (websStatusHasNoBody(status) || smatch(wp->method, "HEAD") || malformed) {
         cgip->txSuppress = 1;
         bodyLimit = 0;
-        if (!smatch(wp->method, "HEAD") || contentLength < 0) {
+        if (!smatch(wp->method, "HEAD")) {
             contentLength = 0;
         }
     }
@@ -3444,12 +3627,77 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
 }
 
 
+/*
+    Hand CGI output to the response buffers without blocking the event loop. Return the number of bytes accepted;
+    the caller leaves the rest staged for a later poll. A closed connection accepts everything, so the staged
+    output drains and the request completes.
+ */
+static ssize relayCgiOutput(Webs *wp, cchar *buf, ssize len)
+{
+    WebsBuf *op;
+    ssize   accepted, room, thisWrite;
+
+    accepted = 0;
+    while (len > 0) {
+        if (wp->state >= WEBS_COMPLETE) {
+            return accepted + len;
+        }
+        op = (wp->flags & WEBS_CHUNKING) ? &wp->chunkbuf : &wp->output;
+        if ((room = bufRoom(op)) <= 0) {
+            websFlush(wp, 0);
+            if (wp->state >= WEBS_COMPLETE) {
+                return accepted + len;
+            }
+            if ((room = bufRoom(op)) <= 0) {
+                break;
+            }
+        }
+        thisWrite = min(room, len);
+        if (websWriteBlock(wp, buf, thisWrite) != thisWrite) {
+            return accepted + len;
+        }
+        buf += thisWrite;
+        len -= thisWrite;
+        accepted += thisWrite;
+    }
+    return accepted;
+}
+
+
+/*
+    Can the response buffers take more output, or is the client not reading? Flush first so a draining socket
+    makes room, and treat a closed connection as room so the staged output is consumed.
+ */
+static int relayHasRoom(Webs *wp)
+{
+    WebsBuf *op;
+
+    websFlush(wp, 0);
+    if (wp->state >= WEBS_COMPLETE) {
+        return 1;
+    }
+    op = (wp->flags & WEBS_CHUNKING) ? &wp->chunkbuf : &wp->output;
+    return bufRoom(op) > 0;
+}
+
+
+/*
+    Has every staged byte of CGI output been handed to the response?
+ */
+static int cgiOutputDrained(Cgi *cgip)
+{
+    WebsStat sbuf;
+
+    return stat(cgip->stdOut, &sbuf) != 0 || sbuf.st_size <= cgip->fplacemark;
+}
+
+
 PUBLIC void websCgiGatherOutput(Cgi *cgip)
 {
     Webs     *wp;
     WebsStat sbuf;
     char     *buf;
-    ssize    bufSize, nbytes, skip, nbody, room, excess;
+    ssize    bufSize, nbytes, skip, nbody, room, surplus, accepted;
     int      fdout;
 
     /*
@@ -3457,13 +3705,16 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
         If the CGI process writes partial headers, this repeatedly reads the data until complete
         headers are written or more than ME_GOAHEAD_LIMIT_HEADERS of data is received.
      */
+    wp = cgip->wp;
+    if ((wp->flags & WEBS_HEADERS_CREATED) && !relayHasRoom(wp)) {
+        return;
+    }
     if ((stat(cgip->stdOut, &sbuf) == 0) && (sbuf.st_size > cgip->fplacemark)) {
         if ((fdout = open(cgip->stdOut, O_RDONLY | O_BINARY | O_NOFOLLOW, 0444)) >= 0) {
             /*
                 Check to see if any data is available in the output file and send its contents to the socket.
                 Write the HTTP header on our first pass. The header must fit into ME_GOAHEAD_LIMIT_BUFFER.
              */
-            wp = cgip->wp;
             bufSize = ME_GOAHEAD_LIMIT_HEADERS + 2;
             buf = walloc(bufSize);
             lseek(fdout, cgip->fplacemark, SEEK_SET);
@@ -3471,7 +3722,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                 buf[nbytes] = 0;
                 skip = 0;
                 if (!(wp->flags & WEBS_HEADERS_CREATED)) {
-                    skip = parseCgiHeaders(cgip, buf, (ssize) (sbuf.st_size - cgip->fplacemark));
+                    skip = parseCgiHeaders(cgip, buf, nbytes, (ssize) (sbuf.st_size - cgip->fplacemark));
                     if (skip < 0) {
                         /*
                             Retry the same staged bytes once CGI length is known.
@@ -3499,6 +3750,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                     }
                 }
                 nbody = nbytes - skip;
+                surplus = 0;
                 /*
                     Surplus over the declared Content-Length is read by the client as the start of the
                     next response on a keep-alive connection. Drop it rather than emit it and take the
@@ -3518,16 +3770,28 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                      */
                     room = cgip->txLen - cgip->txBytes;
                     if (nbody > room) {
-                        excess = nbody - room;
-                        cgip->txExcess = (cgip->txExcess > MAXSSIZE - excess) ? MAXSSIZE : cgip->txExcess + excess;
+                        surplus = nbody - room;
                         nbody = room;
-                        wp->flags &= ~WEBS_KEEP_ALIVE;
                     }
-                    cgip->txBytes += nbody;
                 }
-                if (nbody > 0) {
-                    trace(5, "cgi: write %zd bytes to client", nbody);
-                    websWriteBlock(wp, &buf[skip], nbody);
+                /*
+                    Relay what the response buffers accept without blocking. The rest stays staged, with its
+                    place marked, for the next poll; the event loop never waits on a client that is not reading.
+                 */
+                accepted = relayCgiOutput(wp, &buf[skip], nbody);
+                if (cgip->txLen >= 0) {
+                    cgip->txBytes += accepted;
+                }
+                if (accepted > 0) {
+                    trace(5, "cgi: write %zd bytes to client", accepted);
+                }
+                if (accepted < nbody) {
+                    cgip->fplacemark += (off_t) (skip + accepted);
+                    break;
+                }
+                if (surplus > 0) {
+                    cgip->txExcess = (cgip->txExcess > MAXSSIZE - surplus) ? MAXSSIZE : cgip->txExcess + surplus;
+                    wp->flags &= ~WEBS_KEEP_ALIVE;
                 }
                 cgip->fplacemark += (off_t) nbytes;
             }
@@ -3561,7 +3825,11 @@ int websCgiPoll(void)
                 cgip->handle = 0;
                 websCgiGatherOutput(cgip);
             }
-            if (cgip->handle == 0) {
+            /*
+                Output a slow client has not yet accepted stays staged after the program exits. Complete the
+                request once it has all been relayed, or when the request timeout frees the connection.
+             */
+            if (cgip->handle == 0 && cgiOutputDrained(cgip)) {
 #if WINDOWS
                 /*
                     Windows can have delayed notification through the file system after process exit. Look again
@@ -3627,91 +3895,6 @@ PUBLIC char *websGetCgiCommName(void)
 }
 
 
-#if WINCE
-/*
-     Launch the CGI process and return a handle to it.  CE note: This function is not complete.  The missing piece is
-     the ability to redirect stdout.
- */
-static CgiPid launchCgi(Cgi *cgip, char *dir)
-{
-    PROCESS_INFORMATION procinfo;       /*  Information about created proc   */
-    DWORD               dwCreateFlags;
-    char                *fulldir;
-    BOOL                bReturn;
-    char                *cgiPath;
-    int                 i, nLen;
-
-    /*
-        Replace directory delimiters with Windows-friendly delimiters
-     */
-    cgiPath = cgip->cgiPath;
-    nLen = strlen(cgiPath);
-    for (i = 0; i < nLen; i++) {
-        if (cgiPath[i] == '/') {
-            cgiPath[i] = '\\';
-        }
-    }
-    fulldir = NULL;
-    dwCreateFlags = CREATE_NEW_CONSOLE;
-
-    /*
-         CreateProcess returns errors sometimes, even when the process was started correctly.  The cause is not evident.
-         For now: we detect an error by checking the value of procinfo.hProcess after the call.
-     */
-    procinfo.hThread = NULL;
-    bReturn = CreateProcess(
-        cgiPath,            /*  Name of executable module        */
-        NULL,               /*  Command line string              */
-        NULL,               /*  Process security attributes      */
-        NULL,               /*  Thread security attributes       */
-        0,                  /*  Handle inheritance flag          */
-        dwCreateFlags,      /*  Creation flags                   */
-        NULL,               /*  New environment block            */
-        dir,                /*  Current directory name           */
-        NULL,               /*  STARTUPINFO                      */
-        &procinfo);         /*  PROCESS_INFORMATION              */
-    if (bReturn == 0) {
-        return -1;
-    } else {
-        CloseHandle(procinfo.hThread);
-    }
-    return (int) procinfo.dwProcessId;
-}
-
-
-/*
-    Check the CGI process.  Return 0 if it does not exist; non 0 if it does.
- */
-static int checkCgi(Cgi *cgip)
-{
-    int   nReturn;
-    DWORD exitCode;
-
-    nReturn = GetExitCodeProcess((HANDLE) cgip->handle, &exitCode);
-    /*
-        We must close process handle to free up the window resource, but only when we're done with it.
-     */
-    if ((nReturn == 0) || (exitCode != STILL_ACTIVE)) {
-        CloseHandle((HANDLE) cgip->handle);
-        return 0;
-    }
-    return 1;
-}
-
-
-/*
-    Terminate an orphaned CGI process and release its handle.
- */
-static void killCgi(Cgi *cgip)
-{
-    if (cgip->handle) {
-        TerminateProcess((HANDLE) cgip->handle, 0);
-        CloseHandle((HANDLE) cgip->handle);
-    }
-}
-#endif /* WINCE */
-
-
 #if ME_UNIX_LIKE || QNX
 /* Use descriptor writes in the child to avoid flushing inherited parent stdio buffers. */
 static void childError(cchar *msg)
@@ -3719,7 +3902,7 @@ static void childError(cchar *msg)
     ssize len, written;
 
     for (len = slen(msg); len > 0; len -= written, msg += written) {
-        if ((written = write(1, msg, len)) <= 0) {
+        if ((written = write(1, msg, (size_t) len)) <= 0) {
             break;
         }
     }
@@ -4065,7 +4248,8 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
         entryAddr = findVxEntry(pEntry);
     }
     if (entryAddr == 0) {
-        error("Cannot find the CGI entry point %s", pEntry);
+        trace(2, "Cannot find the CGI entry point");
+        cgip->missing = 1;
 
     } else if ((cgip->fdout = open(cgip->stdOut, O_RDWR | O_NOFOLLOW, 0600)) < 0 ||
                (cgip->fdin = open(cgip->stdIn, O_RDONLY | O_NOFOLLOW, 0600)) < 0) {
@@ -4131,7 +4315,6 @@ static bool isCgiTask(Cgi *cgip)
     return cgip->handle && cgip->vxName && taskIdVerify(cgip->handle) == OK &&
            (name = taskName(cgip->handle)) != NULL && smatch(name, cgip->vxName);
 }
-
 
 
 static int checkCgi(Cgi *cgip)
@@ -4383,9 +4566,10 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
     newinfo.lpAttributeList = attrs;
 
     /*
-        Redirected stdio needs no console; per-request consoles consume desktop heap.
+        Redirected stdio needs no console; per-request consoles consume desktop heap. Start suspended so the
+        process joins its job before it can start anything.
      */
-    dwCreateFlags = CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT;
+    dwCreateFlags = CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED;
     pEnvData = tableToBlock(cgip->envp);
 
     /*
@@ -4410,7 +4594,20 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
         &procinfo);         /*  PROCESS_INFORMATION                     */
 
     if (bReturn != 0) {
-        handle = procinfo.hProcess;
+        /*
+            A job collects the CGI and its descendants, so killCgi can end all of them. Nested jobs need
+            Windows 8; on an older host that already runs the server in a job the assignment fails and the
+            request fails rather than run a CGI the server cannot stop.
+         */
+        if ((cgip->job = CreateJobObject(NULL, NULL)) == NULL ||
+            !AssignProcessToJobObject(cgip->job, procinfo.hProcess)) {
+            error("Cannot place the CGI program in a job");
+            TerminateProcess(procinfo.hProcess, 1);
+            closeWinHandle(procinfo.hProcess);
+        } else {
+            ResumeThread(procinfo.hThread);
+            handle = procinfo.hProcess;
+        }
     }
 
 done:
@@ -4453,12 +4650,18 @@ static int checkCgi(Cgi *cgip)
 
 
 /*
-    Terminate an orphaned CGI process and release its handle.
+    Terminate an orphaned CGI and everything it started, then wait for the CGI to exit so the staging
+    files it holds open can be removed. TerminateProcess and TerminateJobObject only start the termination.
  */
 static void killCgi(Cgi *cgip)
 {
     if (cgip->handle != NULL && cgip->handle != INVALID_HANDLE_VALUE) {
-        TerminateProcess((HANDLE) cgip->handle, 0);
+        if (cgip->job == NULL || !TerminateJobObject(cgip->job, 0)) {
+            TerminateProcess((HANDLE) cgip->handle, 0);
+        }
+        if (WaitForSingleObject((HANDLE) cgip->handle, CGI_KILL_WAIT) != WAIT_OBJECT_0) {
+            error("CGI program did not exit after termination");
+        }
         closeWinHandle((HANDLE) cgip->handle);
     }
 }
@@ -4488,6 +4691,7 @@ static void killCgi(Cgi *cgip)
 
 #define BLOWFISH_SALT_LENGTH 16
 #define BLOWFISH_ROUNDS      128
+#define BLOWFISH_ENCRYPTIONS 64
 
 /*
     Constants for transform routine
@@ -4659,7 +4863,7 @@ PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
     ssize size;
     int   c, i, j, shift;
 
-    size = strlen(s);
+    size = (ssize) strlen(s);
     if ((buffer = walloc(size + 1)) == 0) {
         return NULL;
     }
@@ -4675,7 +4879,7 @@ PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
                 wfree(buffer);
                 return NULL;
             }
-            bitBuf = bitBuf | (c << shift);
+            bitBuf = bitBuf | ((uint) c << shift);
             shift -= 6;
         }
         --i;
@@ -4694,7 +4898,7 @@ PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
 
 PUBLIC char *websMD5(cchar *s)
 {
-    return websMD5Block(s, strlen(s), NULL);
+    return websMD5Block(s, (ssize) strlen(s), NULL);
 }
 
 
@@ -4712,7 +4916,7 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
     int        i;
 
     if (length < 0) {
-        length = strlen(buf);
+        length = (ssize) strlen(buf);
     }
     initMD5(&context);
     update(&context, (uchar*) buf, (uint) length);
@@ -4723,8 +4927,8 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
         *r++ = hexDigits[hash[i] & 0xF];
     }
     *r = '\0';
-    len = (prefix) ? strlen(prefix) : 0;
-    str = walloc(sizeof(result) + len);
+    len = (prefix) ? (ssize) strlen(prefix) : 0;
+    str = walloc((ssize) sizeof(result) + len);
     if (str) {
         if (prefix) {
             strcpy(str, prefix);
@@ -4960,7 +5164,7 @@ PUBLIC char *websEncode64Block(char *s, ssize len)
     while (s < end) {
         shiftbuf = 0;
         for (j = 2; j >= 0 && s < end; j--, s++) {
-            shiftbuf |= ((*s & 0xff) << (j * 8));
+            shiftbuf |= ((uint) (*s & 0xff) << (j * 8));
         }
         shift = 18;
         for (i = ++j; i < 4 && bp < &buffer[size] ; i++) {
@@ -5478,16 +5682,14 @@ static void bencrypt(WebsBlowfish *bp, uint *xl, uint *xr)
 }
 
 
-static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
+/*
+    Re-derive every P and S entry from the key. Each call costs a full Blowfish key schedule.
+ */
+static void bexpand(WebsBlowfish *bp, uchar *key, ssize keylen)
 {
     uint data, datal, datar;
     int  i, j, k;
 
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 256; j++) {
-            bp->S[i][j] = ORIG_S[i][j];
-        }
-    }
     for (j = i = 0; i < BF_ROUNDS + 2; ++i) {
         for (data = 0, k = 0; k < 4; ++k) {
             data = (data << 8) | key[j];
@@ -5496,7 +5698,7 @@ static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
                 j = 0;
             }
         }
-        bp->P[i] = ORIG_P[i] ^ data;
+        bp->P[i] ^= data;
     }
     datal = datar = 0;
 
@@ -5512,6 +5714,22 @@ static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
             bp->S[i][j + 1] = datar;
         }
     }
+}
+
+
+static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
+{
+    int i, j;
+
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 256; j++) {
+            bp->S[i][j] = ORIG_S[i][j];
+        }
+    }
+    for (i = 0; i < BF_ROUNDS + 2; i++) {
+        bp->P[i] = ORIG_P[i];
+    }
+    bexpand(bp, key, keylen);
 }
 
 
@@ -5535,9 +5753,9 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
     }
     sofar = 0;
     do {
-        rc = read(fd, &buf[sofar], length);
-        if (rc < 0) {
-            assert(0);
+        rc = read(fd, &buf[sofar], (size_t) length);
+        if (rc <= 0) {
+            //  EOF cannot supply randomness; retrying it would loop forever.
             close(fd);
             return -1;
         }
@@ -5572,10 +5790,10 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
 
 
 /*
-    Run the Blowfish schedule over "salt:key" and return the encoded cipher text. The caller decides
-    what "key" is: BF1 passes the password through unchanged, BF2 passes its SHA-1 digest.
+    Expand "salt:key", encrypt the ciphertext and return the encoded result. BF1 uses the original key;
+    BF2 uses its SHA-1 digest.
  */
-static char *cryptBlock(cchar *key, cchar *salt, int rounds)
+static char *cryptBlock(cchar *key, cchar *salt, int expansions, int encryptions)
 {
     WebsBlowfish *bf;
     char         *result, *composite;
@@ -5586,11 +5804,14 @@ static char *cryptBlock(cchar *key, cchar *salt, int rounds)
     composite = sfmt("%s:%s", salt, key);
     bf = walloc(sizeof(WebsBlowfish));
     binit(bf, (uchar*) composite, slen(composite));
+    for (i = 1; i < expansions; i++) {
+        bexpand(bf, (uchar*) composite, slen(composite));
+    }
     len = sizeof(cipherText);
     text = wdup(cipherText, len);
 
-    for (i = 0; i < rounds; i++) {
-        limit = len / sizeof(uint);
+    for (i = 0; i < encryptions; i++) {
+        limit = len / (ssize) sizeof(uint);
         for (j = 0; j < limit; j += 2) {
             bencrypt(bf, &text[j], &text[j + 1]);
         }
@@ -5598,7 +5819,7 @@ static char *cryptBlock(cchar *key, cchar *salt, int rounds)
     result = websEncode64Block((char*) text, len);
     memset(bf, 0, sizeof(WebsBlowfish));
     wfree(bf);
-    memset(text, 0, len);
+    memset(text, 0, (size_t) len);
     wfree(text);
     wfree(composite);
     return result;
@@ -5619,13 +5840,12 @@ PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
     if (slen(password) > WEBS_MAX_PASSWORD_BUFFER) {
         return 0;
     }
-    return cryptBlock(password, salt, rounds);
+    return cryptBlock(password, salt, 1, rounds);
 }
 
 
 /*
-    BF2. The SHA-1 digest is a fixed SHA_SIZE * 2 characters, so with the default salt the key is 57
-    bytes and the schedule window cannot be reached however long the caller's input is.
+    BF2 uses a fixed-width digest to stay within the key window. Each round runs a full key schedule.
  */
 static char *cryptPassword2(cchar *password, cchar *salt, int rounds)
 {
@@ -5637,7 +5857,7 @@ static char *cryptPassword2(cchar *password, cchar *salt, int rounds)
     if ((digest = shaHex(password, slen(password))) == 0) {
         return 0;
     }
-    result = cryptBlock(digest, salt, rounds);
+    result = cryptBlock(digest, salt, rounds, BLOWFISH_ENCRYPTIONS);
     wfree(digest);
     return result;
 }
@@ -5649,7 +5869,7 @@ PUBLIC char *websMakeSalt(ssize size)
     char  *rp, *result, *random;
     ssize clen, i;
 
-    size = (size + sizeof(int) - 1) & ~(sizeof(int) - 1);
+    size = (size + (ssize) sizeof(int) - 1) & ~((ssize) sizeof(int) - 1);
     random = walloc(size + 1);
     result = walloc(size + 1);
     if (websGetRandomBytes(random, size, 0) < 0) {
@@ -5731,24 +5951,24 @@ PUBLIC bool websCheckPassword(cchar *plainTextPassword, cchar *passwordHash)
         wfree(ph);
         return 0;
     }
+    if (*rounds == '\0' || (ssize) strspn(rounds, "0123456789") != slen(rounds) || atoi(rounds) < 1) {
+        wfree(ph);
+        return 0;
+    }
     /*
-        Verify in the format the stored hash was written in. A BF1 hash must keep verifying the BF1
-        way or every credential already deployed stops working - it cannot be upgraded in place,
-        because the stored value never depended on the password it is supposed to check.
+        Verify using the stored hash format; BF1 credentials require BF1 derivation.
      */
     if (smatch(algorithm, WEBS_CRYPT_BLOWFISH2)) {
         given = cryptPassword2(plainTextPassword, salt, atoi(rounds));
 
     } else if (smatch(algorithm, WEBS_CRYPT_BLOWFISH)) {
         /*
-            BF1, fail closed at or past the key window. A key that reaches the window was truncated
-            when the hash was stored, so the stored value no longer depends on the password and every
-            password matches. The test is >= because a candidate filling the window exactly matches a
-            longer stored key truncated to the same bytes. A residual below the window is not closed
-            here: this routine sees one composite string and cannot tell a long realm from a long
-            password, so websAddUser reports that band instead.
+            BF1 key material at or beyond the window loses password dependence; reject it, including exact fits.
+            Run the cipher even on refusal to preserve decoy timing. Below the window, only websAddUser can
+            distinguish realm length from password length and report a low password contribution.
          */
         if ((slen(salt) + 1 + slen(plainTextPassword)) >= WEBS_BLOWFISH_KEY_WINDOW) {
+            wfree(cryptBlock(plainTextPassword, salt, 1, atoi(rounds)));
             wfree(ph);
             return 0;
         }
@@ -5877,6 +6097,7 @@ static int commitPut(Webs *wp);
 static int copyFile(cchar *from, cchar *to);
 #endif
 #endif
+static void abortTransfer(Webs *wp);
 static void fileWriteEvent(Webs *wp);
 static bool isTemplate(cchar *ext);
 static char *makeEtag(WebsFileInfo *info);
@@ -5903,7 +6124,15 @@ static bool fileHandler(Webs *wp)
     assert(wp->method);
     assert(wp->filename && wp->filename[0]);
 
-#if !ME_ROM
+#if ME_ROM
+    /*
+        A document in ROM cannot be modified. Refuse rather than answer as a GET would.
+     */
+    if (smatch(wp->method, "DELETE") || smatch(wp->method, "PUT")) {
+        websError(wp, HTTP_CODE_BAD_METHOD, "Cannot modify a document in ROM");
+        return 1;
+    }
+#else
     if (smatch(wp->method, "DELETE")) {
         if (!websPageAllowed(wp) || unlink(wp->filename) < 0) {
             websError(wp, HTTP_CODE_NOT_FOUND, "Cannot delete the URI");
@@ -6011,7 +6240,7 @@ static bool fileHandler(Webs *wp)
  */
 static bool isTemplate(cchar *ext)
 {
-    return smatch(ext, ".jst") || smatch(ext, ".asp");
+    return websIsTemplate(ext);
 }
 
 
@@ -6104,20 +6333,19 @@ static void fileWriteEvent(Webs *wp)
              */
             error("Cannot read %s after the response was committed, closing the connection", wp->filename);
             wfree(buf);
-            wp->flags &= ~WEBS_KEEP_ALIVE;
-            wp->state = WEBS_COMPLETE;
-            websDone(wp);
+            abortTransfer(wp);
             return;
         }
         if ((wrote = websWriteSocket(wp, buf, len)) < 0) {
             err = socketGetError(wp->sid);
             if (err == EWOULDBLOCK || err == EAGAIN) {
                 websPageSeek(wp, -len, SEEK_CUR);
-            } else {
-                /* Will call websDone below */
-                wp->state = WEBS_COMPLETE;
+                break;
             }
-            break;
+            trace(2, "Cannot write %s to the socket, errno %d, closing the connection", wp->filename, err);
+            wfree(buf);
+            abortTransfer(wp);
+            return;
         }
         wp->txRemaining -= wrote;
         slice -= wrote;
@@ -6133,21 +6361,38 @@ static void fileWriteEvent(Webs *wp)
 }
 
 
+/*
+    Close truncated transfers without keep-alive reuse and conclude the request for logging.
+ */
+static void abortTransfer(Webs *wp)
+{
+    wp->flags &= ~WEBS_KEEP_ALIVE;
+    wp->state = WEBS_COMPLETE;
+    websDone(wp);
+}
+
+
 #if !ME_ROM
 #if !ME_WIN_LIKE
 /*
-    Copy privately across filesystems and remove partial copies.
+    Copy to a private file beside the target, then rename it into place so copy failures preserve the target.
  */
 static int copyFile(cchar *from, cchar *to)
 {
-    char  buf[ME_GOAHEAD_LIMIT_BUFFER];
+    char  buf[ME_GOAHEAD_LIMIT_BUFFER], *dir, *cp, *tmp;
     ssize nbytes;
     int   in, out, rc;
 
     if ((in = open(from, O_RDONLY | O_BINARY)) < 0) {
         return -1;
     }
-    if ((out = open(to, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
+    dir = sclone(to);
+    if ((cp = strrchr(dir, '/')) != 0) {
+        *cp = '\0';
+    }
+    tmp = websTempFileOpen(*dir && cp ? dir : (cp ? "/" : "."), "put", &out);
+    wfree(dir);
+    if (tmp == 0) {
         close(in);
         return -1;
     }
@@ -6165,9 +6410,13 @@ static int copyFile(cchar *from, cchar *to)
     if (close(out) < 0) {
         rc = -1;
     }
-    if (rc < 0) {
-        unlink(to);
+    if (rc == 0 && rename(tmp, to) < 0) {
+        rc = -1;
     }
+    if (rc < 0) {
+        unlink(tmp);
+    }
+    wfree(tmp);
     return rc;
 }
 #endif
@@ -6241,7 +6490,7 @@ static void fileClose(void)
 PUBLIC void websFileOpen(void)
 {
     websIndex = sclone("index.html");
-    websDefineHandler("file", 0, fileHandler, fileClose, 0);
+    websDefineHandler("file", 0, fileHandler, fileClose, WEBS_DOCUMENT_HANDLER);
 }
 
 
@@ -6334,7 +6583,7 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path);
 static RomFile *getRomFile(int fd);
 #endif
 
-#if !ME_ROM && ME_WIN_LIKE
+#if ME_WIN_LIKE
 /* Refuse Windows device names before opening: opening a console or serial device can block the event loop. */
 static cchar *reservedDevices[] = {
     "con", "prn", "aux", "nul", "conin$", "conout$",
@@ -6354,7 +6603,7 @@ static cchar *reservedDevices[] = {
  */
 PUBLIC bool websIsReservedDevice(cchar *path)
 {
-#if !ME_ROM && ME_WIN_LIKE
+#if ME_WIN_LIKE
     cchar *start, *cp;
     char  stem[ME_GOAHEAD_LIMIT_FILENAME];
     ssize len;
@@ -6631,6 +6880,22 @@ PUBLIC char *websReadWholeFile(cchar *path)
 }
 
 
+PUBLIC void websCheckSecretFile(cchar *path, cchar *holds)
+{
+#if ME_UNIX_LIKE && !ME_ROM
+    struct stat sbuf;
+
+    if (path && stat(path, &sbuf) == 0 && (sbuf.st_mode & (S_IRWXG | S_IRWXO))) {
+        error("Security warning: \"%s\" holds %s and is readable or writable by other accounts (mode %04o). "
+              "Set its mode to 0600.", path, holds, (uint) (sbuf.st_mode & 07777));
+    }
+#else
+    (void) path;
+    (void) holds;
+#endif
+}
+
+
 Offset websSeekFile(int fd, Offset offset, int origin)
 {
 #if ME_ROM
@@ -6755,6 +7020,7 @@ static WebsRomIndex *lookup(WebsHash fs, cchar *path)
 #define WEBS_TIMEOUT           (ME_GOAHEAD_LIMIT_TIMEOUT * 1000)
 #define PARSE_TIMEOUT          (ME_GOAHEAD_LIMIT_PARSE_TIMEOUT * 1000)
 #define REQUEST_TIMEOUT        (ME_GOAHEAD_LIMIT_REQUEST_TIMEOUT * 1000)
+#define RESPONSE_TIMEOUT       ((int64) ME_GOAHEAD_LIMIT_RESPONSE_TIMEOUT * 1000)
 #define FLUSH_SLICE            1000                /* Max msec to block in one send before retesting the deadline */
 #define CHUNK_LOW              128                 /* Low water mark for chunking */
 #define MAX_CHUNK_HEADER       80                  /* Max bytes in a "\r\nSIZE[;ext]\r\n" chunk header */
@@ -6797,7 +7063,17 @@ static char     *websHostUrl = NULL;               /* URL to access server */
 static char     *trustedProxies = NULL;
 static char     *websIpAddrUrl = NULL;             /* URL to access server */
 static ssize    postLimit = ME_GOAHEAD_LIMIT_POST; /* Runtime-settable POST body cap */
+static ssize    uploadLimit = ME_GOAHEAD_LIMIT_UPLOAD_BODY; /* Runtime-settable multipart upload body cap */
+/*
+    Reserve descriptors for listeners, logs and accept recovery. Each connection also needs a document or
+    staging descriptor, or two CGI channels.
+ */
 #define FILE_RESERVE 64
+#if ME_GOAHEAD_CGI
+    #define FILES_PER_CONNECTION 3
+#else
+    #define FILES_PER_CONNECTION 2
+#endif
 static int      connLimit = ME_GOAHEAD_LIMIT_CONNECTIONS; /* Runtime-settable concurrent connection cap */
 static int      connCount;                         /* Live accepted connections */
 static int      connLimitPerIp = ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP; /* Runtime-settable per-peer cap */
@@ -6807,15 +7083,16 @@ static WebsHash connIps = -1;                      /* Live connection count keye
 #define WEBS_ENCODE_URI  0x4                       /* Encode URI characters */
 
 /*
-    Character escape/descape matching codes. Generated by mprEncodeGenerate in appweb.
+    Character escape/descape matching codes. Generated by mprEncodeGenerate in appweb, then '#', '?', '[' and ']'
+    given WEBS_ENCODE_URI: they end or delimit a path, so a path segment must carry them encoded (RFC 3986 3.3).
  */
 static uchar charMatch[256] = {
     0x00, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x7e, 0x3c, 0x3c, 0x7c, 0x3c, 0x3c,
     0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x7c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c,
-    0x3c, 0x00, 0x7f, 0x28, 0x2a, 0x3c, 0x2b, 0x43, 0x02, 0x02, 0x02, 0x28, 0x28, 0x00, 0x00, 0x28,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x2a, 0x3f, 0x28, 0x3f, 0x2a,
+    0x3c, 0x00, 0x7f, 0x2c, 0x2a, 0x3c, 0x2b, 0x43, 0x02, 0x02, 0x02, 0x28, 0x28, 0x00, 0x00, 0x28,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x2a, 0x3f, 0x28, 0x3f, 0x2e,
     0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3a, 0x7e, 0x3a, 0x3e, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x7e, 0x3e, 0x3e, 0x00,
     0x3e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x3e, 0x3e, 0x02, 0x3c,
     0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c,
@@ -6949,11 +7226,19 @@ static WebsError websErrors[] = {
     { 406, "Not Acceptable" },
     { 408, "Request Timeout" },
     { 409, "Conflict" },
+    { 410, "Gone" },
+    { 411, "Length Required" },
+    { 412, "Precondition Failed" },
     { 413, "Request too large" },
+    { 414, "URI Too Long" },
+    { 415, "Unsupported Media Type" },
+    { 416, "Range Not Satisfiable" },
+    { 417, "Expectation Failed" },
     { 500, "Internal Server Error" },
     { 501, "Not Implemented" },
     { 503, "Service Unavailable" },
     { 505, "HTTP Version Not Supported" },
+    { 507, "Insufficient Storage" },
     { 0, NULL }
 };
 
@@ -6968,15 +7253,24 @@ static int64    sessionUse;
 static int      pruneId = -1;                       /* Callback ID */
 static bool     routesAudited;
 #if ME_UNIX_LIKE && defined(SIGPIPE)
-static bool pipeIgnored;                            /* websOpen ignored SIGPIPE, so websClose restores it */
+/*
+    Preserve signal dispositions so websClose can restore defaults changed by websOpen.
+ */
+static int  writeSignals[] = {
+    SIGPIPE,
+#if defined(SIGXFSZ)
+    SIGXFSZ,
+#endif
+};
+static bool writeSignalIgnored[sizeof(writeSignals) / sizeof(int)];
 #endif
 
 /**************************** Forward Declarations ****************************/
 
 static void     abandonAccept(Webs *wp);
 #if ME_UNIX_LIKE && defined(SIGPIPE)
-static void     ignorePipeSignal(void);
-static void     restorePipeSignal(void);
+static void     ignoreWriteSignals(void);
+static void     restoreWriteSignals(void);
 #endif
 static void     addResponseHeaders(cchar *list);
 static void     adjustIpCount(cchar *ip, int delta);
@@ -7000,6 +7294,7 @@ static cchar *traceValue(cchar *key, cchar *value);
 static void     setForwardedScheme(Webs *wp);
 static bool     processContent(Webs *wp);
 static bool     putStaged(Webs *wp);
+static ssize    bodyLimit(Webs *wp);
 static bool     parseIncoming(Webs *wp);
 static void     pruneExpired(void);
 static void     pruneSessions(void *data, int id);
@@ -7034,7 +7329,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
 
     websOsOpen();
 #if ME_UNIX_LIKE && defined(SIGPIPE)
-    ignorePipeSignal();
+    ignoreWriteSignals();
 #endif
     websRuntimeOpen();
     websTimeOpen();
@@ -7070,10 +7365,9 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     if (sslOpen() < 0) {
         return -1;
     }
-    if (ME_GOAHEAD_SSL_VERIFY_PEER && !ME_GOAHEAD_SSL_VERIFY_ISSUER &&
-        (*ME_GOAHEAD_SSL_AUTHORITY || *ME_GOAHEAD_SSL_REVOKE)) {
+    if (ME_GOAHEAD_SSL_VERIFY_PEER && !ME_GOAHEAD_SSL_VERIFY_ISSUER && *ME_GOAHEAD_SSL_AUTHORITY) {
         error("Warning: ME_GOAHEAD_SSL_VERIFY_ISSUER is off, so any client certificate is accepted and the "
-              "authority and revocation list are not enforced");
+              "authority is not enforced");
     }
 #endif
     if ((sessions = hashCreate(-1)) < 0) {
@@ -7189,32 +7483,41 @@ PUBLIC void websClose(void)
     websTimeClose();
     websRuntimeClose();
 #if ME_UNIX_LIKE && defined(SIGPIPE)
-    restorePipeSignal();
+    restoreWriteSignals();
 #endif
     websOsClose();
 }
 
 
 #if ME_UNIX_LIKE && defined(SIGPIPE)
-/* Ignore default SIGPIPE to cover TLS writes as well as socketWrite. Preserve application-installed handlers. */
-static void ignorePipeSignal(void)
+/*
+    Ignore default write-failure signals; preserve application-installed handlers.
+ */
+static void ignoreWriteSignals(void)
 {
     struct sigaction act, old;
+    int              i;
 
-    if (sigaction(SIGPIPE, NULL, &old) == 0 && !(old.sa_flags & SA_SIGINFO) && old.sa_handler == SIG_DFL) {
-        memset(&act, 0, sizeof(act));
-        act.sa_handler = SIG_IGN;
-        sigemptyset(&act.sa_mask);
-        pipeIgnored = sigaction(SIGPIPE, &act, NULL) == 0;
+    for (i = 0; i < (int) (sizeof(writeSignals) / sizeof(int)); i++) {
+        if (sigaction(writeSignals[i], NULL, &old) == 0 && !(old.sa_flags & SA_SIGINFO) && old.sa_handler == SIG_DFL) {
+            memset(&act, 0, sizeof(act));
+            act.sa_handler = SIG_IGN;
+            sigemptyset(&act.sa_mask);
+            writeSignalIgnored[i] = sigaction(writeSignals[i], &act, NULL) == 0;
+        }
     }
 }
 
 
-static void restorePipeSignal(void)
+static void restoreWriteSignals(void)
 {
-    if (pipeIgnored) {
-        signal(SIGPIPE, SIG_DFL);
-        pipeIgnored = 0;
+    int i;
+
+    for (i = 0; i < (int) (sizeof(writeSignals) / sizeof(int)); i++) {
+        if (writeSignalIgnored[i]) {
+            signal(writeSignals[i], SIG_DFL);
+            writeSignalIgnored[i] = 0;
+        }
     }
 }
 #endif
@@ -7283,8 +7586,8 @@ static void initWebs(Webs *wp, int flags, int reuse)
         Ring queues can never be totally full and are short one byte. Better to do even I/O and allocate
         a little more memory than required. The chunkbuf has extra room to fit chunk headers and trailers.
      */
-    assert(ME_GOAHEAD_LIMIT_BUFFER >= 1024);
-    bufCreate(&wp->output, ME_GOAHEAD_LIMIT_BUFFER + 1, ME_GOAHEAD_LIMIT_BUFFER + 1);
+    bufCreate(&wp->output, ME_GOAHEAD_LIMIT_BUFFER + 1, max(ME_GOAHEAD_LIMIT_BUFFER + 1,
+                                                           ME_GOAHEAD_LIMIT_RESPONSE_BUFFER));
     bufCreate(&wp->chunkbuf, ME_GOAHEAD_LIMIT_BUFFER + 1, ME_GOAHEAD_LIMIT_BUFFER * 2);
     bufCreate(&wp->input, ME_GOAHEAD_LIMIT_BUFFER + 1, ME_GOAHEAD_LIMIT_PUT + 1);
     if (reuse) {
@@ -7444,6 +7747,12 @@ static void reuseConn(Webs *wp)
         Preserve only connection-level WEBS_SECURE; recompute HTTP version and persistence per request.
      */
     initWebs(wp, wp->flags & WEBS_SECURE, 1);
+    /*
+        Restore request deadlines if the previous handler cancelled the connection timeout.
+     */
+    if (wp->timeout < 0) {
+        wp->timeout = websStartEvent(PARSE_TIMEOUT, checkTimeout, (void*) wp);
+    }
 }
 
 
@@ -7538,6 +7847,19 @@ static void writeJstHeaders(Webs *wp)
 
 
 /*
+    Remove staged uploads before the response can reach the peer, including synchronous error flushes.
+ */
+static void releaseUploads(Webs *wp)
+{
+#if ME_GOAHEAD_UPLOAD
+    if ((wp->flags & WEBS_UPLOAD) && wp->files >= 0) {
+        websFreeUpload(wp);
+    }
+#endif
+}
+
+
+/*
     Called when the request is complete. Note: it may not have fully drained from the tx buffer.
  */
 PUBLIC void websDone(Webs *wp)
@@ -7554,7 +7876,7 @@ PUBLIC void websDone(Webs *wp)
     writeJstHeaders(wp);
     wp->flags |= WEBS_FINALIZED;
     wp->finalized = 1;
-
+    releaseUploads(wp);
     /*
         Once running, it is the handlers responsibility to conclude the request.
      */
@@ -7809,7 +8131,9 @@ static void abandonAccept(Webs *wp)
  */
 static void socketEvent(int sid, int mask, void *wptr)
 {
-    Webs *wp;
+    Webs       *wp;
+    WebsSocket *sp;
+    bool       handshaking;
 
     wp = (Webs*) wptr;
     assert(wp);
@@ -7818,10 +8142,12 @@ static void socketEvent(int sid, int mask, void *wptr)
     if (!websValid(wp)) {
         return;
     }
-    if (mask & SOCKET_READABLE) {
+    //  Until the TLS handshake completes, a writable socket means the handshake can send its pending output
+    handshaking = (sp = socketPtr(sid)) != NULL && (sp->flags & SOCKET_HANDSHAKING) != 0;
+    if ((mask & SOCKET_READABLE) || (handshaking && (mask & SOCKET_WRITABLE))) {
         readEvent(wp);
     }
-    if (mask & SOCKET_WRITABLE) {
+    if ((mask & SOCKET_WRITABLE) && !handshaking) {
         writeEvent(wp);
     }
     if (wp->flags & WEBS_CLOSED) {
@@ -7858,6 +8184,8 @@ static void readEvent(Webs *wp)
     WebsBuf    *rxbuf;
     WebsSocket *sp;
     ssize      nbytes;
+    int        mask;
+    bool       handshaking;
 
     assert(wp);
     assert(websValid(wp));
@@ -7866,6 +8194,7 @@ static void readEvent(Webs *wp)
         return;
     }
     rxbuf = &wp->rxbuf;
+    handshaking = (sp = socketPtr(wp->sid)) != NULL && (sp->flags & SOCKET_HANDSHAKING) != 0;
 
     if (bufRoom(rxbuf) < (ME_GOAHEAD_LIMIT_BUFFER + 1)) {
         if (!bufGrow(rxbuf, ME_GOAHEAD_LIMIT_BUFFER + 1)) {
@@ -7911,11 +8240,23 @@ static void readEvent(Webs *wp)
         pipelined input without bound, renew the idle timeout, or cancel pending output on EOF.
         Already-decrypted TLS input may deliver one more callback per record.
      */
-    if (wp->state < WEBS_READY) {
-        socketCreateHandler(wp->sid, sp->handlerMask | SOCKET_READABLE, socketEvent, wp);
-    } else {
-        socketCreateHandler(wp->sid, sp->handlerMask & ~SOCKET_READABLE, socketEvent, wp);
+    mask = (wp->state < WEBS_READY) ? sp->handlerMask | SOCKET_READABLE : sp->handlerMask & ~SOCKET_READABLE;
+    if (handshaking) {
+        /*
+            Keep write interest for pending handshake output. If this read completes the handshake, preserve
+            write interest registered by the response handler or needed to drain buffered output.
+         */
+        if (sp->flags & SOCKET_HANDSHAKING) {
+            if (sp->flags & SOCKET_BUFFERED_WRITE) {
+                mask |= SOCKET_WRITABLE;
+            } else {
+                mask &= ~SOCKET_WRITABLE;
+            }
+        } else if (!wp->writeData && bufLen(&wp->output) == 0) {
+            mask &= ~SOCKET_WRITABLE;
+        }
     }
+    socketCreateHandler(wp->sid, mask, socketEvent, wp);
 }
 
 
@@ -8071,21 +8412,21 @@ static bool parseIncoming(Webs *wp)
             return 1;
         }
     }
+    /*
+        A multipart body holds at least one delimiter (RFC 2046 5.1.1). With no body the upload filter never runs,
+        so the handler would see an upload request with no files hash.
+     */
+    if ((wp->flags & WEBS_UPLOAD) && wp->state == WEBS_READY) {
+        websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing multipart body");
+        return 1;
+    }
 #endif
 #if ME_GOAHEAD_CGI
     //  A CGI program reads the request body on stdin, whatever the method
     if (cgi) {
         if (smatch(wp->method, "POST") || wp->state == WEBS_CONTENT) {
-            if ((wp->cgiStdin = websGetCgiCommName()) == 0) {
+            if ((wp->cgiStdin = websTempFileOpen(NULL, "cgi", &wp->cgifd)) == 0) {
                 websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR | WEBS_CLOSE, "Cannot create CGI file");
-                return 1;
-            }
-            /*
-                websGetCgiCommName created the file, so this opens an existing private file rather
-                than creating one. O_NOFOLLOW keeps that true if the path is replaced in between.
-             */
-            if ((wp->cgifd = open(wp->cgiStdin, O_WRONLY | O_BINARY | O_TRUNC | O_NOFOLLOW, 0600)) < 0) {
-                websError(wp, HTTP_CODE_NOT_FOUND | WEBS_CLOSE, "Cannot open CGI file");
                 return 1;
             }
         }
@@ -8101,27 +8442,13 @@ static bool parseIncoming(Webs *wp)
             return 1;
         }
         wfreeset(wp->putname);
-        if ((wp->putname = websTempFile(ME_GOAHEAD_PUT_DIR, "put")) == 0) {
+        if ((wp->putname = websTempFileOpen(ME_GOAHEAD_PUT_DIR, "put", &wp->putfd)) == 0) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
-            return 1;
-        }
-        /*
-            The staging file exists and is private. Open it rather than create it, so a path swapped
-            underneath us fails here instead of writing the request body somewhere else.
-         */
-        if ((wp->putfd = open(wp->putname, O_BINARY | O_WRONLY | O_NOFOLLOW, 0600)) < 0) {
-            error("Cannot create PUT filename %s", wp->putname);
-            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create the put URI");
-            unlink(wp->putname);
-            wfreeset(wp->putname);
             return 1;
         }
     }
 #endif
-    /*
-        Apply the POST memory limit to bodies not staged as files, regardless of method.
-     */
-    if (!putStaged(wp) && wp->rxLen > postLimit) {
+    if (wp->rxLen > bodyLimit(wp)) {
         websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Too big");
         return 1;
     }
@@ -8143,8 +8470,22 @@ static char *getPathExtension(char *path)
 
 
 /*
-    Match comma-separated tokens case-insensitively, trimming optional whitespace.
+    Use file-backed PUT/upload limits where applicable; cap every other body by the POST memory limit.
  */
+static ssize bodyLimit(Webs *wp)
+{
+    if (putStaged(wp)) {
+        return ME_GOAHEAD_LIMIT_PUT;
+    }
+#if ME_GOAHEAD_UPLOAD
+    if (wp->flags & WEBS_UPLOAD) {
+        return uploadLimit;
+    }
+#endif
+    return postLimit;
+}
+
+
 /*
     True when the request body is being staged to a PUT file rather than held in memory. ROM builds have no PUT.
  */
@@ -8158,6 +8499,9 @@ static bool putStaged(Webs *wp)
 }
 
 
+/*
+    Match comma-separated tokens case-insensitively, trimming optional whitespace.
+ */
 static bool hasToken(cchar *list, cchar *token)
 {
     cchar *cp, *start, *end;
@@ -8195,7 +8539,7 @@ static void stripHopHeaders(Webs *wp, cchar *list)
 {
     cchar *protected[] = { "HTTP_CONNECTION", "HTTP_HOST", "HTTP_CONTENT_LENGTH", "HTTP_TRANSFER_ENCODING",
                            "HTTP_AUTHORIZATION", "HTTP_COOKIE", "HTTP_ORIGIN", "HTTP_SEC_FETCH_SITE",
-                           "HTTP_CLOSE", "HTTP_KEEP_ALIVE", NULL };
+                           "HTTP_CLOSE", "HTTP_KEEP_ALIVE", "HTTP_X_FORWARDED_PROTO", NULL };
     char  *copy, *option, *key, *tok;
     int   i;
 
@@ -8486,7 +8830,7 @@ static void parseFirstLine(Webs *wp)
             websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Bad HTTP request target");
             return;
         }
-        authority = snclone(&url[schemeLen], strcspn(&url[schemeLen], "/?#"));
+        authority = snclone(&url[schemeLen], (ssize) strcspn(&url[schemeLen], "/?#"));
         if (!validHost(authority)) {
             websError(wp, HTTP_CODE_BAD_REQUEST | WEBS_CLOSE, "Bad HTTP request target");
             wfree(authority);
@@ -8533,7 +8877,7 @@ static void parseFirstLine(Webs *wp)
     }
     wp->url = sclone(url);
     if ((ext = getPathExtension(wp->path)) != NULL) {
-        wp->ext = sclone(slower(ext));
+        wp->ext = slower(sclone(ext));
     }
     wp->filename = sfmt("%s%s", websGetDocuments(), wp->path);
     wp->query = sclone(query);
@@ -8570,8 +8914,11 @@ static void parseFirstLine(Webs *wp)
     wp->protoVersion = sclone(protoVer);
     if ((listenPort = socketGetPort(wp->listenSid)) >= 0) {
         wp->port = listenPort;
-    } else {
+    } else if (port) {
         wp->port = atoi(port);
+    } else {
+        //  The listener is gone and an origin-form target names no port, so imply the scheme's default
+        wp->port = (wp->flags & WEBS_SECURE) ? 443 : 80;
     }
     if (!websKnownMethod(wp->method)) {
         websError(wp, HTTP_CODE_NOT_IMPLEMENTED | WEBS_CLOSE, "Unsupported method");
@@ -8648,7 +8995,6 @@ static cchar *traceValue(cchar *key, cchar *value)
     }
     return value;
 }
-
 
 
 static char *traceTarget(cchar *url)
@@ -8748,7 +9094,8 @@ static void parseHeaders(Webs *wp)
             /*
                 Check before multiplying to prevent length truncation and request-framing ambiguity.
              */
-            rxLimit = smatch(wp->method, "PUT") ? ME_GOAHEAD_LIMIT_PUT : postLimit;
+            //  The route is not yet known, so admit the larger of the limits; routing applies the request's own
+            rxLimit = smatch(wp->method, "PUT") ? ME_GOAHEAD_LIMIT_PUT : max(postLimit, uploadLimit);
             if ((length = parseLimitedNumber(value, value + slen(value), 10, rxLimit, &next)) < 0) {
                 websError(wp, HTTP_CODE_REQUEST_TOO_LARGE | WEBS_CLOSE, "Too big");
                 return;
@@ -9026,7 +9373,7 @@ static bool filterChunkData(Webs *wp)
             /*
                 Require hexadecimal chunk sizes followed by an optional semicolon extension (RFC 9112 7.1).
              */
-            limit = putStaged(wp) ? ME_GOAHEAD_LIMIT_PUT : postLimit;
+            limit = bodyLimit(wp);
             chunkSize = parseLimitedNumber(&start[2], cp, 16, limit, &sp);
             digits = (int) (sp - &start[2]);
             /* Reject bare CR outside the grammatical chunk-size line ending. */
@@ -9163,21 +9510,73 @@ PUBLIC WebsKey *websSetRequestVar(Webs *wp, cchar *name, cchar *value, int origi
 
 
 /*
-    Parse in place. Size repeated-name values first, then join with spaces in linear time.
+    Size each repeated name's joined value first, then build it once, so the join is linear in the total size.
+ */
+PUBLIC void websSetRequestVarPairs(Webs *wp, cchar **pairs, int count, int origin)
+{
+    struct {
+        char  *joined, *end;
+        ssize len;
+        int   first;
+    } *joins, *jp, *fp;
+    WebsKey  *sp;
+    WebsHash names;
+    cchar    *name, *value;
+    ssize    len;
+    int      i;
+
+    assert(wp);
+    assert(pairs || count == 0);
+
+    joins = walloc((count + 1) * (ssize) sizeof(*joins));
+    names = hashCreate(max(count, WEBS_SMALL_HASH));
+    for (i = 0; i < count; i++) {
+        name = pairs[i * 2];
+        value = pairs[i * 2 + 1];
+        jp = &joins[i];
+        if ((sp = hashLookup(names, name)) != 0) {
+            jp->first = (int) sp->content.value.integer;
+            joins[jp->first].len += slen(value) + 1;
+        } else {
+            jp->first = i;
+            jp->len = slen(value);
+            hashEnter(names, name, valueInteger(i), 0);
+        }
+    }
+    for (i = 0; i < count; i++) {
+        value = pairs[i * 2 + 1];
+        jp = &joins[i];
+        fp = &joins[jp->first];
+        if (fp == jp) {
+            fp->joined = fp->end = walloc(fp->len + 1);
+        } else {
+            *fp->end++ = ' ';
+        }
+        len = slen(value);
+        memcpy(fp->end, value, (size_t) len);
+        fp->end += len;
+    }
+    for (i = 0; i < count; i++) {
+        jp = &joins[i];
+        if (jp->first == i) {
+            *jp->end = '\0';
+            websSetRequestVar(wp, pairs[i * 2], jp->joined, origin);
+            wfreeset(jp->joined);
+        }
+    }
+    hashFree(names);
+    wfree(joins);
+}
+
+
+/*
+    Parse in place, then store the pairs with repeated names joined.
  */
 static int addFormVars(Webs *wp, char *vars, int origin)
 {
-    struct {
-        char *name, *value;
-        char *joined, *end;
-        ssize len;
-        int first;
-    } *pairs, *pp, *fp;
-    WebsKey  *sp;
-    WebsHash names;
-    char     *cp, *keyword, *value, *tok;
-    ssize    len;
-    int      count, n, i;
+    cchar **pairs;
+    char  *cp, *keyword, *value, *tok;
+    int   count, n;
 
     assert(wp);
     assert(vars);
@@ -9190,8 +9589,7 @@ static int addFormVars(Webs *wp, char *vars, int origin)
             return -1;
         }
     }
-    pairs = walloc(count * sizeof(*pairs));
-    names = hashCreate(max(count, WEBS_SMALL_HASH));
+    pairs = walloc(count * 2 * (ssize) sizeof(*pairs));
     n = 0;
     keyword = stok(vars, "&", &tok);
     while (keyword != NULL && n < count) {
@@ -9204,42 +9602,13 @@ static int addFormVars(Webs *wp, char *vars, int origin)
         //  A key is decoded whether or not it has a value, so "?caf%C3%A9" and "?caf%C3%A9=" name one variable
         websDecodeUrl(keyword, keyword, -1);
         if (*keyword) {
-            pp = &pairs[n];
-            pp->name = keyword;
-            pp->value = value;
-            if ((sp = hashLookup(names, keyword)) != 0) {
-                pp->first = (int) sp->content.value.integer;
-                pairs[pp->first].len += slen(value) + 1;
-            } else {
-                pp->first = n;
-                pp->len = slen(value);
-                hashEnter(names, keyword, valueInteger(n), 0);
-            }
+            pairs[n * 2] = keyword;
+            pairs[n * 2 + 1] = value;
             n++;
         }
         keyword = stok(NULL, "&", &tok);
     }
-    for (i = 0; i < n; i++) {
-        pp = &pairs[i];
-        fp = &pairs[pp->first];
-        if (fp == pp) {
-            fp->joined = fp->end = walloc(fp->len + 1);
-        } else {
-            *fp->end++ = ' ';
-        }
-        len = slen(pp->value);
-        memcpy(fp->end, pp->value, len);
-        fp->end += len;
-    }
-    for (i = 0; i < n; i++) {
-        pp = &pairs[i];
-        if (pp->first == i) {
-            *pp->end = '\0';
-            websSetRequestVar(wp, pp->name, pp->joined, origin);
-            wfreeset(pp->joined);
-        }
-    }
-    hashFree(names);
+    websSetRequestVarPairs(wp, pairs, n, origin);
     wfree(pairs);
     return 0;
 }
@@ -9450,6 +9819,28 @@ PUBLIC void websResponse(Webs *wp, int code, cchar *message)
         trace(4, "Ignoring response %d for a request that is already complete", code & WEBS_CODE_MASK);
         return;
     }
+    /*
+        Remove uploads before the synchronous flush; websDone runs after it.
+     */
+    releaseUploads(wp);
+    if (wp->flags & WEBS_HEADERS_CREATED) {
+        if (wp->written == 0) {
+            bufFlush(&wp->output);
+            bufFlush(&wp->chunkbuf);
+            wp->txChunkState = WEBS_CHUNK_START;
+            wp->flags &= ~(WEBS_HEADERS_CREATED | WEBS_CHUNKING | WEBS_TYPE_WRITTEN);
+        } else {
+            /*
+                Committed headers cannot be replaced. Close without a final chunk so the client detects truncation.
+             */
+            trace(2, "Cannot send response %d after the headers were written, closing the connection",
+                  code & WEBS_CODE_MASK);
+            wp->flags &= ~(WEBS_KEEP_ALIVE | WEBS_CHUNKING);
+            wp->state = WEBS_COMPLETE;
+            websDone(wp);
+            return;
+        }
+    }
     websSetStatus(wp, code);
 
     /*
@@ -9474,12 +9865,16 @@ PUBLIC void websResponse(Webs *wp, int code, cchar *message)
 }
 
 
+/*
+    Port zero selects the scheme's first listener. A negative port implies the scheme's default port, for a
+    client whose path to this server does not end at a listener of ours.
+ */
 static char *makeUri(cchar *scheme, cchar *host, int port, cchar *path)
 {
     bool secure;
 
     secure = smatch(scheme, "https");
-    if (port <= 0) {
+    if (port == 0) {
         port = secure ? defaultSslPort : defaultHttpPort;
     }
     /*
@@ -9527,7 +9922,7 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
     if (smatch(uri, "http://") || smatch(uri, "https://")) {
         /* Protocol switch with existing Uri */
         scheme = sncmp(uri, "https", 5) == 0 ? "https" : "http";
-        uri = location = makeUri(scheme, host, 0, websOriginForm(wp->url));
+        uri = location = makeUri(scheme, host, (wp->flags & WEBS_PROXIED) ? -1 : 0, websOriginForm(wp->url));
     }
     /*
         Recognize schemes only at the start of the target.
@@ -9542,8 +9937,18 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
     }
     scheme = secure ? "https" : "http";
     if (port <= 0) {
-        //  Behind a proxy the server's own listen ports are not the client's, so imply the scheme's default
-        port = (wp->flags & WEBS_PROXIED) ? 0 : secure ? defaultSslPort : defaultHttpPort;
+        /*
+            Behind a proxy the server's own listen ports are not the client's, so imply the scheme's default. A
+            same-scheme redirect keeps the port the request arrived on. A scheme switch can only name the first
+            listener of the new scheme.
+         */
+        if (wp->flags & WEBS_PROXIED) {
+            port = -1;
+        } else if (wp->port > 0 && secure == ((wp->flags & WEBS_HTTPS) != 0)) {
+            port = wp->port;
+        } else {
+            port = secure ? defaultSslPort : defaultHttpPort;
+        }
     }
     if (sstarts(uri, "https:///")) {
         /* Short-hand for redirect to https */
@@ -9592,7 +9997,8 @@ PUBLIC int websRedirectByStatus(Webs *wp, int status)
     /*
         Use the redirect for the status, else the wildcard (redirect=*@uri), which is stored as status 0. A status
         with neither is answered as it would be on a route without redirects, so the request always gets a
-        response. Status 0 itself is the redirect handler's lookup, which reports no match to its caller.
+        response. Status 0 itself is the redirect handler's lookup, which reports no match to its caller and is
+        never answered, whether or not the route has redirects.
      */
     if (wp->route && wp->route->redirects >= 0) {
         itosbuf(code, sizeof(code), status, 10);
@@ -9604,9 +10010,9 @@ PUBLIC int websRedirectByStatus(Webs *wp, int status)
             websRedirect(wp, uri);
             return 0;
         }
-        if (status == 0) {
-            return -1;
-        }
+    }
+    if (status == 0) {
+        return -1;
     }
     if (status == HTTP_CODE_UNAUTHORIZED) {
         websError(wp, status, "Access Denied. User not logged in.");
@@ -9782,7 +10188,7 @@ PUBLIC char *websEscapeControl(cchar *str, cchar *keep, cchar *escape)
     }
     result = walloc(slen(str) * 4 + 1);
     for (op = result, ip = (cuchar*) str; *ip; ip++) {
-        if (((*ip < 0x20 || *ip == 0x7f) && !(keep && strchr(keep, *ip))) || (escape && strchr(escape, *ip))) {
+        if (((*ip < 0x20 || *ip >= 0x7f) && !(keep && strchr(keep, *ip))) || (escape && strchr(escape, *ip))) {
             *op++ = '\\';
             *op++ = 'x';
             *op++ = hexTable[*ip >> 4];
@@ -10098,13 +10504,14 @@ PUBLIC void websWriteEndHeaders(Webs *wp)
 
     assert(wp);
     /*
-        Supply Content-Type only if the handler has not. Default unknown types to application/octet-stream to
-        prevent HTML sniffing.
+        Infer types from paths only for document handlers; clients choose other handlers' trailing paths.
+        Default untyped computed responses to application/octet-stream to prevent HTML sniffing.
      */
     if (!(wp->flags & WEBS_TYPE_WRITTEN)) {
         if (wp->error) {
             websWriteHeader(wp, "Content-Type", "text/html");
-        } else if ((key = hashLookup(websMime, wp->ext)) != 0) {
+        } else if (wp->route && wp->route->handler && (wp->route->handler->flags & WEBS_DOCUMENT_HANDLER) &&
+                   (key = hashLookup(websMime, wp->ext)) != 0) {
             websWriteHeader(wp, "Content-Type", "%s", key->content.value.string);
         } else if (wp->txLen != 0 && !websStatusHasNoBody(wp->code)) {
             websWriteHeader(wp, "Content-Type", "application/octet-stream");
@@ -10155,7 +10562,7 @@ PUBLIC ssize websWrite(Webs *wp, cchar *fmt, ...)
     va_end(vargs);
     assert(buf);
     if (buf) {
-        rc = websWriteBlock(wp, buf, strlen(buf));
+        rc = websWriteBlock(wp, buf, (ssize) strlen(buf));
         wfree(buf);
     }
     return rc;
@@ -10219,7 +10626,7 @@ static bool flushChunkData(Webs *wp)
         case WEBS_CHUNK_START:
             /* Select the chunk size so that both the prefix and data will fit */
             wp->txChunkLen = min(bufLen(&wp->chunkbuf), room - 16);
-            fmt(wp->txChunkPrefix, sizeof(wp->txChunkPrefix), "\r\n%zx\r\n", wp->txChunkLen);
+            fmt(wp->txChunkPrefix, sizeof(wp->txChunkPrefix), "\r\n%zx\r\n", (size_t) wp->txChunkLen);
             wp->txChunkPrefixLen = slen(wp->txChunkPrefix);
             wp->txChunkPrefixNext = wp->txChunkPrefix;
             wp->txChunkState = WEBS_CHUNK_HEADER;
@@ -10410,14 +10817,44 @@ PUBLIC void websSetBackgroundWriter(Webs *wp, WebsWriteProc proc)
 
 
 /*
+    Make room in the full buffer "op" without blocking: write what the socket accepts, then grow the output buffer
+    up to ME_GOAHEAD_LIMIT_RESPONSE_BUFFER. Chunked data is moved into the grown output buffer.
+    Returns 1 if there is room, 0 if the limit is reached, or -1 for errors.
+ */
+static int makeRoom(Webs *wp, WebsBuf *op)
+{
+    WebsBuf *output;
+    ssize   grow;
+
+    if (websFlush(wp, 0) < 0) {
+        return -1;
+    }
+    if (bufRoom(op) > 0) {
+        return 1;
+    }
+    output = &wp->output;
+    grow = min(output->buflen, output->maxsize - output->buflen);
+    if (grow <= 0 || !bufGrow(output, grow)) {
+        return 0;
+    }
+    if (op != output && websFlush(wp, 0) < 0) {
+        return -1;
+    }
+    return bufRoom(op) > 0;
+}
+
+
+/*
     Write a block of data of length to the user's browser. Output is buffered and flushed via websFlush.
     This routine will never return "short". i.e. it will return the requested size to write or -1.
-    Buffer data. Will flush as required. May return -1 on write errors.
+    Output the client is not yet accepting is buffered up to ME_GOAHEAD_LIMIT_RESPONSE_BUFFER and drained by
+    writable events. Past that, the write blocks, bounded by the flush deadline. May return -1 on write errors.
  */
 PUBLIC ssize websWriteBlock(Webs *wp, cchar *buf, ssize size)
 {
     WebsBuf *op;
     ssize   written, thisWrite, len, room;
+    int     rc;
 
     assert(wp);
     assert(websValid(wp));
@@ -10438,11 +10875,11 @@ PUBLIC ssize websWriteBlock(Webs *wp, cchar *buf, ssize size)
     written = len = 0;
 
     while (size > 0 && wp->state < WEBS_COMPLETE) {
-        if (bufRoom(op) < size) {
+        if (bufRoom(op) == 0 && (rc = makeRoom(wp, op)) <= 0) {
             /*
-                This will do a blocking I/O write. Will only ever fail for I/O errors.
+                The response buffer limit is reached: do a blocking I/O write. Will only ever fail for I/O errors.
              */
-            if (websFlush(wp, 1) < 0) {
+            if (rc < 0 || websFlush(wp, 1) < 0) {
                 return -1;
             }
         }
@@ -10606,7 +11043,7 @@ static void checkTimeout(void *arg, int id)
     Webs     *wp;
     int64    elapsed, sinceStart, delay;
     WebsTime now;
-    bool     parsing, receiving, parseExpired, requestExpired, clockFailed;
+    bool     parsing, receiving, responding, parseExpired, requestExpired, responseExpired, clockFailed;
 
     wp = (Webs*) arg;
     assert(websValid(wp));
@@ -10630,15 +11067,20 @@ static void checkTimeout(void *arg, int id)
         return;
     }
     /*
-        Enforce header and whole-request deadlines independently of the renewable idle timeout.
+        Enforce fixed header, body and whole-request deadlines independently of the renewable idle timeout.
      */
     sinceStart = (wp->started && !clockFailed) ? (int64) (now - wp->started) * 1000 : 0;
     parsing = wp->started != 0 && wp->state == WEBS_BEGIN;
     receiving = wp->started != 0 && wp->state < WEBS_READY && REQUEST_TIMEOUT > 0;
+    responding = wp->started != 0 && RESPONSE_TIMEOUT > 0;
     parseExpired = parsing && sinceStart >= PARSE_TIMEOUT;
     requestExpired = receiving && sinceStart >= REQUEST_TIMEOUT;
+    responseExpired = responding && sinceStart >= RESPONSE_TIMEOUT;
 
-    if (elapsed >= WEBS_TIMEOUT || parseExpired || requestExpired || clockFailed) {
+    if (elapsed >= WEBS_TIMEOUT || parseExpired || requestExpired || responseExpired || clockFailed) {
+        if (responseExpired && elapsed < WEBS_TIMEOUT) {
+            trace(2, "Closing request for %s past the whole-request deadline", wp->path ? wp->path : "-");
+        }
         if (!(wp->flags & WEBS_HEADERS_CREATED)) {
             if (parseExpired && elapsed < WEBS_TIMEOUT) {
                 websError(wp, HTTP_CODE_REQUEST_TIMEOUT, "Request header timeout");
@@ -10650,6 +11092,14 @@ static void checkTimeout(void *arg, int id)
                 /* No request has begun, so a response could be read as the answer to the next one */
                 trace(5, "Idle connection closed");
             }
+        } else if (!wp->finalized) {
+            /*
+                Conclude the committed response so the truncated transfer is logged before closing.
+             */
+            trace(2, "Request timed out with its response in progress, closing the connection");
+            wp->flags &= ~WEBS_KEEP_ALIVE;
+            wp->state = WEBS_COMPLETE;
+            websDone(wp);
         }
         wp->state = WEBS_COMPLETE;
         complete(wp, 0);
@@ -10666,6 +11116,9 @@ static void checkTimeout(void *arg, int id)
     }
     if (receiving && (REQUEST_TIMEOUT - sinceStart) < delay) {
         delay = REQUEST_TIMEOUT - sinceStart;
+    }
+    if (responding && (RESPONSE_TIMEOUT - sinceStart) < delay) {
+        delay = RESPONSE_TIMEOUT - sinceStart;
     }
     if (delay <= 0) {
         delay = 1;
@@ -10801,6 +11254,7 @@ PUBLIC void websSetRequestFilename(Webs *wp, cchar *filename)
 
     wfreeset(wp->filename);
     wp->filename = sclone(filename);
+    wp->flags |= WEBS_FILENAME_SET;
     websSetVar(wp, "PATH_TRANSLATED", wp->filename);
 }
 #endif
@@ -10835,7 +11289,7 @@ PUBLIC int websRewriteRequest(Webs *wp, cchar *url)
     wp->path = validated;
     wfreeset(wp->ext);
     if ((ext = getPathExtension(wp->path)) != NULL) {
-        wp->ext = sclone(slower(ext));
+        wp->ext = slower(sclone(ext));
     }
     wfreeset(wp->filename);
     wp->flags |= WEBS_REROUTE;
@@ -10857,7 +11311,7 @@ static void resetRequestVars(Webs *wp)
     for (sp = hashFirst(wp->vars); sp; sp = hashNext(wp->vars, sp)) {
         count++;
     }
-    names = walloc((count + 1) * sizeof(char*));
+    names = walloc((count + 1) * (ssize) sizeof(char*));
     count = 0;
     for (sp = hashFirst(wp->vars); sp; sp = hashNext(wp->vars, sp)) {
         if (sp->arg == WEBS_VAR_QUERY || (sp->arg == WEBS_VAR_BODY && (wp->flags & WEBS_FORM))) {
@@ -10979,7 +11433,7 @@ PUBLIC bool websValidUriChars(cchar *uri)
     if (uri == 0 || *uri == 0) {
         return 1;
     }
-    pos = strspn(uri, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%");
+    pos = (ssize) strspn(uri, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%");
     if (pos < slen(uri)) {
         trace(2, "Bad character 0x%02x in URI at offset %d", (uchar) uri[pos], (int) pos);
         return 0;
@@ -11005,7 +11459,7 @@ PUBLIC int websUrlParse(cchar *url, char **pbuf, char **pscheme, char **phost, c
     /*
         Allocate twice. Need to null terminate the host so have to copy the path.
      */
-    ulen = strlen(url);
+    ulen = (ssize) strlen(url);
     len = max(ulen + 1, 2);
     buflen = len * 2;
     if ((buf = walloc(buflen)) == NULL) {
@@ -11160,10 +11614,10 @@ PUBLIC char *websNormalizeUriPath(cchar *pathArg)
     if ((dupPath = walloc(len + 2)) == 0) {
         return NULL;
     }
-    strncpy(dupPath, pathArg, len + 1);
+    strncpy(dupPath, pathArg, (size_t) len + 1);
     dupPath[len + 1] = '\0';
 
-    if ((segments = walloc(sizeof(char*) * (len + 1))) == 0) {
+    if ((segments = walloc((ssize) sizeof(char*) * (len + 1))) == 0) {
         wfree(dupPath);
         return NULL;
     }
@@ -11254,6 +11708,75 @@ static const struct {
 };
 
 
+/*
+    Code points that NFC composition replaces: singletons such as U+1F71 (alpha with oxia, NFC U+03AC), U+2126 (Ohm,
+    NFC U+03A9) and the CJK compatibility ideographs, and precomposed letters excluded from composition such as
+    U+0958 (NFC U+0915 U+093C). A normalization-insensitive file system opens one of these as its NFC spelling, so a
+    request holding one would be authorized against one name and opened as another. The combining ranges above do
+    not reach them because they are single code points, not marks.
+
+    Derived from Unicode 16.0, excluding code points the combining ranges already refuse. To regenerate:
+        python3 -c "import unicodedata as u; print([hex(c) for c in range(0x80, 0x110000)
+            if not 0xD800 <= c <= 0xDFFF and u.normalize('NFC', chr(c)) != chr(c)])"
+ */
+static const struct {
+    uint low;
+    uint high;
+} nonCanonicalRanges[] = {
+    { 0x0374, 0x0374 }, { 0x037E, 0x037E }, { 0x0387, 0x0387 }, { 0x0958, 0x095F },
+    { 0x09DC, 0x09DD }, { 0x09DF, 0x09DF }, { 0x0A33, 0x0A33 }, { 0x0A36, 0x0A36 },
+    { 0x0A59, 0x0A5B }, { 0x0A5E, 0x0A5E }, { 0x0B5C, 0x0B5D }, { 0x0F43, 0x0F43 },
+    { 0x0F4D, 0x0F4D }, { 0x0F52, 0x0F52 }, { 0x0F57, 0x0F57 }, { 0x0F5C, 0x0F5C },
+    { 0x0F69, 0x0F69 }, { 0x0F73, 0x0F73 }, { 0x0F75, 0x0F76 }, { 0x0F78, 0x0F78 },
+    { 0x0F81, 0x0F81 }, { 0x0F93, 0x0F93 }, { 0x0F9D, 0x0F9D }, { 0x0FA2, 0x0FA2 },
+    { 0x0FA7, 0x0FA7 }, { 0x0FAC, 0x0FAC }, { 0x0FB9, 0x0FB9 }, { 0x1F71, 0x1F71 },
+    { 0x1F73, 0x1F73 }, { 0x1F75, 0x1F75 }, { 0x1F77, 0x1F77 }, { 0x1F79, 0x1F79 },
+    { 0x1F7B, 0x1F7B }, { 0x1F7D, 0x1F7D }, { 0x1FBB, 0x1FBB }, { 0x1FBE, 0x1FBE },
+    { 0x1FC9, 0x1FC9 }, { 0x1FCB, 0x1FCB }, { 0x1FD3, 0x1FD3 }, { 0x1FDB, 0x1FDB },
+    { 0x1FE3, 0x1FE3 }, { 0x1FEB, 0x1FEB }, { 0x1FEE, 0x1FEF }, { 0x1FF9, 0x1FF9 },
+    { 0x1FFB, 0x1FFB }, { 0x1FFD, 0x1FFD }, { 0x2000, 0x2001 }, { 0x2126, 0x2126 },
+    { 0x212A, 0x212B }, { 0x2329, 0x232A }, { 0x2ADC, 0x2ADC }, { 0xF900, 0xFA0D },
+    { 0xFA10, 0xFA10 }, { 0xFA12, 0xFA12 }, { 0xFA15, 0xFA1E }, { 0xFA20, 0xFA20 },
+    { 0xFA22, 0xFA22 }, { 0xFA25, 0xFA26 }, { 0xFA2A, 0xFA6D }, { 0xFA70, 0xFAD9 },
+    { 0xFB1D, 0xFB1D }, { 0xFB1F, 0xFB1F }, { 0xFB2A, 0xFB36 }, { 0xFB38, 0xFB3C },
+    { 0xFB3E, 0xFB3E }, { 0xFB40, 0xFB41 }, { 0xFB43, 0xFB44 }, { 0xFB46, 0xFB4E },
+    { 0x1D15E, 0x1D164 }, { 0x1D1BB, 0x1D1C0 }, { 0x2F800, 0x2FA1D },
+};
+
+
+/*
+    Composing marks outside the combining ranges above, each with the starter it composes with in NFC: the nukta
+    and two-part vowel signs of the Indic scripts, Tibetan subjoined letters, Myanmar, Balinese and the Brahmic
+    scripts of plane 1. Such a mark is legitimate NFC text after any other starter, so only the composing pair is
+    refused. Derived from Unicode 16.0 two-element canonical decompositions that NFC recomposes. To regenerate:
+        python3 -c "import unicodedata as u; print([(hex(int(b, 16)), hex(int(m, 16))) for c in range(0x80, 0x110000)
+            for d in [u.decomposition(chr(c))] if d and not d.startswith('<') and len(d.split()) == 2
+            for b, m in [d.split()] if u.normalize('NFC', chr(int(b, 16)) + chr(int(m, 16))) == chr(c)])"
+ */
+static const struct {
+    uint starter;
+    uint mark;
+} composingPairs[] = {
+    { 0x0928, 0x093C }, { 0x0930, 0x093C }, { 0x0933, 0x093C }, { 0x09C7, 0x09BE },
+    { 0x09C7, 0x09D7 }, { 0x0B47, 0x0B3E }, { 0x0B47, 0x0B56 }, { 0x0B47, 0x0B57 },
+    { 0x0B92, 0x0BD7 }, { 0x0BC6, 0x0BBE }, { 0x0BC6, 0x0BD7 }, { 0x0BC7, 0x0BBE },
+    { 0x0C46, 0x0C56 }, { 0x0CBF, 0x0CD5 }, { 0x0CC6, 0x0CC2 }, { 0x0CC6, 0x0CD5 },
+    { 0x0CC6, 0x0CD6 }, { 0x0CCA, 0x0CD5 }, { 0x0D46, 0x0D3E }, { 0x0D46, 0x0D57 },
+    { 0x0D47, 0x0D3E }, { 0x0DD9, 0x0DCA }, { 0x0DD9, 0x0DCF }, { 0x0DD9, 0x0DDF },
+    { 0x0DDC, 0x0DCA }, { 0x1025, 0x102E }, { 0x1B05, 0x1B35 }, { 0x1B07, 0x1B35 },
+    { 0x1B09, 0x1B35 }, { 0x1B0B, 0x1B35 }, { 0x1B0D, 0x1B35 }, { 0x1B11, 0x1B35 },
+    { 0x1B3A, 0x1B35 }, { 0x1B3C, 0x1B35 }, { 0x1B3E, 0x1B35 }, { 0x1B3F, 0x1B35 },
+    { 0x1B42, 0x1B35 }, { 0x11099, 0x110BA }, { 0x1109B, 0x110BA }, { 0x110A5, 0x110BA },
+    { 0x11131, 0x11127 }, { 0x11132, 0x11127 }, { 0x11347, 0x1133E }, { 0x11347, 0x11357 },
+    { 0x11382, 0x113C9 }, { 0x11384, 0x113BB }, { 0x1138B, 0x113C2 }, { 0x11390, 0x113C9 },
+    { 0x113C2, 0x113B8 }, { 0x113C2, 0x113C2 }, { 0x113C2, 0x113C9 }, { 0x114B9, 0x114B0 },
+    { 0x114B9, 0x114BA }, { 0x114B9, 0x114BD }, { 0x115B8, 0x115AF }, { 0x115B9, 0x115AF },
+    { 0x11935, 0x11930 }, { 0x1611E, 0x1611E }, { 0x1611E, 0x1611F }, { 0x1611E, 0x16120 },
+    { 0x1611E, 0x16129 }, { 0x16121, 0x1611F }, { 0x16121, 0x16120 }, { 0x16122, 0x1611F },
+    { 0x16129, 0x1611F }, { 0x16D63, 0x16D67 }, { 0x16D67, 0x16D67 }, { 0x16D69, 0x16D67 },
+};
+
+
 #if ME_GOAHEAD_CASE_INSENSITIVE_FS
 /*
     Non-ASCII code points whose full case folding, simple uppercase or simple lowercase contains an ASCII character.
@@ -11322,16 +11845,19 @@ static uint decodeUtf8(cchar **sp)
 
 
 /*
-    Reject filesystem aliases before routing: trailing dot/space, ADS, 8.3 names, decomposed Unicode and malformed
-    UTF-8. On case-insensitive filesystems also reject Unicode mappings to ASCII. Route matching handles ASCII case.
+    Reject filesystem aliases before routing: trailing dot/space, ADS, 8.3 names, non-NFC Unicode (decomposed marks,
+    composing pairs and code points NFC replaces) and malformed UTF-8. On case-insensitive filesystems also reject
+    Unicode mappings to ASCII, and on Windows the characters Win32 refuses in a file name. Route matching handles
+    ASCII case.
  */
 static bool validCanonicalPath(cchar *path)
 {
     cchar *sp, *segment;
-    uint  c;
+    uint  c, prior;
     int   i;
 
     segment = path;
+    prior = 0;
     for (sp = path; *sp; ) {
         /*
             Reject ASCII control characters, DEL included. websValidUriChars runs on the raw URI and
@@ -11354,6 +11880,14 @@ static bool validCanonicalPath(cchar *path)
         if (*sp == ':') {
             return 0;
         }
+#if ME_WIN_LIKE
+        /*
+            Reject Win32 name characters before stat(), whose directory-search fallback treats < > and " as wildcards.
+         */
+        if (strchr("<>\"|*?", *sp)) {
+            return 0;
+        }
+#endif
         if (*sp == '~') {
             for (c = 0, sp++; isdigit((uchar) *sp); sp++) {
                 c++;
@@ -11364,7 +11898,7 @@ static bool validCanonicalPath(cchar *path)
             continue;
         }
         if ((uchar) *sp < 0x80) {
-            sp++;
+            prior = (uchar) *sp++;
             continue;
         }
         if ((c = decodeUtf8(&sp)) == 0) {
@@ -11375,6 +11909,17 @@ static bool validCanonicalPath(cchar *path)
                 return 0;
             }
         }
+        for (i = 0; i < (int) (sizeof(nonCanonicalRanges) / sizeof(nonCanonicalRanges[0])); i++) {
+            if (nonCanonicalRanges[i].low <= c && c <= nonCanonicalRanges[i].high) {
+                return 0;
+            }
+        }
+        for (i = 0; i < (int) (sizeof(composingPairs) / sizeof(composingPairs[0])); i++) {
+            if (composingPairs[i].mark == c && composingPairs[i].starter == prior) {
+                return 0;
+            }
+        }
+        prior = c;
 #if ME_GOAHEAD_CASE_INSENSITIVE_FS
         for (i = 0; i < (int) (sizeof(caseFoldingCodePoints) / sizeof(caseFoldingCodePoints[0])); i++) {
             if (caseFoldingCodePoints[i] == c) {
@@ -11472,7 +12017,7 @@ PUBLIC cchar *websOriginForm(cchar *url)
 PUBLIC char *websParseContentType(cchar *contentType, cchar *param)
 {
     cchar *cp, *start;
-    char  *value, *vp;
+    char  *value, *vp, *result;
     ssize nameLen;
     bool  found;
 
@@ -11486,12 +12031,17 @@ PUBLIC char *websParseContentType(cchar *contentType, cchar *param)
         strim(value, " \t", WEBS_TRIM_END);
         return slower(value);
     }
+    /*
+        Scan all parameters to reject duplicate boundary values and prevent ambiguous body framing (RFC 2045 5.1).
+     */
+    result = 0;
     while (*cp == ';') {
         cp++;
         cp += strspn(cp, " \t");
         for (start = cp; isTchar((uchar) *cp); cp++) { }
         nameLen = cp - start;
         if (nameLen == 0 || *cp != '=') {
+            wfree(result);
             return 0;
         }
         found = (nameLen == slen(param) && sncaselesscmp(start, param, nameLen) == 0);
@@ -11508,6 +12058,7 @@ PUBLIC char *websParseContentType(cchar *contentType, cchar *param)
             *vp = '\0';
             if (*cp++ != '"') {
                 wfree(value);
+                wfree(result);
                 return 0;
             }
         } else {
@@ -11515,16 +12066,18 @@ PUBLIC char *websParseContentType(cchar *contentType, cchar *param)
             value = snclone(start, cp - start);
         }
         cp += strspn(cp, " \t");
-        if (*cp && *cp != ';') {
+        if ((*cp && *cp != ';') || (found && result)) {
             wfree(value);
+            wfree(result);
             return 0;
         }
         if (found) {
-            return value;
+            result = value;
+        } else {
+            wfree(value);
         }
-        wfree(value);
     }
-    return 0;
+    return result;
 }
 
 
@@ -11568,6 +12121,15 @@ static bool isHiddenPath(cchar *path)
 #endif
 
 
+/*
+    Template extensions, run by the template handler and never served as source, whatever the route table or build
+ */
+PUBLIC bool websIsTemplate(cchar *ext)
+{
+    return ext && (scaselessmatch(ext, ".jst") || scaselessmatch(ext, ".asp"));
+}
+
+
 PUBLIC bool websPageAllowed(Webs *wp)
 {
     if (wp->filename && websIsReservedDevice(wp->filename)) {
@@ -11590,8 +12152,7 @@ PUBLIC bool websPageContained(Webs *wp)
     cchar *root;
     char  *path, *real, *realRoot, *sep;
     ssize len;
-    bool  contained;
-    int   err;
+    bool  contained, exists;
 
     if (!wp->filename) {
         return 1;
@@ -11606,28 +12167,25 @@ PUBLIC bool websPageContained(Webs *wp)
         trace(2, "Refusing %s: cannot resolve the document root %s, errno %d", wp->filename, root, errno);
         return 0;
     }
-    /* Use the parent only for missing files. Refuse other resolution errors. */
+    /*
+        Resolve a missing file through its parent. Refuse unresolved parents just like parents outside the root
+        to avoid revealing whether an inaccessible directory exists.
+     */
+    exists = 1;
     if ((real = realpath(wp->filename, NULL)) == 0) {
+        exists = 0;
         if (errno != ENOENT && errno != ENOTDIR) {
             trace(2, "Refusing %s: cannot resolve it, errno %d", wp->filename, errno);
             goto done;
         }
-        err = ENOENT;
         path = sclone(wp->filename);
         if ((sep = strrchr(path, '/')) != 0) {
             *sep = '\0';
-            if ((real = realpath(*path ? path : "/", NULL)) == 0) {
-                err = errno;
-            }
+            real = realpath(*path ? path : "/", NULL);
         }
         wfree(path);
         if (!real) {
-
-            if (err == ENOENT || err == ENOTDIR) {
-                contained = 1;
-            } else {
-                trace(2, "Refusing %s: cannot resolve its directory, errno %d", wp->filename, err);
-            }
+            trace(2, "Refusing %s: cannot resolve its directory", wp->filename);
             goto done;
         }
     }
@@ -11636,7 +12194,7 @@ PUBLIC bool websPageContained(Webs *wp)
         contained = 1;
         goto done;
     }
-    if (strncmp(real, realRoot, len) != 0 || (real[len] != '/' && real[len] != '\0')) {
+    if (strncmp(real, realRoot, (size_t) len) != 0 || (real[len] != '/' && real[len] != '\0')) {
         trace(2, "Refusing %s: it resolves to %s, outside %s", wp->filename, real, realRoot);
         goto done;
     }
@@ -11649,6 +12207,14 @@ PUBLIC bool websPageContained(Webs *wp)
         goto done;
     }
 #endif
+    /*
+        A link may give a template another extension. The request's extension chose the handler, so a template
+        reached under another name would be served as source. The template handler opens the stored spelling.
+     */
+    if (exists && !websIsTemplate(wp->ext) && websIsTemplate(getPathExtension(real))) {
+        trace(2, "Refusing %s: it resolves to template %s", wp->filename, real);
+        goto done;
+    }
     contained = 1;
 
 done:
@@ -11714,7 +12280,6 @@ PUBLIC int websPageIsDirectory(Webs *wp)
  */
 PUBLIC ssize websPageReadData(Webs *wp, char *buf, ssize nBytes)
 {
-
     assert(websValid(wp));
     return websReadFile(wp->docfd, buf, nBytes);
 }
@@ -11972,6 +12537,16 @@ PUBLIC int websDropPrivileges(cchar *user, cchar *group)
         return 0;
     }
     /*
+        Reject group-only changes while root, which could restore any group.
+     */
+    if (uid == 0) {
+        if (!group || *group == '\0') {
+            return 0;
+        }
+        error("Cannot change the group while staying root: a non-root user is also required");
+        return -1;
+    }
+    /*
         Change groups before dropping root privileges.
      */
     if (pw ? initgroups(pw->pw_name, gid) < 0 : setgroups(1, &gid) < 0) {
@@ -11990,7 +12565,7 @@ PUBLIC int websDropPrivileges(cchar *user, cchar *group)
         error("Privilege change incomplete");
         return -1;
     }
-    if ((uid != 0 && setuid(0) == 0) || (gid != 0 && setgid(0) == 0)) {
+    if (setuid(0) == 0 || setgid(0) == 0) {
         error("Privilege change is reversible");
         return -1;
     }
@@ -12017,6 +12592,12 @@ PUBLIC int websDropPrivileges(cchar *user, cchar *group)
 PUBLIC void websSetPostLimit(ssize limit)
 {
     postLimit = limit > 0 ? limit : ME_GOAHEAD_LIMIT_POST;
+}
+
+
+PUBLIC void websSetUploadLimit(ssize limit)
+{
+    uploadLimit = limit > 0 ? limit : ME_GOAHEAD_LIMIT_UPLOAD_BODY;
 }
 
 
@@ -12452,7 +13033,6 @@ PUBLIC int websSetSessionVar(Webs *wp, cchar *key, cchar *value)
 }
 
 
-
 static void pruneExpired(void)
 {
     WebsSession *sp;
@@ -12540,19 +13120,20 @@ static void setFileLimits(void)
 
     limit = ME_GOAHEAD_LIMIT_FILES;
     if (limit) {
-        r.rlim_cur = r.rlim_max = limit;
+        r.rlim_cur = r.rlim_max = (rlim_t) limit;
         if (setrlimit(RLIMIT_NOFILE, &r) < 0) {
             error("Cannot set file limit to %d", limit);
         }
     }
     getrlimit(RLIMIT_NOFILE, &r);
     trace(6, "Max files soft %ld, max %ld", (long) r.rlim_cur, (long) r.rlim_max);
-    /* Reserve descriptors for listeners, logs, documents and staging before capping connections. */
+    /* Every admitted connection must be able to hold its descriptors, with the reserve left for everything else. */
     if (r.rlim_cur != RLIM_INFINITY && r.rlim_cur < (rlim_t) INT_MAX) {
-        avail = (int) r.rlim_cur - FILE_RESERVE;
+        avail = ((int) r.rlim_cur - FILE_RESERVE) / FILES_PER_CONNECTION;
         if (avail < connLimit) {
             connLimit = max(avail, 1);
-            trace(2, "Connection limit lowered to %d to fit the file limit %ld", connLimit, (long) r.rlim_cur);
+            trace(2, "Connection limit lowered to %d: each connection may hold %d of the %ld descriptors", connLimit,
+                  FILES_PER_CONNECTION, (long) r.rlim_cur);
         }
     }
 #endif
@@ -12811,7 +13392,7 @@ static int pushFrame(Js *ep, WebsHash variables)
 {
     assert(ep);
 
-    ep->variables = wrealloc(ep->variables, sizeof(WebsHash) * (ep->variableMax + 1));
+    ep->variables = wrealloc(ep->variables, (ssize) sizeof(WebsHash) * (ep->variableMax + 1));
     ep->variables[ep->variableMax] = variables + JS_OFFSET;
     return ep->variableMax++;
 }
@@ -12960,6 +13541,7 @@ PUBLIC char *jsEval(int jid, cchar *script, char **emsg)
     if ((ep = jsPtr(jid)) == NULL) {
         return NULL;
     }
+    wfreeset(ep->error);
     setString(&ep->result, "");
 
     /*
@@ -13549,7 +14131,7 @@ static int parseStmt(Js *ep, int state, int flags)
 
     if (expectSemi) {
         tid = jsLexGetToken(ep, state);
-        if (tid != TOK_SEMI && tid != TOK_NEWLINE) {
+        if (tid != TOK_SEMI && tid != TOK_NEWLINE && tid != TOK_EOF) {
             goto error;
         }
         /*
@@ -13857,7 +14439,8 @@ static int isTrue(Js *ep, cchar *value, int flags, bool *truth)
         return 0;
     }
     if (!isNumber(value)) {
-        jsError(ep, "Condition must be numeric: %s", value);
+        //  The value may be request data: report its length, not its text
+        jsError(ep, "Condition must be numeric: %d byte value", (int) slen(value));
         return -1;
     }
     if (parseInteger(ep, value, &number) < 0) {
@@ -13922,7 +14505,7 @@ static int evalExpr(Js *ep, cchar *lhs, int rel, cchar *rhs)
     rnum = isNumber(rhs);
     numeric = (lnum || !*lhs) && (rnum || !*rhs);
     if (!numeric && (lnum || rnum) && rel != EXPR_PLUS) {
-        jsError(ep, "Operand is not a number: %s", lnum ? rhs : lhs);
+        jsError(ep, "Operand is not a number: %d byte value", (int) slen(lnum ? rhs : lhs));
         return -1;
     }
     if (numeric) {
@@ -14213,7 +14796,7 @@ PUBLIC int jsArgs(int argc, char **argv, cchar *fmt, ...)
     }
 
     va_start(vargs, fmt);
-    for (argn = 0, cp = fmt; cp && *cp && argv[argn]; ) {
+    for (argn = 0, cp = fmt; cp && *cp && argn < argc && argv[argn]; ) {
         if (*cp++ != '%') {
             continue;
         }
@@ -14557,7 +15140,7 @@ PUBLIC void jsLexSaveInputState(Js *ep, JsInput *state)
     if (ip->line) {
         //  The line is terminated at lineColumn, but may hold earlier nulls from the script
         state->line = walloc(ip->lineColumn + 1);
-        memcpy(state->line, ip->line, ip->lineColumn + 1);
+        memcpy(state->line, ip->line, (size_t) ip->lineColumn + 1);
     }
 }
 
@@ -14583,7 +15166,7 @@ PUBLIC void jsLexRestoreInputState(Js *ep, JsInput *state)
     ip->lineNumber = state->lineNumber;
     ip->lineColumn = state->lineColumn;
     if (ip->line) {
-        memcpy(ip->line, state->line ? state->line : "", state->lineColumn + 1);
+        memcpy(ip->line, state->line ? state->line : "", (size_t) state->lineColumn + 1);
     }
 }
 
@@ -14917,7 +15500,7 @@ static int getLexicalToken(Js *ep, int state)
                         just ignore any \ characters.
                      */
                 } else if (tokenAddChar(ep, c) < 0) {
-                    break;
+                    return TOK_ERR;
                 }
                 if ((c = inputGetc(ep)) < 0) {
                     break;
@@ -15024,7 +15607,7 @@ static int inputGetc(Js *ep)
     } else {
         if ((ip->lineColumn + 2) >= ip->lineLength) {
             ip->lineLength += JS_INC;
-            ip->line = wrealloc(ip->line, ip->lineLength * sizeof(char));
+            ip->line = wrealloc(ip->line, ip->lineLength * (ssize) sizeof(char));
         }
         ip->line[ip->lineColumn++] = (char) c;
         ip->line[ip->lineColumn] = '\0';
@@ -15038,6 +15621,13 @@ static void inputPutback(Js *ep, int c)
     JsInput *ip;
 
     assert(ep);
+
+    /*
+        End of input is not a character. Putting it back would insert a byte the script never held.
+     */
+    if (c < 0) {
+        return;
+    }
 
     ip = ep->input;
     bufInsertc(&ip->script, (char) c);
@@ -15252,7 +15842,7 @@ static bool jstHandler(Webs *wp)
                  */
                 if (jsEval(jid, nextp, &result) == 0) {
                     if (result) {
-                        trace(4, "JST evaluation failed: %s", result);
+                        trace(4, "JST evaluation failed in %s: %s", wp->filename, result);
                         wfree(result);
                     }
                     jstError(wp);
@@ -15273,7 +15863,7 @@ static bool jstHandler(Webs *wp)
         Output any trailing HTML page text
      */
     if (last && *last && rc == 0) {
-        websWriteBlock(wp, last, strlen(last));
+        websWriteBlock(wp, last, (ssize) strlen(last));
     }
 
 /*
@@ -15316,7 +15906,7 @@ PUBLIC int websJstOpen(void)
     websDefineJst("escape", jstEscape);
     websDefineJst("escapeUri", jstEscapeUri);
     websDefineJst("escapeJs", jstEscapeJs);
-    websDefineHandler("jst", 0, jstHandler, closeJst, 0);
+    websDefineHandler("jst", 0, jstHandler, closeJst, WEBS_DOCUMENT_HANDLER);
     return 0;
 }
 
@@ -15341,7 +15931,7 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv)
 
     for (i = 0; i < argc; ) {
         assert(argv);
-        if (websWriteBlock(wp, argv[i], strlen(argv[i])) < 0) {
+        if (websWriteBlock(wp, argv[i], (ssize) strlen(argv[i])) < 0) {
             return -1;
         }
         if (++i < argc) {
@@ -15437,8 +16027,8 @@ static char *strtokcmp(char *s1, char *s2)
     ssize len;
 
     s1 = skipWhite(s1);
-    len = strlen(s2);
-    for (len = strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
+    len = (ssize) strlen(s2);
+    for (len = (ssize) strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
         if (*s2 == '\0') {
             return s1;
         }
@@ -15530,9 +16120,20 @@ typedef struct MbedConfig {
 typedef struct MbedSocket {
     mbedtls_ssl_context ctx;                    /* SSL state */
     mbedtls_ssl_session session;                /* SSL sessions */
+    size_t              pending;                /* Length of a write MbedTLS holds unsent; its retry repeats it */
 } MbedSocket;
 
 static MbedConfig cfg;
+
+/*
+    Key exchange preference order. MbedTLS retains this array.
+ */
+static const uint16_t keyExchangeGroups[] = {
+    MBEDTLS_SSL_IANA_TLS_GROUP_X25519,
+    MBEDTLS_SSL_IANA_TLS_GROUP_SECP256R1,
+    MBEDTLS_SSL_IANA_TLS_GROUP_SECP384R1,
+    MBEDTLS_SSL_IANA_TLS_GROUP_NONE,
+};
 
 /*
     GoAhead Log level to start SSL tracing
@@ -15551,6 +16152,8 @@ static char *sslKeyPath;
 
 static int *getCipherSuite(cchar *ciphers);
 static int  mbedHandshake(Webs *wp);
+static int  mbedRecv(void *ctx, uchar *buf, size_t len);
+static int  mbedSend(void *ctx, const uchar *buf, size_t len);
 static int  parseCert(mbedtls_x509_crt *cert, char *file);
 static int  parseCrl(mbedtls_x509_crl *crl, char *path);
 static int  parseKey(mbedtls_pk_context *key, char *path);
@@ -15558,6 +16161,7 @@ static void merror(int rc, PRINTF_FORMAT cchar *fmt, ...) PRINTF_ATTRIBUTE(2, 3)
 static char *replaceHyphen(char *cipher, char from, char to);
 static void traceMbed(void *context, int level, cchar *file, int line, cchar *str);
 static bool sameName(mbedtls_x509_buf *a, mbedtls_x509_buf *b);
+static void logVerifyFailure(uint32_t flags);
 static int  verifyChain(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags);
 
 /************************************** Code **********************************/
@@ -15591,7 +16195,7 @@ PUBLIC int sslOpen()
 
     if ((rc =
              mbedtls_ctr_drbg_seed(&cfg.ctr, mbedtls_entropy_func, &cfg.entropy, (cuchar*) ME_NAME,
-                                   slen(ME_NAME))) < 0) {
+                                   (size_t) slen(ME_NAME))) < 0) {
         merror(rc, "Cannot seed rng");
         return -1;
     }
@@ -15604,8 +16208,10 @@ PUBLIC int sslOpen()
     certPath = sslCertPath ? sslCertPath : (char*) ME_GOAHEAD_SSL_CERTIFICATE;
     if (keyPath && *keyPath) {
         /*
-            Load a decrypted PEM format private key. The last arg is the private key.
+            Register the private key so websListen refuses it inside a served directory.
          */
+        websAddConfigFile(keyPath);
+        websCheckSecretFile(keyPath, "the TLS private key");
         if (parseKey(&cfg.pkey, keyPath) < 0) {
             return -1;
         }
@@ -15654,6 +16260,11 @@ PUBLIC int sslOpen()
     }
 
     /*
+        Exclude finite-field groups to avoid expensive server exponentiation on client-chosen TLS 1.3 groups.
+     */
+    mbedtls_ssl_conf_groups(conf, keyExchangeGroups);
+
+    /*
         Allow unknown issuers when configured, but still require a client certificate.
      */
     if (!ME_GOAHEAD_SSL_VERIFY_PEER) {
@@ -15682,6 +16293,10 @@ PUBLIC int sslOpen()
     }
     mbedtls_ssl_conf_min_tls_version(conf, minVersion);
     mbedtls_ssl_conf_max_tls_version(conf, maxVersion);
+#if defined(MBEDTLS_SSL_PROTO_TLS1_3)
+    //  Require ephemeral keys on TLS 1.3 resumption to preserve forward secrecy.
+    mbedtls_ssl_conf_tls13_key_exchange_modes(conf, MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ALL);
+#endif
 
     /*
         Disable resumption with client certificates so every connection verifies them.
@@ -15733,10 +16348,55 @@ PUBLIC int sslOpen()
         for (cp = mbedtls_ssl_list_ciphersuites(); *cp; cp++) {
             scopy(cipher, sizeof(cipher), (char*) mbedtls_ssl_get_ciphersuite_name(*cp));
             replaceHyphen(cipher, '-', '_');
-            trace(5, "mbedtls: %s (0x%04X)", cipher, *cp);
+            trace(5, "mbedtls: %s (0x%04X)", cipher, (uint) *cp);
         }
     }
     return 0;
+}
+
+
+/*
+    Retry blocked or timed-out sends as WANT_WRITE, including during bounded blocking flushes.
+ */
+static int mbedSend(void *ctx, const uchar *buf, size_t len)
+{
+    WebsSocket *sp;
+    ssize      rc;
+    int        err;
+
+    sp = ctx;
+    if ((rc = send(sp->sock, (char*) buf, (int) len, 0)) >= 0) {
+        return (int) rc;
+    }
+    err = socketGetError(sp->sid);
+    if (err == EAGAIN || err == EWOULDBLOCK || err == ETIMEDOUT || err == EINTR) {
+        return MBEDTLS_ERR_SSL_WANT_WRITE;
+    }
+    if (err == EPIPE || err == ECONNRESET) {
+        return MBEDTLS_ERR_NET_CONN_RESET;
+    }
+    return MBEDTLS_ERR_NET_SEND_FAILED;
+}
+
+
+static int mbedRecv(void *ctx, uchar *buf, size_t len)
+{
+    WebsSocket *sp;
+    ssize      rc;
+    int        err;
+
+    sp = ctx;
+    if ((rc = recv(sp->sock, (char*) buf, (int) len, 0)) >= 0) {
+        return (int) rc;
+    }
+    err = socketGetError(sp->sid);
+    if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) {
+        return MBEDTLS_ERR_SSL_WANT_READ;
+    }
+    if (err == EPIPE || err == ECONNRESET) {
+        return MBEDTLS_ERR_NET_CONN_RESET;
+    }
+    return MBEDTLS_ERR_NET_RECV_FAILED;
 }
 
 
@@ -15760,6 +16420,23 @@ static int verifyChain(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *f
         *flags |= MBEDTLS_X509_BADCRL_NOT_TRUSTED;
     }
     return 0;
+}
+
+
+static void logVerifyFailure(uint32_t flags)
+{
+    char info[512], *cp;
+
+    if (mbedtls_x509_crt_verify_info(info, sizeof(info), "", flags) <= 0) {
+        logmsg(2, "Certificate refused: verification flags 0x%x", (uint) flags);
+        return;
+    }
+    for (cp = info; *cp; cp++) {
+        if (*cp == '\n') {
+            *cp = cp[1] ? ';' : '\0';
+        }
+    }
+    logmsg(2, "Certificate refused: %s", info);
 }
 
 
@@ -15839,11 +16516,11 @@ PUBLIC int sslUpgrade(Webs *wp)
         wfreeset(wp->ssl);
         return -1;
     }
-    mbedtls_ssl_set_bio(ctx, &sp->sock, mbedtls_net_send, mbedtls_net_recv, 0);
-
-    if (mbedHandshake(wp) < 0) {
-        return -1;
-    }
+    mbedtls_ssl_set_bio(ctx, sp, mbedSend, mbedRecv, 0);
+    /*
+        Defer the handshake to sslRead so bad ClientHellos are reported as peer failures, not upgrade faults.
+     */
+    sp->flags |= SOCKET_HANDSHAKING;
     return 0;
 }
 
@@ -15884,11 +16561,14 @@ static int mbedHandshake(Webs *wp)
 
     while ((rc = mbedtls_ssl_handshake(&mb->ctx)) != 0) {
         if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) {
+            //  Handshake output the socket could not take is sent when the socket is next writable
+            socketHiddenData(sp, rc == MBEDTLS_ERR_SSL_WANT_WRITE ? 1 : 0, SOCKET_WRITABLE);
             return 0;
         }
         break;
     }
     sp->flags &= ~SOCKET_HANDSHAKING;
+    socketHiddenData(sp, 0, SOCKET_WRITABLE);
 
     /*
         Analyze the handshake result
@@ -15898,10 +16578,12 @@ static int mbedHandshake(Webs *wp)
             error("Missing required certificate and key");
         } else if (rc == MBEDTLS_ERR_SSL_CA_CHAIN_REQUIRED) {
             trace(2, "Server requires a client certificate");
+        } else if (rc == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED) {
+            logVerifyFailure(mbedtls_ssl_get_verify_result(&mb->ctx));
         } else {
             char ebuf[256];
             mbedtls_strerror(-rc, ebuf, sizeof(ebuf));
-            trace(2, "%s: error -0x%x", ebuf, -rc);
+            trace(2, "%s: error -0x%x", ebuf, (uint) -rc);
         }
         sp->flags |= SOCKET_EOF;
         errno = EPROTO;
@@ -15944,12 +16626,7 @@ static int mbedHandshake(Webs *wp)
             vrc = 0;
 
         } else {
-            if (rc == MBEDTLS_ERR_NET_CONN_RESET) {
-                logmsg(2, "Peer disconnected");
-
-            } else {
-                logmsg(2, "Cannot handshake: error -0x%x", -rc);
-            }
+            logVerifyFailure((uint32_t) vrc);
         }
         if (vrc != 0 && ME_GOAHEAD_SSL_VERIFY_PEER) {
             if (mbedtls_ssl_get_peer_cert(&mb->ctx) == 0) {
@@ -15984,7 +16661,7 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         }
     }
     while (1) {
-        rc = mbedtls_ssl_read(&mb->ctx, buf, (int) len);
+        rc = mbedtls_ssl_read(&mb->ctx, buf, (size_t) len);
         if (rc < 0) {
             if (rc == MBEDTLS_ERR_SSL_WANT_READ ||
                 rc == MBEDTLS_ERR_SSL_WANT_WRITE ||
@@ -16001,7 +16678,7 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
                 sp->flags |= SOCKET_EOF;
                 return -1;
             } else {
-                trace(4, "mbedtls: read error -0x%x", -rc);
+                trace(4, "mbedtls: read error -0x%x", (uint) -rc);
                 sp->flags |= SOCKET_EOF;
                 return -1;
             }
@@ -16011,7 +16688,7 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         }
         break;
     }
-    socketHiddenData(sp, mbedtls_ssl_get_bytes_avail(&mb->ctx), SOCKET_READABLE);
+    socketHiddenData(sp, (ssize) mbedtls_ssl_get_bytes_avail(&mb->ctx), SOCKET_READABLE);
     return rc;
 }
 
@@ -16020,7 +16697,7 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 {
     MbedSocket *mb;
     WebsSocket *sp;
-    ssize      totalWritten;
+    ssize      totalWritten, chunk;
     int        rc;
 
     if (wp->ssl == 0 || len <= 0) {
@@ -16038,14 +16715,21 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
     }
     totalWritten = 0;
     do {
-        rc = mbedtls_ssl_write(&mb->ctx, (uchar*) buf, (int) len);
-        trace(7, "mbedtls write: wrote %d of %zd", rc, len);
+        /*
+            MbedTLS keeps the record it built from a write it could not send and expects the retry to name the
+            same length, whatever the caller has appended since: it returns that length once the record is sent.
+         */
+        assert(mb->pending == 0 || (ssize) mb->pending <= len);
+        chunk = mb->pending ? (ssize) mb->pending : len;
+        rc = mbedtls_ssl_write(&mb->ctx, (uchar*) buf, (size_t) chunk);
+        trace(7, "mbedtls write: wrote %d of %zd", rc, chunk);
         if (rc <= 0) {
             if (rc == MBEDTLS_ERR_SSL_WANT_READ ||
                 rc == MBEDTLS_ERR_SSL_WANT_WRITE ||
                 rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET ||
                 rc == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS ||
                 rc == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS) {
+                mb->pending = (size_t) chunk;
                 break;
             }
             if (rc == MBEDTLS_ERR_NET_CONN_RESET) {
@@ -16054,10 +16738,12 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
                 trace(4, "mbedtls_ssl_write failed rc %d", rc);
             }
             /* Set a hard socket error so a stale EAGAIN cannot cause retries. */
+            mb->pending = 0;
             sp->flags |= SOCKET_EOF;
             socketSetError(ECONNRESET);
             return -1;
         } else {
+            mb->pending = 0;
             totalWritten += rc;
             buf = (void*) ((char*) buf + rc);
             len -= rc;
@@ -16078,12 +16764,14 @@ PUBLIC ssize sslWrite(Webs *wp, void *buf, ssize len)
 
 
 /*
-    Reject static RSA, anonymous, null, DES, 3DES, RC4, and MD5 TLS 1.2 suites.
+    Reject static RSA, static ECDH, anonymous, null, DES, 3DES, RC4, and MD5 TLS 1.2 suites. OpenSSL has no static
+    ECDH suites at all, so both backends then offer forward secret key exchanges only.
     Inspect names because MbedTLS keeps cipher fields private.
  */
 static bool belowFloor(cchar *name)
 {
-    return sstarts(name, "TLS-RSA-WITH-") || strstr(name, "-anon-") || strstr(name, "-NULL-") ||
+    return sstarts(name, "TLS-RSA-WITH-") || sstarts(name, "TLS-ECDH-ECDSA-WITH-") ||
+           sstarts(name, "TLS-ECDH-RSA-WITH-") || strstr(name, "-anon-") || strstr(name, "-NULL-") ||
            strstr(name, "-DES-") || strstr(name, "-3DES-") || strstr(name, "-RC4-") || strstr(name, "-MD5");
 }
 
@@ -16106,7 +16794,7 @@ static int *getCipherSuite(cchar *ciphers)
             ntokens++;
         }
     }
-    result = walloc((ntokens + 1) * sizeof(int));
+    result = walloc((ntokens + 1) * (ssize) sizeof(int));
 
     next = list = sclone(ciphers);
     for (i = 0; (cipher = stok(next, ":, \t", &next)) != 0; ) {
@@ -16154,8 +16842,8 @@ static int parseCert(mbedtls_x509_crt *cert, char *path)
         /* Looks PEM encoded so count the null in the length */
         len++;
     }
-    rc = mbedtls_x509_crt_parse(cert, (uchar*) buf, len);
-    memset(buf, 0, len);
+    rc = mbedtls_x509_crt_parse(cert, (uchar*) buf, (size_t) len);
+    memset(buf, 0, (size_t) len);
     wfree(buf);
     if (rc != 0) {
         error("Unable to parse certificate %s", path);
@@ -16180,8 +16868,8 @@ static int parseKey(mbedtls_pk_context *key, char *path)
         len++;
     }
     //  The generator derives the public point of a key stored without it
-    rc = mbedtls_pk_parse_key(key, (uchar*) buf, len, NULL, 0, mbedtls_ctr_drbg_random, &cfg.ctr);
-    memset(buf, 0, len);
+    rc = mbedtls_pk_parse_key(key, (uchar*) buf, (size_t) len, NULL, 0, mbedtls_ctr_drbg_random, &cfg.ctr);
+    memset(buf, 0, (size_t) len);
     wfree(buf);
     if (rc != 0) {
         if (rc == MBEDTLS_ERR_PK_PASSWORD_REQUIRED) {
@@ -16209,8 +16897,8 @@ static int parseCrl(mbedtls_x509_crl *crl, char *path)
     if (strstr(buf, "-----BEGIN ")) {
         len++;
     }
-    rc = mbedtls_x509_crl_parse(crl, (uchar*) buf, len);
-    memset(buf, 0, len);
+    rc = mbedtls_x509_crl_parse(crl, (uchar*) buf, (size_t) len);
+    memset(buf, 0, (size_t) len);
     wfree(buf);
     if (rc != 0) {
         error("Unable to parse crl %s", path);
@@ -16244,7 +16932,7 @@ static void merror(int rc, PRINTF_FORMAT cchar *fmt, ...)
     msg = sfmtv(fmt, ap);
     va_end(ap);
     mbedtls_strerror(-rc, ebuf, sizeof(ebuf));
-    error("mbedtls error: -0x%x %s %s", -rc, msg, ebuf);
+    error("mbedtls error: -0x%x %s %s", (uint) -rc, msg, ebuf);
     wfree(msg);
 }
 
@@ -16553,9 +17241,14 @@ PUBLIC int sslOpen()
         char *keyPath = sslKeyPath ? sslKeyPath : (char*) ME_GOAHEAD_SSL_KEY;
         char *certPath = sslCertPath ? sslCertPath : (char*) ME_GOAHEAD_SSL_CERTIFICATE;
 
-        if (keyPath && *keyPath && sslSetKeyFile(keyPath) < 0) {
-            sslClose();
-            return -1;
+        if (keyPath && *keyPath) {
+            //  Register the key for the served-directory check at websListen.
+            websAddConfigFile(keyPath);
+            websCheckSecretFile(keyPath, "the TLS private key");
+            if (sslSetKeyFile(keyPath) < 0) {
+                sslClose();
+                return -1;
+            }
         }
         if (certPath && *certPath && sslSetCertFile(certPath) < 0) {
             sslClose();
@@ -16639,6 +17332,7 @@ PUBLIC int sslOpen()
      */
     if (RAND_bytes(resume, sizeof(resume)) != 1) {
         error("Cannot get random bytes for the TLS session context");
+        sslClose();
         return -1;
     }
     SSL_CTX_set_session_id_context(sslctx, resume, sizeof(resume));
@@ -16701,6 +17395,7 @@ PUBLIC int sslOpen()
     SSL_CTX_set_timeout(sslctx, ME_GOAHEAD_SSL_TIMEOUT);
     if (rotateTicketKeys() < 0) {
         error("Cannot get random bytes for the session ticket key");
+        sslClose();
         return -1;
     }
     SSL_CTX_set_tlsext_ticket_key_evp_cb(sslctx, ticketKeyCallback);
@@ -16829,6 +17524,7 @@ PUBLIC int sslUpgrade(Webs *wp)
     SSL_set_bio(wp->ssl, bio, bio);
     SSL_set_accept_state(wp->ssl);
     SSL_set_app_data(wp->ssl, (void*) wp);
+    sptr->flags |= SOCKET_HANDSHAKING;
     if (ME_GOAHEAD_SSL_HANDSHAKES) {
         SSL_CTX_set_info_callback(sslctx, infoCallback);
     }
@@ -16885,24 +17581,22 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         return -1;
     }
     /*
-        Limit retries on WANT_READ. If non-blocking and no data, then this can spin forever.
+        Clear the thread-wide error queue so another connection cannot affect SSL_get_error.
+        Bound WANT_READ retries to avoid spinning on a nonblocking socket.
      */
+    ERR_clear_error();
     sp = socketPtr(wp->sid);
+    err = SSL_ERROR_NONE;
     retries = 5;
     for (i = 0; i < retries; i++) {
         rc = SSL_read(wp->ssl, buf, (int) len);
-        if (rc <= 0) {
-            err = SSL_get_error(wp->ssl, rc);
-            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_CONNECT || err == SSL_ERROR_WANT_ACCEPT) {
-                continue;
-            }
-            if (err != SSL_ERROR_ZERO_RETURN) {
-                serror = ERR_get_error();
-                ERR_error_string_n(serror, ebuf, sizeof(ebuf) - 1);
-                trace(5, "SSL_read %s", ebuf);
-            }
+        if (rc > 0) {
+            break;
         }
-        break;
+        err = SSL_get_error(wp->ssl, rc);
+        if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_CONNECT && err != SSL_ERROR_WANT_ACCEPT) {
+            break;
+        }
     }
     if (maxHandshakes && sp->handshakes > maxHandshakes) {
         error("TLS renegotiation attack");
@@ -16911,10 +17605,8 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
         return -1;
     }
     if (rc <= 0) {
-        err = SSL_get_error(wp->ssl, rc);
-        if (err == SSL_ERROR_WANT_READ) {
-            rc = 0;
-        } else if (err == SSL_ERROR_WANT_WRITE) {
+        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_CONNECT ||
+            err == SSL_ERROR_WANT_ACCEPT) {
             rc = 0;
         } else if (err == SSL_ERROR_ZERO_RETURN) {
             sp->flags |= SOCKET_EOF;
@@ -16926,12 +17618,23 @@ PUBLIC ssize sslRead(Webs *wp, void *buf, ssize len)
             serror = ERR_get_error();
             ERR_error_string_n(serror, ebuf, sizeof(ebuf) - 1);
             trace(4, "OpenSSL: connection with protocol error: %s", ebuf);
+            //  Clear all failure entries before another connection uses this thread.
+            ERR_clear_error();
             rc = -1;
             sp->flags |= SOCKET_EOF;
         }
     } else {
         //  Report pending bytes after every read to clear the buffered-input mark when drained.
         socketHiddenData(sp, SSL_pending(wp->ssl), SOCKET_READABLE);
+    }
+    if (sp->flags & SOCKET_HANDSHAKING) {
+        if (SSL_is_init_finished(wp->ssl)) {
+            sp->flags &= ~SOCKET_HANDSHAKING;
+            socketHiddenData(sp, 0, SOCKET_WRITABLE);
+        } else {
+            //  Handshake output the socket could not take is sent when the socket is next writable
+            socketHiddenData(sp, (rc == 0 && err == SSL_ERROR_WANT_WRITE) ? 1 : 0, SOCKET_WRITABLE);
+        }
     }
     return rc;
 }
@@ -17101,7 +17804,11 @@ static int sslSetKeyFile(char *keyFile)
     } else {
         rc = 0;
     }
-    wfree(buf);
+    if (buf) {
+        //  Erase plaintext key material before freeing it.
+        OPENSSL_cleanse(buf, slen(buf));
+        wfree(buf);
+    }
     if (bio) {
         BIO_free(bio);
     }
@@ -17193,9 +17900,10 @@ static int ticketKeyCallback(SSL *ssl, uchar *name, uchar *iv, EVP_CIPHER_CTX *c
 
 static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
 {
-    X509 *cert;
-    char subject[260], issuer[260];
-    int  error, depth;
+    X509            *cert;
+    STACK_OF(X509)  *untrusted;
+    char            subject[260], issuer[260];
+    int             error, depth, presented;
 
     subject[0] = issuer[0] = '\0';
 
@@ -17215,22 +17923,22 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
         issuer[0] = '\0';
     }
     /*
-        Enforce the configured chain depth limit unconditionally. The underlying verifier may surface an
-        over-depth chain under a variety of error codes (for example, some LibreSSL releases report the
-        chain as X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY instead of X509_V_ERR_CERT_CHAIN_TOO_LONG).
-        Rejecting here based on X509_STORE_CTX_get_error_depth avoids relying on backend-specific error
-        mapping.
+        Enforce depth independently of verifier error codes. Also count the presented chain: a verifier
+        may truncate it at the limit and report an unknown issuer without exceeding the callback depth.
      */
-    if (ME_GOAHEAD_SSL_VERIFY_DEPTH < depth) {
-        logmsg(3, "Certificate chain too long (depth %d exceeds limit %d)", depth, ME_GOAHEAD_SSL_VERIFY_DEPTH);
+    untrusted = X509_STORE_CTX_get0_untrusted(xContext);
+    presented = untrusted ? sk_X509_num(untrusted) - 1 : 0;
+    if (ME_GOAHEAD_SSL_VERIFY_DEPTH < depth || ME_GOAHEAD_SSL_VERIFY_DEPTH < presented) {
+        logmsg(3, "Certificate chain too long (depth %d exceeds limit %d)", max(depth, presented),
+               ME_GOAHEAD_SSL_VERIFY_DEPTH);
         trace(4, "OpenSSL: Subject: %s", subject);
         trace(4, "OpenSSL: Issuer: %s", issuer);
         return 0;
     }
     /*
         SECURITY Acceptable: ME_GOAHEAD_SSL_VERIFY_PEER requests certificates. Without VERIFY_ISSUER,
-        accept untrusted and forged-issuer certificates without revocation checks; only key possession is proven.
-        Still reject invalid dates, malformed certificates, and excessive chain depth.
+        accept untrusted and forged-issuer certificates; only key possession is proven. Still reject invalid dates,
+        malformed certificates, excessive chain depth and, when a revocation list is loaded, revoked certificates.
      */
     switch (error) {
     case X509_V_OK:
@@ -17275,13 +17983,13 @@ static int verifyClientCertificate(int ok, X509_STORE_CTX *xContext)
     if (ok) {
         trace(3, "OpenSSL: Certificate verified: subject %s", subject);
     } else {
-        trace(1, "OpenSSL: Certification failed: subject %s (more trace at level 4)", subject);
-        trace(4, "OpenSSL: Error: %d: %s", error, X509_verify_cert_error_string(error));
+        //  Peer-controlled subjects belong at diagnostic log levels.
+        trace(2, "OpenSSL: Certificate verification failed (more trace at level 4)");
+        trace(4, "OpenSSL: Error: %d: %s for subject %s", error, X509_verify_cert_error_string(error), subject);
     }
     trace(4, "OpenSSL: Issuer: %s", issuer);
     return ok;
 }
-
 
 
 /*
@@ -17308,16 +18016,27 @@ static int setCiphers(cchar *ciphers)
         }
     }
     wfree(list);
-    bufPut(&legacy, "%s%s", bufLen(&legacy) ? "" : "DEFAULT:", OPENSSL_CIPHER_FLOOR);
 
     rc = 0;
     if (bufLen(&tls13) && SSL_CTX_set_ciphersuites(sslctx, bufStart(&tls13)) != 1) {
         error("Unable to set TLS 1.3 ciphers \"%s\"", bufStart(&tls13));
         rc = -1;
     }
-    if (rc == 0 && SSL_CTX_set_cipher_list(sslctx, bufStart(&legacy)) != 1) {
-        error("Unable to set cipher list \"%s\"", bufStart(&legacy));
-        rc = -1;
+    if (bufLen(&legacy) == 0) {
+        /*
+            A TLS 1.3-only cipher list must disable TLS 1.2 rather than use its default suites.
+         */
+        if (rc == 0 && SSL_CTX_set_min_proto_version(sslctx, TLS1_3_VERSION) != 1) {
+            error("Unable to limit the protocol to TLS 1.3");
+            rc = -1;
+        }
+        trace(2, "Cipher list names no TLS 1.2 suite, so TLS 1.2 is not offered");
+    } else {
+        bufPut(&legacy, "%s", OPENSSL_CIPHER_FLOOR);
+        if (rc == 0 && SSL_CTX_set_cipher_list(sslctx, bufStart(&legacy)) != 1) {
+            error("Unable to set cipher list \"%s\"", bufStart(&legacy));
+            rc = -1;
+        }
     }
     bufFree(&tls13);
     bufFree(&legacy);
@@ -17548,7 +18267,7 @@ PUBLIC int websOsOpen(void)
  */
 PUBLIC void websHardenProcess(void)
 {
-#if ME_WIN_LIKE && !WINCE
+#if ME_WIN_LIKE
     typedef BOOL (WINAPI *SetDefaultDllDirectoriesProc)(DWORD flags);
     SetDefaultDllDirectoriesProc setDefaultDllDirectories;
     HMODULE                      kernel;
@@ -17593,14 +18312,14 @@ PUBLIC cchar *websGetTempDir(void)
 {
     cchar *dir;
 
-#if ME_WIN_LIKE && !WINCE
+#if ME_WIN_LIKE
     char  buf[MAX_PATH + 1];
     DWORD len;
 #endif
 
     if (!tempDir) {
         dir = ME_GOAHEAD_TEMP_DIR;
-#if ME_WIN_LIKE && !WINCE
+#if ME_WIN_LIKE
         if (*dir == '\0') {
             len = GetTempPathA((DWORD) sizeof(buf), buf);
             if (len > 0 && len < sizeof(buf)) {
@@ -17608,25 +18327,41 @@ PUBLIC cchar *websGetTempDir(void)
             }
         }
 #endif
-        tempDir = websAbsolutePath(dir);
+        /*
+            An empty name would resolve to the working directory. Keep it empty so websCheckTempDirs reports it
+            and websTempFile refuses it.
+         */
+        if (*dir == '\0') {
+            error("No temporary directory: set ME_GOAHEAD_TEMP_DIR to a directory outside the documents directory");
+            tempDir = sclone("");
+        } else {
+            tempDir = websAbsolutePath(dir);
+        }
     }
     return tempDir;
 }
 
 
 /*
-    Create a temporary file and return its allocated path name.
-
-    The file is created here, empty and private, before the name is returned. The name carries 64 bits
-    from the system CSPRNG so a client cannot predict where another request's data is staged, and the
-    create is exclusive and refuses a symlink so a local attacker can neither pre-create the path nor
-    aim it at a file the server may not write. The caller opens the returned path, and must unlink the
-    file and free the name when done.
-
-    Returns NULL if no temporary file could be created. Callers must fail the request rather than
-    proceed with an unnamed staging file.
+    Create an empty private file with an unpredictable name and exclusive, no-follow creation.
+    The caller must unlink the file and free its allocated path. Return NULL on failure.
  */
 PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
+{
+    char *path;
+    int  fd;
+
+    if ((path = websTempFileOpen(dir, prefix, &fd)) != 0) {
+        close(fd);
+    }
+    return path;
+}
+
+
+/*
+    Return the exclusive-create descriptor in *fdp, open for reading and writing, to avoid reopening by name.
+ */
+PUBLIC char *websTempFileOpen(cchar *dir, cchar *prefix, int *fdp)
 {
     cchar *hexDigits = "0123456789abcdef";
     uchar randomBytes[8];
@@ -17634,9 +18369,8 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
     char  sep;
     int   fd, i, tries;
 
-#if WINCE
-    sep = '\\';
-#elif ME_WIN_LIKE
+    *fdp = -1;
+#if ME_WIN_LIKE
     sep = '\\';
 #else
     sep = '/';
@@ -17646,6 +18380,10 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
      */
     if (!dir || *dir == '\0') {
         dir = websGetTempDir();
+    }
+    if (!dir || *dir == '\0') {
+        error("Cannot create a temp file: no temporary directory is configured");
+        return 0;
     }
     if (!prefix) {
         prefix = "tmp";
@@ -17662,7 +18400,7 @@ PUBLIC char *websTempFile(cchar *dir, cchar *prefix)
         name[sizeof(name) - 1] = '\0';
         path = sfmt("%s%c%s-%s.tmp", dir, sep, prefix, name);
         if ((fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_BINARY | O_NOFOLLOW, 0600)) >= 0) {
-            close(fd);
+            *fdp = fd;
             return path;
         }
         wfree(path);
@@ -18024,13 +18762,24 @@ static bool routeAllowsMethod(WebsRoute *route, cchar *method)
 }
 
 
-
 static int routeRunsCode(WebsRoute *route)
 {
     cchar *name;
 
     name = route->handler ? route->handler->name : "";
     return smatch(name, "jst") || smatch(name, "cgi") || smatch(name, "action");
+}
+
+
+/*
+    Rebind each route's file name to avoid serving a declined route's directory under another policy.
+ */
+static void bindFilename(Webs *wp, WebsRoute *route)
+{
+    if (!(wp->flags & WEBS_FILENAME_SET)) {
+        wfreeset(wp->filename);
+        wp->filename = sfmt("%s%s", route->dir ? route->dir : websGetDocuments(), wp->path);
+    }
 }
 
 
@@ -18087,6 +18836,8 @@ PUBLIC void websRouteRequest(Webs *wp)
     } else {
         i = 0;
     }
+    /* A rewrite is routed once. A later decline resumes after its route rather than rescanning from the start. */
+    wp->flags &= ~WEBS_REROUTE;
     wp->route = 0;
 
     for (; i < routeCount; i++) {
@@ -18097,7 +18848,8 @@ PUBLIC void websRouteRequest(Webs *wp)
             Recompute path length each iteration because match callbacks may rewrite it.
          */
         plen = slen(wp->path);
-        if (plen < route->prefixLen) continue;
+        /* A directory prefix also covers the directory itself requested without its trailing slash */
+        if (plen < route->prefixLen && !(plen == route->prefixLen - 1 && route->prefix[plen] == '/')) continue;
         len = min(route->prefixLen, plen);
         trace(5, "Examine route %s", route->prefix);
         /*
@@ -18169,6 +18921,8 @@ PUBLIC void websRouteRequest(Webs *wp)
         if ((handler = route->handler) == 0) {
             continue;
         }
+        //  The handler's match and the body staging that follows routing see the route's own file
+        bindFilename(wp, route);
         if (!handler->match || (*handler->match)(wp)) {
             /* Handler matches */
             return;
@@ -18215,10 +18969,11 @@ PUBLIC bool websRunRequest(Webs *wp)
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Configuration error - no handler for route");
         return 1;
     }
-    if (!wp->filename || route->dir) {
-        wfreeset(wp->filename);
-        wp->filename = sfmt("%s%s", route->dir ? route->dir : websGetDocuments(), wp->path);
-    }
+    bindFilename(wp, route);
+    /*
+        Reserve server variable names before storing request parameters. Refresh them on reroute for the new path.
+     */
+    websSetEnv(wp);
     if (!(wp->flags & WEBS_VARS_ADDED)) {
         wp->flags |= WEBS_VARS_ADDED;
         if (websSetQueryVars(wp) < 0 || websSetFormVars(wp) < 0) {
@@ -18231,7 +18986,7 @@ PUBLIC bool websRunRequest(Webs *wp)
 
 #if ME_GOAHEAD_LEGACY
     if (route->handler->legacy) {
-        return (*route->handler->legacy)(wp, route->prefix, route->dir, route->flags) == 0;
+        return (*route->handler->legacy)(wp, route->prefix, route->dir, route->flags) != 0;
     } else
 #endif
     if (!route->handler->service) {
@@ -18253,7 +19008,6 @@ static bool can(Webs *wp, char *ability)
     }
     return 0;
 }
-
 
 
 static bool canAny(Webs *wp, cchar *abilities)
@@ -18279,31 +19033,29 @@ PUBLIC bool websCan(Webs *wp, WebsHash abilities)
     assert(wp);
     assert(abilities >= 0);
 
-    if (!wp->user) {
-        if (wp->authType) {
-            if (!wp->username) {
-                websLogAuth(wp, 0, "refused", "user not logged in");
-                websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. User not logged in.");
-                return 0;
-            }
-            if ((wp->user = websLookupUser(wp->username)) == 0) {
-                websLogAuth(wp, 0, "refused", "unknown user");
-                websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. Unknown user.");
-                return 0;
-            }
-        }
+    if (!wp->user && wp->username) {
+        wp->user = websLookupUser(wp->username);
     }
-    if (abilities >= 0) {
-        if (!wp->user && wp->username) {
-            wp->user = websLookupUser(wp->username);
+    /*
+        Without a verified user the request must authenticate: 401. A verified user who lacks an ability is
+        refused with 403, since authenticating again cannot help and a 401 carries no challenge here.
+     */
+    if (!wp->user) {
+        if (wp->username) {
+            websLogAuth(wp, 0, "refused", "unknown user");
+            websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. Unknown user.");
+        } else {
+            websLogAuth(wp, 0, "refused", "user not logged in");
+            websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. User not logged in.");
         }
-        for (key = hashFirst(abilities); key; key = hashNext(abilities, key)) {
-            ability = key->name.value.string;
-            if (strchr(ability, '|') ? !canAny(wp, ability) : !can(wp, ability)) {
-                websLogAuth(wp, 0, "refused", "insufficient abilities");
-                websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. Insufficient capabilities.");
-                return 0;
-            }
+        return 0;
+    }
+    for (key = hashFirst(abilities); key; key = hashNext(abilities, key)) {
+        ability = key->name.value.string;
+        if (strchr(ability, '|') ? !canAny(wp, ability) : !can(wp, ability)) {
+            websLogAuth(wp, 0, "refused", "insufficient abilities");
+            websError(wp, HTTP_CODE_FORBIDDEN, "Access Denied. Insufficient capabilities.");
+            return 0;
         }
     }
     return 1;
@@ -18352,7 +19104,7 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
         pos = routeCount;
     }
     if (pos < routeCount) {
-        memmove(&routes[pos + 1], &routes[pos], sizeof(WebsRoute*) * (routeCount - pos));
+        memmove(&routes[pos + 1], &routes[pos], sizeof(WebsRoute*) * (size_t) (routeCount - pos));
     }
     routes[pos] = route;
     routeCount++;
@@ -18423,6 +19175,17 @@ PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, Webs
               "leading dot.", route->prefix, bad);
         return -1;
     }
+    /* An empty selector set, such as methods=none, admits nothing; only abilities=none means no requirement. */
+    if (methods >= 0 && hashFirst(methods) == 0) {
+        error("Route \"%s\" has an empty methods= list, which never matches. Name the methods or drop the keyword.",
+              route->prefix);
+        return -1;
+    }
+    if (extensions >= 0 && hashFirst(extensions) == 0) {
+        error("Route \"%s\" has an empty extensions= list, which never matches. Name the extensions or drop the "
+              "keyword.", route->prefix);
+        return -1;
+    }
 
 #if !ME_GOAHEAD_AUTH
     /*
@@ -18447,7 +19210,7 @@ static void growRoutes(void)
 {
     if (routeCount >= routeMax) {
         routeMax += 16;
-        if ((routes = wrealloc(routes, sizeof(WebsRoute*) * routeMax)) == 0) {
+        if ((routes = wrealloc(routes, (ssize) sizeof(WebsRoute*) * routeMax)) == 0) {
             error("Cannot grow routes");
         }
     }
@@ -18515,7 +19278,7 @@ PUBLIC int websRemoveRoute(cchar *uri)
         return 0;
     }
     route->flags |= WEBS_ROUTE_REMOVED;
-    retiredRoutes = wrealloc(retiredRoutes, sizeof(WebsRoute*) * (retiredCount + 1));
+    retiredRoutes = wrealloc(retiredRoutes, (ssize) sizeof(WebsRoute*) * (retiredCount + 1));
     retiredRoutes[retiredCount++] = route;
     return 0;
 }
@@ -18584,7 +19347,6 @@ static int routeServesContent(WebsRoute *route)
 }
 
 
-
 static int routeIsGate(WebsRoute *route)
 {
     return route->handler && smatch(route->handler->name, "continue");
@@ -18633,6 +19395,16 @@ static cchar *gateUncovered(WebsRoute *gate, WebsRoute *route)
 }
 
 
+static int hasNonAscii(cchar *str)
+{
+    for (; *str; str++) {
+        if ((uchar) *str >= 0x80) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 static int prefixesNest(WebsRoute *r1, WebsRoute *r2)
 {
@@ -18645,9 +19417,9 @@ static int prefixesNest(WebsRoute *r1, WebsRoute *r2)
 
 
 /*
-    Can one request satisfy both routes' selectors? A route without methods= admits the safe methods.
+    Test selector overlap. Routes without methods= serve safe methods but gate all methods when authenticating.
  */
-static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2)
+static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2, bool r1Gates)
 {
     WebsKey *key;
     cchar   *safe[] = { "GET", "HEAD", "POST", 0 };
@@ -18663,6 +19435,12 @@ static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2)
         if (!common) {
             return 0;
         }
+    }
+    if (r1->methods < 0 && r1Gates) {
+        return 1;
+    }
+    if (r2->methods < 0 && (r2->authType || r2->abilities >= 0)) {
+        return 1;
     }
     if (r2->methods >= 0) {
         for (key = hashFirst(r2->methods); key; key = hashNext(r2->methods, key)) {
@@ -18717,14 +19495,32 @@ static int abilitiesCover(WebsHash have, WebsHash need)
 
 
 /*
-    Does a request the earlier route authorizes meet the later route's requirement?
+    Does a request the earlier route authorizes, with the given scheme, meet the later route's requirement?
  */
-static int routeMeets(WebsRoute *earlier, WebsRoute *later)
+static int routeMeets(cchar *scheme, WebsHash abilities, WebsRoute *later)
 {
-    if (later->authType && !smatch(earlier->authType, later->authType)) {
+    if (later->authType && !smatch(scheme, later->authType)) {
         return 0;
     }
-    return abilitiesCover(earlier->abilities, later->abilities);
+    return abilitiesCover(abilities, later->abilities);
+}
+
+
+/*
+    Find an earlier authentication gate for an abilities-only route, which cannot admit users on its own.
+ */
+static WebsRoute *gateBefore(int index, WebsRoute *later)
+{
+    WebsRoute *gate;
+    int       i;
+
+    for (i = 0; i < index; i++) {
+        gate = routes[i];
+        if (gate->authType && prefixesNest(gate, later) && selectorsOverlap(gate, later, 1)) {
+            return gate;
+        }
+    }
+    return 0;
 }
 
 
@@ -18756,7 +19552,7 @@ static int regionsOverlap(WebsRoute *r1, WebsRoute *r2)
  */
 static int checkRouteAuth(void)
 {
-    WebsRoute *strict, *loose, *candidate;
+    WebsRoute *strict, *loose, *candidate, *gate;
     cchar     *uncovered;
     int       i, j, authRoutes, problems;
 
@@ -18833,6 +19629,35 @@ static int checkRouteAuth(void)
         }
     }
     /*
+        On case-insensitive file systems, Unicode case variants can miss a strict prefix and reach a broader,
+        weaker route. Route matching folds ASCII only; check non-ASCII suffixes beyond the broader prefix.
+     */
+    for (i = 0; i < routeCount; i++) {
+        strict = routes[i];
+        if (!strict->authType && strict->abilities < 0) {
+            continue;
+        }
+        for (j = i + 1; j < routeCount; j++) {
+            candidate = routes[j];
+            if (!candidate->authType || routeIsGate(candidate) || !routeServesContent(candidate) ||
+                candidate->prefixLen >= strict->prefixLen ||
+                matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0 ||
+                !hasNonAscii(&strict->prefix[candidate->prefixLen]) || !regionsOverlap(strict, candidate) ||
+                !selectorsOverlap(candidate, strict, 0) ||
+                routeMeets(candidate->authType, candidate->abilities, strict)) {
+                continue;
+            }
+            error("Security warning: route \"%s\" (auth=%s) requires more than later route \"%s\" (auth=%s), "
+                  "which can serve the same directory. A Unicode case folded request will miss \"%s\" and be served "
+                  "to any user \"%s\" admits. %s", strict->prefix, strict->authType ? strict->authType : "none",
+                  candidate->prefix, candidate->authType, strict->prefix, candidate->prefix,
+                  routeIsGate(strict) ? "Serve the directory from an authenticated route of its own with the file "
+                  "handler and its own dir=." : "Give the stricter route its own dir=.");
+            problems++;
+            break;
+        }
+    }
+    /*
         Check public routes missed by an authentication gate's selectors. Equal prefixes need this
         check for protocol-only gates; methods and extensions are checked above.
      */
@@ -18888,8 +19713,8 @@ static int checkRouteAuth(void)
         }
     }
     /*
-        Report earlier serving routes with weaker authentication or abilities. Gates pass requests on;
-        abilities-only routes without auth admit nobody.
+        Report earlier routes that serve content under weaker requirements. Abilities-only routes need an
+        earlier authentication gate; gates themselves pass requests on.
      */
     for (i = 0; i < routeCount; i++) {
         strict = routes[i];
@@ -18898,15 +19723,30 @@ static int checkRouteAuth(void)
         }
         for (j = 0; j < i; j++) {
             candidate = routes[j];
-            if (!candidate->authType || routeIsGate(candidate) || !routeServesContent(candidate) ||
+            if ((!candidate->authType && candidate->abilities < 0) || routeIsGate(candidate) ||
+                !routeServesContent(candidate) ||
                 matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0 ||
-                !regionsOverlap(strict, candidate) || !selectorsOverlap(candidate, strict) ||
-                routeMeets(candidate, strict)) {
+                !regionsOverlap(strict, candidate) || !selectorsOverlap(candidate, strict, 0)) {
                 continue;
             }
-            error("Security warning: route \"%s\" (auth=%s) comes before route \"%s\" (auth=%s) and serves its "
-                  "requests under its own weaker requirement. Put \"%s\" first.", candidate->prefix,
-                  candidate->authType, strict->prefix, strict->authType ? strict->authType : "none", strict->prefix);
+            gate = 0;
+            if (!candidate->authType && (gate = gateBefore(j, strict)) == 0) {
+                continue;
+            }
+            if (routeMeets(candidate->authType ? candidate->authType : gate->authType, candidate->abilities, strict)) {
+                continue;
+            }
+            if (gate) {
+                error("Security warning: route \"%s\" (abilities after gate \"%s\") comes before route \"%s\" "
+                      "(auth=%s) and serves its requests under its own weaker requirement. Put \"%s\" first.",
+                      candidate->prefix, gate->prefix, strict->prefix, strict->authType ? strict->authType : "none",
+                      strict->prefix);
+            } else {
+                error("Security warning: route \"%s\" (auth=%s) comes before route \"%s\" (auth=%s) and serves its "
+                      "requests under its own weaker requirement. Put \"%s\" first.", candidate->prefix,
+                      candidate->authType, strict->prefix, strict->authType ? strict->authType : "none",
+                      strict->prefix);
+            }
             problems++;
             break;
         }
@@ -18949,6 +19789,50 @@ static int checkRouteAuth(void)
         }
     }
     return problems;
+}
+
+
+/*
+    Does this route write request data to the server: a PUT or DELETE through the file handler, or a multipart
+    upload parsed to disk?
+ */
+static int routeWrites(WebsRoute *route)
+{
+    if (route->flags & WEBS_ROUTE_UPLOAD) {
+        return 1;
+    }
+    return smatch(route->handler->name, "file") &&
+           (routeAllowsMethod(route, "PUT") || routeAllowsMethod(route, "DELETE"));
+}
+
+
+/*
+    Warn about a route that accepts writes without authentication and without an earlier authenticated route
+    that covers its requests. A public writable route is a policy choice, so this warns and is not counted.
+ */
+static void warnWritableRoutes(void)
+{
+    WebsRoute *route, *gate;
+    int       i, j, covered;
+
+    for (j = 0; j < routeCount; j++) {
+        route = routes[j];
+        if (route->authType || route->abilities >= 0 || !routeWrites(route)) {
+            continue;
+        }
+        covered = 0;
+        for (i = 0; i < j && !covered; i++) {
+            gate = routes[i];
+            covered = (gate->authType || gate->abilities >= 0) &&
+                      matchRoutePrefix(route->prefix, gate->prefix, gate->prefixLen) == 0 &&
+                      gateUncovered(gate, route) == 0;
+        }
+        if (!covered) {
+            error("Security warning: route \"%s\" (handler=%s) accepts %s without authentication. Give it auth=, "
+                  "or put it after a login gate that covers it.", route->prefix, route->handler->name,
+                  (route->flags & WEBS_ROUTE_UPLOAD) ? "file uploads" : "PUT or DELETE");
+        }
+    }
 }
 
 #else
@@ -19083,6 +19967,7 @@ PUBLIC int websCheckRoutes(void)
 #endif
 #if ME_GOAHEAD_AUTH
     problems += checkRouteAuth();
+    warnWritableRoutes();
 #else
     warnUnauthenticated();
 #endif
@@ -19114,8 +19999,8 @@ PUBLIC bool websGetStrict(void)
 
 PUBLIC char *websAbsolutePath(cchar *path)
 {
-    char cwd[ME_GOAHEAD_LIMIT_FILENAME], *result, *cp, *tail, *normalized;
-    int  absolute;
+    char  *cwd, *result, *cp, *tail, *normalized;
+    int   size, absolute;
 
     absolute = (*path == '/' || *path == '\\');
 #if ME_WIN_LIKE
@@ -19125,10 +20010,22 @@ PUBLIC char *websAbsolutePath(cchar *path)
 #endif
     if (absolute) {
         result = sclone(path);
-    } else if (getcwd(cwd, sizeof(cwd)) == NULL) {
-        result = sclone(path);
     } else {
-        result = sfmt("%s/%s", cwd, path);
+        /*
+            Grow the buffer until the working directory fits. A relative result compares as outside every absolute
+            directory, so a deep working directory must not leave the path unresolved.
+         */
+        for (cwd = 0, size = ME_GOAHEAD_LIMIT_FILENAME; !cwd && size <= 65536; size *= 2) {
+            cwd = walloc(size);
+            if (getcwd(cwd, size) == NULL) {
+                wfreeset(cwd);
+                if (errno != ERANGE) {
+                    break;
+                }
+            }
+        }
+        result = cwd ? sfmt("%s/%s", cwd, path) : sclone(path);
+        wfree(cwd);
     }
     for (cp = result; *cp; cp++) {
         if (*cp == '\\') {
@@ -19192,8 +20089,25 @@ static int dirContains(cchar *dir, cchar *child)
 }
 
 
+PUBLIC void websAddConfigFile(cchar *path)
+{
+    int i;
+
+    if (path == 0 || *path == '\0') {
+        return;
+    }
+    for (i = 0; i < configFileCount; i++) {
+        if (smatch(configFiles[i], path)) {
+            return;
+        }
+    }
+    configFiles = wrealloc(configFiles, (ssize) sizeof(char*) * (configFileCount + 1));
+    configFiles[configFileCount++] = sclone(path);
+}
+
+
 /*
-    Report loaded configuration files inside served directories, where clients could fetch them.
+    Report the server's own files inside served directories, where clients could fetch them.
  */
 PUBLIC int websCheckConfigFiles(void)
 {
@@ -19208,9 +20122,9 @@ PUBLIC int websCheckConfigFiles(void)
                 continue;
             }
             if (dirContains(docs, configFiles[i])) {
-                error("Security error: the configuration file \"%s\" is inside the served directory \"%s\" and "
-                      "would be served to any client that names it. Move it outside the documents directory.",
-                      configFiles[i], docs);
+                error("Security error: the server's own file \"%s\" (route table, credentials, TLS key or log) is "
+                      "inside the served directory \"%s\" and would be served to any client that names it. Move it "
+                      "outside the documents directory.", configFiles[i], docs);
                 problems++;
                 break;
             }
@@ -19459,6 +20373,18 @@ static char *splitOption(cchar *kind, char *option, char **value)
 /*
     Load route and authentication configuration files
  */
+/*
+    Release the selector tables of a configuration line that was refused before a route or role took them.
+ */
+static void freeOptions(WebsHash abilities, WebsHash extensions, WebsHash methods, WebsHash redirects)
+{
+    hashFree(abilities);
+    hashFree(extensions);
+    hashFree(methods);
+    hashFree(redirects);
+}
+
+
 PUBLIC int websLoad(cchar *path)
 {
     WebsRoute *route;
@@ -19466,17 +20392,22 @@ PUBLIC int websLoad(cchar *path)
     char      *buf, *line, *kind, *next, *auth, *dir, *handler, *protocol, *uri, *option, *key, *value, *status;
     char      *redirectUri, *token;
     int       rc, badKeyword, flags;
+#if ME_GOAHEAD_AUTH
+    int       credentials;
+#endif
 
     assert(path && *path);
 
     rc = 0;
     badKeyword = 0;
+#if ME_GOAHEAD_AUTH
+    credentials = 0;
+#endif
     if ((buf = websReadWholeFile(path)) == 0) {
         error("Cannot open config file %s", path);
         return -1;
     }
-    configFiles = wrealloc(configFiles, sizeof(char*) * (configFileCount + 1));
-    configFiles[configFileCount++] = sclone(path);
+    websAddConfigFile(path);
     for (line = stok(buf, "\r\n", &token); line; line = stok(NULL, "\r\n", &token)) {
         kind = stok(line, " \t", &next);
         if (kind == 0 || *kind == '\0' || *kind == '#') {
@@ -19549,16 +20480,20 @@ PUBLIC int websLoad(cchar *path)
             /*
                 Reject unknown qualifiers so typos cannot silently remove route protection.
              */
-            if (badKeyword) {
-                rc = -1;
-                break;
-            }
-            if ((route = websAddRoute(uri, handler, -1)) == 0) {
+            if (badKeyword || (route = websAddRoute(uri, handler, -1)) == 0) {
+                freeOptions(abilities, extensions, methods, redirects);
                 rc = -1;
                 break;
             }
             route->flags |= flags;
             if (websSetRouteMatch(route, dir, protocol, methods, extensions, abilities, redirects) < 0) {
+                rc = -1;
+                break;
+            }
+            /* The redirect handler sends the default target; without one the route redirects nothing. */
+            if (smatch(route->handler->name, "redirect") && (redirects < 0 || hashLookup(redirects, "0") == 0)) {
+                error("Route \"%s\" has handler=redirect but no default redirect= target, so it redirects nothing. "
+                      "Add redirect=URI or redirect=*@URI.", route->prefix);
                 rc = -1;
                 break;
             }
@@ -19602,6 +20537,14 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
+            if (!credentials) {
+                credentials = 1;
+                /*
+                    A stored MD5 hash is a password equivalent for Digest authentication, and any account that can
+                    write the file can add an administrator.
+                 */
+                websCheckSecretFile(path, "passwords");
+            }
 #else
             rc = rejectAuthDirective(kind);
             break;
@@ -19627,6 +20570,7 @@ PUBLIC int websLoad(cchar *path)
                 }
             }
             if (badKeyword) {
+                hashFree(abilities);
                 rc = -1;
                 break;
             }
@@ -19947,8 +20891,20 @@ PUBLIC int websRuntimeOpen(void)
 }
 
 
+/*
+    Release the events still pending at close. The callback table is not reset by websOpen, so an event left here
+    would run in a reopened server with arguments that belonged to the closed one.
+ */
 PUBLIC void websRuntimeClose(void)
 {
+    int i;
+
+    for (i = 0; callbacks && i < callbackMax; i++) {
+        if (callbacks[i]) {
+            websStopEvent(i);
+        }
+    }
+    callbackMax = 0;
 }
 
 
@@ -20041,7 +20997,14 @@ int websRunEvents(void)
     for (i = 0; i < callbackMax; i++) {
         if ((s = callbacks[i]) != NULL) {
             if (s->at <= now) {
+                /*
+                    Mark the event inactive before calling it; release it unless the callback stops or restarts it.
+                 */
+                s->at = MAXINT64;
                 callEvent(i);
+                if (i < callbackMax && (s = callbacks[i]) != NULL && s->at == MAXINT64) {
+                    websStopEvent(i);
+                }
                 delay = MAXINT / 1000;
                 /* Rescan in case event scheduled or modified an event */
                 i = -1;
@@ -20314,23 +21277,24 @@ static char *sprintfCore(char *buf, ssize maxsize, cchar *spec, va_list args)
                 }
                 if (iValue >= 0) {
                     if (fmt.flags & SPRINTF_LEAD_SPACE) {
-                        outNum(&fmt, " ", iValue);
+                        outNum(&fmt, " ", (uint64) iValue);
                     } else if (fmt.flags & SPRINTF_SIGN) {
-                        outNum(&fmt, "+", iValue);
+                        outNum(&fmt, "+", (uint64) iValue);
                     } else {
-                        outNum(&fmt, 0, iValue);
+                        outNum(&fmt, 0, (uint64) iValue);
                     }
                 } else {
-                    outNum(&fmt, "-", -iValue);
+                    outNum(&fmt, "-", (uint64) -(iValue + 1) + 1);
                 }
                 break;
 
             case 'X':
-                fmt.flags |= SPRINTF_UPPER_CASE;
-            /*  Fall through  */
             case 'o':
             case 'x':
             case 'u':
+                if (c == 'X') {
+                    fmt.flags |= SPRINTF_UPPER_CASE;
+                }
                 if (fmt.flags & SPRINTF_SHORT) {
                     uValue = (ushort) va_arg(args, uint);
                 } else if (fmt.flags & SPRINTF_LONG) {
@@ -20448,7 +21412,7 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
      */
     if (fmt->radix == 16) {
         do {
-            letter = (int) (value % fmt->radix);
+            letter = (int) (value % (uint64) fmt->radix);
             if (letter > 9) {
                 if (fmt->flags & SPRINTF_UPPER_CASE) {
                     letter = 'A' + letter - 10;
@@ -20459,22 +21423,22 @@ static void outNum(Format *fmt, char *prefix, uint64 value)
                 letter += '0';
             }
             *--cp = (char) letter;
-            value /= fmt->radix;
+            value /= (uint64) fmt->radix;
         } while (value > 0);
 
     } else if (fmt->flags & SPRINTF_COMMA) {
         i = 1;
         do {
-            *--cp = (char) ('0' + (int) (value % fmt->radix));
-            value /= fmt->radix;
+            *--cp = (char) ('0' + (int) (value % (uint64) fmt->radix));
+            value /= (uint64) fmt->radix;
             if ((i++ % 3) == 0 && value > 0) {
                 *--cp = ',';
             }
         } while (value > 0);
     } else {
         do {
-            *--cp = (char) ('0' + (int) (value % fmt->radix));
-            value /= fmt->radix;
+            *--cp = (char) ('0' + (int) (value % (uint64) fmt->radix));
+            value /= (uint64) fmt->radix;
         } while (value > 0);
     }
 
@@ -20597,7 +21561,7 @@ static int growBuf(Format *fmt)
     endOffset = fmt->end - fmt->buf;
     startOffset = fmt->start - fmt->buf;
     if (fmt->buf) {
-        memcpy(newbuf, fmt->buf, buflen);
+        memcpy(newbuf, fmt->buf, (size_t) buflen);
         wfreeset(fmt->buf);
     }
     buflen += fmt->growBy;
@@ -20694,7 +21658,6 @@ PUBLIC int websStartLogFile(WebsLogFile *log, cchar *path)
     log->size = (ssize) lseek(log->fd, 0, SEEK_END);
     return 0;
 }
-
 
 
 /*
@@ -20814,12 +21777,15 @@ static void defaultLogHandler(int flags, cchar *buf)
 }
 
 
-/* Escape request-controlled log bytes in every handler. Raw messages retain newlines, CRs and tabs. */
+/*
+    Escape request-controlled log bytes, including backslashes so literal escapes cannot be forged.
+    Raw messages retain newlines, CRs and tabs.
+ */
 static void logOutput(int flags, cchar *message)
 {
     char *escaped;
 
-    escaped = websEscapeControl(message, (flags & WEBS_RAW_MSG) ? "\n\r\t" : NULL, NULL);
+    escaped = websEscapeControl(message, (flags & WEBS_RAW_MSG) ? "\n\r\t" : NULL, "\\");
     logHandler(flags, escaped);
     wfree(escaped);
 }
@@ -20935,8 +21901,16 @@ PUBLIC int logOpen(void)
         logFd = 1;
     } else if (smatch(logPath, "stderr")) {
         logFd = 2;
-#if !ME_ROM
     } else {
+#if ME_ROM
+        /*
+            A ROM build has no log files. Refuse the path rather than write to stderr as if it had opened.
+         */
+        error("Cannot open the log file %s: a ROM build logs only to stdout or stderr", logPath);
+        return -1;
+#else
+        //  Register the log for the served-directory check at websListen.
+        websAddConfigFile(logPath);
         if (websStartLogFile(&logFile, logPath) < 0) {
             return -1;
         }
@@ -20967,7 +21941,10 @@ PUBLIC void logSetPath(cchar *path)
 
     wfree(logPath);
     logPath = sclone(path);
-    if ((lp = strchr(logPath, ':')) != 0) {
+    /*
+        Only a numeric suffix is a log level; preserve drive letters and colons in file names.
+     */
+    if ((lp = strrchr(logPath, ':')) != 0 && (lp[1] == '\0' || (ssize) strspn(&lp[1], "0123456789") == slen(&lp[1]))) {
         *lp++ = '\0';
         logLevel = atoi(lp);
     }
@@ -21056,7 +22033,7 @@ PUBLIC char *itosbuf(char *buf, ssize size, int64 value, int radix)
     }
     if (buf < cp) {
         /* Move the null too */
-        memmove(buf, cp, end - cp);
+        memmove(buf, cp, (size_t) (end - cp));
     }
     return buf;
 }
@@ -21077,11 +22054,11 @@ PUBLIC int wallocHandle(void *mapArg)
 
     if (*map == NULL) {
         incr = H_INCR;
-        memsize = (incr + H_OFFSET) * sizeof(void*);
+        memsize = (incr + H_OFFSET) * (int) sizeof(void*);
         if ((mp = walloc(memsize)) == NULL) {
             return -1;
         }
-        memset(mp, 0, memsize);
+        memset(mp, 0, (size_t) memsize);
         mp[H_LEN] = incr;
         mp[H_USED] = 0;
         *map = (void*) &mp[H_OFFSET];
@@ -21108,7 +22085,7 @@ PUBLIC int wallocHandle(void *mapArg)
         No free handle so grow the handle list. Grow list in chunks of H_INCR.
      */
     len += H_INCR;
-    memsize = (len + H_OFFSET) * sizeof(void*);
+    memsize = (len + H_OFFSET) * (int) sizeof(void*);
     if ((mp = wrealloc(mp, memsize)) == NULL) {
         return -1;
     }
@@ -21183,7 +22160,7 @@ PUBLIC int wallocObject(void *listArg, int *max, int size)
             return -1;
         }
         assert(cp);
-        memset(cp, 0, size);
+        memset(cp, 0, (size_t) size);
         (*list)[id] = (void*) cp;
     }
     if (id >= *max) {
@@ -21285,9 +22262,9 @@ PUBLIC char *bufStart(WebsBuf *bp)
         len = bufLen(bp);
         head = bp->endbuf - bp->servp;
         data = walloc(len);
-        memcpy(data, bp->servp, head);
-        memcpy(&data[head], bp->buf, len - head);
-        memcpy(bp->buf, data, len);
+        memcpy(data, bp->servp, (size_t) head);
+        memcpy(&data[head], bp->buf, (size_t) (len - head));
+        memcpy(bp->buf, data, (size_t) len);
         wfree(data);
         bp->servp = bp->buf;
         bp->endp = bp->buf + len;
@@ -21385,7 +22362,7 @@ PUBLIC ssize bufPut(WebsBuf *bp, cchar *fmt, ...)
     str = sfmtv(fmt, ap);
     va_end(ap);
 
-    rc = bufPutBlk(bp, str, strlen(str) * sizeof(char));
+    rc = bufPutBlk(bp, str, (ssize) (strlen(str) * sizeof(char)));
     wfree(str);
     if (rc) {
         *((char*) bp->endp) = (char) '\0';
@@ -21405,7 +22382,7 @@ PUBLIC ssize bufPutStr(WebsBuf *bp, cchar *str)
     assert(str);
     assert(bp->buflen == (bp->endbuf - bp->buf));
 
-    rc = bufPutBlk(bp, str, strlen(str) * sizeof(char));
+    rc = bufPutBlk(bp, str, (ssize) (strlen(str) * sizeof(char)));
     if (rc) {
         *((char*) bp->endp) = (char) '\0';
     }
@@ -21536,7 +22513,7 @@ PUBLIC ssize bufPutBlk(WebsBuf *bp, cchar *buf, ssize size)
             }
             this = min(bufRoom(bp), size);
         }
-        memcpy(bp->endp, buf, this);
+        memcpy(bp->endp, buf, (size_t) this);
         buf += this;
         bp->endp += this;
         size -= this;
@@ -21571,7 +22548,7 @@ PUBLIC ssize bufGetBlk(WebsBuf *bp, char *buf, ssize size)
         if (this <= 0) {
             break;
         }
-        memcpy(buf, bp->servp, this);
+        memcpy(buf, bp->servp, (size_t) this);
         buf += this;
         bp->servp += this;
         size -= this;
@@ -21693,7 +22670,7 @@ PUBLIC void bufCompact(WebsBuf *bp)
         if ((len = bufLen(bp)) > 0) {
             if (bp->servp < bp->endp && bp->servp > bp->buf) {
                 bufAddNull(bp);
-                memmove(bp->buf, bp->servp, len + 1);
+                memmove(bp->buf, bp->servp, (size_t) len + 1);
                 bp->endp -= bp->servp - bp->buf;
                 bp->servp = bp->buf;
             }
@@ -21730,9 +22707,6 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
 
     if (room == 0) {
         if (bp->maxsize >= 0 && bp->buflen >= bp->maxsize) {
-#if BLD_DEBUG
-            error("Cannot grow buf. Needed %d, max %d", room, bp->maxsize);
-#endif
             return 0;
         }
         room = bp->increment;
@@ -21740,7 +22714,11 @@ PUBLIC bool bufGrow(WebsBuf *bp, ssize room)
             Double growth increments only while below the limit.
          */
         if (bp->maxsize < 0 || bp->increment < bp->maxsize) {
-            bp->increment = getBinBlockSize(2 * bp->increment);
+            bp->increment *= 2;
+        }
+        //  Implicit growth fills up to the limit. Explicit growth is all or nothing: callers rely on the room.
+        if (bp->maxsize >= 0 && room > bp->maxsize - bp->buflen) {
+            room = bp->maxsize - bp->buflen;
         }
     } else if (bp->maxsize >= 0 && room > bp->maxsize - bp->buflen) {
         return 0;
@@ -21813,13 +22791,13 @@ WebsHash hashCreate(int size)
         Now create the hash table for fast indexing.
      */
     tp->size = calcPrime(size);
-    if ((tp->hash_table = (WebsKey**) walloc(tp->size * sizeof(WebsKey*))) == 0) {
+    if ((tp->hash_table = (WebsKey**) walloc(tp->size * (ssize) sizeof(WebsKey*))) == 0) {
         wfreeHandle(&sym, sd);
         wfree(tp);
         return -1;
     }
     assert(tp->hash_table);
-    memset(tp->hash_table, 0, tp->size * sizeof(WebsKey*));
+    memset(tp->hash_table, 0, (size_t) tp->size * sizeof(WebsKey*));
     return sd;
 }
 
@@ -22122,10 +23100,10 @@ static ME_NO_SANITIZE_WRAP int hashIndex(HashTable *tp, cchar *name)
     i = 0;
     sum = 0;
     while (*name) {
-        sum += (((int) (uchar) *name++) << i);
+        sum += (((uint) (uchar) *name++) << i);
         i = (i + 7) % (BITS(int) - BITSPERBYTE);
     }
-    return sum % tp->size;
+    return (int) (sum % (uint) tp->size);
 }
 
 
@@ -22214,13 +23192,12 @@ PUBLIC char *sclone(cchar *s)
     if (s == NULL) {
         s = "";
     }
-    len = strlen(s) + 1;
+    len = (ssize) strlen(s) + 1;
     if ((buf = walloc(len)) != 0) {
         scopy(buf, len, s);
     }
     return buf;
 }
-
 
 
 /*
@@ -22239,7 +23216,7 @@ PUBLIC char *snclone(cchar *str, ssize len)
     len = min(l, len);
     size = len + 1;
     if ((ptr = walloc(size)) != 0) {
-        memcpy(ptr, str, len);
+        memcpy(ptr, str, (size_t) len);
         ptr[len] = '\0';
     }
     return ptr;
@@ -22267,7 +23244,7 @@ uint strtoi(char *s)
         s += 2;
         return hextoi(s);
     }
-    return atoi(s);
+    return (uint) atoi(s);
 }
 
 
@@ -22299,7 +23276,7 @@ PUBLIC bool sstarts(cchar *str, cchar *prefix)
     if (str == 0 || prefix == 0) {
         return 0;
     }
-    if (strncmp(str, prefix, slen(prefix)) == 0) {
+    if (strncmp(str, prefix, (size_t) slen(prefix)) == 0) {
         return 1;
     }
     return 0;
@@ -22321,7 +23298,7 @@ PUBLIC int scmp(cchar *s1, cchar *s2)
 
 PUBLIC ssize slen(cchar *s)
 {
-    return s ? strlen(s) : 0;
+    return s ? (ssize) strlen(s) : 0;
 }
 
 
@@ -22369,7 +23346,7 @@ PUBLIC ssize sncopy(char *dest, ssize destMax, cchar *src, ssize count)
         return -1;
     }
     if (len > 0) {
-        memcpy(dest, src, len);
+        memcpy(dest, src, (size_t) len);
         dest[len] = '\0';
     } else {
         *dest = '\0';
@@ -22488,7 +23465,7 @@ PUBLIC char *stok(char *str, cchar *delim, char **last)
         *last = 0;
         return 0;
     }
-    i = strspn(start, delim);
+    i = (ssize) strspn(start, delim);
     start += i;
     if (*start == '\0') {
         *last = 0;
@@ -22497,7 +23474,7 @@ PUBLIC char *stok(char *str, cchar *delim, char **last)
     end = strpbrk(start, delim);
     if (end) {
         *end++ = '\0';
-        i = strspn(end, delim);
+        i = (ssize) strspn(end, delim);
         end += i;
     }
     *last = end;
@@ -22514,13 +23491,13 @@ PUBLIC char *strim(char *str, cchar *set, int where)
         return 0;
     }
     if (where & WEBS_TRIM_START) {
-        i = strspn(str, set);
+        i = (ssize) strspn(str, set);
     } else {
         i = 0;
     }
     s = (char*) &str[i];
     if (where & WEBS_TRIM_END) {
-        len = strlen(s);
+        len = (ssize) strlen(s);
         while (len > 0 && strspn(&s[len - 1], set) > 0) {
             s[len - 1] = '\0';
             len--;
@@ -22880,7 +23857,6 @@ static bool socketDrain(int sid)
 }
 
 
-
 static void lingerRead(int sid, int mask, void *data)
 {
     if (socketPtr(sid) == NULL || socketDrain(sid)) {
@@ -23178,19 +24154,20 @@ PUBLIC int socketSelect(int sid, int timeout)
     struct timeval tv;
     fd_mask        *readFds, *writeFds, *exceptFds, bit;
     ssize          index;
-    int            all, len, nwords, nEvents;
+    size_t         len, nwords;
+    int            all, nEvents;
 
     /*
         Allocate and zero the select masks
      */
-    nwords = (socketHighestFd + NFDBITS) / NFDBITS;
+    nwords = (size_t) (socketHighestFd + (int) NFDBITS) / NFDBITS;
     len = nwords * sizeof(fd_mask);
 
-    readFds = walloc(len);
+    readFds = walloc((ssize) len);
     memset(readFds, 0, len);
-    writeFds = walloc(len);
+    writeFds = walloc((ssize) len);
     memset(writeFds, 0, len);
-    exceptFds = walloc(len);
+    exceptFds = walloc((ssize) len);
     memset(exceptFds, 0, len);
 
     tv.tv_sec = timeout / 1000;
@@ -23218,8 +24195,8 @@ PUBLIC int socketSelect(int sid, int timeout)
         /*
             Initialize the ready masks and compute the mask offsets.
          */
-        index = sp->sock / (NBBY * sizeof(fd_mask));
-        bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
+        index = (size_t) sp->sock / (NBBY * sizeof(fd_mask));
+        bit = (fd_mask) (1UL << ((size_t) sp->sock % (NBBY * sizeof(fd_mask))));
         /*
             Set the appropriate bit in the ready masks for the sp->sock.
          */
@@ -23262,8 +24239,8 @@ PUBLIC int socketSelect(int sid, int timeout)
                 continue;
             }
         }
-        index = sp->sock / (NBBY * sizeof(fd_mask));
-        bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
+        index = (size_t) sp->sock / (NBBY * sizeof(fd_mask));
+        bit = (fd_mask) (1UL << ((size_t) sp->sock % (NBBY * sizeof(fd_mask))));
 
         if (socketDue(sp)) {
             if (sp->handlerMask & SOCKET_READABLE) {
@@ -23404,6 +24381,27 @@ PUBLIC int socketSetBlock(int sid, int on)
 }
 
 
+static bool sendTimeoutUnsupported(void)
+{
+#if ME_WIN_LIKE
+    return WSAGetLastError() == WSAENOPROTOOPT;
+#else
+    int err = errno;
+#ifdef EOPNOTSUPP
+    if (err == EOPNOTSUPP) {
+        return 1;
+    }
+#endif
+#ifdef ENOTSUP
+    if (err == ENOTSUP) {
+        return 1;
+    }
+#endif
+    return err == ENOPROTOOPT;
+#endif
+}
+
+
 /*
     Set the socket send timeout in milliseconds. Zero means wait indefinitely.
     Returns zero if the platform supports a send timeout, otherwise -1.
@@ -23429,11 +24427,12 @@ PUBLIC int socketSetSendTimeout(int sid, int timeout)
     tv.tv_usec = (timeout % 1000) * 1000;
 #endif
     /*
-        Detect support at runtime. Stacks without SO_SNDTIMEO fail with ENOPROTOOPT, so no platform
-        conditionals are required and callers can fall back to an unbounded wait.
+        Warn only when the stack lacks SO_SNDTIMEO; connection errors do not indicate missing support.
      */
     if (setsockopt(sp->sock, SOL_SOCKET, SO_SNDTIMEO, (char*) &tv, sizeof(tv)) < 0) {
-        if (!warnedNoSendTimeout) {
+        if (!sendTimeoutUnsupported()) {
+            trace(2, "Cannot set the send timeout on socket %d: %s", sp->sock, strerror(socketGetError(sid)));
+        } else if (!warnedNoSendTimeout) {
             warnedNoSendTimeout = 1;
             error("Warning: this network stack has no send timeout (SO_SNDTIMEO). A client that stops reading "
                   "a response can stall the server. Put it behind a proxy that buffers responses.");
@@ -23864,9 +24863,9 @@ PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct so
         r = res;
     }
     memset(addr, 0, sizeof(*addr));
-    memcpy((char*) addr, (char*) r->ai_addr, (int) r->ai_addrlen);
+    memcpy((char*) addr, (char*) r->ai_addr, r->ai_addrlen);
 
-    *addrlen = (int) r->ai_addrlen;
+    *addrlen = (Socklen) r->ai_addrlen;
     *family = r->ai_family;
     *protocol = r->ai_protocol;
     freeaddrinfo(res);
@@ -23941,7 +24940,8 @@ PUBLIC int socketAddress(struct sockaddr *addr, int addrlen, char *ip, int ipLen
         }
     }
 #endif
-    if (getnameinfo(addr, addrlen, ip, ipLen, service, sizeof(service), NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN)) {
+    if (getnameinfo(addr, (socklen_t) addrlen, ip, (socklen_t) ipLen, service, sizeof(service),
+            NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN)) {
         if (ip && ipLen > 0) {
             *ip = '\0';
         }
@@ -24395,8 +25395,6 @@ static int getNumOrSym(char **token, int sep, int kind, int *isAlpah)
 {
     char *cp;
     int  num;
-
-    assert(token && *token);
 
     /*
         Define the out-parameter on every path. The caller branches on it, and an early return here
@@ -24860,13 +25858,6 @@ static void validateTime(struct tm *tp, struct tm *defaults)
         tp->tm_year = -MAXINT;
     }
 
-#if UNUSED
-    if (tp->tm_year != -MAXINT && tp->tm_mon >= 0 && tp->tm_mday >= 0 && tp->tm_hour >= 0) {
-        /*  Everything defined */
-        return;
-    }
-#endif
-
     /*
         Use empty time if missing
      */
@@ -25042,7 +26033,7 @@ static void initUpload(Webs *wp)
                 matched against wp->boundary + 2.
              */
             wp->boundary = sfmt("\r\n--%s", boundary);
-            wp->boundaryLen = strlen(wp->boundary);
+            wp->boundaryLen = (ssize) strlen(wp->boundary);
         }
         wfree(boundary);
         if (wp->boundaryLen == 0) {
@@ -25069,11 +26060,27 @@ static void freeUploadFile(WebsUpload *up)
 }
 
 
+/*
+    Release the text fields held for the body. On a complete body they have already been stored as request variables.
+ */
+static void freeUploadFields(Webs *wp)
+{
+    int i;
+
+    for (i = 0; i < wp->uploadFieldCount * 2; i++) {
+        wfreeset(wp->uploadFields[i]);
+    }
+    wfreeset(wp->uploadFields);
+    wp->uploadFieldCount = 0;
+}
+
+
 PUBLIC void websFreeUpload(Webs *wp)
 {
     WebsUpload *up;
     WebsKey    *s;
 
+    freeUploadFields(wp);
     //  Windows requires closing the upload before removing it.
     if (wp->upfd >= 0) {
         close(wp->upfd);
@@ -25100,7 +26107,7 @@ PUBLIC void websFreeUpload(Webs *wp)
 PUBLIC bool websProcessUploadData(Webs *wp)
 {
     char  *line, *nextTok;
-    ssize nbytes;
+    ssize nbytes, lineLen;
     bool  canProceed;
 
     line = 0;
@@ -25112,18 +26119,31 @@ PUBLIC bool websProcessUploadData(Webs *wp)
                 Parse the next input line
              */
             line = bufStart(&wp->input);
-            if ((nextTok = memchr(line, '\n', bufLen(&wp->input))) != 0) {
+            //  Resume at the previous read boundary to keep line scanning linear.
+            if ((nextTok = memchr(line + wp->lineScan, '\n', (size_t) (bufLen(&wp->input) - wp->lineScan))) != 0) {
+                wp->lineScan = 0;
+                lineLen = nextTok - line;
                 *nextTok++ = '\0';
                 nbytes = nextTok - line;
             } else if (wp->eof && bufLen(&wp->input) > 0) {
                 //  No more input: the rest is the last line, such as a close delimiter without a final CRLF
-                nbytes = bufLen(&wp->input);
+                wp->lineScan = 0;
+                nbytes = lineLen = bufLen(&wp->input);
             } else {
                 /* Incomplete line */
+                wp->lineScan = bufLen(&wp->input);
                 canProceed = 0;
                 break;
             }
             assert(nbytes > 0);
+            /*
+                Reject embedded NULs to prevent disagreement with byte-counting multipart parsers.
+             */
+            if (memchr(line, '\0', (size_t) lineLen) != 0) {
+                websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Control character in part header");
+                websConsumeInput(wp, nbytes);
+                break;
+            }
             strim(line, "\r", WEBS_TRIM_END);
         }
         switch (wp->uploadState) {
@@ -25171,19 +26191,28 @@ static void processContentBoundary(Webs *wp, char *line)
     ssize len;
 
     len = wp->boundaryLen - 2;
-    if (strncmp(wp->boundary + 2, line, len) != 0) {
+    if (strncmp(wp->boundary + 2, line, (size_t) len) != 0) {
         websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Incomplete boundary");
         return;
     }
     suffix = &line[len];
     if (suffix[0] == '-' && suffix[1] == '-') {
         wp->uploadState = UPLOAD_CONTENT_END;
+        /*
+            Store the text fields now the body is complete, so a repeated name is joined once rather than
+            re-copied for every part that repeats it.
+         */
+        websSetRequestVarPairs(wp, (cchar**) wp->uploadFields, wp->uploadFieldCount, WEBS_VAR_BODY);
+        freeUploadFields(wp);
 
     } else if ((ssize) strspn(suffix, " \t") == slen(suffix)) {
         if (++wp->uploadParts > ME_GOAHEAD_LIMIT_PARAMS) {
             websError(wp, HTTP_CODE_REQUEST_TOO_LARGE, "Too many upload parts");
             return;
         }
+        //  Each part describes itself (RFC 7578 4.2): nothing carries over from the previous part
+        wfreeset(wp->uploadVar);
+        wfreeset(wp->clientFilename);
         wp->uploadState = UPLOAD_CONTENT_HEADER;
 
     } else {
@@ -25214,21 +26243,104 @@ static bool validClientFilename(cchar *name)
 }
 
 
+/*
+    Parse the next parameter of a Content-Disposition value in place: "; name=value" or "; name="quoted"", where a
+    quoted value may hold ";" and quoted-pair escapes (RFC 7578 4.2, RFC 2045 5.1). A bare token such as
+    "form-data" has an empty value. Return 1 with the name and value set, 0 at the end, or -1 for a malformed
+    parameter.
+ */
+static int nextParam(char **cpp, char **name, char **value)
+{
+    char *cp, *vp;
+    int  delim;
+
+    cp = *cpp;
+    cp += strspn(cp, "; \t");
+    if (*cp == '\0') {
+        *cpp = cp;
+        return 0;
+    }
+    *name = cp;
+    cp += strcspn(cp, "=; \t");
+    //  Terminate the name, remembering which delimiter ended it
+    if ((delim = *cp) != '\0') {
+        *cp++ = '\0';
+    }
+    cp += strspn(cp, " \t");
+    if (delim != '=' && delim != ';' && *cp == '=') {
+        delim = '=';
+        cp += 1 + strspn(cp + 1, " \t");
+    }
+    *value = "";
+    if (delim == '=') {
+        if (*cp == '"') {
+            for (vp = *value = ++cp; *cp && *cp != '"'; cp++) {
+                if (*cp == '\\' && cp[1]) {
+                    cp++;
+                }
+                *vp++ = *cp;
+            }
+            if (*cp != '"') {
+                return -1;
+            }
+            cp++;
+            *vp = '\0';
+        } else {
+            *value = cp;
+            cp += strcspn(cp, "; \t");
+        }
+        if ((delim = *cp) != '\0') {
+            if (delim != ';' && delim != ' ' && delim != '\t') {
+                return -1;
+            }
+            *cp++ = '\0';
+        }
+        cp += strspn(cp, " \t");
+    }
+    //  The parameter ends at ";" or the end of the value
+    if (delim != ';' && *cp != '\0' && *cp != ';') {
+        return -1;
+    }
+    *cpp = cp;
+    return 1;
+}
+
+
 static void processUploadHeader(Webs *wp, char *line)
 {
     WebsUpload *file;
-    char       *key, *headerTok, *rest, *nextPair, *value;
+    char       *key, *headerTok, *rest, *value;
+    ssize      nameLen;
+    int        rc;
 
     if (line[0] == '\0') {
+        if (wp->uploadVar == 0) {
+            websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Missing Content-Disposition");
+            return;
+        }
         wp->uploadState = UPLOAD_CONTENT_DATA;
         return;
     }
     trace(7, "Header line: %s", line);
 
+    /*
+        Require field-name ":" OWS field-value; reject folding and whitespace before the colon (RFC 7230 3.2.4).
+     */
+    nameLen = (ssize) strcspn(line, ":");
+    if (nameLen == 0 || line[nameLen] != ':' || (ssize) strcspn(line, " \t") < nameLen) {
+        websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Bad part header");
+        return;
+    }
     headerTok = line;
-    stok(line, ": ", &rest);
+    line[nameLen] = '\0';
+    rest = &line[nameLen + 1];
+    rest += strspn(rest, " \t");
 
     if (scaselesscmp(headerTok, "Content-Disposition") == 0) {
+        if (wp->uploadVar) {
+            websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Repeated Content-Disposition");
+            return;
+        }
         /*
             The content disposition header describes either a form variable or an uploaded file.
 
@@ -25242,25 +26354,27 @@ static void processUploadHeader(Webs *wp, char *line)
             File data
             ---boundary
          */
-        key = rest;
-        wfreeset(wp->uploadVar);
-        wfreeset(wp->clientFilename);
-
-        while (key && stok(key, ";\r\n", &nextPair)) {
-
-            key = strim(key, " ", WEBS_TRIM_BOTH);
-            ssplit(key, "= ", &value);
-            value = strim(value, "\"", WEBS_TRIM_BOTH);
-
+        while ((rc = nextParam(&rest, &key, &value)) > 0) {
+            if (strchr(key, '*')) {
+                //  RFC 2231 and RFC 5987 extended parameters are prohibited in form-data (RFC 7578 4.2)
+                websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Extended Content-Disposition parameter");
+                return;
+            }
             if (scaselesscmp(key, "form-data") == 0) {
                 /* Nothing to do */
 
             } else if (scaselesscmp(key, "name") == 0) {
-                if (value == 0 || *value == '\0') {
+                if (*value == '\0') {
                     websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Empty name field");
                     return;
                 }
-                wfreeset(wp->uploadVar);
+                /*
+                    uploadVar is cleared at each boundary; a set value here means the name parameter is repeated.
+                 */
+                if (wp->uploadVar) {
+                    websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Repeated name parameter");
+                    return;
+                }
                 wp->uploadVar = sclone(value);
 
             } else if (scaselesscmp(key, "filename") == 0) {
@@ -25270,8 +26384,8 @@ static void processUploadHeader(Webs *wp, char *line)
                 }
                 /*
                     A part may open only one file. wp->upfd is the per-part descriptor and is reset
-                    when the part ends, so a descriptor open here means a repeated filename= pair or
-                    a repeated Content-Disposition header. Reject rather than leak the descriptor.
+                    when the part ends, so a descriptor open here means a repeated filename= pair.
+                    Reject rather than leak the descriptor.
                  */
                 if (wp->upfd >= 0) {
                     websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Duplicate filename field");
@@ -25292,7 +26406,7 @@ static void processUploadHeader(Webs *wp, char *line)
                     Create the file to hold the uploaded data
                  */
                 wfreeset(wp->uploadTmp);
-                if ((wp->uploadTmp = websTempFile(uploadDir, "tmp")) == 0) {
+                if ((wp->uploadTmp = websTempFileOpen(uploadDir, "tmp", &wp->upfd)) == 0) {
                     /*
                         Do not name the temp file here: the assignment above is what failed, so
                         wp->uploadTmp is unconditionally NULL on this path. gcc proves it at -O2
@@ -25305,19 +26419,6 @@ static void processUploadHeader(Webs *wp, char *line)
                 trace(5, "File upload of: %s stored as %s", wp->clientFilename, wp->uploadTmp);
 
                 /*
-                    websTempFile created the file, private and empty, so this opens an existing file
-                    rather than creating one. O_NOFOLLOW keeps that true if the path is replaced.
-                 */
-                if ((wp->upfd = open(wp->uploadTmp, O_WRONLY | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
-                    websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot open upload temp file %s", wp->uploadTmp);
-                    /*
-                        Remove the temporary file on open failure; no request state owns it yet.
-                     */
-                    unlink(wp->uploadTmp);
-                    wfreeset(wp->uploadTmp);
-                    return;
-                }
-                /*
                     Create the files[id]
                  */
                 freeUploadFile(wp->currentFile);
@@ -25326,7 +26427,9 @@ static void processUploadHeader(Webs *wp, char *line)
                 file->clientFilename = sclone(wp->clientFilename);
                 file->filename = sclone(wp->uploadTmp);
             }
-            key = nextPair;
+        }
+        if (rc < 0) {
+            websError(wp, HTTP_CODE_BAD_REQUEST, "Bad upload state. Bad Content-Disposition parameter");
         }
 
     } else if (scaselesscmp(headerTok, "Content-Type") == 0) {
@@ -25387,7 +26490,8 @@ static int writeToFile(Webs *wp, char *data, ssize len)
 
     file = wp->currentFile;
 
-    if ((file->size + len) > ME_GOAHEAD_LIMIT_UPLOAD) {
+    //  Tested against the room left, as the running total plus a buffer can overflow
+    if (len > ME_GOAHEAD_LIMIT_UPLOAD - file->size) {
         websError(wp, HTTP_CODE_REQUEST_TOO_LARGE, "Uploaded file exceeds maximum %zd",
                   (ssize) ME_GOAHEAD_LIMIT_UPLOAD);
         return -1;
@@ -25473,7 +26577,8 @@ static bool processContentData(Webs *wp)
 
     } else if (wp->uploadVar) {
         /*
-            Normal string form data variables
+            Normal string form data variables, held until the body completes. ME_GOAHEAD_LIMIT_PARAMS bounds the
+            count through uploadParts.
          */
         data[len] = '\0';
         //  Multipart names and values are literal (RFC 7578), not URL encoded
@@ -25482,7 +26587,10 @@ static bool processContentData(Webs *wp)
 #else
         trace(5, "uploadFilter: form[%s]", wp->uploadVar);
 #endif
-        websSetRequestVar(wp, wp->uploadVar, data, WEBS_VAR_BODY);
+        wp->uploadFields = wrealloc(wp->uploadFields, (wp->uploadFieldCount + 1) * 2 * (ssize) sizeof(char*));
+        wp->uploadFields[wp->uploadFieldCount * 2] = sclone(wp->uploadVar);
+        wp->uploadFields[wp->uploadFieldCount * 2 + 1] = snclone(data, len);
+        wp->uploadFieldCount++;
     }
     websConsumeInput(wp, nbytes);
     if (wp->clientFilename) {
@@ -25538,18 +26646,18 @@ static char *getBoundary(Webs *wp, char *buf, ssize bufLen)
 
     end = buf + bufLen;
     for (cp = buf + wp->boundaryScan; cp < end; cp++) {
-        if ((cp = memchr(cp, '\r', end - cp)) == 0) {
+        if ((cp = memchr(cp, '\r', (size_t) (end - cp))) == 0) {
             break;
         }
         avail = end - cp;
         if (avail < wp->boundaryLen) {
-            if (memcmp(cp, wp->boundary, avail) == 0) {
+            if (memcmp(cp, wp->boundary, (size_t) avail) == 0) {
                 wp->boundaryScan = cp - buf;
                 return 0;
             }
             continue;
         }
-        if (memcmp(cp, wp->boundary, wp->boundaryLen) == 0) {
+        if (memcmp(cp, wp->boundary, (size_t) wp->boundaryLen) == 0) {
             suffix = cp + wp->boundaryLen;
             if ((rc = delimiterSuffix(suffix, end)) == 1) {
                 return cp;

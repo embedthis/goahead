@@ -108,13 +108,24 @@ static bool routeAllowsMethod(WebsRoute *route, cchar *method)
 }
 
 
-
 static int routeRunsCode(WebsRoute *route)
 {
     cchar *name;
 
     name = route->handler ? route->handler->name : "";
     return smatch(name, "jst") || smatch(name, "cgi") || smatch(name, "action");
+}
+
+
+/*
+    Rebind each route's file name to avoid serving a declined route's directory under another policy.
+ */
+static void bindFilename(Webs *wp, WebsRoute *route)
+{
+    if (!(wp->flags & WEBS_FILENAME_SET)) {
+        wfreeset(wp->filename);
+        wp->filename = sfmt("%s%s", route->dir ? route->dir : websGetDocuments(), wp->path);
+    }
 }
 
 
@@ -171,6 +182,8 @@ PUBLIC void websRouteRequest(Webs *wp)
     } else {
         i = 0;
     }
+    /* A rewrite is routed once. A later decline resumes after its route rather than rescanning from the start. */
+    wp->flags &= ~WEBS_REROUTE;
     wp->route = 0;
 
     for (; i < routeCount; i++) {
@@ -181,7 +194,8 @@ PUBLIC void websRouteRequest(Webs *wp)
             Recompute path length each iteration because match callbacks may rewrite it.
          */
         plen = slen(wp->path);
-        if (plen < route->prefixLen) continue;
+        /* A directory prefix also covers the directory itself requested without its trailing slash */
+        if (plen < route->prefixLen && !(plen == route->prefixLen - 1 && route->prefix[plen] == '/')) continue;
         len = min(route->prefixLen, plen);
         trace(5, "Examine route %s", route->prefix);
         /*
@@ -253,6 +267,8 @@ PUBLIC void websRouteRequest(Webs *wp)
         if ((handler = route->handler) == 0) {
             continue;
         }
+        //  The handler's match and the body staging that follows routing see the route's own file
+        bindFilename(wp, route);
         if (!handler->match || (*handler->match)(wp)) {
             /* Handler matches */
             return;
@@ -299,10 +315,11 @@ PUBLIC bool websRunRequest(Webs *wp)
         websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Configuration error - no handler for route");
         return 1;
     }
-    if (!wp->filename || route->dir) {
-        wfreeset(wp->filename);
-        wp->filename = sfmt("%s%s", route->dir ? route->dir : websGetDocuments(), wp->path);
-    }
+    bindFilename(wp, route);
+    /*
+        Reserve server variable names before storing request parameters. Refresh them on reroute for the new path.
+     */
+    websSetEnv(wp);
     if (!(wp->flags & WEBS_VARS_ADDED)) {
         wp->flags |= WEBS_VARS_ADDED;
         if (websSetQueryVars(wp) < 0 || websSetFormVars(wp) < 0) {
@@ -315,7 +332,7 @@ PUBLIC bool websRunRequest(Webs *wp)
 
 #if ME_GOAHEAD_LEGACY
     if (route->handler->legacy) {
-        return (*route->handler->legacy)(wp, route->prefix, route->dir, route->flags) == 0;
+        return (*route->handler->legacy)(wp, route->prefix, route->dir, route->flags) != 0;
     } else
 #endif
     if (!route->handler->service) {
@@ -337,7 +354,6 @@ static bool can(Webs *wp, char *ability)
     }
     return 0;
 }
-
 
 
 static bool canAny(Webs *wp, cchar *abilities)
@@ -363,31 +379,29 @@ PUBLIC bool websCan(Webs *wp, WebsHash abilities)
     assert(wp);
     assert(abilities >= 0);
 
-    if (!wp->user) {
-        if (wp->authType) {
-            if (!wp->username) {
-                websLogAuth(wp, 0, "refused", "user not logged in");
-                websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. User not logged in.");
-                return 0;
-            }
-            if ((wp->user = websLookupUser(wp->username)) == 0) {
-                websLogAuth(wp, 0, "refused", "unknown user");
-                websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. Unknown user.");
-                return 0;
-            }
-        }
+    if (!wp->user && wp->username) {
+        wp->user = websLookupUser(wp->username);
     }
-    if (abilities >= 0) {
-        if (!wp->user && wp->username) {
-            wp->user = websLookupUser(wp->username);
+    /*
+        Without a verified user the request must authenticate: 401. A verified user who lacks an ability is
+        refused with 403, since authenticating again cannot help and a 401 carries no challenge here.
+     */
+    if (!wp->user) {
+        if (wp->username) {
+            websLogAuth(wp, 0, "refused", "unknown user");
+            websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. Unknown user.");
+        } else {
+            websLogAuth(wp, 0, "refused", "user not logged in");
+            websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. User not logged in.");
         }
-        for (key = hashFirst(abilities); key; key = hashNext(abilities, key)) {
-            ability = key->name.value.string;
-            if (strchr(ability, '|') ? !canAny(wp, ability) : !can(wp, ability)) {
-                websLogAuth(wp, 0, "refused", "insufficient abilities");
-                websError(wp, HTTP_CODE_UNAUTHORIZED, "Access Denied. Insufficient capabilities.");
-                return 0;
-            }
+        return 0;
+    }
+    for (key = hashFirst(abilities); key; key = hashNext(abilities, key)) {
+        ability = key->name.value.string;
+        if (strchr(ability, '|') ? !canAny(wp, ability) : !can(wp, ability)) {
+            websLogAuth(wp, 0, "refused", "insufficient abilities");
+            websError(wp, HTTP_CODE_FORBIDDEN, "Access Denied. Insufficient capabilities.");
+            return 0;
         }
     }
     return 1;
@@ -436,7 +450,7 @@ PUBLIC WebsRoute *websAddRoute(cchar *uri, cchar *handler, int pos)
         pos = routeCount;
     }
     if (pos < routeCount) {
-        memmove(&routes[pos + 1], &routes[pos], sizeof(WebsRoute*) * (routeCount - pos));
+        memmove(&routes[pos + 1], &routes[pos], sizeof(WebsRoute*) * (size_t) (routeCount - pos));
     }
     routes[pos] = route;
     routeCount++;
@@ -507,6 +521,17 @@ PUBLIC int websSetRouteMatch(WebsRoute *route, cchar *dir, cchar *protocol, Webs
               "leading dot.", route->prefix, bad);
         return -1;
     }
+    /* An empty selector set, such as methods=none, admits nothing; only abilities=none means no requirement. */
+    if (methods >= 0 && hashFirst(methods) == 0) {
+        error("Route \"%s\" has an empty methods= list, which never matches. Name the methods or drop the keyword.",
+              route->prefix);
+        return -1;
+    }
+    if (extensions >= 0 && hashFirst(extensions) == 0) {
+        error("Route \"%s\" has an empty extensions= list, which never matches. Name the extensions or drop the "
+              "keyword.", route->prefix);
+        return -1;
+    }
 
 #if !ME_GOAHEAD_AUTH
     /*
@@ -531,7 +556,7 @@ static void growRoutes(void)
 {
     if (routeCount >= routeMax) {
         routeMax += 16;
-        if ((routes = wrealloc(routes, sizeof(WebsRoute*) * routeMax)) == 0) {
+        if ((routes = wrealloc(routes, (ssize) sizeof(WebsRoute*) * routeMax)) == 0) {
             error("Cannot grow routes");
         }
     }
@@ -599,7 +624,7 @@ PUBLIC int websRemoveRoute(cchar *uri)
         return 0;
     }
     route->flags |= WEBS_ROUTE_REMOVED;
-    retiredRoutes = wrealloc(retiredRoutes, sizeof(WebsRoute*) * (retiredCount + 1));
+    retiredRoutes = wrealloc(retiredRoutes, (ssize) sizeof(WebsRoute*) * (retiredCount + 1));
     retiredRoutes[retiredCount++] = route;
     return 0;
 }
@@ -668,7 +693,6 @@ static int routeServesContent(WebsRoute *route)
 }
 
 
-
 static int routeIsGate(WebsRoute *route)
 {
     return route->handler && smatch(route->handler->name, "continue");
@@ -717,6 +741,16 @@ static cchar *gateUncovered(WebsRoute *gate, WebsRoute *route)
 }
 
 
+static int hasNonAscii(cchar *str)
+{
+    for (; *str; str++) {
+        if ((uchar) *str >= 0x80) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 static int prefixesNest(WebsRoute *r1, WebsRoute *r2)
 {
@@ -729,9 +763,9 @@ static int prefixesNest(WebsRoute *r1, WebsRoute *r2)
 
 
 /*
-    Can one request satisfy both routes' selectors? A route without methods= admits the safe methods.
+    Test selector overlap. Routes without methods= serve safe methods but gate all methods when authenticating.
  */
-static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2)
+static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2, bool r1Gates)
 {
     WebsKey *key;
     cchar   *safe[] = { "GET", "HEAD", "POST", 0 };
@@ -747,6 +781,12 @@ static int selectorsOverlap(WebsRoute *r1, WebsRoute *r2)
         if (!common) {
             return 0;
         }
+    }
+    if (r1->methods < 0 && r1Gates) {
+        return 1;
+    }
+    if (r2->methods < 0 && (r2->authType || r2->abilities >= 0)) {
+        return 1;
     }
     if (r2->methods >= 0) {
         for (key = hashFirst(r2->methods); key; key = hashNext(r2->methods, key)) {
@@ -801,14 +841,32 @@ static int abilitiesCover(WebsHash have, WebsHash need)
 
 
 /*
-    Does a request the earlier route authorizes meet the later route's requirement?
+    Does a request the earlier route authorizes, with the given scheme, meet the later route's requirement?
  */
-static int routeMeets(WebsRoute *earlier, WebsRoute *later)
+static int routeMeets(cchar *scheme, WebsHash abilities, WebsRoute *later)
 {
-    if (later->authType && !smatch(earlier->authType, later->authType)) {
+    if (later->authType && !smatch(scheme, later->authType)) {
         return 0;
     }
-    return abilitiesCover(earlier->abilities, later->abilities);
+    return abilitiesCover(abilities, later->abilities);
+}
+
+
+/*
+    Find an earlier authentication gate for an abilities-only route, which cannot admit users on its own.
+ */
+static WebsRoute *gateBefore(int index, WebsRoute *later)
+{
+    WebsRoute *gate;
+    int       i;
+
+    for (i = 0; i < index; i++) {
+        gate = routes[i];
+        if (gate->authType && prefixesNest(gate, later) && selectorsOverlap(gate, later, 1)) {
+            return gate;
+        }
+    }
+    return 0;
 }
 
 
@@ -840,7 +898,7 @@ static int regionsOverlap(WebsRoute *r1, WebsRoute *r2)
  */
 static int checkRouteAuth(void)
 {
-    WebsRoute *strict, *loose, *candidate;
+    WebsRoute *strict, *loose, *candidate, *gate;
     cchar     *uncovered;
     int       i, j, authRoutes, problems;
 
@@ -917,6 +975,35 @@ static int checkRouteAuth(void)
         }
     }
     /*
+        On case-insensitive file systems, Unicode case variants can miss a strict prefix and reach a broader,
+        weaker route. Route matching folds ASCII only; check non-ASCII suffixes beyond the broader prefix.
+     */
+    for (i = 0; i < routeCount; i++) {
+        strict = routes[i];
+        if (!strict->authType && strict->abilities < 0) {
+            continue;
+        }
+        for (j = i + 1; j < routeCount; j++) {
+            candidate = routes[j];
+            if (!candidate->authType || routeIsGate(candidate) || !routeServesContent(candidate) ||
+                candidate->prefixLen >= strict->prefixLen ||
+                matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0 ||
+                !hasNonAscii(&strict->prefix[candidate->prefixLen]) || !regionsOverlap(strict, candidate) ||
+                !selectorsOverlap(candidate, strict, 0) ||
+                routeMeets(candidate->authType, candidate->abilities, strict)) {
+                continue;
+            }
+            error("Security warning: route \"%s\" (auth=%s) requires more than later route \"%s\" (auth=%s), "
+                  "which can serve the same directory. A Unicode case folded request will miss \"%s\" and be served "
+                  "to any user \"%s\" admits. %s", strict->prefix, strict->authType ? strict->authType : "none",
+                  candidate->prefix, candidate->authType, strict->prefix, candidate->prefix,
+                  routeIsGate(strict) ? "Serve the directory from an authenticated route of its own with the file "
+                  "handler and its own dir=." : "Give the stricter route its own dir=.");
+            problems++;
+            break;
+        }
+    }
+    /*
         Check public routes missed by an authentication gate's selectors. Equal prefixes need this
         check for protocol-only gates; methods and extensions are checked above.
      */
@@ -972,8 +1059,8 @@ static int checkRouteAuth(void)
         }
     }
     /*
-        Report earlier serving routes with weaker authentication or abilities. Gates pass requests on;
-        abilities-only routes without auth admit nobody.
+        Report earlier routes that serve content under weaker requirements. Abilities-only routes need an
+        earlier authentication gate; gates themselves pass requests on.
      */
     for (i = 0; i < routeCount; i++) {
         strict = routes[i];
@@ -982,15 +1069,30 @@ static int checkRouteAuth(void)
         }
         for (j = 0; j < i; j++) {
             candidate = routes[j];
-            if (!candidate->authType || routeIsGate(candidate) || !routeServesContent(candidate) ||
+            if ((!candidate->authType && candidate->abilities < 0) || routeIsGate(candidate) ||
+                !routeServesContent(candidate) ||
                 matchRoutePrefix(strict->prefix, candidate->prefix, candidate->prefixLen) != 0 ||
-                !regionsOverlap(strict, candidate) || !selectorsOverlap(candidate, strict) ||
-                routeMeets(candidate, strict)) {
+                !regionsOverlap(strict, candidate) || !selectorsOverlap(candidate, strict, 0)) {
                 continue;
             }
-            error("Security warning: route \"%s\" (auth=%s) comes before route \"%s\" (auth=%s) and serves its "
-                  "requests under its own weaker requirement. Put \"%s\" first.", candidate->prefix,
-                  candidate->authType, strict->prefix, strict->authType ? strict->authType : "none", strict->prefix);
+            gate = 0;
+            if (!candidate->authType && (gate = gateBefore(j, strict)) == 0) {
+                continue;
+            }
+            if (routeMeets(candidate->authType ? candidate->authType : gate->authType, candidate->abilities, strict)) {
+                continue;
+            }
+            if (gate) {
+                error("Security warning: route \"%s\" (abilities after gate \"%s\") comes before route \"%s\" "
+                      "(auth=%s) and serves its requests under its own weaker requirement. Put \"%s\" first.",
+                      candidate->prefix, gate->prefix, strict->prefix, strict->authType ? strict->authType : "none",
+                      strict->prefix);
+            } else {
+                error("Security warning: route \"%s\" (auth=%s) comes before route \"%s\" (auth=%s) and serves its "
+                      "requests under its own weaker requirement. Put \"%s\" first.", candidate->prefix,
+                      candidate->authType, strict->prefix, strict->authType ? strict->authType : "none",
+                      strict->prefix);
+            }
             problems++;
             break;
         }
@@ -1033,6 +1135,50 @@ static int checkRouteAuth(void)
         }
     }
     return problems;
+}
+
+
+/*
+    Does this route write request data to the server: a PUT or DELETE through the file handler, or a multipart
+    upload parsed to disk?
+ */
+static int routeWrites(WebsRoute *route)
+{
+    if (route->flags & WEBS_ROUTE_UPLOAD) {
+        return 1;
+    }
+    return smatch(route->handler->name, "file") &&
+           (routeAllowsMethod(route, "PUT") || routeAllowsMethod(route, "DELETE"));
+}
+
+
+/*
+    Warn about a route that accepts writes without authentication and without an earlier authenticated route
+    that covers its requests. A public writable route is a policy choice, so this warns and is not counted.
+ */
+static void warnWritableRoutes(void)
+{
+    WebsRoute *route, *gate;
+    int       i, j, covered;
+
+    for (j = 0; j < routeCount; j++) {
+        route = routes[j];
+        if (route->authType || route->abilities >= 0 || !routeWrites(route)) {
+            continue;
+        }
+        covered = 0;
+        for (i = 0; i < j && !covered; i++) {
+            gate = routes[i];
+            covered = (gate->authType || gate->abilities >= 0) &&
+                      matchRoutePrefix(route->prefix, gate->prefix, gate->prefixLen) == 0 &&
+                      gateUncovered(gate, route) == 0;
+        }
+        if (!covered) {
+            error("Security warning: route \"%s\" (handler=%s) accepts %s without authentication. Give it auth=, "
+                  "or put it after a login gate that covers it.", route->prefix, route->handler->name,
+                  (route->flags & WEBS_ROUTE_UPLOAD) ? "file uploads" : "PUT or DELETE");
+        }
+    }
 }
 
 #else
@@ -1167,6 +1313,7 @@ PUBLIC int websCheckRoutes(void)
 #endif
 #if ME_GOAHEAD_AUTH
     problems += checkRouteAuth();
+    warnWritableRoutes();
 #else
     warnUnauthenticated();
 #endif
@@ -1198,8 +1345,8 @@ PUBLIC bool websGetStrict(void)
 
 PUBLIC char *websAbsolutePath(cchar *path)
 {
-    char cwd[ME_GOAHEAD_LIMIT_FILENAME], *result, *cp, *tail, *normalized;
-    int  absolute;
+    char  *cwd, *result, *cp, *tail, *normalized;
+    int   size, absolute;
 
     absolute = (*path == '/' || *path == '\\');
 #if ME_WIN_LIKE
@@ -1209,10 +1356,22 @@ PUBLIC char *websAbsolutePath(cchar *path)
 #endif
     if (absolute) {
         result = sclone(path);
-    } else if (getcwd(cwd, sizeof(cwd)) == NULL) {
-        result = sclone(path);
     } else {
-        result = sfmt("%s/%s", cwd, path);
+        /*
+            Grow the buffer until the working directory fits. A relative result compares as outside every absolute
+            directory, so a deep working directory must not leave the path unresolved.
+         */
+        for (cwd = 0, size = ME_GOAHEAD_LIMIT_FILENAME; !cwd && size <= 65536; size *= 2) {
+            cwd = walloc(size);
+            if (getcwd(cwd, size) == NULL) {
+                wfreeset(cwd);
+                if (errno != ERANGE) {
+                    break;
+                }
+            }
+        }
+        result = cwd ? sfmt("%s/%s", cwd, path) : sclone(path);
+        wfree(cwd);
     }
     for (cp = result; *cp; cp++) {
         if (*cp == '\\') {
@@ -1276,8 +1435,25 @@ static int dirContains(cchar *dir, cchar *child)
 }
 
 
+PUBLIC void websAddConfigFile(cchar *path)
+{
+    int i;
+
+    if (path == 0 || *path == '\0') {
+        return;
+    }
+    for (i = 0; i < configFileCount; i++) {
+        if (smatch(configFiles[i], path)) {
+            return;
+        }
+    }
+    configFiles = wrealloc(configFiles, (ssize) sizeof(char*) * (configFileCount + 1));
+    configFiles[configFileCount++] = sclone(path);
+}
+
+
 /*
-    Report loaded configuration files inside served directories, where clients could fetch them.
+    Report the server's own files inside served directories, where clients could fetch them.
  */
 PUBLIC int websCheckConfigFiles(void)
 {
@@ -1292,9 +1468,9 @@ PUBLIC int websCheckConfigFiles(void)
                 continue;
             }
             if (dirContains(docs, configFiles[i])) {
-                error("Security error: the configuration file \"%s\" is inside the served directory \"%s\" and "
-                      "would be served to any client that names it. Move it outside the documents directory.",
-                      configFiles[i], docs);
+                error("Security error: the server's own file \"%s\" (route table, credentials, TLS key or log) is "
+                      "inside the served directory \"%s\" and would be served to any client that names it. Move it "
+                      "outside the documents directory.", configFiles[i], docs);
                 problems++;
                 break;
             }
@@ -1543,6 +1719,18 @@ static char *splitOption(cchar *kind, char *option, char **value)
 /*
     Load route and authentication configuration files
  */
+/*
+    Release the selector tables of a configuration line that was refused before a route or role took them.
+ */
+static void freeOptions(WebsHash abilities, WebsHash extensions, WebsHash methods, WebsHash redirects)
+{
+    hashFree(abilities);
+    hashFree(extensions);
+    hashFree(methods);
+    hashFree(redirects);
+}
+
+
 PUBLIC int websLoad(cchar *path)
 {
     WebsRoute *route;
@@ -1550,17 +1738,22 @@ PUBLIC int websLoad(cchar *path)
     char      *buf, *line, *kind, *next, *auth, *dir, *handler, *protocol, *uri, *option, *key, *value, *status;
     char      *redirectUri, *token;
     int       rc, badKeyword, flags;
+#if ME_GOAHEAD_AUTH
+    int       credentials;
+#endif
 
     assert(path && *path);
 
     rc = 0;
     badKeyword = 0;
+#if ME_GOAHEAD_AUTH
+    credentials = 0;
+#endif
     if ((buf = websReadWholeFile(path)) == 0) {
         error("Cannot open config file %s", path);
         return -1;
     }
-    configFiles = wrealloc(configFiles, sizeof(char*) * (configFileCount + 1));
-    configFiles[configFileCount++] = sclone(path);
+    websAddConfigFile(path);
     for (line = stok(buf, "\r\n", &token); line; line = stok(NULL, "\r\n", &token)) {
         kind = stok(line, " \t", &next);
         if (kind == 0 || *kind == '\0' || *kind == '#') {
@@ -1633,16 +1826,20 @@ PUBLIC int websLoad(cchar *path)
             /*
                 Reject unknown qualifiers so typos cannot silently remove route protection.
              */
-            if (badKeyword) {
-                rc = -1;
-                break;
-            }
-            if ((route = websAddRoute(uri, handler, -1)) == 0) {
+            if (badKeyword || (route = websAddRoute(uri, handler, -1)) == 0) {
+                freeOptions(abilities, extensions, methods, redirects);
                 rc = -1;
                 break;
             }
             route->flags |= flags;
             if (websSetRouteMatch(route, dir, protocol, methods, extensions, abilities, redirects) < 0) {
+                rc = -1;
+                break;
+            }
+            /* The redirect handler sends the default target; without one the route redirects nothing. */
+            if (smatch(route->handler->name, "redirect") && (redirects < 0 || hashLookup(redirects, "0") == 0)) {
+                error("Route \"%s\" has handler=redirect but no default redirect= target, so it redirects nothing. "
+                      "Add redirect=URI or redirect=*@URI.", route->prefix);
                 rc = -1;
                 break;
             }
@@ -1686,6 +1883,14 @@ PUBLIC int websLoad(cchar *path)
                 rc = -1;
                 break;
             }
+            if (!credentials) {
+                credentials = 1;
+                /*
+                    A stored MD5 hash is a password equivalent for Digest authentication, and any account that can
+                    write the file can add an administrator.
+                 */
+                websCheckSecretFile(path, "passwords");
+            }
 #else
             rc = rejectAuthDirective(kind);
             break;
@@ -1711,6 +1916,7 @@ PUBLIC int websLoad(cchar *path)
                 }
             }
             if (badKeyword) {
+                hashFree(abilities);
                 rc = -1;
                 break;
             }

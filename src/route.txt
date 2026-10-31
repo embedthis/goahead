@@ -40,8 +40,9 @@
 #       route uri=/auth/digest/ auth=digest abilities=manage dir=private
 #
 #   Enable the PUT and DELETE methods (only) for this route. A PUT writes into the route's documents. The body is
-#   staged in ME_GOAHEAD_PUT_DIR, which must be outside the documents.
-#       route uri=/put/ methods=PUT|DELETE
+#   staged in ME_GOAHEAD_PUT_DIR, which must be outside the documents. A route that accepts PUT, DELETE or uploads
+#   needs auth= or a login gate before it; the server warns at startup about one that has neither.
+#       route uri=/put/ methods=PUT|DELETE auth=basic abilities=manage dir=private
 #
 #   Authentication
 #

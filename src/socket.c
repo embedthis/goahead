@@ -260,7 +260,6 @@ static bool socketDrain(int sid)
 }
 
 
-
 static void lingerRead(int sid, int mask, void *data)
 {
     if (socketPtr(sid) == NULL || socketDrain(sid)) {
@@ -558,19 +557,20 @@ PUBLIC int socketSelect(int sid, int timeout)
     struct timeval tv;
     fd_mask        *readFds, *writeFds, *exceptFds, bit;
     ssize          index;
-    int            all, len, nwords, nEvents;
+    size_t         len, nwords;
+    int            all, nEvents;
 
     /*
         Allocate and zero the select masks
      */
-    nwords = (socketHighestFd + NFDBITS) / NFDBITS;
+    nwords = (size_t) (socketHighestFd + (int) NFDBITS) / NFDBITS;
     len = nwords * sizeof(fd_mask);
 
-    readFds = walloc(len);
+    readFds = walloc((ssize) len);
     memset(readFds, 0, len);
-    writeFds = walloc(len);
+    writeFds = walloc((ssize) len);
     memset(writeFds, 0, len);
-    exceptFds = walloc(len);
+    exceptFds = walloc((ssize) len);
     memset(exceptFds, 0, len);
 
     tv.tv_sec = timeout / 1000;
@@ -598,8 +598,8 @@ PUBLIC int socketSelect(int sid, int timeout)
         /*
             Initialize the ready masks and compute the mask offsets.
          */
-        index = sp->sock / (NBBY * sizeof(fd_mask));
-        bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
+        index = (size_t) sp->sock / (NBBY * sizeof(fd_mask));
+        bit = (fd_mask) (1UL << ((size_t) sp->sock % (NBBY * sizeof(fd_mask))));
         /*
             Set the appropriate bit in the ready masks for the sp->sock.
          */
@@ -642,8 +642,8 @@ PUBLIC int socketSelect(int sid, int timeout)
                 continue;
             }
         }
-        index = sp->sock / (NBBY * sizeof(fd_mask));
-        bit = (fd_mask) (1UL << (sp->sock % (NBBY * sizeof(fd_mask))));
+        index = (size_t) sp->sock / (NBBY * sizeof(fd_mask));
+        bit = (fd_mask) (1UL << ((size_t) sp->sock % (NBBY * sizeof(fd_mask))));
 
         if (socketDue(sp)) {
             if (sp->handlerMask & SOCKET_READABLE) {
@@ -784,6 +784,27 @@ PUBLIC int socketSetBlock(int sid, int on)
 }
 
 
+static bool sendTimeoutUnsupported(void)
+{
+#if ME_WIN_LIKE
+    return WSAGetLastError() == WSAENOPROTOOPT;
+#else
+    int err = errno;
+#ifdef EOPNOTSUPP
+    if (err == EOPNOTSUPP) {
+        return 1;
+    }
+#endif
+#ifdef ENOTSUP
+    if (err == ENOTSUP) {
+        return 1;
+    }
+#endif
+    return err == ENOPROTOOPT;
+#endif
+}
+
+
 /*
     Set the socket send timeout in milliseconds. Zero means wait indefinitely.
     Returns zero if the platform supports a send timeout, otherwise -1.
@@ -809,11 +830,12 @@ PUBLIC int socketSetSendTimeout(int sid, int timeout)
     tv.tv_usec = (timeout % 1000) * 1000;
 #endif
     /*
-        Detect support at runtime. Stacks without SO_SNDTIMEO fail with ENOPROTOOPT, so no platform
-        conditionals are required and callers can fall back to an unbounded wait.
+        Warn only when the stack lacks SO_SNDTIMEO; connection errors do not indicate missing support.
      */
     if (setsockopt(sp->sock, SOL_SOCKET, SO_SNDTIMEO, (char*) &tv, sizeof(tv)) < 0) {
-        if (!warnedNoSendTimeout) {
+        if (!sendTimeoutUnsupported()) {
+            trace(2, "Cannot set the send timeout on socket %d: %s", sp->sock, strerror(socketGetError(sid)));
+        } else if (!warnedNoSendTimeout) {
             warnedNoSendTimeout = 1;
             error("Warning: this network stack has no send timeout (SO_SNDTIMEO). A client that stops reading "
                   "a response can stall the server. Put it behind a proxy that buffers responses.");
@@ -1244,9 +1266,9 @@ PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct so
         r = res;
     }
     memset(addr, 0, sizeof(*addr));
-    memcpy((char*) addr, (char*) r->ai_addr, (int) r->ai_addrlen);
+    memcpy((char*) addr, (char*) r->ai_addr, r->ai_addrlen);
 
-    *addrlen = (int) r->ai_addrlen;
+    *addrlen = (Socklen) r->ai_addrlen;
     *family = r->ai_family;
     *protocol = r->ai_protocol;
     freeaddrinfo(res);
@@ -1321,7 +1343,8 @@ PUBLIC int socketAddress(struct sockaddr *addr, int addrlen, char *ip, int ipLen
         }
     }
 #endif
-    if (getnameinfo(addr, addrlen, ip, ipLen, service, sizeof(service), NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN)) {
+    if (getnameinfo(addr, (socklen_t) addrlen, ip, (socklen_t) ipLen, service, sizeof(service),
+            NI_NUMERICHOST | NI_NUMERICSERV | NI_NOFQDN)) {
         if (ip && ipLen > 0) {
             *ip = '\0';
         }

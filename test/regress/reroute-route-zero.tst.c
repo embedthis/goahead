@@ -118,7 +118,8 @@ int main(int argc, char **argv)
     websFree(wp);
 
     wp = request("/rw/admin", NULL);
-    teqp(wp->route, catchAll, "a rewrite short of the protected prefix reaches the catch-all");
+    ttrue(wp->route == 0, "a rewrite to the protected directory without its slash must not reach the catch-all");
+    teq(wp->code, HTTP_CODE_UNAUTHORIZED, "a rewrite to the protected directory without its slash must be challenged");
     websFree(wp);
 
     wp = request("/rw/admin/secret.html", "joshua:pass1");

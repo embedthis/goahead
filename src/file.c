@@ -23,6 +23,7 @@ static int commitPut(Webs *wp);
 static int copyFile(cchar *from, cchar *to);
 #endif
 #endif
+static void abortTransfer(Webs *wp);
 static void fileWriteEvent(Webs *wp);
 static bool isTemplate(cchar *ext);
 static char *makeEtag(WebsFileInfo *info);
@@ -49,7 +50,15 @@ static bool fileHandler(Webs *wp)
     assert(wp->method);
     assert(wp->filename && wp->filename[0]);
 
-#if !ME_ROM
+#if ME_ROM
+    /*
+        A document in ROM cannot be modified. Refuse rather than answer as a GET would.
+     */
+    if (smatch(wp->method, "DELETE") || smatch(wp->method, "PUT")) {
+        websError(wp, HTTP_CODE_BAD_METHOD, "Cannot modify a document in ROM");
+        return 1;
+    }
+#else
     if (smatch(wp->method, "DELETE")) {
         if (!websPageAllowed(wp) || unlink(wp->filename) < 0) {
             websError(wp, HTTP_CODE_NOT_FOUND, "Cannot delete the URI");
@@ -157,7 +166,7 @@ static bool fileHandler(Webs *wp)
  */
 static bool isTemplate(cchar *ext)
 {
-    return smatch(ext, ".jst") || smatch(ext, ".asp");
+    return websIsTemplate(ext);
 }
 
 
@@ -250,20 +259,19 @@ static void fileWriteEvent(Webs *wp)
              */
             error("Cannot read %s after the response was committed, closing the connection", wp->filename);
             wfree(buf);
-            wp->flags &= ~WEBS_KEEP_ALIVE;
-            wp->state = WEBS_COMPLETE;
-            websDone(wp);
+            abortTransfer(wp);
             return;
         }
         if ((wrote = websWriteSocket(wp, buf, len)) < 0) {
             err = socketGetError(wp->sid);
             if (err == EWOULDBLOCK || err == EAGAIN) {
                 websPageSeek(wp, -len, SEEK_CUR);
-            } else {
-                /* Will call websDone below */
-                wp->state = WEBS_COMPLETE;
+                break;
             }
-            break;
+            trace(2, "Cannot write %s to the socket, errno %d, closing the connection", wp->filename, err);
+            wfree(buf);
+            abortTransfer(wp);
+            return;
         }
         wp->txRemaining -= wrote;
         slice -= wrote;
@@ -279,21 +287,38 @@ static void fileWriteEvent(Webs *wp)
 }
 
 
+/*
+    Close truncated transfers without keep-alive reuse and conclude the request for logging.
+ */
+static void abortTransfer(Webs *wp)
+{
+    wp->flags &= ~WEBS_KEEP_ALIVE;
+    wp->state = WEBS_COMPLETE;
+    websDone(wp);
+}
+
+
 #if !ME_ROM
 #if !ME_WIN_LIKE
 /*
-    Copy privately across filesystems and remove partial copies.
+    Copy to a private file beside the target, then rename it into place so copy failures preserve the target.
  */
 static int copyFile(cchar *from, cchar *to)
 {
-    char  buf[ME_GOAHEAD_LIMIT_BUFFER];
+    char  buf[ME_GOAHEAD_LIMIT_BUFFER], *dir, *cp, *tmp;
     ssize nbytes;
     int   in, out, rc;
 
     if ((in = open(from, O_RDONLY | O_BINARY)) < 0) {
         return -1;
     }
-    if ((out = open(to, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_NOFOLLOW, 0600)) < 0) {
+    dir = sclone(to);
+    if ((cp = strrchr(dir, '/')) != 0) {
+        *cp = '\0';
+    }
+    tmp = websTempFileOpen(*dir && cp ? dir : (cp ? "/" : "."), "put", &out);
+    wfree(dir);
+    if (tmp == 0) {
         close(in);
         return -1;
     }
@@ -311,9 +336,13 @@ static int copyFile(cchar *from, cchar *to)
     if (close(out) < 0) {
         rc = -1;
     }
-    if (rc < 0) {
-        unlink(to);
+    if (rc == 0 && rename(tmp, to) < 0) {
+        rc = -1;
     }
+    if (rc < 0) {
+        unlink(tmp);
+    }
+    wfree(tmp);
     return rc;
 }
 #endif
@@ -387,7 +416,7 @@ static void fileClose(void)
 PUBLIC void websFileOpen(void)
 {
     websIndex = sclone("index.html");
-    websDefineHandler("file", 0, fileHandler, fileClose, 0);
+    websDefineHandler("file", 0, fileHandler, fileClose, WEBS_DOCUMENT_HANDLER);
 }
 
 

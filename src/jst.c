@@ -155,7 +155,7 @@ static bool jstHandler(Webs *wp)
                  */
                 if (jsEval(jid, nextp, &result) == 0) {
                     if (result) {
-                        trace(4, "JST evaluation failed: %s", result);
+                        trace(4, "JST evaluation failed in %s: %s", wp->filename, result);
                         wfree(result);
                     }
                     jstError(wp);
@@ -176,7 +176,7 @@ static bool jstHandler(Webs *wp)
         Output any trailing HTML page text
      */
     if (last && *last && rc == 0) {
-        websWriteBlock(wp, last, strlen(last));
+        websWriteBlock(wp, last, (ssize) strlen(last));
     }
 
 /*
@@ -219,7 +219,7 @@ PUBLIC int websJstOpen(void)
     websDefineJst("escape", jstEscape);
     websDefineJst("escapeUri", jstEscapeUri);
     websDefineJst("escapeJs", jstEscapeJs);
-    websDefineHandler("jst", 0, jstHandler, closeJst, 0);
+    websDefineHandler("jst", 0, jstHandler, closeJst, WEBS_DOCUMENT_HANDLER);
     return 0;
 }
 
@@ -244,7 +244,7 @@ PUBLIC int websJstWrite(int jid, Webs *wp, int argc, char **argv)
 
     for (i = 0; i < argc; ) {
         assert(argv);
-        if (websWriteBlock(wp, argv[i], strlen(argv[i])) < 0) {
+        if (websWriteBlock(wp, argv[i], (ssize) strlen(argv[i])) < 0) {
             return -1;
         }
         if (++i < argc) {
@@ -340,8 +340,8 @@ static char *strtokcmp(char *s1, char *s2)
     ssize len;
 
     s1 = skipWhite(s1);
-    len = strlen(s2);
-    for (len = strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
+    len = (ssize) strlen(s2);
+    for (len = (ssize) strlen(s2); len > 0 && (tolower((uchar) *s1) == tolower((uchar) *s2)); len--) {
         if (*s2 == '\0') {
             return s1;
         }

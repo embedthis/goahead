@@ -116,10 +116,10 @@ MAIN(goahead, int argc, char **argv, char **envp)
     duration = 0;
 
     /*
-        Relax the POST body cap to 16 MB for the test harness. The production default
-        (ME_GOAHEAD_LIMIT_POST = 16 KB) is tight for upload stress tests.
+        Allow 16 MB POST and upload bodies for stress tests.
      */
     websSetPostLimit(16 * 1024 * 1024);
+    websSetUploadLimit(16 * 1024 * 1024);
 
     for (argind = 1; argind < argc; argind++) {
         argp = argv[argind];
@@ -383,7 +383,8 @@ static void usage(void)
             "    --log logFile:level    # Log to file file at verbosity level\n"
             "    --proxy addresses      # Trust X-Forwarded-Proto from these proxy addresses\n"
             "    --route routeFile      # Route configuration file\n"
-            "    --sanitizer-canary kind # Trigger a sanitizer report: heap or signed (test harness)\n"
+            "    --sanitizer-canary kind # Trigger a sanitizer report: heap, signed, unsigned, conversion, bounds\n"
+            "                            # or float (test harness)\n"
             "    --verbose              # Same as --log stderr:2\n"
             "    --version              # Output version information\n\n",
             ME_TITLE, ME_NAME);
@@ -411,11 +412,25 @@ static void printFeatures(void)
 /*
     Provoke a defect a sanitizer must report, then exit 0. Reaching the exit proves the build is not instrumented.
  */
+/*
+    The heap and signed kinds prove the default groups. The others prove the groups the Makefile probes for: unsigned
+    (integer) and conversion (implicit-conversion) on clang, bounds (bounds-strict) and float (float-cast-overflow) on
+    gcc, which are absent from -fsanitize=undefined.
+ */
 static void sanitizerCanary(cchar *kind)
 {
-    char           *buf;
-    volatile ssize offset;
-    volatile int   value;
+    typedef struct Trailing {
+        int count;
+        int items[1];
+    } Trailing;
+
+    Trailing        *trailing;
+    char            *buf;
+    volatile ssize  offset;
+    volatile int    value;
+    volatile uint   unsignedValue;
+    volatile uchar  narrow;
+    volatile double real;
 
     if (smatch(kind, "heap")) {
         buf = walloc(8);
@@ -426,6 +441,35 @@ static void sanitizerCanary(cchar *kind)
     } else if (smatch(kind, "signed")) {
         value = INT_MAX;
         value = value + 1;
+
+    } else if (smatch(kind, "unsigned")) {
+        unsignedValue = UINT_MAX;
+        unsignedValue = unsignedValue + 1;
+
+    } else if (smatch(kind, "conversion")) {
+        //  The sum is converted back to uchar implicitly and loses its value
+        value = 300;
+        narrow = 0;
+#if _MSC_VER
+        #pragma warning(push)
+        #pragma warning(disable : 4244)
+#endif
+        narrow += value;
+#if _MSC_VER
+        #pragma warning(pop)
+#endif
+        value = narrow;
+
+    } else if (smatch(kind, "bounds")) {
+        //  The allocation holds the element, so only a strict trailing-array check can report it
+        trailing = walloc(sizeof(Trailing) + 4 * sizeof(int));
+        offset = 2;
+        trailing->items[offset] = 1;
+        wfree(trailing);
+
+    } else if (smatch(kind, "float")) {
+        real = 1e20;
+        value = (int) real;
 
     } else {
         usage();
@@ -780,7 +824,8 @@ static void uploadTest(Webs *wp)
     websWriteHeader(wp, "Content-Type", "text/plain");
     websWriteEndHeaders(wp);
 
-    if (scaselessmatch(wp->method, "POST")) {
+    //  A POST that is not multipart has no files hash
+    if (scaselessmatch(wp->method, "POST") && websGetUpload(wp) >= 0) {
         for (s = hashFirst(wp->files); s; s = hashNext(wp->files, s)) {
             up = s->content.value.symbol;
             websWrite(wp, "FILE: %s\r\n", s->name.value.string);

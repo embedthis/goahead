@@ -88,7 +88,8 @@ static void testSlowReaderIntegrity(void)
     ttrue(sendRequest(sock, BIG_URL, "HTTP/1.0") == 0, "Cannot send request");
     fast = readResponse(sock, sizeof(readBuf), 0, &fastHash);
     closeConn(sock);
-    tgtz(fast, 100000, "Response too small to reach the blocking flush path");
+    //  Output within the response buffer limit never reaches the blocking flush
+    tgtz(fast, ME_GOAHEAD_LIMIT_RESPONSE_BUFFER * 4, "Response too small to reach the blocking flush path");
     if (fast <= 0) {
         return;
     }
@@ -114,9 +115,9 @@ static void testSlowReaderIntegrity(void)
 /******************************** Suite B: recovery ***************************/
 
 /*
-    Stall the server with a client that requests a large dynamic response and never reads it, then
-    verify a second client is served within the flush deadline. Before the fix the server blocked in
-    send() indefinitely and the second request never completed.
+    Stall the server with a client that requests a dynamic response far over ME_GOAHEAD_LIMIT_RESPONSE_BUFFER
+    and never reads it, then verify a second client is served within the flush deadline. Before the fix the
+    server blocked in send() indefinitely and the second request never completed.
  */
 static void testStalledPeerIsBounded(void)
 {

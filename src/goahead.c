@@ -37,8 +37,19 @@ static void logHeader(void);
 static void usage(void);
 
 #if WINDOWS
+/*
+    The event loop has no signal to interrupt it, so the console handler sets finished and the message pump,
+    run as a periodic event, bounds how long the loop waits before it looks.
+ */
+#define WINDOWS_PUMP_MSEC 500
+
+static HANDLE exitEvent;
+
 static void windowsClose();
 static int windowsInit();
+static BOOL WINAPI consoleHandler(DWORD event);
+static void pumpWindowsMessages(void *data, int id);
+static WPARAM checkWindowsMsgLoop(void);
 static LRESULT CALLBACK websWindProc(HWND hwnd, UINT msg, UINT wp, LPARAM lp);
 #endif
 
@@ -226,6 +237,9 @@ MAIN(goahead, int argc, char **argv, char **envp)
         }
     }
 #endif
+#if WINDOWS
+    websStartEvent(WINDOWS_PUMP_MSEC, pumpWindowsMessages, NULL);
+#endif
     websServiceEvents(&finished);
     logmsg(1, "Instructed to exit");
     websClose();
@@ -361,6 +375,10 @@ static int windowsInit()
     }
     ShowWindow(hwnd, SW_SHOWNORMAL);
     UpdateWindow(hwnd);
+    if ((exitEvent = CreateEvent(NULL, TRUE, FALSE, NULL)) == NULL || !SetConsoleCtrlHandler(consoleHandler, TRUE)) {
+        error("Cannot install the console control handler");
+        return -1;
+    }
     return 0;
 }
 
@@ -371,6 +389,33 @@ static void windowsClose()
 
     inst = websGetInst();
     UnregisterClass(ME_NAME, inst);
+    if (exitEvent) {
+        SetEvent(exitEvent);
+    }
+}
+
+
+/*
+    Runs on a system thread for Ctrl-C, Ctrl-Break, console close, logoff and shutdown. The last three end the
+    process when this returns, so wait, bounded, for the main thread to close the server.
+ */
+static BOOL WINAPI consoleHandler(DWORD event)
+{
+    finished = 1;
+    if (event != CTRL_C_EVENT && event != CTRL_BREAK_EVENT) {
+        WaitForSingleObject(exitEvent, 4000);
+    }
+    return TRUE;
+}
+
+
+/*
+    Dispatch window messages so the taskbar window can be closed, and reschedule.
+ */
+static void pumpWindowsMessages(void *data, int id)
+{
+    checkWindowsMsgLoop();
+    websRestartEvent(id, WINDOWS_PUMP_MSEC);
 }
 
 
@@ -395,7 +440,7 @@ static LRESULT CALLBACK websWindProc(HWND hwnd, UINT msg, UINT wp, LPARAM lp)
 /*
     Check for Windows Messages
  */
-WPARAM checkWindowsMsgLoop()
+static WPARAM checkWindowsMsgLoop(void)
 {
     MSG msg;
 

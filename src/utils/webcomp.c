@@ -19,7 +19,6 @@
 /**************************** Forward Declarations ****************************/
 
 static int    compile(char *fileList, char *strip);
-static uint64 hashFile(cchar *path);
 static void   usage();
 
 /*********************************** Code *************************************/
@@ -63,15 +62,49 @@ static void usage()
 }
 
 
+typedef struct Page {
+    char   *path;                   /* Index path with the prefix removed and separators normalized */
+    ssize  size;                    /* Bytes emitted into the page array */
+    time_t mtime;                   /* Source file modified time */
+    uint64 hash;                    /* FNV-1a of the emitted bytes */
+    int    index;                   /* Page array number, or -1 for a directory */
+} Page;
+
+
+/*
+    FNV-1a step. The multiply wraps by design.
+ */
+static ME_NO_SANITIZE_WRAP uint64 hashByte(uint64 hash, uchar c)
+{
+    return (hash ^ c) * 0x100000001b3ULL;
+}
+
+
+static void printPath(cchar *path)
+{
+    for (; *path; path++) {
+        if (*path == '"' || *path == '\\') {
+            fprintf(stdout, "\\%c", *path);
+        } else if ((uchar) *path < 0x20 || (uchar) *path >= 0x7f) {
+            fprintf(stdout, "\\%03o", (uchar) *path);
+        } else {
+            fputc(*path, stdout);
+        }
+    }
+}
+
+
 static int compile(char *fileList, char *strip)
 {
-    WebsStat        sbuf;
-    time_t          now;
-    FILE            *lp;
-    char            buf[512], file[ME_GOAHEAD_LIMIT_FILENAME], *cp, *sl;
-    uchar           *p;
-    ssize           len;
-    int             j, i, fd, nFile;
+    WebsStat sbuf;
+    time_t   now;
+    FILE     *lp;
+    Page     *pages, *pp;
+    char     buf[512], file[ME_GOAHEAD_LIMIT_FILENAME], *cp, *sl;
+    uchar    *p;
+    ssize    len, size;
+    uint64   hash;
+    int      j, i, fd, nFile, nPages, maxPages;
 
     if ((lp = fopen(fileList, "r")) == NULL) {
         fprintf(stderr, "Cannot open file list %s\n", fileList);
@@ -84,9 +117,10 @@ static int compile(char *fileList, char *strip)
     fprintf(stdout, "#if ME_ROM\n\n");
 
     /*
-        Open each input file and compile each web page
+        Record size and hash from the emitted bytes so the index remains valid if the source file changes.
      */
-    nFile = 0;
+    nFile = nPages = maxPages = 0;
+    pages = NULL;
     while (fgets(file, sizeof(file), lp) != NULL) {
         if ((p = (uchar*) strchr(file, '\n')) || (p = (uchar*) strchr(file, '\r'))) {
             *p = '\0';
@@ -94,30 +128,55 @@ static int compile(char *fileList, char *strip)
         if (*file == '\0') {
             continue;
         }
-        if (stat(file, &sbuf) == 0 && sbuf.st_mode & S_IFDIR) {
-            continue;
+        if (stat(file, &sbuf) < 0) {
+            fprintf(stderr, "Cannot stat file %s\n", file);
+            goto fail;
         }
-        if ((fd = open(file, O_RDONLY | O_BINARY, 0644)) < 0) {
-            fprintf(stderr, "Cannot open file %s\n", file);
-            return -1;
+        if (nPages >= maxPages) {
+            maxPages += 64;
+            pages = realloc(pages, maxPages * sizeof(Page));
         }
-        fprintf(stdout, "/* %s */\n", file);
-        fprintf(stdout, "static uchar p%d[] = {\n", nFile);
-
-        while ((len = read(fd, buf, sizeof(buf))) > 0) {
-            p = (uchar*)buf;
-            for (i = 0; i < len; ) {
-                fprintf(stdout, "\t");
-                for (j = 0; p< (uchar*)(&buf[len]) && j < 16; j++, p++) {
-                    fprintf(stdout, "%4d,", *p);
-                }
-                i += j;
-                fprintf(stdout, "\n");
+        pp = &pages[nPages++];
+        memset(pp, 0, sizeof(Page));
+        pp->index = -1;
+        pp->mtime = sbuf.st_mtime;
+        if (!(sbuf.st_mode & S_IFDIR)) {
+            if ((fd = open(file, O_RDONLY | O_BINARY, 0644)) < 0) {
+                fprintf(stderr, "Cannot open file %s\n", file);
+                goto fail;
             }
+            fprintf(stdout, "/* page %d */\n", nFile);
+            fprintf(stdout, "static uchar p%d[] = {\n", nFile);
+            hash = 0xcbf29ce484222325ULL;
+            size = 0;
+            while ((len = read(fd, buf, sizeof(buf))) > 0) {
+                p = (uchar*) buf;
+                for (i = 0; i < len; ) {
+                    fprintf(stdout, "\t");
+                    for (j = 0; p < (uchar*) (&buf[len]) && j < 16; j++, p++) {
+                        fprintf(stdout, "%4d,", *p);
+                        hash = hashByte(hash, *p);
+                    }
+                    i += j;
+                    fprintf(stdout, "\n");
+                }
+                size += len;
+            }
+            fprintf(stdout, "\t   0\n};\n\n");
+            close(fd);
+            pp->index = nFile++;
+            pp->size = size;
+            pp->hash = hash;
         }
-        fprintf(stdout, "\t   0\n};\n\n");
-        close(fd);
-        nFile++;
+
+        cp = (strncmp(file, strip, strlen(strip)) == 0) ? &file[strlen(strip)] : file;
+        while ((sl = strchr(cp, '\\')) != NULL) {
+            *sl = '/';
+        }
+        if (*cp == '/') {
+            cp++;
+        }
+        pp->path = strdup(cp);
     }
     fclose(lp);
 
@@ -125,43 +184,19 @@ static int compile(char *fileList, char *strip)
         Output the page index
      */
     fprintf(stdout, "WebsRomIndex websRomIndex[] = {\n");
-
-    if ((lp = fopen(fileList, "r")) == NULL) {
-        fprintf(stderr, "Cannot open file list %s\n", fileList);
-        return -1;
-    }
-    nFile = 0;
-    while (fgets(file, sizeof(file), lp) != NULL) {
-        if ((p = (uchar*) strchr(file, '\n')) || (p = (uchar *) strchr(file, '\r'))) {
-            *p = '\0';
-        }
-        if (*file == '\0') {
-            continue;
-        }
-        /*
-            Remove the prefix and add a leading "/" when we print the path
-         */
-        if (strncmp(file, strip, strlen(strip)) == 0) {
-            cp = &file[strlen(strip)];
+    for (i = 0; i < nPages; i++) {
+        pp = &pages[i];
+        fprintf(stdout, "\t{ \"/");
+        printPath(pp->path);
+        if (pp->index < 0) {
+            fprintf(stdout, "\", 0, 0, 0, 0 },\n");
         } else {
-            cp = file;
+            fprintf(stdout, "\", p%d, %d, %lld, 0x%016llxULL },\n", pp->index, (int) pp->size,
+                    (long long) pp->mtime, (unsigned long long) pp->hash);
         }
-        while ((sl = strchr(file, '\\')) != NULL) {
-            *sl = '/';
-        }
-        if (*cp == '/') {
-            cp++;
-        }
-
-        if (stat(file, &sbuf) == 0 && sbuf.st_mode & S_IFDIR) {
-            fprintf(stdout, "\t{ \"/%s\", 0, 0, 0, 0 },\n", cp);
-            continue;
-        }
-        fprintf(stdout, "\t{ \"/%s\", p%d, %d, %lld, 0x%016llxULL },\n", cp, nFile, (int) sbuf.st_size,
-                (long long) sbuf.st_mtime, (unsigned long long) hashFile(file));
-        nFile++;
+        free(pp->path);
     }
-    fclose(lp);
+    free(pages);
     fprintf(stdout, "\t{ 0, 0, 0, 0, 0 }\n");
     fprintf(stdout, "};\n");
     fprintf(stdout, "#else\n");
@@ -170,28 +205,16 @@ static int compile(char *fileList, char *strip)
     fprintf(stdout, "#endif\n");
     fflush(stdout);
     return 0;
-}
 
-
-
-static ME_NO_SANITIZE_WRAP uint64 hashFile(cchar *path)
-{
-    uchar  buf[512];
-    uint64 hash;
-    ssize  len, i;
-    int    fd;
-
-    hash = 0xcbf29ce484222325ULL;
-    if ((fd = open(path, O_RDONLY | O_BINARY, 0644)) >= 0) {
-        while ((len = read(fd, buf, sizeof(buf))) > 0) {
-            for (i = 0; i < len; i++) {
-                hash = (hash ^ buf[i]) * 0x100000001b3ULL;
-            }
-        }
-        close(fd);
+fail:
+    for (i = 0; i < nPages; i++) {
+        free(pages[i].path);
     }
-    return hash;
+    free(pages);
+    fclose(lp);
+    return -1;
 }
+
 
 /*
     Copyright (c) Embedthis Pty Ltd. All Rights Reserved.

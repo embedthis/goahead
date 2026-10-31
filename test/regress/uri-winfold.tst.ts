@@ -12,7 +12,7 @@
     on the Windows runner.
  */
 
-import { Socket, ByteArray, Uri } from '@embedthis/ejscript'
+import { Config, Socket, ByteArray, Uri } from '@embedthis/ejscript'
 import { tget, thas, ttrue } from '@embedthis/testme'
 
 const HTTP = tget('TM_HTTP') || '127.0.0.1:8080'
@@ -64,6 +64,15 @@ ttrue(!response.contains('<%'))
 for (let uri of ['/sub./index.html', '/sub%20/index.html', '/su:b/index.html']) {
     response = await rawGet(uri)
     ttrue(status(response) == 400)
+}
+
+/*
+    Characters Win32 refuses in a file name are rejected on Windows, where stat() would match them as wildcards.
+    Elsewhere they are ordinary name characters and the documents do not exist.
+ */
+for (let uri of ['/sub%3E/', '/a%3C.exe', '/x%22y.html']) {
+    response = await rawGet(uri)
+    ttrue(status(response) == (Config.OS == 'windows' || Config.OS == 'win32' ? 400 : 404))
 }
 
 /*

@@ -26,5 +26,5 @@ async function status(target: string): Promise<string> {
 if (thas('ME_GOAHEAD_AUTH')) {
     ttrue(await status('/either/index.html') != '401', 'view must satisfy abilities=view|purchase')
     ttrue(await status('/either-last/index.html') != '401', 'view must satisfy abilities=purchase|view')
-    ttrue(await status('/both/index.html') == '401', 'view alone must not satisfy abilities=view,purchase')
+    ttrue(await status('/both/index.html') == '403', 'view alone must not satisfy abilities=view,purchase')
 }

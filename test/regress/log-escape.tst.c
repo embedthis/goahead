@@ -53,6 +53,10 @@ int main(int argc, char **argv)
     tmatch(escaped, "say \\x22hi\\x22", "characters in escape must be written as \\xHH");
     wfree(escaped);
 
+    escaped = websEscapeControl("a\x9b[2Jb\xc3\xa9", NULL, NULL);
+    tmatch(escaped, "a\\x9b[2Jb\\xc3\\xa9", "bytes from 0x80 up, including C1 controls, must be written as \\xHH");
+    wfree(escaped);
+
     escaped = websEscapeControl(NULL, NULL, NULL);
     tmatch(escaped, "", "a null string must yield an empty string");
     wfree(escaped);
@@ -78,6 +82,12 @@ int main(int argc, char **argv)
 
     traceProc(1, "user %s", "admin\x7f");
     tmatch(captured, "user admin\\x7f", "trace arguments must be escaped");
+
+    error("user %s", "admin\\x0aFORGED");
+    tmatch(captured, "user admin\\x5cx0aFORGED", "a backslash must be escaped so an escape cannot be forged");
+
+    error("user %s", "admin\x9b[2J");
+    tmatch(captured, "user admin\\x9b[2J", "a C1 control byte must be escaped");
 
     traceProc(1 | WEBS_RAW_MSG, "Header: %s\r\n", "value\x1b[2J");
     tmatch(captured, "Header: value\\x1b[2J\r\n", "raw messages must keep line breaks but escape other controls");
