@@ -98,8 +98,15 @@ if [ ! -d "test" ]; then
     exit 1
 fi
 
+#
+#   package-lock.json is the one lockfile: CI installs from it with "npm ci", the release SBOM records its
+#   versions and the archive ships it. bun reads a bun.lock when one exists and otherwise migrates
+#   package-lock.json, so a bun.lock left from an earlier install would pin versions nobody reviewed.
+#   Discard it and let the frozen install derive from package-lock.json.
+#
 echo "Installing test dependencies..."
-bun install --silent || {
+rm -f bun.lock
+bun install --frozen-lockfile --silent || {
     echo "WARNING: Failed to install test dependencies"
     exit 1
 }

@@ -117,7 +117,8 @@ jobs:
         shell: cmd
         run: |
           call projects\openssl-prep.bat
-          msbuild projects\vs2022\goahead.sln /p:Configuration=release /p:Platform=windows /v:normal
+          rem  Treat every compiler and linker warning as an error, as the Unix release step fails on any warning.
+          msbuild projects\vs2022\goahead.sln /p:Configuration=release /p:Platform=windows /v:normal /p:TreatWarningAsError=true
           rem  Both configurations build into build\bin. Rebuild debug, as the Unix step cleans, so the tests
           rem  run against the debug C runtime they are compiled for.
           msbuild projects\vs2022\goahead.sln /t:Rebuild /p:Configuration=debug /p:Platform=windows /v:minimal
@@ -268,9 +269,15 @@ jobs:
             run: true
           - leg: assert-abort
             cflags: -DME_GOAHEAD_ASSERT_ABORT=1
+          - leg: release
+            optimize: release
+            run: true
           - leg: release-legacy
             optimize: release
             cflags: -DME_GOAHEAD_LEGACY=1
+          - leg: release-replace-malloc
+            optimize: release
+            cflags: -DME_GOAHEAD_REPLACE_MALLOC=1
           - leg: cgi-off
             cflags: -DME_GOAHEAD_CGI=0
             run: true
@@ -343,7 +350,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev clang-tools-18 python3
+        run: sudo apt-get update && sudo apt-get install -y gcc build-essential libc6-dev openssl libssl-dev libpam0g-dev clang-tools-18 python3
 
       # Build and test tooling only: no third-party package ships in the product.
       - name: Dependency audit (build/test tree)

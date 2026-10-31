@@ -60,9 +60,14 @@ cd /work || exit 255
 
 # Install dependencies beside the sources. The volume retains node_modules, but the container loses ~/.bun/bin,
 # so run TestMe's installer again when dependencies are already current.
+#
+# package-lock.json is the one lockfile, as in CI's "npm ci". The staged tree may carry the host's bun.lock, which
+# bun would read in preference to package-lock.json, so discard it and let the frozen install migrate
+# package-lock.json, as it does from the release archive.
 if [ ! -d /work/node_modules ] ; then
     echo "       [Run] bun install"
 fi
+rm -f /work/bun.lock
 bun install --frozen-lockfile || exit 255
 if ! command -v tm >/dev/null 2>&1 ; then
     echo "       [Run] install tm from node_modules/@embedthis/testme"

@@ -23,6 +23,7 @@ const LEGS: Record<string, { flags: string[], run?: boolean, optimize?: string }
     'replace-malloc': { flags: ['-DME_GOAHEAD_REPLACE_MALLOC=1'], run: true },
     'assert-abort': { flags: ['-DME_GOAHEAD_ASSERT_ABORT=1'] },
     'release-legacy': { flags: ['-DME_GOAHEAD_LEGACY=1'], optimize: 'release' },
+    'release-replace-malloc': { flags: ['-DME_GOAHEAD_REPLACE_MALLOC=1'], optimize: 'release' },
     'cgi-off': { flags: ['-DME_GOAHEAD_CGI=0'], run: true },
     'javascript-off': { flags: ['-DME_GOAHEAD_JAVASCRIPT=0'], run: true },
     'upload-off': { flags: ['-DME_GOAHEAD_UPLOAD=0'], run: true },

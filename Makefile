@@ -38,6 +38,9 @@ CONFIG      := $(OPTIMIZE)_$(PLATFORM)
 # Probe the compiler target for CET or ARM branch protection; pass supported flags to generated builds.
 CFI_FLAGS   := $(shell for f in -fcf-protection=full -mbranch-protection=standard ; do \
                    $(CC) -Werror $$f -x c -c -o /dev/null /dev/null 2>/dev/null && echo $$f && break ; done)
+# Probe for stack clash protection: a large frame touches every page it spans, so it cannot jump the guard page.
+CFI_FLAGS   += $(shell $(CC) -Werror -fstack-clash-protection -x c -c -o /dev/null /dev/null 2>/dev/null && \
+                   echo -fstack-clash-protection)
 # Probe the compiler for the extra sanitizer groups it supports (clang: integer, implicit-conversion; gcc: bounds-strict).
 # clang links the shared runtime with -shared-libsan, as the preloaded runtime of test-asan requires.
 SANITIZE_FLAGS := $(shell for f in -fsanitize=integer -fsanitize=implicit-conversion -fsanitize=bounds-strict \
@@ -93,7 +96,7 @@ endif
 	LD_PRELOAD="$(SAN_RUNTIMES)" \
 		ASAN_OPTIONS=detect_leaks=0:allocator_may_return_null=1:detect_stack_use_after_return=1:strict_string_checks=1 \
 		UBSAN_OPTIONS=print_stacktrace=1 \
-		bash -c 'test/utils/sanitizer-canary.sh && tm $(if $(ARGS),$(ARGS),test)' ; rc=$$? ; \
+		CC="$(CC)" bash -c 'test/utils/sanitizer-canary.sh && tm $(if $(ARGS),$(ARGS),test)' ; rc=$$? ; \
 		bash test/utils/check-server.sh server-log.txt server-exit.txt server-orphans.txt || rc=1 ; rm -fr $(BUILD)/bin ; exit $$rc
 
 #   Run the suite under Linux on macOS. ARGS passes through to tm, e.g. ARGS=auth.
