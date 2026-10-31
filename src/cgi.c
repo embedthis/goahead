@@ -29,6 +29,7 @@ typedef pid_t CgiPid;
 
 #if WINDOWS
     #define CGI_OUTPUT_GRACE 1000   /* Msec to wait for the output of an exited CGI to appear */
+    #define CGI_KILL_WAIT    5000   /* Msec to wait for a terminated CGI to release its staging files */
 #endif
 
 typedef struct Cgi {            /* Struct for CGI tasks which have completed */
@@ -47,12 +48,14 @@ typedef struct Cgi {            /* Struct for CGI tasks which have completed */
     bool txSuppress;            /* Response carries no body at all, whatever the CGI writes */
 #if WINDOWS
     uint64 outputDeadline;      /* Tick after which an exited CGI that wrote nothing has no output coming */
+    HANDLE job;                 /* Job holding the CGI and every process it starts, so an abort ends them all */
 #endif
 #if VXWORKS
     char *vxName;               /* Unique task name, so a reused task ID is not mistaken for this task */
     int fdin;                   /* Task stdin, owned by the server so an aborted task cannot leak it */
     int fdout;                  /* Task stdout, owned by the server */
     struct CgiModule *module;   /* Loaded module the task executes, or NULL for an entry linked into the image */
+    bool missing;               /* Requested VxWorks entry point is absent */
 #endif
 } Cgi;
 
@@ -64,6 +67,7 @@ static int cgiMax;              /* Size of walloc list */
     insensitively.
  */
 static cchar *envBlackList[] = {
+    "ALL_PROXY",
     "AUTHSTATE",
     "BASHOPTS",
     "BASH_ENV",
@@ -72,17 +76,24 @@ static cchar *envBlackList[] = {
     "COMSPEC",
     "ENV",
     "FPATH",
+    "FTP_PROXY",
     "GEM_HOME",
     "GEM_PATH",
     "GLIBC_TUNABLES",
     "GLOBIGNORE",
     "GOPATH",
+    "HOME",
     "HOSTALIASES",
     "HTTP_AUTHORIZATION",
     "HTTP_PROXY",
+    "HTTP_PROXY_AUTHORIZATION",
+    "HTTPS_PROXY",
+    /* The server decodes the transfer coding; CONTENT_LENGTH describes what reaches stdin */
+    "HTTP_TRANSFER_ENCODING",
     "IFS",
     "JAVA_HOME",
     "JAVA_TOOL_OPTIONS",
+    "JDK_JAVA_OPTIONS",
     "LIBPATH",
     "LOCALDOMAIN",
     "LUA_CPATH",
@@ -91,13 +102,18 @@ static cchar *envBlackList[] = {
     "NLSPATH",
     "NODE_OPTIONS",
     "NODE_PATH",
+    "NO_PROXY",
     "NULLCMD",
+    "OPENSSL_CONF",
+    "OPENSSL_ENGINES",
+    "OPENSSL_MODULES",
     "PATH",
     "PATHEXT",
     "PATH_LOCALE",
     "PERL5DB",
     "PERL5LIB",
     "PERL5OPT",
+    "PERL5SHELL",
     "PERLIO_DEBUG",
     "PERLLIB",
     "PHPRC",
@@ -114,16 +130,41 @@ static cchar *envBlackList[] = {
     "SHELLOPTS",
     "SHLIB_PATH",
     "SYSTEMROOT",
+    "TCLLIBPATH",
     "TERMCAP",
     "TERMINFO",
     "TERMINFO_DIRS",
     "TEMP",
     "TERMPATH",
     "TMP",
+    "TMPDIR",
     "TMPPREFIX",
     "WINDIR",
     "ZDOTDIR",
+    "_JAVA_OPTIONS",
     "__COMPAT_LAYER",
+    /*
+        POSIX environment names are case-sensitive; proxy consumers also read lowercase names.
+     */
+    "all_proxy",
+    "ftp_proxy",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    NULL
+};
+
+/*
+    Loader and interpreter startup variables that carry a version suffix, such as LUA_INIT_5_4.
+ */
+static cchar *envBlackPrefixes[] = {
+    "LD_",
+    "LDR_",
+    "_RLD",
+    "DYLD_",
+    "LUA_INIT_",
+    "LUA_PATH_",
+    "LUA_CPATH_",
     NULL
 };
 
@@ -156,16 +197,22 @@ static bool inBlackList(cchar *name)
             return 1;
         }
     }
+    for (bp = envBlackPrefixes; *bp; bp++) {
+        if (envNameStarts(name, *bp)) {
+            return 1;
+        }
+    }
     return 0;
 }
 
 
 /*
-    Reserve CGI meta-variable names even when the server leaves them unset on this request.
+    Reserve CGI and runtime meta-variables even when unset. Include HTTP_ case variants because Windows
+    environment lookups are case-insensitive (RFC 3875 4.1.18).
  */
 static cchar *metaPrefixes[] = {
-    "AUTH_", "CONTENT_", "CONTEXT_", "DOCUMENT_", "GATEWAY_", "HTTPS", "PATH_", "QUERY_", "REDIRECT_", "REMOTE_",
-    "REQUEST_", "SCRIPT_", "SERVER_", "SSL_", "TLS_", NULL
+    "AUTH_", "CONTENT_", "CONTEXT_", "DOCUMENT_", "GATEWAY_", "HTTP_", "HTTPS", "ORIG_", "PATH_", "PHP_",
+    "QUERY_", "REDIRECT_", "REMOTE_", "REQUEST_", "SCRIPT_", "SERVER_", "SSL_", "TLS_", "UNIQUE_ID", NULL
 };
 
 static bool isMetaVarName(cchar *name)
@@ -259,7 +306,7 @@ PUBLIC ssize appendWinArg(char *dp, ssize destMax, cchar *arg)
         if ((len = slen(arg)) > end - dp) {
             return -1;
         }
-        memcpy(dp, arg, len);
+        memcpy(dp, arg, (size_t) len);
         return len;
     }
     if (end - dp < 1) {
@@ -427,7 +474,7 @@ static char **buildCgiArgs(cchar *cgiPath, cchar *query, char **backing, int *st
     *backing = 0;
     *status = HTTP_CODE_INTERNAL_SERVER_ERROR;
     argpsize = 10;
-    if ((argp = walloc(argpsize * sizeof(char*))) == 0) {
+    if ((argp = walloc(argpsize * (ssize) sizeof(char*))) == 0) {
         *status = HTTP_CODE_NOT_FOUND;
         return 0;
     }
@@ -471,7 +518,7 @@ static char **buildCgiArgs(cchar *cgiPath, cchar *query, char **backing, int *st
                     wfree(copy);
                     return 0;
                 }
-                argp = wrealloc(argp, argpsize * sizeof(char*));
+                argp = wrealloc(argp, argpsize * (ssize) sizeof(char*));
             }
             cp = stok(NULL, "+", &tok);
         }
@@ -493,7 +540,7 @@ static char **buildCgiEnv(Webs *wp)
     int     n, envpsize;
 
     envpsize = 64;
-    envp = walloc(envpsize * sizeof(char*));
+    envp = walloc(envpsize * (ssize) sizeof(char*));
     n = 0;
     if (wp->vars >= 0) {
         for (s = hashFirst(wp->vars); s != NULL; s = hashNext(wp->vars, s)) {
@@ -508,10 +555,6 @@ static char **buildCgiEnv(Webs *wp)
                     continue;
                 }
                 if (inBlackList(name)) {
-                    continue;
-                }
-                if (envNameStarts(name, "LD_") || envNameStarts(name, "LDR_") || envNameStarts(name, "_RLD") ||
-                    envNameStarts(name, "DYLD_")) {
                     continue;
                 }
                 /*
@@ -532,7 +575,7 @@ static char **buildCgiEnv(Webs *wp)
                 trace(5, "Env[%d] %s (value omitted)", n, s->name.value.string);
                 if (n >= envpsize) {
                     envpsize *= 2;
-                    envp = wrealloc(envp, envpsize * sizeof(char*));
+                    envp = wrealloc(envp, envpsize * (ssize) sizeof(char*));
                 }
             }
         }
@@ -546,18 +589,19 @@ PUBLIC bool cgiHandler(Webs *wp)
 {
     Cgi   *cgip;
     char  cgiPrefix[ME_GOAHEAD_LIMIT_FILENAME], *stdIn, *stdOut, cwd[ME_GOAHEAD_LIMIT_FILENAME];
-    char  *cp, *cgiName, *cgiPath, **argp, **envp, *query, *dir, *extraPath, *exe;
+    char  *cp, *cgiName, *cgiPath, **argp, **envp, *query, *dir, *documents, *exe;
     ssize len, stdinLen;
+    bool  missing;
     int   status, cid;
 
     assert(websValid(wp));
 
+    missing = 0;
     websSetEnv(wp);
 
     /* Stage buffered input when rerouting after the body has already been read. */
     if (wp->cgiStdin == NULL && bufLen(&wp->input) > 0) {
-        if ((wp->cgiStdin = websGetCgiCommName()) == 0 ||
-            (wp->cgifd = open(wp->cgiStdin, O_WRONLY | O_BINARY | O_TRUNC | O_NOFOLLOW, 0600)) < 0) {
+        if ((wp->cgiStdin = websTempFileOpen(NULL, "cgi", &wp->cgifd)) == 0) {
             websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "Cannot create CGI file");
             return 1;
         }
@@ -604,20 +648,27 @@ PUBLIC bool cgiHandler(Webs *wp)
      */
     dir = wp->route->dir ? websAbsolutePath(wp->route->dir) : sclone(cwd);
 
-    extraPath = 0;
     if ((cp = strchr(cgiName, '/')) != NULL) {
-        extraPath = sclone(cp);
+        //  PATH_INFO is a URI path, so it is translated under the documents directory
+        documents = websAbsolutePath(websGetDocuments());
+        websSetVar(wp, "PATH_INFO", cp);
+        websSetVarFmt(wp, "PATH_TRANSLATED", "%s%s", documents, cp);
+        wfree(documents);
         *cp = '\0';
-        websSetVar(wp, "PATH_INFO", extraPath);
-        websSetVarFmt(wp, "PATH_TRANSLATED", "%s%s%s", dir, cgiPrefix, extraPath);
-        wfree(extraPath);
     } else {
         websSetVar(wp, "PATH_INFO", "");
         websSetVar(wp, "PATH_TRANSLATED", "");
     }
     cgiPath = sfmt("%s%s/%s", dir, cgiPrefix, cgiName);
     websSetVarFmt(wp, "SCRIPT_NAME", "%s/%s", cgiPrefix, cgiName);
-    websSetVar(wp, "SCRIPT_FILENAME", cgiPath);
+
+    //  Reject device names before program lookup can open them.
+    if (websIsReservedDevice(cgiName)) {
+        trace(2, "Refusing %s: reserved device name", cgiPath);
+        websError(wp, HTTP_CODE_NOT_FOUND, "CGI program file does not exist");
+        wfree(cgiPath);
+        goto done;
+    }
 
 /*
     See if the file exists and is executable.  If not error out.  Don't do this step for VxWorks, since the module
@@ -665,6 +716,7 @@ PUBLIC bool cgiHandler(Webs *wp)
         }
     }
 #endif /* ! VXWORKS */
+    websSetVar(wp, "SCRIPT_FILENAME", cgiPath);
     if (!cgiExtensionAllowed(wp->route, cgiPath)) {
         trace(5, "CGI program %s does not have an extension the route permits", cgiPath);
         websError(wp, HTTP_CODE_NOT_FOUND, "CGI program file does not exist");
@@ -703,16 +755,27 @@ PUBLIC bool cgiHandler(Webs *wp)
     cgip->txBytes = 0;
     cgip->txExcess = 0;
     cgip->txSuppress = 0;
+#if WINDOWS
+    cgip->job = NULL;
+#endif
 #if VXWORKS
     cgip->fdin = cgip->fdout = -1;
+    cgip->missing = 0;
 #endif
     if (!stdIn || !stdOut || (cgip->handle = launchCgi(cgip, dir)) == (CgiPid) - 1) {
+#if VXWORKS
+        missing = cgip->missing;
+#endif
         /*
             Release the registry slot before error handling can tear down the request. cgiCleanup removes staging files.
          */
         cgip->handle = 0;
         cgiCleanup(cgip, cid);
-        websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
+        if (missing) {
+            websError(wp, HTTP_CODE_NOT_FOUND, "CGI program file does not exist");
+        } else {
+            websError(wp, HTTP_CODE_INTERNAL_SERVER_ERROR, "failed to spawn CGI task");
+        }
     }
 done:
     wfree(dir);
@@ -754,6 +817,12 @@ static void cgiCleanup(Cgi *cgip, int cid)
     wfreeset(cgip->query);
     wfreeset(cgip->argp);
     wfreeset(cgip->envp);
+#if WINDOWS
+    if (cgip->job) {
+        CloseHandle(cgip->job);
+        cgip->job = NULL;
+    }
+#endif
     wfree(cgip);
 }
 
@@ -925,10 +994,11 @@ static char *getCgiLine(char **next, int *malformed)
 
 
 /*
-    Parse CGI headers. Return bytes consumed, zero if incomplete, or -1 to defer.
+    Parse CGI headers from the nbytes read into buf. Return bytes consumed, zero if incomplete, or -1 to defer.
     Deferral leaves state unchanged; staged counts unread output bytes on disk.
+    A NUL byte inside the header block is a malformed response.
  */
-static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
+static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize nbytes, ssize staged)
 {
     CgiHeader *headers;
     Webs      *wp;
@@ -945,25 +1015,32 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
     contentType = 0;
     location = 0;
 
-    /* The first blank line ends the headers, including an empty header block. */
+    /* The first blank line ends the headers, including an empty header block. Scan by length, so a NUL cannot hide it. */
     for (cp = buf; ; cp = end + 1) {
         if (cp[0] == '\n' || (cp[0] == '\r' && cp[1] == '\n')) {
             end = cp;
             len = (cp[0] == '\n') ? 1 : 2;
             break;
         }
-        if ((end = strchr(cp, '\n')) == NULL) {
+        if ((end = memchr(cp, '\n', (size_t) (nbytes - (cp - buf)))) == NULL) {
             return 0;
         }
     }
     /*
-        Test for a header block before terminating it. Returning zero after writing the NUL would hand
-        the caller a buffer with the first byte of the separator destroyed, and the caller emits that
-        buffer verbatim as the response body.
+        Detect headers before modifying the separator; headerless output is returned verbatim as the body.
+        An nph status line alone also forms a header block.
      */
-    if (memchr(buf, ':', end - buf) == NULL) {
+    if (memchr(buf, ':', (size_t) (end - buf)) == NULL && strncmp(buf, "HTTP/1.", 7) != 0) {
         /* No headers found */
         return 0;
+    }
+    /*
+        The tokenizer below works on strings, so a NUL would truncate the block and drop the headers after it,
+        the Status among them. Answer on the gateway's behalf instead.
+     */
+    if (memchr(buf, '\0', (size_t) (end - buf)) != NULL) {
+        trace(5, "cgi: NUL byte in response header block");
+        malformed = 1;
     }
     *end = '\0';
     end += len;
@@ -985,7 +1062,7 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
     for (line = cp; (line = strchr(line, '\n')) != 0; line++) {
         nlines++;
     }
-    headers = walloc(nlines * sizeof(CgiHeader));
+    headers = walloc(nlines * (ssize) sizeof(CgiHeader));
     count = 0;
     while (count < nlines && (line = getCgiLine(&cp, &malformed)) != NULL) {
         /*
@@ -1009,7 +1086,11 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
     for (i = 0; i < count; i++) {
         if (strcmp(headers[i].key, "location") == 0) {
             location = headers[i].value;
-            if (!websValidHeaderValue(location)) {
+            /*
+                RFC 3875 6.2 requires a URI. An empty value is a malformed response, not a redirect to the
+                request's own URL.
+             */
+            if (*location == '\0' || !websValidHeaderValue(location)) {
                 trace(5, "cgi: bad Location");
                 malformed = 1;
             }
@@ -1021,7 +1102,8 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
             statusSeen = 1;
         } else if (strcmp(headers[i].key, "content-type") == 0) {
             contentType = headers[i].value;
-            if (!websValidHeaderValue(contentType)) {
+
+            if (*contentType == '\0' || !websValidHeaderValue(contentType)) {
                 trace(5, "cgi: bad Content-Type");
                 malformed = 1;
             }
@@ -1070,15 +1152,16 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
         Decide whether this response may carry a body at all, before any of it is written. Body bytes
         after a bodyless status are unframed data the client reads as the next response. txSuppress
         marks honest suppression, distinct from a CGI over-writing its declared length, so the caller
-        neither reports it nor closes. A HEAD keeps the length an equivalent GET would return; every
-        other case declares zero, never unknown, as unknown selects chunked framing whose trailer is
-        itself a body byte.
+        neither reports it nor closes. A HEAD keeps the framing an equivalent GET would use, a declared
+        length or chunked, and websWriteEndHeaders writes no chunk trailer for a HEAD; every other
+        case declares zero, never unknown, as unknown selects chunked framing whose trailer is itself
+        a body byte.
      */
     bodyLimit = contentLength;
     if (websStatusHasNoBody(status) || smatch(wp->method, "HEAD") || malformed) {
         cgip->txSuppress = 1;
         bodyLimit = 0;
-        if (!smatch(wp->method, "HEAD") || contentLength < 0) {
+        if (!smatch(wp->method, "HEAD")) {
             contentLength = 0;
         }
     }
@@ -1125,12 +1208,77 @@ static ssize parseCgiHeaders(Cgi *cgip, char *buf, ssize staged)
 }
 
 
+/*
+    Hand CGI output to the response buffers without blocking the event loop. Return the number of bytes accepted;
+    the caller leaves the rest staged for a later poll. A closed connection accepts everything, so the staged
+    output drains and the request completes.
+ */
+static ssize relayCgiOutput(Webs *wp, cchar *buf, ssize len)
+{
+    WebsBuf *op;
+    ssize   accepted, room, thisWrite;
+
+    accepted = 0;
+    while (len > 0) {
+        if (wp->state >= WEBS_COMPLETE) {
+            return accepted + len;
+        }
+        op = (wp->flags & WEBS_CHUNKING) ? &wp->chunkbuf : &wp->output;
+        if ((room = bufRoom(op)) <= 0) {
+            websFlush(wp, 0);
+            if (wp->state >= WEBS_COMPLETE) {
+                return accepted + len;
+            }
+            if ((room = bufRoom(op)) <= 0) {
+                break;
+            }
+        }
+        thisWrite = min(room, len);
+        if (websWriteBlock(wp, buf, thisWrite) != thisWrite) {
+            return accepted + len;
+        }
+        buf += thisWrite;
+        len -= thisWrite;
+        accepted += thisWrite;
+    }
+    return accepted;
+}
+
+
+/*
+    Can the response buffers take more output, or is the client not reading? Flush first so a draining socket
+    makes room, and treat a closed connection as room so the staged output is consumed.
+ */
+static int relayHasRoom(Webs *wp)
+{
+    WebsBuf *op;
+
+    websFlush(wp, 0);
+    if (wp->state >= WEBS_COMPLETE) {
+        return 1;
+    }
+    op = (wp->flags & WEBS_CHUNKING) ? &wp->chunkbuf : &wp->output;
+    return bufRoom(op) > 0;
+}
+
+
+/*
+    Has every staged byte of CGI output been handed to the response?
+ */
+static int cgiOutputDrained(Cgi *cgip)
+{
+    WebsStat sbuf;
+
+    return stat(cgip->stdOut, &sbuf) != 0 || sbuf.st_size <= cgip->fplacemark;
+}
+
+
 PUBLIC void websCgiGatherOutput(Cgi *cgip)
 {
     Webs     *wp;
     WebsStat sbuf;
     char     *buf;
-    ssize    bufSize, nbytes, skip, nbody, room, excess;
+    ssize    bufSize, nbytes, skip, nbody, room, surplus, accepted;
     int      fdout;
 
     /*
@@ -1138,13 +1286,16 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
         If the CGI process writes partial headers, this repeatedly reads the data until complete
         headers are written or more than ME_GOAHEAD_LIMIT_HEADERS of data is received.
      */
+    wp = cgip->wp;
+    if ((wp->flags & WEBS_HEADERS_CREATED) && !relayHasRoom(wp)) {
+        return;
+    }
     if ((stat(cgip->stdOut, &sbuf) == 0) && (sbuf.st_size > cgip->fplacemark)) {
         if ((fdout = open(cgip->stdOut, O_RDONLY | O_BINARY | O_NOFOLLOW, 0444)) >= 0) {
             /*
                 Check to see if any data is available in the output file and send its contents to the socket.
                 Write the HTTP header on our first pass. The header must fit into ME_GOAHEAD_LIMIT_BUFFER.
              */
-            wp = cgip->wp;
             bufSize = ME_GOAHEAD_LIMIT_HEADERS + 2;
             buf = walloc(bufSize);
             lseek(fdout, cgip->fplacemark, SEEK_SET);
@@ -1152,7 +1303,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                 buf[nbytes] = 0;
                 skip = 0;
                 if (!(wp->flags & WEBS_HEADERS_CREATED)) {
-                    skip = parseCgiHeaders(cgip, buf, (ssize) (sbuf.st_size - cgip->fplacemark));
+                    skip = parseCgiHeaders(cgip, buf, nbytes, (ssize) (sbuf.st_size - cgip->fplacemark));
                     if (skip < 0) {
                         /*
                             Retry the same staged bytes once CGI length is known.
@@ -1180,6 +1331,7 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                     }
                 }
                 nbody = nbytes - skip;
+                surplus = 0;
                 /*
                     Surplus over the declared Content-Length is read by the client as the start of the
                     next response on a keep-alive connection. Drop it rather than emit it and take the
@@ -1199,16 +1351,28 @@ PUBLIC void websCgiGatherOutput(Cgi *cgip)
                      */
                     room = cgip->txLen - cgip->txBytes;
                     if (nbody > room) {
-                        excess = nbody - room;
-                        cgip->txExcess = (cgip->txExcess > MAXSSIZE - excess) ? MAXSSIZE : cgip->txExcess + excess;
+                        surplus = nbody - room;
                         nbody = room;
-                        wp->flags &= ~WEBS_KEEP_ALIVE;
                     }
-                    cgip->txBytes += nbody;
                 }
-                if (nbody > 0) {
-                    trace(5, "cgi: write %zd bytes to client", nbody);
-                    websWriteBlock(wp, &buf[skip], nbody);
+                /*
+                    Relay what the response buffers accept without blocking. The rest stays staged, with its
+                    place marked, for the next poll; the event loop never waits on a client that is not reading.
+                 */
+                accepted = relayCgiOutput(wp, &buf[skip], nbody);
+                if (cgip->txLen >= 0) {
+                    cgip->txBytes += accepted;
+                }
+                if (accepted > 0) {
+                    trace(5, "cgi: write %zd bytes to client", accepted);
+                }
+                if (accepted < nbody) {
+                    cgip->fplacemark += (off_t) (skip + accepted);
+                    break;
+                }
+                if (surplus > 0) {
+                    cgip->txExcess = (cgip->txExcess > MAXSSIZE - surplus) ? MAXSSIZE : cgip->txExcess + surplus;
+                    wp->flags &= ~WEBS_KEEP_ALIVE;
                 }
                 cgip->fplacemark += (off_t) nbytes;
             }
@@ -1242,7 +1406,11 @@ int websCgiPoll(void)
                 cgip->handle = 0;
                 websCgiGatherOutput(cgip);
             }
-            if (cgip->handle == 0) {
+            /*
+                Output a slow client has not yet accepted stays staged after the program exits. Complete the
+                request once it has all been relayed, or when the request timeout frees the connection.
+             */
+            if (cgip->handle == 0 && cgiOutputDrained(cgip)) {
 #if WINDOWS
                 /*
                     Windows can have delayed notification through the file system after process exit. Look again
@@ -1308,91 +1476,6 @@ PUBLIC char *websGetCgiCommName(void)
 }
 
 
-#if WINCE
-/*
-     Launch the CGI process and return a handle to it.  CE note: This function is not complete.  The missing piece is
-     the ability to redirect stdout.
- */
-static CgiPid launchCgi(Cgi *cgip, char *dir)
-{
-    PROCESS_INFORMATION procinfo;       /*  Information about created proc   */
-    DWORD               dwCreateFlags;
-    char                *fulldir;
-    BOOL                bReturn;
-    char                *cgiPath;
-    int                 i, nLen;
-
-    /*
-        Replace directory delimiters with Windows-friendly delimiters
-     */
-    cgiPath = cgip->cgiPath;
-    nLen = strlen(cgiPath);
-    for (i = 0; i < nLen; i++) {
-        if (cgiPath[i] == '/') {
-            cgiPath[i] = '\\';
-        }
-    }
-    fulldir = NULL;
-    dwCreateFlags = CREATE_NEW_CONSOLE;
-
-    /*
-         CreateProcess returns errors sometimes, even when the process was started correctly.  The cause is not evident.
-         For now: we detect an error by checking the value of procinfo.hProcess after the call.
-     */
-    procinfo.hThread = NULL;
-    bReturn = CreateProcess(
-        cgiPath,            /*  Name of executable module        */
-        NULL,               /*  Command line string              */
-        NULL,               /*  Process security attributes      */
-        NULL,               /*  Thread security attributes       */
-        0,                  /*  Handle inheritance flag          */
-        dwCreateFlags,      /*  Creation flags                   */
-        NULL,               /*  New environment block            */
-        dir,                /*  Current directory name           */
-        NULL,               /*  STARTUPINFO                      */
-        &procinfo);         /*  PROCESS_INFORMATION              */
-    if (bReturn == 0) {
-        return -1;
-    } else {
-        CloseHandle(procinfo.hThread);
-    }
-    return (int) procinfo.dwProcessId;
-}
-
-
-/*
-    Check the CGI process.  Return 0 if it does not exist; non 0 if it does.
- */
-static int checkCgi(Cgi *cgip)
-{
-    int   nReturn;
-    DWORD exitCode;
-
-    nReturn = GetExitCodeProcess((HANDLE) cgip->handle, &exitCode);
-    /*
-        We must close process handle to free up the window resource, but only when we're done with it.
-     */
-    if ((nReturn == 0) || (exitCode != STILL_ACTIVE)) {
-        CloseHandle((HANDLE) cgip->handle);
-        return 0;
-    }
-    return 1;
-}
-
-
-/*
-    Terminate an orphaned CGI process and release its handle.
- */
-static void killCgi(Cgi *cgip)
-{
-    if (cgip->handle) {
-        TerminateProcess((HANDLE) cgip->handle, 0);
-        CloseHandle((HANDLE) cgip->handle);
-    }
-}
-#endif /* WINCE */
-
-
 #if ME_UNIX_LIKE || QNX
 /* Use descriptor writes in the child to avoid flushing inherited parent stdio buffers. */
 static void childError(cchar *msg)
@@ -1400,7 +1483,7 @@ static void childError(cchar *msg)
     ssize len, written;
 
     for (len = slen(msg); len > 0; len -= written, msg += written) {
-        if ((written = write(1, msg, len)) <= 0) {
+        if ((written = write(1, msg, (size_t) len)) <= 0) {
             break;
         }
     }
@@ -1746,7 +1829,8 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
         entryAddr = findVxEntry(pEntry);
     }
     if (entryAddr == 0) {
-        error("Cannot find the CGI entry point %s", pEntry);
+        trace(2, "Cannot find the CGI entry point");
+        cgip->missing = 1;
 
     } else if ((cgip->fdout = open(cgip->stdOut, O_RDWR | O_NOFOLLOW, 0600)) < 0 ||
                (cgip->fdin = open(cgip->stdIn, O_RDONLY | O_NOFOLLOW, 0600)) < 0) {
@@ -1812,7 +1896,6 @@ static bool isCgiTask(Cgi *cgip)
     return cgip->handle && cgip->vxName && taskIdVerify(cgip->handle) == OK &&
            (name = taskName(cgip->handle)) != NULL && smatch(name, cgip->vxName);
 }
-
 
 
 static int checkCgi(Cgi *cgip)
@@ -2064,9 +2147,10 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
     newinfo.lpAttributeList = attrs;
 
     /*
-        Redirected stdio needs no console; per-request consoles consume desktop heap.
+        Redirected stdio needs no console; per-request consoles consume desktop heap. Start suspended so the
+        process joins its job before it can start anything.
      */
-    dwCreateFlags = CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT;
+    dwCreateFlags = CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED;
     pEnvData = tableToBlock(cgip->envp);
 
     /*
@@ -2091,7 +2175,20 @@ static CgiPid launchCgi(Cgi *cgip, char *dir)
         &procinfo);         /*  PROCESS_INFORMATION                     */
 
     if (bReturn != 0) {
-        handle = procinfo.hProcess;
+        /*
+            A job collects the CGI and its descendants, so killCgi can end all of them. Nested jobs need
+            Windows 8; on an older host that already runs the server in a job the assignment fails and the
+            request fails rather than run a CGI the server cannot stop.
+         */
+        if ((cgip->job = CreateJobObject(NULL, NULL)) == NULL ||
+            !AssignProcessToJobObject(cgip->job, procinfo.hProcess)) {
+            error("Cannot place the CGI program in a job");
+            TerminateProcess(procinfo.hProcess, 1);
+            closeWinHandle(procinfo.hProcess);
+        } else {
+            ResumeThread(procinfo.hThread);
+            handle = procinfo.hProcess;
+        }
     }
 
 done:
@@ -2134,12 +2231,18 @@ static int checkCgi(Cgi *cgip)
 
 
 /*
-    Terminate an orphaned CGI process and release its handle.
+    Terminate an orphaned CGI and everything it started, then wait for the CGI to exit so the staging
+    files it holds open can be removed. TerminateProcess and TerminateJobObject only start the termination.
  */
 static void killCgi(Cgi *cgip)
 {
     if (cgip->handle != NULL && cgip->handle != INVALID_HANDLE_VALUE) {
-        TerminateProcess((HANDLE) cgip->handle, 0);
+        if (cgip->job == NULL || !TerminateJobObject(cgip->job, 0)) {
+            TerminateProcess((HANDLE) cgip->handle, 0);
+        }
+        if (WaitForSingleObject((HANDLE) cgip->handle, CGI_KILL_WAIT) != WAIT_OBJECT_0) {
+            error("CGI program did not exit after termination");
+        }
         closeWinHandle((HANDLE) cgip->handle);
     }
 }

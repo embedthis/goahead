@@ -48,8 +48,9 @@ if (thas('ME_GOAHEAD_CGI')) {
     ttrue(forwarded.length > 0 && forwarded.every(v => v == '192.0.2.1'),
           `an underscore header must not join the hyphen header's variable, got [${forwarded}]`)
 
-    raw = await exchange('POST /cgi-bin/cgitest HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\n' +
-        'Transfer-Encoding: chunked\r\nSwitches: -e\r\nConnection: close\r\n\r\n5\r\nhello\r\n0\r\n\r\n')
-    ttrue(entries(raw, 'HTTP_TRANSFER_ENCODING').some(v => v == 'chunked'),
-          'a real Transfer-Encoding header must still create its variable')
 }
+
+//  The CGI environment withholds a decoded Transfer-Encoding, so read the request variable from an action
+let raw = await exchange('POST /action/showTest HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\n' +
+    'Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\nhello\r\n0\r\n\r\n')
+ttrue(raw.contains('HTTP_TRANSFER_ENCODING=chunked'), 'a real Transfer-Encoding header must still create its variable')

@@ -22,7 +22,8 @@
 #endif
 
 /*
-    Count zombies as gone: they execute nothing, and container init may not reap them.
+    Count zombies as gone: they execute nothing, and container init may not reap them. A process being reaped
+    reads as dead ('X') for an instant before it leaves the process table.
  */
 static bool running(pid_t pid)
 {
@@ -37,7 +38,7 @@ static bool running(pid_t pid)
     if ((fp = fopen(path, "r")) != 0) {
         n = fscanf(fp, "%*d %*s %c", &state);
         fclose(fp);
-        if (n == 1 && state == 'Z') {
+        if (n == 1 && (state == 'Z' || state == 'X' || state == 'x')) {
             return 0;
         }
     }

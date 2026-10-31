@@ -24,9 +24,10 @@ let response = await fetch(`${HTTP}/action/showTest?HTTP_X_REQUESTED_WITH=XMLHtt
 })
 let text = await response.text()
 ttrue(response.status == 200, `the action must run, got ${response.status}`)
-ttrue(!text.includes('HTTP_X_REQUESTED_WITH'), 'a query parameter must not define a header variable')
-ttrue(!text.includes('HTTP_SEC_FETCH_SITE'), 'a form field must not define a header variable')
-ttrue(text.includes('plain'), 'an ordinary field must still be defined')
+//  Match whole variable lines: QUERY_STRING and REQUEST_URI echo the query's text
+ttrue(!text.includes('\nHTTP_X_REQUESTED_WITH='), 'a query parameter must not define a header variable')
+ttrue(!text.includes('\nHTTP_SEC_FETCH_SITE='), 'a form field must not define a header variable')
+ttrue(text.includes('\nplain='), 'an ordinary field must still be defined')
 
 if (thas('ME_GOAHEAD_UPLOAD')) {
     let body = `--${BOUNDARY}\r\nContent-Disposition: form-data; name="HTTP_USER_AGENT"\r\n\r\nforged\r\n--${BOUNDARY}--\r\n`

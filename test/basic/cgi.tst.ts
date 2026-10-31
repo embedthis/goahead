@@ -62,13 +62,15 @@ if (thas('ME_GOAHEAD_CGI')) {
         http.get(HTTP + "/cgi-bin/cgitest/extra/path")
         await http.wait()
         match("PATH_INFO", "/extra/path")
-        let scriptFilename = keyword("SCRIPT_FILENAME")
-        let path = new Path(scriptFilename).dirname.join("extra/path")
-        let translated = new Path(keyword("PATH_TRANSLATED"))
-        //  Compare path strings with separators normalized. On Windows, goahead emits PATH_TRANSLATED
-        //  with mixed separators (getcwd is "\\" but the URL-derived suffix is "/"); Path.dirname.join
-        //  normalizes to "\\". Collapse both to "/" so the comparison tests logical equality.
-        ttrue(path.toString().replace(/\\/g, "/") == translated.toString().replace(/\\/g, "/"))
+        //  SCRIPT_FILENAME names the program that ran, which on Windows is cgitest.exe
+        let scriptFilename = keyword("SCRIPT_FILENAME").replace(/\\/g, "/")
+        let windows = Config.OS == "windows" || Config.OS == "win32"
+        ttrue(scriptFilename.endsWith(windows ? "/cgi-bin/cgitest.exe" : "/cgi-bin/cgitest"),
+              `SCRIPT_FILENAME must name the program that ran, got [${scriptFilename}]`)
+        //  PATH_INFO is a URI path, so PATH_TRANSLATED is under the documents directory, not the CGI directory
+        let translated = keyword("PATH_TRANSLATED").replace(/\\/g, "/")
+        ttrue(translated.endsWith("/web/extra/path") && !translated.includes("/cgi-bin/"),
+              `PATH_TRANSLATED must be under the documents directory, got [${translated}]`)
         http.close()
     }
 
@@ -126,11 +128,8 @@ if (thas('ME_GOAHEAD_CGI')) {
         match("QVAR var 1", "value 1")
         match("PATH_INFO", "/extra long/path/")
 
-        let scriptFilename = keyword("SCRIPT_FILENAME")
-        let path = new Path(scriptFilename).dirname.join("extra long/path/")
-        let translated = new Path(keyword("PATH_TRANSLATED"))
-        //  Normalize separators for cross-platform comparison; see extraPath() for rationale.
-        ttrue(path.toString().replace(/\\/g, "/") == translated.toString().replace(/\\/g, "/"))
+        let translated = keyword("PATH_TRANSLATED").replace(/\\/g, "/")
+        ttrue(translated.endsWith("/web/extra long/path/"), `PATH_TRANSLATED must decode PATH_INFO, got [${translated}]`)
         http.close()
     }
 

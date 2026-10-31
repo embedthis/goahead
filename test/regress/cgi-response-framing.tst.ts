@@ -151,8 +151,8 @@ if (thas('ME_GOAHEAD_CGI')) {
     /*
         HEAD. The CGI is run and writes a body; none of it may be forwarded. Where the CGI declared a
         length the header keeps it, because reporting what the equivalent GET would return is the
-        point of a HEAD; where it did not, the length is declared zero rather than left unknown,
-        since an unknown length selects chunked framing and the chunk trailer is itself body bytes.
+        point of a HEAD; where it did not, no length is declared, as the GET declares none, and the
+        chunked framing the GET would use is announced without its trailer, which would be body bytes.
      */
     raw = await exchange(pipelined('-L%204%20-B%204', 'HEAD'))
     ttrue(raw.indexOf('Content-Length: 4') >= 0, 'HEAD must report the length the CGI declared')
@@ -160,7 +160,7 @@ if (thas('ME_GOAHEAD_CGI')) {
     teq(countResponses(raw), 2, 'HEAD must leave the connection reusable')
 
     raw = await exchange(pipelined('-B%2020', 'HEAD'))
-    ttrue(firstHeaders(raw).indexOf('Transfer-Encoding') < 0, 'HEAD must never select chunked framing')
+    ttrue(firstHeaders(raw).indexOf('Content-Length') < 0, 'HEAD must not declare a length the GET does not send')
     teq(firstBody(raw), '', 'HEAD with no declared length must still carry no body')
     teq(countResponses(raw), 2, 'HEAD with no declared length must leave the connection reusable')
 

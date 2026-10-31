@@ -51,10 +51,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#if _WIN32 || WINCE
-#if !WINCE
+#if _WIN32
 #include <direct.h>
-#endif
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
@@ -109,7 +107,7 @@ typedef int ssize_t;
     #endif
 #endif
 
-#if _WIN32 || WINCE
+#if _WIN32
     #define sleepSeconds(secs) Sleep((secs) * 1000)
 #else
     #define sleepSeconds(secs) sleep(secs)
@@ -207,7 +205,7 @@ int main(int argc, char **argv, char **envp)
     originalArgc = argc;
     originalArgv = argv;
 
-#if _WIN32 && !WINCE
+#if _WIN32
     _setmode(0, O_BINARY);
     _setmode(1, O_BINARY);
     _setmode(2, O_BINARY);
@@ -723,7 +721,7 @@ static void printCwd(void)
 
 static void printStartState(void)
 {
-#if _WIN32 && !WINCE
+#if _WIN32
     WSADATA   wsa;
     ULONG_PTR h;
     int       inherited, type, len;
@@ -744,7 +742,7 @@ static void printStartState(void)
         WSACleanup();
     }
     printf("<p>INHERITED=%d</p>\r\n", inherited);
-#elif WINCE || VXWORKS
+#elif VXWORKS
     printf("<p>SIGPIPE=unsupported</p>\r\n");
 #else
     struct sigaction act;
@@ -824,14 +822,6 @@ static int getPostData(char **bufp, size_t *lenp)
             return -1;
         } else if (bytes == 0) {
             /* EOF */
-#if UNUSED
-            /*
-                If using multipart-mime, the CONTENT_LENGTH won't match the length of the data actually received
-             */
-            if (contentLength && len != limit) {
-                error("Missing content data (Content-Length: %s)", contentLength ? contentLength : "unspecified");
-            }
-#endif
             break;
         }
         len += bytes;
