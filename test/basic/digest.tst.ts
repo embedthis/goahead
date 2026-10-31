@@ -36,7 +36,7 @@ if (thas('ME_GOAHEAD_AUTH')) {
     http.setCredentials("mary", "pass2")
     http.get(HTTP + "/auth/digest/admin/index.html")
     await http.wait()
-    ttrue(http.status == 401)
+    ttrue(http.status == 403)
 
     if (Config.OS == "windows" || Config.OS == "win32") {
         // Case won't matter

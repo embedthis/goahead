@@ -68,7 +68,7 @@ if (!thas('ME_GOAHEAD_AUTH')) {
     //  mary may view but not manage: a request refused for its abilities must not consume the count
     nonce = await freshNonce()
     raw = await get(ADMIN, credential('mary', 'pass2', nonce, ADMIN, '00000001'))
-    ttrue(status(raw) == 401, `mary must be refused the admin page, got ${status(raw)}`)
+    ttrue(status(raw) == 403, `mary must be refused the admin page, got ${status(raw)}`)
     raw = await get(PAGE, credential('mary', 'pass2', nonce, PAGE, '00000001'))
     ttrue(status(raw) == 200, `a count refused for its abilities must still be usable, got ${status(raw)}`)
 }

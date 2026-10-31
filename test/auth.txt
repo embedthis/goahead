@@ -25,7 +25,7 @@ user name=bigmd5 password=68f336d2baa5e01937f31e7d69abc265 roles=administrator,p
 #   the password "pass1". Loading bf1cliff... deliberately emits a configuration warning.
 #
 user name=bf1cliffuser000000000000000000000000000000 password=BF1:00128:1E1QncXLrNwc2SO1:UqGvMJWfwE7oDfM3wB7bdGdmHp704OPs roles=administrator,purchase
-user name=bf2longuser0000000000000000000000000000000 password=BF2:00128:rb2NhliEpyGxf5f1:0+PxNrgBF9ib6TQD5BBdb0NWu0Oi73k3 roles=administrator,purchase
+user name=bf2longuser0000000000000000000000000000000 password=BF2:00128:8V4pNhlvGfhVp1ST:4bmDQEG4lud4qxNqHv00/KTRjMGiiLpq roles=administrator,purchase
 
 # Legacy truncated password-hash fixture; authentication must reject it.
 user name=uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu password=af3d1d3f72b2718bdae58ea70866e7c0 roles=user

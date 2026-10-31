@@ -28,25 +28,27 @@ if (!thas('ME_GOAHEAD_AUTH')) {
     let r = run([])
     ttrue(r.code == 2)
 
-    //  Short password, default (blowfish) cipher -> BF2 hash printed. New hashes must never be
-    //  written in the legacy BF1 format, whose key schedule silently drops password material once
-    //  the username and realm are long enough.
+    //  Default Blowfish output uses BF2 to retain all password material.
     r = run(['--password', 'pass1', 'example.com', 'testuser', 'user'])
     ttrue(r.code == 0)
     ttrue(r.stdout.startsWith('BF2:'))
 
-    //  Exact-boundary password (32 chars) with blowfish -> accepted.
-    //  Before the fix this failed whenever "user:realm:password" exceeded 32 bytes,
-    //  which it does for any realistic username + realm combination.
     r = run(['--password', 'a'.repeat(32), 'example.com', 'testuser', 'user'])
     ttrue(r.code == 0)
     ttrue(r.stdout.startsWith('BF2:'))
 
-    //  A username long enough to have pushed the password out of the BF1 key window must still
-    //  produce a usable hash in the new format.
+    //  Long usernames must not crowd the password out of the key.
     r = run(['--password', 'pass1', 'example.com', 'u'.repeat(42), 'user'])
     ttrue(r.code == 0)
     ttrue(r.stdout.startsWith('BF2:'))
+
+    //  --rounds sets the key schedules stored in the hash; out-of-range or non-numeric counts are usage errors
+    r = run(['--rounds', '256', '--password', 'pass1', 'example.com', 'testuser', 'user'])
+    ttrue(r.code == 0 && r.stdout.startsWith('BF2:00256:'), `--rounds 256 must be stored, got [${r.stdout.trim()}]`)
+    for (let bad of ['0', '65537', '12x', '-5']) {
+        r = run(['--rounds', bad, '--password', 'pass1', 'example.com', 'testuser', 'user'])
+        ttrue(r.code == 2, `--rounds ${bad} must be refused, got exit ${r.code}`)
+    }
 
     //  Empty password -> rejected with exit 3, with either cipher.
     r = run(['--password', '', 'example.com', 'testuser', 'user'])
@@ -84,5 +86,22 @@ if (!thas('ME_GOAHEAD_AUTH')) {
     ttrue(text.includes('user name=bob '))
     ttrue(text.includes('user name=alice '))
     ttrue(readdirSync(dir).length == 1)
+
+    //  An unknown cipher is an error, and nothing is printed or written
+    let before = readFileSync(authFile, 'utf8')
+    r = run(['--cipher', 'nosuch', '--file', authFile, '--password', 'pass1', 'example.com', 'carol', 'user'])
+    ttrue(r.code == 2, `an unknown cipher must exit 2, got ${r.code}`)
+    ttrue(r.stdout == '', 'an unknown cipher must print no hash')
+    ttrue(readFileSync(authFile, 'utf8') == before, 'an unknown cipher must leave the auth file unchanged')
+
+    //  A user or role name the auth file cannot hold as one token is refused, and the file is unchanged
+    for (let [user, role] of [['bad user', 'user'], ['a=b', 'user'], ['a:b', 'user'], ['#c', 'user'], ['', 'user'],
+                              ['dave', 'bad role'], ['dave', 'r=x'], ['dave', 'a,b']]) {
+        r = run(['--file', authFile, '--password', 'pass1', 'example.com', user, role])
+        ttrue(r.code == 2, `user [${user}] role [${role}] must be refused with exit 2, got ${r.code}`)
+        ttrue(readFileSync(authFile, 'utf8') == before, `user [${user}] role [${role}] must leave the file unchanged`)
+    }
+    r = run(['--file', authFile, '--password', 'pass1', 'example.com', 'dave', 'user', 'admin'])
+    ttrue(r.code == 0 && readFileSync(authFile, 'utf8').includes('user name=dave '), 'plain names are accepted')
     rmSync(dir, { recursive: true, force: true })
 }

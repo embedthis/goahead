@@ -12,6 +12,6 @@
 #   Define roles
 #       role name=manager abilities=view,edit,delete
 #
-#   Define a user
-#       user name=joshua password=BF1:00128:6FoznS3wS71j3b2j:y/mXajgC62502b2U3337/G== roles=manager,purchaser
+#   Define a user. Create the password hash with gopass, which writes this BF2 form
+#       user name=joshua password=BF2:00128:MTrBW3onMSxtZd2z:hbb+xsE70Fy2SGJB5InJzTCWpWzIiq4u roles=manager,purchaser
 #

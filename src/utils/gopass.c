@@ -1,7 +1,7 @@
 /*
     gopass.c -- Authorization password management.
 
-    gopass [--cipher md5|blowfish] [--file filename] [--password password] realm user roles...
+    gopass [--cipher md5|blowfish] [--file filename] [--password password] [--rounds count] realm user roles...
 
     This file provides facilities for creating passwords in a route configuration file.
     It supports either MD5 or Blowfish ciphers.
@@ -15,11 +15,13 @@
 /********************************** Locals ************************************/
 
 #define MAX_PASS    64
+#define GOPASS_MAX_ROUNDS 65536
 
 /********************************* Forwards ***********************************/
 
 static char *getPassword(void);
 static void printUsage(void);
+static bool validName(cchar *name);
 static int writeAuthFile(char *path);
 
 #if ME_WIN_LIKE || VXWORKS
@@ -31,10 +33,11 @@ static char *getpass(char *prompt);
 int main(int argc, char *argv[])
 {
     WebsBuf     buf;
-    char        *cipher, *password, *authFile, *username, *encodedPassword, *realm, *cp, *roles;
-    int         i, errflg, nextArg;
+    char        *cipher, *password, *authFile, *username, *encodedPassword, *realm, *cp, *roles, *composite;
+    int         i, errflg, nextArg, rounds;
 
     username = 0;
+    rounds = 0;
     errflg = 0;
     password = 0;
     authFile = 0;
@@ -55,6 +58,7 @@ int main(int argc, char *argv[])
                     cipher = argv[i];
                     if (!smatch(cipher, "md5") && !smatch(cipher, "blowfish")) {
                         error("Unknown cipher \"%s\". Use \"md5\" or \"blowfish\".", cipher);
+                        exit(2);
                     }
                     break;
                 }
@@ -63,6 +67,18 @@ int main(int argc, char *argv[])
                     errflg++;
                 } else {
                     authFile = argv[i];
+                    break;
+                }
+
+            } else if (smatch(cp, "rounds")) {
+                if (++i == argc) {
+                    errflg++;
+                } else {
+                    rounds = atoi(argv[i]);
+                    if (rounds < 1 || rounds > GOPASS_MAX_ROUNDS || (ssize) strspn(argv[i], "0123456789") != slen(argv[i])) {
+                        error("Rounds must be a number from 1 to %d", GOPASS_MAX_ROUNDS);
+                        exit(2);
+                    }
                     break;
                 }
 
@@ -91,6 +107,17 @@ int main(int argc, char *argv[])
     realm = argv[nextArg++];
     username = argv[nextArg++];
 
+    //  Prevent names from injecting auth-file fields or lines.
+    if (!validName(username)) {
+        error("Bad user name \"%s\"", username);
+        exit(2);
+    }
+    for (i = nextArg; i < argc; i++) {
+        if (!validName(argv[i])) {
+            error("Bad role name \"%s\"", argv[i]);
+            exit(2);
+        }
+    }
     bufCreate(&buf, 0, 0);
     for (i = nextArg; i < argc; ) {
         bufPutStr(&buf, argv[i]);
@@ -103,7 +130,12 @@ int main(int argc, char *argv[])
     logOpen();
     websOpenAuth(1);
 
-    if (authFile && access(authFile, R_OK) == 0) {
+    if (authFile && access(authFile, F_OK) == 0) {
+        //  Preserve existing users if the auth file cannot be read.
+        if (access(authFile, R_OK) < 0) {
+            error("Cannot read %s", authFile);
+            exit(2);
+        }
         if (websLoad(authFile) < 0) {
             exit(2);
         }
@@ -123,12 +155,22 @@ int main(int argc, char *argv[])
         error("Password exceeds maximum length of %d characters", WEBS_MAX_PASSWORD);
         exit(3);
     }
+    /*
+        The server hashes this composite through a WEBS_MAX_PASSWORD_BUFFER buffer and refuses credentials that
+        do not fit it, so refuse them here rather than store an account that can never authenticate.
+     */
+    composite = sfmt("%s:%s:%s", username, realm, password);
+    if (slen(composite) >= WEBS_MAX_PASSWORD_BUFFER) {
+        error("Username, realm and password together exceed %d characters", WEBS_MAX_PASSWORD_BUFFER - 3);
+        exit(3);
+    }
     if (smatch(cipher, "md5")) {
-        encodedPassword = websMD5(sfmt("%s:%s:%s", username, realm, password));
+        encodedPassword = websMD5(composite);
     } else {
         /* This uses the more secure blowfish cipher */
-        encodedPassword = websMakePassword(sfmt("%s:%s:%s", username, realm, password), 16, 128);
+        encodedPassword = websMakePassword(composite, 16, rounds);
     }
+    wfree(composite);
     if (encodedPassword == 0) {
         error("Cannot encode password for user \"%s\"", username);
         exit(3);
@@ -237,14 +279,7 @@ static char *getPassword(void)
 }
 
 
-
-#if WINCE
-static char *getpass(char *prompt)
-{
-    return "NOT-SUPPORTED";
-}
-
-#elif ME_WIN_LIKE || VXWORKS
+#if ME_WIN_LIKE || VXWORKS
 static char *getpass(char *prompt)
 {
     static char password[MAX_PASS];
@@ -289,17 +324,39 @@ static char *getpass(char *prompt)
 #endif /* ME_WIN_LIKE */
 
 /*
+    Names must fit one auth-file token; colons also delimit the password preimage.
+ */
+static bool validName(cchar *name)
+{
+    cuchar *cp;
+
+    if (name == 0 || *name == '\0' || *name == '#') {
+        return 0;
+    }
+    for (cp = (cuchar*) name; *cp; cp++) {
+        if (*cp < 0x20 || *cp == 0x7f || strchr(" =,:", *cp)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
     Display the usage
  */
 
 static void printUsage(void)
 {
-    fprintf(stderr, "usage: gopass [--cipher cipher] [--file path] [--password password] realm user roles...\n"
+    fprintf(stderr, "usage: gopass [--cipher cipher] [--file path] [--password password] [--rounds count] "
+        "realm user roles...\n"
         "Options:\n"
         "    --cipher md5|blowfish Select the encryption cipher. Defaults to blowfish\n"
         "    --file filename       Modify the password file\n"
         "    --password password   Use the specified password\n"
-        "\n");
+        "    --rounds count        Blowfish key schedules per hash, 1 to %d. Defaults to 128. Each doubling\n"
+        "                          doubles the time to check a password, at login and for an attacker\n"
+        "\n", GOPASS_MAX_ROUNDS);
 }
 
 #else

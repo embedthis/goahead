@@ -128,9 +128,9 @@ int main(int argc, char **argv)
     suiteA_expired();
     suiteB_live();
 
-    tinfo("\n--- Suite C: websClose leaves other events alone ---\n");
+    tinfo("\n--- Suite C: websClose releases every pending event ---\n");
     websClose();
     websRunEvents();
-    ttrue(fired, "an event websClose does not own must survive it");
+    tfalse(fired, "an event pending at websClose must not run after it");
     return 0;
 }

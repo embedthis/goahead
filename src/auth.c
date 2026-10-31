@@ -79,6 +79,7 @@ static bool isBlowfishHash(cchar *password);
 static bool isMd5Hash(cchar *password);
 static bool isCompleteHash(cchar *hash);
 static void verifyUnknownUser(Webs *wp);
+static void decoyBlowfish(cchar *passbuf);
 static void logoutServiceProc(Webs *wp);
 static void loginServiceProc(Webs *wp);
 static void reportPasswordBudget(cchar *username, cchar *password);
@@ -167,8 +168,16 @@ PUBLIC bool websAuthenticate(Webs *wp)
     }
     if (!cached) {
         if (wp->authType && !smatch(wp->authType, route->authType)) {
+            /*
+                Credentials of another scheme are refused like no credentials: a 401 must carry the route's
+                challenge (RFC 9110 15.5.2) so the client can authenticate the way the route requires, and the
+                route's 401 redirect applies.
+             */
             logAuth(wp, 0, route->authType, "failed", "wrong authentication scheme");
-            websError(wp, HTTP_CODE_UNAUTHORIZED, "Access denied. Wrong authentication protocol type.");
+            if (route->askLogin) {
+                (route->askLogin)(wp);
+            }
+            websRedirectByStatus(wp, HTTP_CODE_UNAUTHORIZED);
             return 0;
         }
         /*
@@ -211,10 +220,11 @@ PUBLIC bool websAuthenticate(Webs *wp)
         wp->flags |= WEBS_AUTHENTICATED;
         logAuth(wp, 2, route->authType, "succeeded", 0);
         /*
-            Cache verified credentials only in an existing client session, rotating its ID first. Authentication
-            still succeeds if rotation fails; creating sessions here could exhaust the table.
+            Cache credentials only in an existing session, rotating its ID first. Rotation failure does not fail
+            authentication; creating sessions here could exhaust the table. Cross-site requests must not rebind a
+            session: browsers can send cached credentials and session cookies on cross-site GET navigations.
          */
-        if (wp->session) {
+        if (wp->session && websSameOrigin(wp)) {
             websLoginSession(wp, route->authType);
         }
     }
@@ -342,6 +352,7 @@ static WebsUser *createUser(cchar *username, cchar *password, cchar *roles)
     user->roles = sclone(roles);
     user->password = sclone(password);
     user->abilities = -1;
+    user->flags = 0;
     return user;
 }
 
@@ -429,6 +440,7 @@ WebsUser *websAddUser(cchar *username, cchar *password, cchar *roles)
         return 0;
     }
     if (hashEnter(users, username, valueSymbol(user), 0) == 0) {
+        freeUser(user);
         return 0;
     }
     return user;
@@ -517,7 +529,7 @@ static void computeAbilities(WebsHash abilities, cchar *role, int depth)
         if ((key = hashLookup(roleTable, role)) != 0) {
             rp = (WebsRole*) key->content.value.symbol;
             for (key = hashFirst(rp->abilities); key; key = hashNext(rp->abilities, key)) {
-                computeAbilities(abilities, key->name.value.string, ++depth);
+                computeAbilities(abilities, key->name.value.string, depth + 1);
             }
         } else {
             hashEnter(abilities, role, valueInteger(0), 0);
@@ -539,21 +551,6 @@ static void computeUserAbilities(WebsUser *user)
     for (ability = stok(roles, " \t,", &tok); ability; ability = stok(NULL, " \t,", &tok)) {
         computeAbilities(user->abilities, ability, 0);
     }
-#if ME_DEBUG && DISABLE
-    /*
-        SECURITY Acceptable: - Debug trace of user abilities
-        Do not enable in production
-     */
-    {
-        WebsKey *key;
-        trace(5 | WEBS_RAW_MSG, "User \"%s\" has abilities: ", user->name);
-        for (key = hashFirst(user->abilities); key; key = hashNext(user->abilities, key)) {
-            trace(5 | WEBS_RAW_MSG, "%s ", key->name.value.string);
-            ability = key->name.value.string;
-        }
-        trace(5, "");
-    }
-#endif
     wfree(roles);
 }
 
@@ -563,7 +560,8 @@ PUBLIC void websComputeAllUserAbilities(void)
     WebsUser *user;
     WebsKey  *sym;
 
-    if (users) {
+    /* A hash handle is zero or positive; the first hash of the process, or a recycled handle, is zero */
+    if (users >= 0) {
         for (sym = hashFirst(users); sym; sym = hashNext(users, sym)) {
             user = (WebsUser*) sym->content.value.symbol;
             computeUserAbilities(user);
@@ -572,24 +570,30 @@ PUBLIC void websComputeAllUserAbilities(void)
 }
 
 
+/*
+    The role owns the abilities table from here on, so it is released when the role cannot be added.
+ */
 WebsRole *websAddRole(cchar *name, WebsHash abilities)
 {
     WebsRole *rp;
 
     if (!name) {
         error("Role is missing name");
+        hashFree(abilities);
         return 0;
     }
     if (hashLookup(roleTable, name)) {
         error("Role %s already exists", name);
-        /* Already exists */
+        hashFree(abilities);
         return 0;
     }
     if ((rp = walloc(sizeof(WebsRole))) == 0) {
+        hashFree(abilities);
         return 0;
     }
     rp->abilities = abilities;
     if (hashEnter(roleTable, name, valueSymbol(rp), 0) == 0) {
+        freeRole(rp);
         return 0;
     }
     return rp;
@@ -605,12 +609,13 @@ static void freeRole(WebsRole *rp)
 
 
 /*
-    Does not recompute abilities for users that use this role
+    Recompute every user's abilities, as websSetUserRoles does, so no user keeps the removed role's abilities
  */
 PUBLIC int websRemoveRole(cchar *name)
 {
     WebsRole *rp;
     WebsKey  *sym;
+    int      rc;
 
     assert(name && *name);
     if (roleTable >= 0) {
@@ -620,7 +625,9 @@ PUBLIC int websRemoveRole(cchar *name)
         rp = sym->content.value.symbol;
         hashFree(rp->abilities);
         wfree(rp);
-        return hashDelete(roleTable, name);
+        rc = hashDelete(roleTable, name);
+        websComputeAllUserAbilities();
+        return rc;
     }
     return -1;
 }
@@ -689,7 +696,16 @@ PUBLIC bool websLoginUser(Webs *wp, cchar *username, cchar *password)
 
 PUBLIC bool websLogoutUser(Webs *wp)
 {
+    cchar *username;
+
     assert(wp);
+    /*
+        The logout action runs on a public route, so the request carries no identity of its own. Name the
+        session's user in the audit line before the session is torn down.
+     */
+    if (!wp->username && (username = websGetSessionVar(wp, WEBS_SESSION_USERNAME, 0)) != 0) {
+        setUsername(wp, username);
+    }
     logAuth(wp, 0, "form", "logout", 0);
     websRemoveSessionVar(wp, WEBS_SESSION_USERNAME);
     websRemoveSessionVar(wp, WEBS_SESSION_AUTHTYPE);
@@ -822,7 +838,7 @@ static bool makePasswordPreimage(char *buf, ssize bufsize, cchar *username, ccha
 PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 {
     char passbuf[WEBS_MAX_PASSWORD_BUFFER];
-    bool success;
+    bool success, plaintext;
 
     assert(wp);
     if (!wp->user && (wp->user = websLookupUser(wp->username)) == 0) {
@@ -867,7 +883,8 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
         success = websCheckPassword(passbuf, wp->user->password);
     } else {
         // Legacy MD5 stored hash: MD5(username:realm:password).
-        if (!wp->encoded) {
+        plaintext = !wp->encoded;
+        if (plaintext) {
             /*
                 wp->password is plaintext from Basic auth. Encode to MD5 and cache by setting wp->encoded
                 so subsequent calls on the same request skip the rehash.
@@ -884,6 +901,12 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
             wp->encoded = 1;
         }
         success = pmatch(wp->password, wp->user->password);
+        if (!success && plaintext) {
+            /*
+                Run the Blowfish decoy for refused plaintext MD5 logins to reduce account timing differences.
+             */
+            decoyBlowfish(passbuf);
+        }
     }
     if (success) {
         trace(5, "User \"%s\" authenticated", wp->username);
@@ -896,25 +919,46 @@ PUBLIC bool websVerifyPasswordFromFile(Webs *wp)
 
 
 /*
+    Use the costliest configured Blowfish hash for refused-login decoys. BF2 costs more than BF1;
+    within each format, cost increases with rounds. Ignore the result.
+ */
+static void decoyBlowfish(cchar *passbuf)
+{
+    WebsKey  *key;
+    WebsUser *user;
+    cchar    *decoy;
+    int      cost, highest;
+
+    decoy = 0;
+    highest = -1;
+    for (key = hashFirst(users); key; key = hashNext(users, key)) {
+        user = key->content.value.symbol;
+        if (isBlowfishHash(user->password) && isCompleteHash(user->password)) {
+            cost = sstarts(user->password, WEBS_CRYPT_BLOWFISH2 ":") ? atoi(&user->password[4]) : 0;
+            if (cost > highest) {
+                highest = cost;
+                decoy = user->password;
+            }
+        }
+    }
+    if (decoy) {
+        websCheckPassword(passbuf, decoy);
+    }
+}
+
+
+/*
     Check a configured Blowfish hash for unknown users to reduce timing differences. Ignore the result.
  */
 static void verifyUnknownUser(Webs *wp)
 {
-    WebsKey  *key;
-    WebsUser *user;
-    char     passbuf[WEBS_MAX_PASSWORD_BUFFER];
+    char passbuf[WEBS_MAX_PASSWORD_BUFFER];
 
     if (wp->encoded || slen(wp->password) > WEBS_MAX_PASSWORD ||
         !makePasswordPreimage(passbuf, sizeof(passbuf), wp->username, wp->password)) {
         return;
     }
-    for (key = hashFirst(users); key; key = hashNext(users, key)) {
-        user = key->content.value.symbol;
-        if (isBlowfishHash(user->password) && isCompleteHash(user->password)) {
-            websCheckPassword(passbuf, user->password);
-            return;
-        }
-    }
+    decoyBlowfish(passbuf);
 }
 
 
@@ -967,19 +1011,65 @@ static bool pmatch(cchar *s1, cchar *s2)
 
 #if ME_COMPILER_HAS_PAM
 /*
+    Return allocated group names, including the primary group, or NULL if the account or groups cannot be read.
+ */
+static char *pamGroupRoles(cchar *username)
+{
+    WebsBuf       roles;
+    struct passwd *pw;
+    struct group  *gp;
+    Gid           *groups;
+    char          *result;
+    int           ngroups, size, i;
+
+    if ((pw = getpwnam(username)) == 0) {
+        return 0;
+    }
+    /*
+        Retry with larger arrays: Linux reports the required size, while macOS reports the number filled.
+     */
+    groups = 0;
+    ngroups = -1;
+    for (size = 32; size <= 1024; size *= 2) {
+        groups = wrealloc(groups, (ssize) sizeof(Gid) * size);
+        ngroups = size;
+        if (getgrouplist(username, (Gid) pw->pw_gid, groups, &ngroups) >= 0) {
+            break;
+        }
+        ngroups = -1;
+    }
+    if (ngroups < 0) {
+        wfree(groups);
+        return 0;
+    }
+    bufCreate(&roles, 128, -1);
+    for (i = 0; i < ngroups; i++) {
+        if ((gp = getgrgid((gid_t) groups[i])) != 0) {
+            bufPutStr(&roles, gp->gr_name);
+            bufPutc(&roles, ' ');
+        }
+    }
+    bufAddNull(&roles);
+    result = sclone(roles.servp);
+    bufFree(&roles);
+    wfree(groups);
+    return result;
+}
+
+
+/*
     Copy this routine if creating your own custom password store back end
  */
 PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
 {
-    WebsBuf         abilities;
     pam_handle_t    *pamh;
     UserInfo        info;
     struct pam_conv conv = { pamChat, &info };
-    struct group    *gp;
-    int             res, i;
+    char            *roles;
+    int             res;
 
     assert(wp);
-    assert(wp->username && wp->username);
+    assert(wp->username && *wp->username);
     assert(wp->password);
 
     /*
@@ -993,7 +1083,7 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     info.name = (char*) wp->username;
     info.password = (char*) wp->password;
     pamh = NULL;
-    if ((res = pam_start("login", info.name, &conv, &pamh)) != PAM_SUCCESS) {
+    if (pam_start("login", info.name, &conv, &pamh) != PAM_SUCCESS) {
         return 0;
     }
     pam_set_item(pamh, PAM_RHOST, wp->ipaddr);
@@ -1018,36 +1108,26 @@ PUBLIC bool websVerifyPasswordFromPam(Webs *wp)
     if (!wp->user) {
         wp->user = websLookupUser(wp->username);
     }
-    if (!wp->user) {
-        Gid groups[32];
-        int ngroups;
-        /*
-            Create a temporary user with a abilities set to the groups
-         */
-        ngroups = sizeof(groups) / sizeof(Gid);
-        if ((i = getgrouplist(wp->username, 99999, groups, &ngroups)) >= 0) {
-            bufCreate(&abilities, 128, -1);
-            for (i = 0; i < ngroups; i++) {
-                if ((gp = getgrgid(groups[i])) != 0) {
-                    bufPutStr(&abilities, gp->gr_name);
-                    bufPutc(&abilities, ' ');
-                }
-            }
-            bufAddNull(&abilities);
-            trace(5, "Create temp user \"%s\" with abilities: %s", wp->username, abilities.servp);
-            /*
-                websAddUser copies the ability string, so the buffer is done with either way. Free
-                it on both paths: this runs once per authentication of a user not already in the
-                user table, so leaking it here is a remote-request-driven leak on a long-running
-                device.
-             */
-            wp->user = websAddUser(wp->username, 0, abilities.servp);
-            bufFree(&abilities);
-            if (wp->user == 0) {
+    /*
+        Refresh group roles at each login for PAM-created users; preserve application-configured roles.
+        Without readable groups, a new account gets no user record or abilities.
+     */
+    if (wp->user == 0 || (wp->user->flags & WEBS_USER_PAM)) {
+        if ((roles = pamGroupRoles(wp->username)) == 0) {
+            trace(5, "Cannot read the groups of account \"%s\"", wp->username);
+        } else if (wp->user == 0) {
+            trace(5, "Create temp user \"%s\" with abilities: %s", wp->username, roles);
+            if ((wp->user = websAddUser(wp->username, 0, roles)) == 0) {
+                wfree(roles);
                 return 0;
             }
+            wp->user->flags |= WEBS_USER_PAM;
             computeUserAbilities(wp->user);
+        } else if (!smatch(wp->user->roles, roles)) {
+            trace(5, "Refresh user \"%s\" abilities: %s", wp->username, roles);
+            websSetUserRoles(wp->username, roles);
         }
+        wfree(roles);
     }
     return 1;
 }
@@ -1062,14 +1142,13 @@ static int pamChat(int msgCount, const struct pam_message **msg, struct pam_resp
     struct pam_response *reply;
     int                 i, j;
 
-    i = 0;
     reply = 0;
     info = (UserInfo*) data;
 
     if (resp == 0 || msg == 0 || info == 0) {
         return PAM_CONV_ERR;
     }
-    if ((reply = calloc(msgCount, sizeof(struct pam_response))) == 0) {
+    if ((reply = calloc((size_t) msgCount, sizeof(struct pam_response))) == 0) {
         return PAM_CONV_ERR;
     }
     for (i = 0; i < msgCount; i++) {

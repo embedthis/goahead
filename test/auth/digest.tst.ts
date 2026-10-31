@@ -43,11 +43,11 @@ if (thas('ME_GOAHEAD_AUTH')) {
     await http.wait()
     ttrue(http.status == 200)
 
-    //  Mary lacks 'manage' ability -> 401 for admin subtree
+    //  Mary lacks 'manage' ability -> 403 for admin subtree
     http.setCredentials("mary", "pass2")
     http.get(HTTP + "/auth/digest/admin/index.html")
     await http.wait()
-    ttrue(http.status == 401)
+    ttrue(http.status == 403)
 
     //  Empty password on digest path -> 401
     http.setCredentials("joshua", "")

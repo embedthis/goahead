@@ -12,6 +12,7 @@
 
 #define BLOWFISH_SALT_LENGTH 16
 #define BLOWFISH_ROUNDS      128
+#define BLOWFISH_ENCRYPTIONS 64
 
 /*
     Constants for transform routine
@@ -183,7 +184,7 @@ PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
     ssize size;
     int   c, i, j, shift;
 
-    size = strlen(s);
+    size = (ssize) strlen(s);
     if ((buffer = walloc(size + 1)) == 0) {
         return NULL;
     }
@@ -199,7 +200,7 @@ PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
                 wfree(buffer);
                 return NULL;
             }
-            bitBuf = bitBuf | (c << shift);
+            bitBuf = bitBuf | ((uint) c << shift);
             shift -= 6;
         }
         --i;
@@ -218,7 +219,7 @@ PUBLIC char *websDecode64Block(char *s, ssize *len, int flags)
 
 PUBLIC char *websMD5(cchar *s)
 {
-    return websMD5Block(s, strlen(s), NULL);
+    return websMD5Block(s, (ssize) strlen(s), NULL);
 }
 
 
@@ -236,7 +237,7 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
     int        i;
 
     if (length < 0) {
-        length = strlen(buf);
+        length = (ssize) strlen(buf);
     }
     initMD5(&context);
     update(&context, (uchar*) buf, (uint) length);
@@ -247,8 +248,8 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix)
         *r++ = hexDigits[hash[i] & 0xF];
     }
     *r = '\0';
-    len = (prefix) ? strlen(prefix) : 0;
-    str = walloc(sizeof(result) + len);
+    len = (prefix) ? (ssize) strlen(prefix) : 0;
+    str = walloc((ssize) sizeof(result) + len);
     if (str) {
         if (prefix) {
             strcpy(str, prefix);
@@ -484,7 +485,7 @@ PUBLIC char *websEncode64Block(char *s, ssize len)
     while (s < end) {
         shiftbuf = 0;
         for (j = 2; j >= 0 && s < end; j--, s++) {
-            shiftbuf |= ((*s & 0xff) << (j * 8));
+            shiftbuf |= ((uint) (*s & 0xff) << (j * 8));
         }
         shift = 18;
         for (i = ++j; i < 4 && bp < &buffer[size] ; i++) {
@@ -1002,16 +1003,14 @@ static void bencrypt(WebsBlowfish *bp, uint *xl, uint *xr)
 }
 
 
-static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
+/*
+    Re-derive every P and S entry from the key. Each call costs a full Blowfish key schedule.
+ */
+static void bexpand(WebsBlowfish *bp, uchar *key, ssize keylen)
 {
     uint data, datal, datar;
     int  i, j, k;
 
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 256; j++) {
-            bp->S[i][j] = ORIG_S[i][j];
-        }
-    }
     for (j = i = 0; i < BF_ROUNDS + 2; ++i) {
         for (data = 0, k = 0; k < 4; ++k) {
             data = (data << 8) | key[j];
@@ -1020,7 +1019,7 @@ static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
                 j = 0;
             }
         }
-        bp->P[i] = ORIG_P[i] ^ data;
+        bp->P[i] ^= data;
     }
     datal = datar = 0;
 
@@ -1036,6 +1035,22 @@ static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
             bp->S[i][j + 1] = datar;
         }
     }
+}
+
+
+static void binit(WebsBlowfish *bp, uchar *key, ssize keylen)
+{
+    int i, j;
+
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 256; j++) {
+            bp->S[i][j] = ORIG_S[i][j];
+        }
+    }
+    for (i = 0; i < BF_ROUNDS + 2; i++) {
+        bp->P[i] = ORIG_P[i];
+    }
+    bexpand(bp, key, keylen);
 }
 
 
@@ -1059,9 +1074,9 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
     }
     sofar = 0;
     do {
-        rc = read(fd, &buf[sofar], length);
-        if (rc < 0) {
-            assert(0);
+        rc = read(fd, &buf[sofar], (size_t) length);
+        if (rc <= 0) {
+            //  EOF cannot supply randomness; retrying it would loop forever.
             close(fd);
             return -1;
         }
@@ -1096,10 +1111,10 @@ PUBLIC int websGetRandomBytes(char *buf, ssize length, bool block)
 
 
 /*
-    Run the Blowfish schedule over "salt:key" and return the encoded cipher text. The caller decides
-    what "key" is: BF1 passes the password through unchanged, BF2 passes its SHA-1 digest.
+    Expand "salt:key", encrypt the ciphertext and return the encoded result. BF1 uses the original key;
+    BF2 uses its SHA-1 digest.
  */
-static char *cryptBlock(cchar *key, cchar *salt, int rounds)
+static char *cryptBlock(cchar *key, cchar *salt, int expansions, int encryptions)
 {
     WebsBlowfish *bf;
     char         *result, *composite;
@@ -1110,11 +1125,14 @@ static char *cryptBlock(cchar *key, cchar *salt, int rounds)
     composite = sfmt("%s:%s", salt, key);
     bf = walloc(sizeof(WebsBlowfish));
     binit(bf, (uchar*) composite, slen(composite));
+    for (i = 1; i < expansions; i++) {
+        bexpand(bf, (uchar*) composite, slen(composite));
+    }
     len = sizeof(cipherText);
     text = wdup(cipherText, len);
 
-    for (i = 0; i < rounds; i++) {
-        limit = len / sizeof(uint);
+    for (i = 0; i < encryptions; i++) {
+        limit = len / (ssize) sizeof(uint);
         for (j = 0; j < limit; j += 2) {
             bencrypt(bf, &text[j], &text[j + 1]);
         }
@@ -1122,7 +1140,7 @@ static char *cryptBlock(cchar *key, cchar *salt, int rounds)
     result = websEncode64Block((char*) text, len);
     memset(bf, 0, sizeof(WebsBlowfish));
     wfree(bf);
-    memset(text, 0, len);
+    memset(text, 0, (size_t) len);
     wfree(text);
     wfree(composite);
     return result;
@@ -1143,13 +1161,12 @@ PUBLIC char *websCryptPassword(cchar *password, cchar *salt, int rounds)
     if (slen(password) > WEBS_MAX_PASSWORD_BUFFER) {
         return 0;
     }
-    return cryptBlock(password, salt, rounds);
+    return cryptBlock(password, salt, 1, rounds);
 }
 
 
 /*
-    BF2. The SHA-1 digest is a fixed SHA_SIZE * 2 characters, so with the default salt the key is 57
-    bytes and the schedule window cannot be reached however long the caller's input is.
+    BF2 uses a fixed-width digest to stay within the key window. Each round runs a full key schedule.
  */
 static char *cryptPassword2(cchar *password, cchar *salt, int rounds)
 {
@@ -1161,7 +1178,7 @@ static char *cryptPassword2(cchar *password, cchar *salt, int rounds)
     if ((digest = shaHex(password, slen(password))) == 0) {
         return 0;
     }
-    result = cryptBlock(digest, salt, rounds);
+    result = cryptBlock(digest, salt, rounds, BLOWFISH_ENCRYPTIONS);
     wfree(digest);
     return result;
 }
@@ -1173,7 +1190,7 @@ PUBLIC char *websMakeSalt(ssize size)
     char  *rp, *result, *random;
     ssize clen, i;
 
-    size = (size + sizeof(int) - 1) & ~(sizeof(int) - 1);
+    size = (size + (ssize) sizeof(int) - 1) & ~((ssize) sizeof(int) - 1);
     random = walloc(size + 1);
     result = walloc(size + 1);
     if (websGetRandomBytes(random, size, 0) < 0) {
@@ -1255,24 +1272,24 @@ PUBLIC bool websCheckPassword(cchar *plainTextPassword, cchar *passwordHash)
         wfree(ph);
         return 0;
     }
+    if (*rounds == '\0' || (ssize) strspn(rounds, "0123456789") != slen(rounds) || atoi(rounds) < 1) {
+        wfree(ph);
+        return 0;
+    }
     /*
-        Verify in the format the stored hash was written in. A BF1 hash must keep verifying the BF1
-        way or every credential already deployed stops working - it cannot be upgraded in place,
-        because the stored value never depended on the password it is supposed to check.
+        Verify using the stored hash format; BF1 credentials require BF1 derivation.
      */
     if (smatch(algorithm, WEBS_CRYPT_BLOWFISH2)) {
         given = cryptPassword2(plainTextPassword, salt, atoi(rounds));
 
     } else if (smatch(algorithm, WEBS_CRYPT_BLOWFISH)) {
         /*
-            BF1, fail closed at or past the key window. A key that reaches the window was truncated
-            when the hash was stored, so the stored value no longer depends on the password and every
-            password matches. The test is >= because a candidate filling the window exactly matches a
-            longer stored key truncated to the same bytes. A residual below the window is not closed
-            here: this routine sees one composite string and cannot tell a long realm from a long
-            password, so websAddUser reports that band instead.
+            BF1 key material at or beyond the window loses password dependence; reject it, including exact fits.
+            Run the cipher even on refusal to preserve decoy timing. Below the window, only websAddUser can
+            distinguish realm length from password length and report a low password contribution.
          */
         if ((slen(salt) + 1 + slen(plainTextPassword)) >= WEBS_BLOWFISH_KEY_WINDOW) {
+            wfree(cryptBlock(plainTextPassword, salt, 1, atoi(rounds)));
             wfree(ph);
             return 0;
         }
