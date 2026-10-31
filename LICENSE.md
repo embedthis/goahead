@@ -19,7 +19,7 @@ Please read the following document for more information or contact [sales@embedt
 
 ## EU Cyber Resilience Act
 
-The GPL release of this software is provided without CRA conformity documentation. A manufacturer that incorporates it in a product placed on the EU market is responsible for that product's conformity with the Cyber Resilience Act. CRA conformity, including the Declaration of Conformity, user information, software bill of materials and vulnerability handling, is offered with the commercial license.
+The GPL release and evaluation snapshots of this software are provided without CRA conformity documentation. A manufacturer that incorporates it in a product placed on the EU market is responsible for that product's conformity with the Cyber Resilience Act. CRA conformity, including the Declaration of Conformity, user information, software bill of materials and vulnerability handling, is offered with the commercial license.
 
 
 ## GoAhead 2.X License
