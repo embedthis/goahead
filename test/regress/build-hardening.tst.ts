@@ -131,6 +131,8 @@ ttrue(/^SANITIZE_FLAGS\s*:=.*-fsanitize=integer.*-fsanitize=implicit-conversion.
 ttrue(/^test-asan:.*sanitizer-canary\.sh.*\btm\b/ms.test(makefile), 'test-asan must run the sanitizer canary before the suite')
 ttrue(/^CFI_FLAGS\s*\+=.*-fstack-clash-protection/m.test(makefile),
       'the Makefile must select stack clash protection by probing the compiler')
+ttrue(/^CFI_FLAGS\s*\+=.*-ftrivial-auto-var-init=zero/m.test(makefile),
+      'the Makefile must select automatic variable zero-initialisation by probing the compiler')
 
 if (process.platform == 'linux') {
     for (let binary of ['build/bin/libgoahead.so', 'build/bin/goahead', 'build/bin/goahead-test']) {

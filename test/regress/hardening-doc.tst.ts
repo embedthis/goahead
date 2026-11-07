@@ -22,6 +22,10 @@ if (existsSync(PREMAKE) && existsSync(MAKEFILE)) {
     for (let flag of cfi.filter(f => f)) {
         flags.add(flag)
     }
+    //  Flags probed one at a time: CFI_FLAGS += $(shell $(CC) -Werror FLAG ...)
+    for (let m of makefile.matchAll(/^CFI_FLAGS\s*\+=\s*\$\(shell \$\(CC\) -Werror (-[\w=-]+) /mg)) {
+        flags.add(m[1])
+    }
     ttrue(flags.size >= 12, `the project files name the hardening flags, found [${[...flags]}]`)
     ttrue(cfi.includes('-fcf-protection=full') && cfi.includes('-mbranch-protection=standard'),
         `the Makefile selects control-flow protection, found [${cfi}]`)

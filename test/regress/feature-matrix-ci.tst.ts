@@ -19,6 +19,8 @@ const LEGS: Record<string, { flags: string[], run?: boolean, optimize?: string }
     'auth-off': { flags: ['-DME_GOAHEAD_AUTH=0'], run: true },
     'digest-off': { flags: ['-DME_GOAHEAD_DIGEST=0'] },
     'access-log': { flags: ['-DME_GOAHEAD_ACCESS_LOG=1'] },
+    'client-certs': { flags: ['-DME_GOAHEAD_SSL_VERIFY_PEER=1', '-DME_GOAHEAD_SSL_VERIFY_ISSUER=1',
+        '-DME_GOAHEAD_SSL_AUTHORITY=\\"ca.crt\\"', '-DME_GOAHEAD_SSL_REVOKE=\\"ca.crl\\"'] },
     'no-tls': { flags: ['-DME_COM_SSL=0', '-DME_COM_OPENSSL=0', '-DME_COM_MBEDTLS=0'] },
     'replace-malloc': { flags: ['-DME_GOAHEAD_REPLACE_MALLOC=1'], run: true },
     'assert-abort': { flags: ['-DME_GOAHEAD_ASSERT_ABORT=1'] },

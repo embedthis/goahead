@@ -28,3 +28,6 @@
 *.request   binary
 *.header    binary
 *.fuzzinput binary
+
+# Security audit fuzz corpora: raw request bytes, never translate.
+doc/security/scan-findings/**/corpus/** binary

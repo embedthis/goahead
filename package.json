@@ -24,7 +24,7 @@
     },
     "devDependencies": {
         "@embedthis/ejscript": "^2.1.1",
-        "@embedthis/testme": "^0.8.37"
+        "@embedthis/testme": "^0.8.38"
     },
     "trustedDependencies": [
         "@embedthis/testme"

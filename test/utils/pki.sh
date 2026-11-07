@@ -68,11 +68,12 @@ CA_EXT='basicConstraints = critical, CA:TRUE
 keyUsage = critical, keyCertSign, cRLSign, digitalSignature
 subjectKeyIdentifier = hash'
 SELF_EXT='basicConstraints = critical, CA:TRUE
+subjectAltName = DNS:localhost, IP:127.0.0.1, IP:::1
 subjectKeyIdentifier = hash'
 LEAF_EXT='basicConstraints = CA:FALSE
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth, clientAuth
-subjectAltName = DNS:localhost, IP:127.0.0.1
+subjectAltName = DNS:localhost, IP:127.0.0.1, IP:::1
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid'
 
