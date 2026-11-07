@@ -68,13 +68,13 @@ if (!thas('ME_GOAHEAD_AUTH') || !thas('ME_GOAHEAD_LOGGING')) {
         //  Controls: a writable route with its own auth=, and one after a login gate that covers it, are not warned about
         result = await startup('route uri=/put/ methods=PUT|DELETE auth=basic abilities=manage dir=private\nroute uri=/\n')
         ttrue(result.up, `a self-authenticated writable route must start: ${result.log}`)
-        ttrue(!result.log.includes('Security warning: route "/put/"'),
+        ttrue(!result.log.includes('Security warning: route "/put/" (handler=file) accepts PUT or DELETE without authentication'),
             `a writable route with auth= must not be warned about: ${result.log}`)
 
         result = await startup('route uri=/ auth=form handler=continue redirect=401@/login.html\n' +
             'route uri=/put/ methods=PUT|DELETE\nroute uri=/\n')
         ttrue(result.up, `a gated writable route must start: ${result.log}`)
-        ttrue(!result.log.includes('Security warning: route "/put/"'),
+        ttrue(!result.log.includes('Security warning: route "/put/" (handler=file) accepts PUT or DELETE without authentication'),
             `a writable route after a gate that covers it must not be warned about: ${result.log}`)
 
         //  The shipped example itself must show the authenticated form

@@ -1,6 +1,11 @@
-/* A build without TLS warns for each route that authenticates, as its credentials cross the network in clear */
+/*
+    auth-cleartext-warning.tst.c - A plain HTTP listener warns for each authenticated route it can carry
 
-#define ME_COM_SSL 0
+    Credentials and session cookies cross the network unencrypted when an authenticated route is reachable over
+    plain HTTP, whatever TLS the build has, so the check runs at the first plain HTTP listener rather than at
+    route load. A route restricted to protocol=https, a route behind an earlier http-to-https redirect, and a
+    server behind a trusted TLS-terminating proxy are not reported.
+ */
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
@@ -11,61 +16,149 @@
 #pragma GCC diagnostic pop
 #endif
 #include "goahead.h"
-#undef ME_COMPILER_HAS_PAM
-#define ME_COMPILER_HAS_PAM 0
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 #endif
-#include "../../src/auth.c"
+#include "../../src/route.c"
 #if defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 
 #if ME_GOAHEAD_AUTH && ME_GOAHEAD_LOGGING
 
+#define ENDPOINT "http://127.0.0.1:80"
+
 static int  warnings;
-static char lastMessage[512];
+static char messages[4096];
 
 static void captureLog(int level, cchar *msg)
 {
-    if (msg && strstr(msg, "Warning:")) {
+    if (msg && strstr(msg, "Security warning:")) {
         warnings++;
-        scopy(lastMessage, sizeof(lastMessage), msg);
+        if (slen(messages) + slen(msg) + 2 < (ssize) sizeof(messages)) {
+            strcat(messages, msg);
+            strcat(messages, "\n");
+        }
     }
 }
 
 
-static void checkAuth(cchar *uri, cchar *type)
+static void reset(void)
+{
+    websCloseRoute();
+    ttrue(websOpenRoute() == 0, "open routes");
+    warnings = 0;
+    messages[0] = '\0';
+}
+
+
+static WebsRoute *addAuthRoute(cchar *uri, cchar *type, cchar *protocol)
+{
+    WebsRoute *route;
+
+    route = websAddRoute(uri, "continue", -1);
+    ttrue(route != 0, "add route %s", uri);
+    teq(websSetRouteMatch(route, 0, protocol, -1, -1, -1, -1), 0, "set the match for %s", uri);
+    teq(websSetRouteAuth(route, type), 0, "set %s authentication on %s", type, uri);
+    return route;
+}
+
+
+static void checkNamed(cchar *uri, cchar *type)
 {
     char expected[256];
-    int  rc;
 
-    warnings = 0;
-    lastMessage[0] = '\0';
-    rc = websSetRouteAuth(websAddRoute(uri, "continue", -1), type);
-    teq(rc, 0, "set %s authentication", type);
-    teq(warnings, 1, "a %s route warns once", type);
-    fmt(expected, sizeof(expected), "Route \"%s\" uses %s authentication but this build has no TLS", uri, type);
-    ttrue(strstr(lastMessage, expected) != 0, "the warning names the route and type: %s", lastMessage);
-    ttrue(strstr(lastMessage, "unencrypted") != 0, "and says the credentials are unencrypted");
+    fmt(expected, sizeof(expected), "route \"%s\" uses %s authentication and " ENDPOINT " is plain HTTP", uri, type);
+    ttrue(strstr(messages, expected) != 0, "the warning names the %s route, its type and the listener: %s", type,
+          messages);
 }
 
 
 int main(int argc, char **argv)
 {
-    ttrue(websOpenRoute() == 0, "open routes");
+    WebsHash  redirects;
+    WebsRoute *route;
+    int       authRoutes;
+
     logSetHandler(captureLog);
 
-    checkAuth("/basic/", "basic");
+    /*
+        Every authenticated route a plain listener can carry is named once; public routes are not
+     */
+    reset();
+    authRoutes = 0;
+    addAuthRoute("/basic/", "basic", 0);
+    authRoutes++;
 #if ME_GOAHEAD_DIGEST
-    checkAuth("/digest/", "digest");
+    addAuthRoute("/digest/", "digest", 0);
+    authRoutes++;
 #endif
-    checkAuth("/form/", "form");
+    addAuthRoute("/form/", "form", 0);
+    authRoutes++;
+    ttrue(websAddRoute("/public/", "continue", -1) != 0, "add a public route");
+    websCheckCleartextAuth(ENDPOINT, 0);
+    teq(warnings, authRoutes, "each authenticated route warns once");
+    checkNamed("/basic/", "basic");
+#if ME_GOAHEAD_DIGEST
+    checkNamed("/digest/", "digest");
+#endif
+    checkNamed("/form/", "form");
+    ttrue(strstr(messages, "unencrypted") != 0, "and says the credentials are unencrypted");
+    ttrue(strstr(messages, "/public/") == 0, "a public route is not reported");
 
-    warnings = 0;
-    ttrue(websSetRouteAuth(websAddRoute("/unknown/", "continue", -1), "bogus") < 0, "an unknown type is refused");
-    teq(warnings, 0, "without a cleartext warning");
+    websCheckCleartextAuth("http://127.0.0.1:8080", 0);
+    teq(warnings, authRoutes, "a second plain listener does not repeat the warnings");
+
+    /*
+        A route restricted to https never carries a plain HTTP request
+     */
+    reset();
+    addAuthRoute("/secure/", "basic", "https");
+    websCheckCleartextAuth(ENDPOINT, 0);
+    teq(warnings, 0, "a protocol=https route is not reported: %s", messages);
+
+    /*
+        An earlier route that redirects plain HTTP to https covers the routes under its prefix
+     */
+    reset();
+    route = websAddRoute("/", "redirect", -1);
+    ttrue(route != 0, "add the redirect gate");
+    redirects = hashCreate(-1);
+    hashEnter(redirects, "0", valueString("https://", VALUE_ALLOCATE), 0);
+    teq(websSetRouteMatch(route, 0, "http", -1, -1, -1, redirects), 0, "redirect every http request to https");
+    addAuthRoute("/gated/", "basic", 0);
+    websCheckCleartextAuth(ENDPOINT, 0);
+    teq(warnings, 0, "a route behind an http-to-https redirect is not reported: %s", messages);
+
+    /*
+        A redirect gate that sends requests elsewhere than https, or that comes after the route, covers nothing
+     */
+    reset();
+    route = websAddRoute("/", "redirect", -1);
+    redirects = hashCreate(-1);
+    hashEnter(redirects, "0", valueString("/index.html", VALUE_ALLOCATE), 0);
+    teq(websSetRouteMatch(route, 0, "http", -1, -1, -1, redirects), 0, "redirect to a page, not to https");
+    addAuthRoute("/gated/", "basic", 0);
+    websCheckCleartextAuth(ENDPOINT, 0);
+    teq(warnings, 1, "a redirect that does not go to https does not cover the route");
+
+    reset();
+    addAuthRoute("/gated/", "basic", 0);
+    route = websAddRoute("/", "redirect", -1);
+    redirects = hashCreate(-1);
+    hashEnter(redirects, "0", valueString("https://", VALUE_ALLOCATE), 0);
+    teq(websSetRouteMatch(route, 0, "http", -1, -1, -1, redirects), 0, "redirect placed after the route");
+    websCheckCleartextAuth(ENDPOINT, 0);
+    teq(warnings, 1, "a redirect after the authenticated route does not cover it");
+
+    /*
+        A trusted proxy terminates TLS for the server, so its plain listener is not reported
+     */
+    reset();
+    addAuthRoute("/basic/", "basic", 0);
+    websCheckCleartextAuth(ENDPOINT, 1);
+    teq(warnings, 0, "behind a trusted proxy the plain listener is not reported: %s", messages);
 
     websCloseRoute();
     return 0;

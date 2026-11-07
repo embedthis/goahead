@@ -38,6 +38,7 @@ int main(int argc, char **argv)
     Webs wp;
     for (readResult = 0; readResult >= -1; readResult--) {
         memset(&wp, 0, sizeof(wp));
+        wp.putfd = -1;
         wp.txRemaining = 10;
         wp.flags = WEBS_KEEP_ALIVE;
         live = errors = 0;

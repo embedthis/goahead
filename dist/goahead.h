@@ -246,7 +246,9 @@
 /*
     Maximum connections, capped below FD_SETSIZE. POSIX websOpen also caps it by RLIMIT_NOFILE, allowing two
     descriptors per connection (three with CGI) and reserving 64 for listeners, logs and accept recovery.
-    This bounds resources but does not prevent connection floods.
+    VxWorks has no descriptor limit to read, and its FD_SETSIZE (2048 by default) is far above its descriptor table
+    (NUM_FILES, 50 by default), so set this there below half of the descriptors NUM_FILES leaves after the listeners,
+    logs and accept recovery. This bounds resources but does not prevent connection floods.
  */
 #ifndef ME_GOAHEAD_LIMIT_CONNECTIONS
     #define ME_GOAHEAD_LIMIT_CONNECTIONS (FD_SETSIZE > 40 ? FD_SETSIZE - 32 : 8)
@@ -2388,7 +2390,8 @@ PUBLIC WebsHash websGetUpload(struct Webs *wp);
 /**
     Look up an uploaded file by its form name
     @description The returned record is owned by the request and is released, with its staging file, when the
-        request completes (see websGetUpload). Use it before calling websDone.
+        request completes (see websGetUpload). Use it before calling websDone. clientFilename is the name the client
+        sent, checked to be one plain name, and is never a storage path.
     @param wp Webs request object
     @param key Form upload name
     @return Upload object for the uploaded file, or NULL if there is none or the request has completed
@@ -2466,7 +2469,7 @@ PUBLIC WebsUpload *websLookupUpload(struct Webs *wp, cchar *key);
 #define WEBS_PROXIED         0x1000000       /**< A trusted proxy supplied the request's scheme */
 #define WEBS_FILENAME_SET    0x2000000       /**< The application bound the request file name with websSetRequestFilename */
 #if ME_GOAHEAD_LEGACY
-#define WEBS_LOCAL           0x8000          /**< Request originated from the local system (legacy) */
+#define WEBS_LOCAL           0x8000          /**< Request originated from the local system, not from a trusted proxy (legacy) */
 #endif
 /** @} */
 
@@ -3414,12 +3417,13 @@ PUBLIC char *websMD5Block(cchar *buf, ssize length, cchar *prefix);
 /**
     Get a request target in origin form
     @description The path and query of the target as the client sent it, still encoded. An absolute-form
-        target loses its scheme and authority; an origin-form target is returned as is.
+        target loses its scheme and authority, and an absolute-form target with an empty path is "/" followed by
+        its query, as routing reads it; an origin-form target is returned as is.
     @param url Request target
-    @return A reference into url. Caller must not free.
+    @return An allocated string. Caller must free.
         @stability Evolving
  */
-PUBLIC cchar *websOriginForm(cchar *url);
+PUBLIC char *websOriginForm(cchar *url);
 
 /**
     Parse a Content-Type header value
@@ -3720,8 +3724,8 @@ PUBLIC void websCheckSecretFile(cchar *path, cchar *holds);
         content should be written after calling this function.
     @param wp Webs request object representing the current HTTP request
     @param url Target URL to redirect the client to. Can be absolute (http://...) or relative (/path).
-        A relative URL is qualified with the host set by websSetHostUrl, or else with the address of the
-        interface that accepted the connection.
+        A relative URL is qualified with the host set by websSetHostUrl, or else, for a request a trusted proxy
+        forwarded, with the request's Host, or else with the address of the interface that accepted the connection.
         @stability Stable
  */
 PUBLIC void websRedirect(Webs *wp, cchar *url);
@@ -3931,7 +3935,7 @@ PUBLIC void websSetBackgroundWriter(Webs *wp, WebsWriteProc proc);
     Flags for websSetCookie
  */
 #define WEBS_COOKIE_SECURE      0x1         /**< Flag for websSetCookie for secure cookies (https only) */
-#define WEBS_COOKIE_HTTP        0x2         /**< Flag for websSetCookie for http cookies (http only) */
+#define WEBS_COOKIE_HTTP        0x2         /**< Flag for websSetCookie for HttpOnly cookies (no script access) */
 #define WEBS_COOKIE_SAME_LAX    0x4         /**< Flag for websSetCookie for SameSite=Lax */
 #define WEBS_COOKIE_SAME_STRICT 0x8         /**< Flag for websSetCookie for SameSite=Strict */
 
@@ -3948,28 +3952,23 @@ PUBLIC void websSetBackgroundWriter(Webs *wp, WebsWriteProc proc);
     @param domain Domain applicable for this cookie. Set to null for a host-only cookie, which the
         client returns only to the host that set it.
     @param lifespan Cookie lifespan in seconds
-    @param flags Set to WEBS_COOKIE_SECURE for https only. Set to WEBS_COOKIE_HTTP for http only.
-        Otherwise the cookie applies to both http and https requests. Or in WEBS_COOKIE_SAME_LAX for SameSite=Lax
-        and WEBS_COOKIE_SAME_STRICT for SameSite=Strict.
+    @param flags Set WEBS_COOKIE_SECURE to send the cookie over https only, and WEBS_COOKIE_HTTP to mark it
+        HttpOnly, so page script cannot read it; a cookie that carries a credential or names a session should have
+        both. Without WEBS_COOKIE_SECURE the cookie is sent over http and https alike. Or in WEBS_COOKIE_SAME_LAX for
+        SameSite=Lax and WEBS_COOKIE_SAME_STRICT for SameSite=Strict.
         @stability Stable
  */
 PUBLIC void websSetCookie(Webs *wp, cchar *name, cchar *value, cchar *path, cchar *domain, int lifespan, int flags);
 
 /**
-    Set the debug processing flag
-    @description Controls whether GoAhead operates in debug mode with enhanced diagnostic output.
-        When debug mode is enabled, GoAhead provides additional logging, error reporting, and
-        diagnostic information that can be helpful during development and troubleshooting.
-
-        Debug mode typically enables:
-        - More verbose error messages
-        - Additional runtime checks
-        - Enhanced logging output
-        - Development-oriented diagnostics
-
-        This flag is automatically set when GoAhead is started with the --debugger command line option.
-        Debug mode should generally be disabled in production environments for optimal performance.
-    @param on Set to 1 to enable debug mode, 0 to disable debug mode
+    Run without timeouts, for use under a debugger
+    @description Disables every request, parse and session timeout: the per-request timer only restarts itself,
+        and websOpen does not start the session expiry event, so call this before websOpen. The server then keeps
+        an idle or stalled connection, and every session, until the peer closes or the process exits. It is set by
+        the --debugger option of the goahead program and must never be on in a deployed server, where any client
+        could then hold connections and sessions indefinitely. It enables no extra diagnostics: log verbosity is
+        set by the log level.
+    @param on Set to 1 to disable timeouts, 0 to apply them to requests that start afterwards
     @see websGetDebug
         @internal
  */
@@ -4158,7 +4157,10 @@ PUBLIC void websSetHostUrl(cchar *url);
         ME_GOAHEAD_LIMIT_CONNECTIONS_PER_IP, which cannot see the clients behind it. Forwarded headers from any
         other peer are ignored. The proxy must overwrite, not append to, X-Forwarded-Proto, and preserve Host, or
         set websSetHostUrl. The default is ME_GOAHEAD_TRUSTED_PROXIES, which trusts none.
-    @param addresses Comma or space separated IP addresses, such as "127.0.0.1, ::1". Null or empty trusts none.
+    @param addresses Comma or space separated literal IPv4 or IPv6 addresses, such as "127.0.0.1, ::1" or "[::1]".
+        An IPv6 address matches a peer in any spelling, and an IPv4-mapped address names its IPv4 peer. A host name
+        or CIDR range is not an address: it is reported with error() and ignored, so a misspelt list fails loudly
+        rather than silently trusting no proxy. Null or empty trusts none.
     @see websSetHostUrl
         @stability Evolving
  */
@@ -4487,11 +4489,14 @@ PUBLIC bool websValid(Webs *wp);
     @description This expects a URI beginning with "/" and containing only valid URI characters.
     The URI is decoded, and normalized removing "../" and "." segments.
     The URI must begin with a "/" both before and after decoding and normalization.
-    A path that names a file system alias is refused: a segment ending in a dot or space, a colon (drive letter or
-    stream), an 8.3 short name, a code point that is not NFC or that folds to ASCII on a case-insensitive file
-    system, and on Windows a character Win32 refuses in a file name.
+    A path is refused when it holds a character websValidUriChars refuses, decodes to a backslash, or still holds an
+    escape for NUL, a dot or a separator (%00, %2e, %2f, %5c) after decoding. A path that names a file system alias
+    is refused: a segment ending in a dot or space, a colon (drive letter or stream), an 8.3 short name, a code point
+    that is not NFC or that folds to ASCII on a case-insensitive file system, and on Windows a character Win32
+    refuses in a file name.
     @param uri URI to validate.
-    @return A validated, normalized URI path. Caller must free.
+    @return A validated, normalized URI path, or NULL when the path is refused. The caller must refuse the request
+        on NULL, and must free the result.
         @stability Stable
  */
 PUBLIC char *websValidateUriPath(cchar *uri);
@@ -4610,7 +4615,8 @@ PUBLIC bool websValidHeaderValue(cchar *value);
     @description Writes formatted data to the HTTP response buffer. The data is buffered internally and
         will be sent to the client when the buffer becomes full, when websFlush() is called, or when
         the request completes. This is the primary function for sending dynamic content to clients.
-        Supports all standard printf formatting options.
+        Supports all standard printf formatting options. It calls websWriteBlock, which blocks the server once
+        ME_GOAHEAD_LIMIT_RESPONSE_BUFFER bytes are buffered and the client is not accepting them.
     @param wp Webs request object representing the current HTTP request/response
     @param fmt Printf-style format string supporting standard format specifiers:
         %s (string), %d (integer), %f (float), %x (hex), etc.
@@ -4635,6 +4641,10 @@ PUBLIC ssize websWriteFile(int fd, cchar *buf, ssize size);
     Write a block of data to the response
     @description The data is buffered and will be sent to the client when the buffer is full or websFlush is
         called. This routine will never return "short", it will always write all the data unless there are errors.
+        Up to ME_GOAHEAD_LIMIT_RESPONSE_BUFFER bytes are buffered while the client is not accepting output; past that,
+        this routine blocks the whole single-threaded server until the client accepts data or the flush deadline
+        (ME_GOAHEAD_LIMIT_TIMEOUT) passes. Keep dynamic responses within the limit or call websFlush(wp, 0) between
+        writes, and serve large content from static files or CGI programs, which never block.
         Body bytes for a HEAD response, or a 1xx, 204 or 304 response, are discarded and reported written, as is the
         output of websWrite, which calls this routine.
     @param wp Webs request object
@@ -5170,8 +5180,8 @@ PUBLIC int websCheckTempDirs(void);
 
 /**
     Record a file the server reads or writes for itself
-    @description The route and credential files #websLoad reads, the TLS private key sslOpen loads and the log file
-        logOpen writes are recorded automatically. An application that reads a private file of its own from a path
+    @description The route and credential files #websLoad reads, the TLS private key sslOpen loads, the log file
+        logOpen writes and the access log websOpen writes are recorded automatically. An application that reads a private file of its own from a path
         an operator configures may record it too, so #websCheckConfigFiles refuses to start when it lies inside a
         served directory. A path already recorded is not recorded again.
     @param path File name as configured, absolute or relative to the working directory.
@@ -5183,14 +5193,29 @@ PUBLIC void websAddConfigFile(cchar *path);
     Audit the server's own files against the served directories
     @description Verify that no file recorded by #websAddConfigFile lies inside the documents directory or a route's
         dir=. Such a file is fetchable over HTTP: the credential file holds user names and password hashes, the route
-        file the access control table, the TLS key file the server's private key and the log file every client's
-        requests. Emits an error naming each such file.
+        file the access control table, the TLS key file the server's private key and the log and access log every
+        client's requests. Emits an error naming each such file.
         This routine is called automatically by the first websListen(), after every configuration file is loaded,
         and websListen() refuses to start the server if it reports a problem.
     @return The number of problems found. Zero means none of the server's own files is inside a served directory.
     @stability Evolving
  */
 PUBLIC int websCheckConfigFiles(void);
+
+#if ME_GOAHEAD_AUTH
+/**
+    Warn about authenticated routes that a plain HTTP listener can carry
+    @description Credentials and session cookies cross the network unencrypted when an authenticated route is
+        reachable over plain HTTP, whatever TLS the build has. Emits a warning naming each such route, once, at
+        the first plain HTTP listener. A route with protocol=https, a route behind an earlier route that redirects
+        http to https, a build with ME_GOAHEAD_SECURE_ONLY and a server behind a trusted TLS-terminating proxy
+        are not reported. websListen calls this for every endpoint that is not https.
+    @param endpoint The plain HTTP endpoint being opened, named in the warning
+    @param proxied True when websSetTrustedProxies named a proxy, which terminates TLS for the server
+    @stability Evolving
+ */
+PUBLIC void websCheckCleartextAuth(cchar *endpoint, bool proxied);
+#endif
 
 /**
     Audit the route table for a confidentiality boundary
@@ -5362,9 +5387,13 @@ PUBLIC WebsRole *websAddRole(cchar *role, WebsHash abilities);
 
 /**
     Add a user
-    @description The user is added to the list of users
+    @description The user is added to the list of users. A legacy BF1 record whose username and realm crowd the
+        password out of the hash key is reported at level 0 and never verifies.
     @param username User name
-    @param password User password (encrypted)
+    @param password Stored credential record, as gopass writes it and auth.txt holds it, never the password itself:
+        a Blowfish hash "BF2:rounds:salt:hash" (or a legacy "BF1:" record) for Basic and form authentication, or the
+        32 hex digit MD5 of "username:realm:password" that Digest authentication needs. The string is stored as given
+        and is not hashed, so a plaintext password never verifies.
     @param roles Space separated list of roles. This may also contain abilities.
     @return User object.
         @stability Stable
@@ -5545,8 +5574,10 @@ PUBLIC void websSetPasswordStoreVerify(WebsVerify verify);
 
 /**
     Set a password for the user
+    @description Replaces the stored credential record. The value is stored as given and is not hashed.
     @param username User name
-    @param password Null terminated password string
+    @param password Stored credential record in the format websAddUser takes: a Blowfish "BF2:" hash, or the MD5
+        hash Digest authentication needs, never a plaintext password
     @return Zero if successful, otherwise -1.
         @stability Stable
  */

@@ -24,8 +24,8 @@ PUBLIC int        socketOpenCount = 0;            /* Number of task using socket
 static int  hasIPv6;                              /* System supports IPv6 */
 static int  lingerCount;                          /* Sockets in a lingering close */
 static bool warnedNoSendTimeout;                  /* Warned once that send timeouts are unavailable */
-#if ME_UNIX_LIKE
-static int spareFd = -1;                          /* Held back to refuse a connection when no descriptor is free */
+#if ME_UNIX_LIKE || VXWORKS
+static Socket spareFd = (Socket) -1;              /* Held back to refuse a connection when no descriptor is free */
 #endif
 
 /***************************** Forward Declarations ***************************/
@@ -37,6 +37,9 @@ static bool socketDrain(int sid);
 static bool socketDue(WebsSocket *sp);
 static void socketAccept(WebsSocket *sp);
 static void socketDoEvent(WebsSocket *sp);
+#if ME_UNIX_LIKE || VXWORKS
+static Socket openSpare(void);
+#endif
 
 /*********************************** Code *************************************/
 
@@ -63,8 +66,8 @@ PUBLIC int socketOpen(void)
     socketList = NULL;
     socketMax = 0;
     socketHighestFd = (Socket) -1;
-#if ME_UNIX_LIKE
-    spareFd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+#if ME_UNIX_LIKE || VXWORKS
+    spareFd = openSpare();
 #endif
     if ((fd = socket(AF_INET6, SOCK_STREAM, 0)) != -1) {
         hasIPv6 = 1;
@@ -87,14 +90,33 @@ PUBLIC void socketClose(void)
             }
         }
         socketOpenCount = 0;
-#if ME_UNIX_LIKE
-        if (spareFd >= 0) {
-            close(spareFd);
-            spareFd = -1;
+#if ME_UNIX_LIKE || VXWORKS
+        if (spareFd != (Socket) -1) {
+            closesocket(spareFd);
+            spareFd = (Socket) -1;
         }
 #endif
     }
 }
+
+
+#if ME_UNIX_LIKE || VXWORKS
+/*
+    The spare is a socket rather than /dev/null, which VxWorks does not have. It is never read or written: it
+    is closed to free a descriptor so a connection that arrived when none was free can be accepted and dropped.
+ */
+static Socket openSpare(void)
+{
+    Socket fd;
+
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) != SOCKET_ERROR) {
+#if ME_COMPILER_HAS_FCNTL
+        fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+    }
+    return fd;
+}
+#endif
 
 
 PUBLIC bool socketHasDualNetworkStack(void)
@@ -295,6 +317,9 @@ static void socketAccept(WebsSocket *sp)
     Socklen                 len;
     char                    ipbuf[SOCKET_IP_MAX];
     int                     port, nid;
+#if ME_UNIX_LIKE || VXWORKS
+    int                     err;
+#endif
 
     assert(sp);
 
@@ -305,18 +330,21 @@ static void socketAccept(WebsSocket *sp)
     len = sizeof(addrStorage);
     addr = (struct sockaddr*) &addrStorage;
     if ((newSock = accept(sp->sock, addr, &len)) == SOCKET_ERROR) {
-#if ME_UNIX_LIKE
+#if ME_UNIX_LIKE || VXWORKS
         /*
-            Use the spare descriptor to accept and close a queued connection, avoiding a readable-listener spin on
-            descriptor exhaustion.
+            A connection that cannot be accepted for want of a descriptor stays queued and keeps the listener
+            readable, so the loop would wake for it on every turn. Release the spare to accept and drop it, then
+            take the spare back. The errno for an exhausted descriptor table is not the same on every stack (EMFILE
+            or ENFILE on POSIX, an iosLib code on VxWorks), so every failure that is not transient takes this path.
          */
-        if ((errno == EMFILE || errno == ENFILE) && spareFd >= 0) {
-            close(spareFd);
+        err = socketGetError(sp->sid);
+        if (spareFd != (Socket) -1 && err != EAGAIN && err != EWOULDBLOCK && err != EINTR && err != ECONNABORTED) {
+            closesocket(spareFd);
             if ((newSock = accept(sp->sock, addr, &len)) != SOCKET_ERROR) {
-                close(newSock);
+                closesocket(newSock);
                 trace(2, "Refused a connection: no file descriptors are free");
             }
-            spareFd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+            spareFd = openSpare();
         }
 #endif
         return;
@@ -1276,7 +1304,7 @@ PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct so
 }
 #else
 
-PUBLIC int socketInfo(char *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)
+PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)
 {
     struct sockaddr_in sa;
 

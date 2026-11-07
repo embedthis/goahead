@@ -361,7 +361,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     if (sslOpen() < 0) {
         return -1;
     }
-    if (ME_GOAHEAD_SSL_VERIFY_PEER && !ME_GOAHEAD_SSL_VERIFY_ISSUER && *ME_GOAHEAD_SSL_AUTHORITY) {
+    if (ME_GOAHEAD_SSL_VERIFY_PEER && !ME_GOAHEAD_SSL_VERIFY_ISSUER && *ME_GOAHEAD_SSL_AUTHORITY != '\0') {
         error("Warning: ME_GOAHEAD_SSL_VERIFY_ISSUER is off, so any client certificate is accepted and the "
               "authority is not enforced");
     }
@@ -417,6 +417,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
         error("Cannot open access log %s", ACCESS_LOG);
         return -1;
     }
+    websAddConfigFile(ACCESS_LOG);
 #endif
     return 0;
 }
@@ -843,13 +844,24 @@ static void writeJstHeaders(Webs *wp)
 
 
 /*
-    Remove staged uploads before the response can reach the peer, including synchronous error flushes.
+    Remove staged uploads and an uncommitted PUT body before the response can reach the peer, including synchronous
+    error flushes. A committed PUT has already cleared putname, so this is a no-op after success.
  */
-static void releaseUploads(Webs *wp)
+static void releaseStaged(Webs *wp)
 {
 #if ME_GOAHEAD_UPLOAD
     if ((wp->flags & WEBS_UPLOAD) && wp->files >= 0) {
         websFreeUpload(wp);
+    }
+#endif
+#if !ME_ROM
+    if (wp->putfd >= 0) {
+        close(wp->putfd);
+        wp->putfd = -1;
+    }
+    if (wp->putname) {
+        unlink(wp->putname);
+        wfreeset(wp->putname);
     }
 #endif
 }
@@ -872,7 +884,7 @@ PUBLIC void websDone(Webs *wp)
     writeJstHeaders(wp);
     wp->flags |= WEBS_FINALIZED;
     wp->finalized = 1;
-    releaseUploads(wp);
+    releaseStaged(wp);
     /*
         Once running, it is the handlers responsibility to conclude the request.
      */
@@ -989,6 +1001,11 @@ PUBLIC int websListen(cchar *endpoint)
         defaultHttpPort = port;
     }
     listens[listenMax++] = sid;
+#if ME_GOAHEAD_AUTH
+    if (!secure) {
+        websCheckCleartextAuth(endpoint, trustedProxies != 0);
+    }
+#endif
 #if ME_GOAHEAD_LOGGING
     if (ip) {
         ipaddr = smatch(ip, "::") ? "[::]" : ip;
@@ -1077,8 +1094,9 @@ PUBLIC int websAccept(int sid, cchar *ipaddr, int port, int listenSid)
         Check if this is a request from a browser on this system. This is useful to know for permitting administrative
         operations only for local access
      */
-    if (strcmp(wp->ipaddr, "127.0.0.1") == 0 || strcmp(wp->ipaddr, websIpAddr) == 0 ||
-        strcmp(wp->ipaddr, websHost) == 0) {
+    if (!websIsTrustedProxy(wp->ipaddr) &&
+        (strcmp(wp->ipaddr, "127.0.0.1") == 0 || strcmp(wp->ipaddr, websIpAddr) == 0 ||
+         strcmp(wp->ipaddr, websHost) == 0)) {
         wp->flags |= WEBS_LOCAL;
     }
 #endif
@@ -1671,10 +1689,38 @@ static ssize schemeLength(cchar *url)
 }
 
 
+/*
+    An authority is one host and an optional port (RFC 3986 3.2.2, 3.2.3): an IP-literal of hex digits, ":" and "."
+    closed by "]", or a registered name of letters, digits, "-", "." and "_", then an optional ":" and decimal
+    digits. The same grammar admits the Host header and the absolute-form authority, and websUrlParse ends an
+    IP-literal at its "]" only before any "/", so the authority this accepts is the one the path is read after.
+ */
 static bool validHost(cchar *host)
 {
-    return host && *host && strspn(host, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.[]:") ==
-           strlen(host);
+    cchar *cp;
+
+    if (host == 0 || *host == '\0') {
+        return 0;
+    }
+    cp = host;
+    if (*cp == '[') {
+        cp++;
+        cp += strspn(cp, "0123456789ABCDEFabcdef:.");
+        if (cp == &host[1] || *cp != ']') {
+            return 0;
+        }
+        cp++;
+    } else {
+        cp += strspn(cp, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.");
+        if (cp == host) {
+            return 0;
+        }
+    }
+    if (*cp == ':') {
+        cp++;
+        cp += strspn(cp, "0123456789");
+    }
+    return *cp == '\0';
 }
 
 
@@ -1716,10 +1762,40 @@ PUBLIC bool websSameOrigin(Webs *wp)
 }
 
 
+/*
+    Reduce a proxy address to the spelling socketAddress reports for a peer, so a listed proxy matches however it was
+    written, and refuse anything that is not a literal address: a host name or CIDR range would otherwise trust
+    nothing in silence. An IPv4-mapped IPv6 address names its IPv4 peer, which is how websIsTrustedProxy compares it.
+ */
+static bool canonicalProxyAddress(cchar *address, char *canonical, ssize size)
+{
+#if ME_UNIX_LIKE || ME_WIN_LIKE
+    struct in_addr  v4;
+    struct in6_addr v6;
+
+    if (inet_pton(AF_INET, address, &v4) == 1) {
+        return inet_ntop(AF_INET, &v4, canonical, (socklen_t) size) != 0;
+    }
+    if (inet_pton(AF_INET6, address, &v6) == 1) {
+        if (IN6_IS_ADDR_V4MAPPED(&v6)) {
+            memcpy(&v4, &v6.s6_addr[12], sizeof(v4));
+            return inet_ntop(AF_INET, &v4, canonical, (socklen_t) size) != 0;
+        }
+        return inet_ntop(AF_INET6, &v6, canonical, (socklen_t) size) != 0;
+    }
+    return 0;
+#else
+    /* No address parser on this platform: keep the text as written */
+    return scopy(canonical, size, address) >= 0;
+#endif
+}
+
+
 PUBLIC void websSetTrustedProxies(cchar *addresses)
 {
     WebsBuf buf;
     char    *list, *address, *tok, *end;
+    char    canonical[ME_MAX_IP];
 
     wfreeset(trustedProxies);
     if (addresses == 0 || *addresses == '\0') {
@@ -1734,7 +1810,12 @@ PUBLIC void websSetTrustedProxies(cchar *addresses)
             address++;
         }
         if (*address) {
-            bufPutStr(&buf, address);
+            if (!canonicalProxyAddress(address, canonical, sizeof(canonical))) {
+                error("Security warning: trusted proxy \"%s\" is not an IP address and is ignored. "
+                      "List each proxy by its literal IPv4 or IPv6 address.", address);
+                continue;
+            }
+            bufPutStr(&buf, canonical);
             bufPutc(&buf, ',');
         }
     }
@@ -2616,6 +2697,8 @@ static int addFormVars(Webs *wp, char *vars, int origin)
  */
 PUBLIC void websSetEnv(Webs *wp)
 {
+    char *originForm;
+
     assert(wp);
     assert(websValid(wp));
 
@@ -2641,7 +2724,9 @@ PUBLIC void websSetEnv(Webs *wp)
     /*
         Keep REQUEST_URI encoded to prevent double decoding by CGI programs.
      */
-    websSetVar(wp, "REQUEST_URI", websOriginForm(wp->url));
+    originForm = websOriginForm(wp->url);
+    websSetVar(wp, "REQUEST_URI", originForm);
+    wfree(originForm);
     websSetVar(wp, "SERVER_ADDR", wp->ifaddr);
     websSetVar(wp, "SERVER_HOST", websHost);
     websSetVar(wp, "SERVER_NAME", websHost);
@@ -2816,9 +2901,9 @@ PUBLIC void websResponse(Webs *wp, int code, cchar *message)
         return;
     }
     /*
-        Remove uploads before the synchronous flush; websDone runs after it.
+        Remove staged input before the synchronous flush; websDone runs after it.
      */
-    releaseUploads(wp);
+    releaseStaged(wp);
     if (wp->flags & WEBS_HEADERS_CREATED) {
         if (wp->written == 0) {
             bufFlush(&wp->output);
@@ -2888,7 +2973,7 @@ static char *makeUri(cchar *scheme, cchar *host, int port, cchar *path)
  */
 PUBLIC void websRedirect(Webs *wp, cchar *uri)
 {
-    char  *encoded, *message, *location, *scheme, *host, *pstr;
+    char  *encoded, *message, *location, *scheme, *host, *pstr, *originForm;
     bool  secure, fullyQualified;
     ssize len;
     int   originalPort, port;
@@ -2904,6 +2989,13 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
 
     if (websHostUrl) {
         host = sclone(websHostUrl);
+    } else if ((wp->flags & WEBS_PROXIED) && wp->host && websGetVar(wp, "HTTP_HOST", 0)) {
+        /*
+            The accepting interface is only the proxy's view of this server. Name the Host the client sent, which a
+            trusted proxy preserves and validHost admitted. HTTP_HOST is set only from a Host header or an
+            absolute-form target, never from the "localhost" default of a request without one.
+         */
+        host = sclone(wp->host);
     } else if (strchr(wp->ifaddr, ':')) {
         host = sfmt("[%s]", wp->ifaddr);
     } else {
@@ -2918,7 +3010,9 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
     if (smatch(uri, "http://") || smatch(uri, "https://")) {
         /* Protocol switch with existing Uri */
         scheme = sncmp(uri, "https", 5) == 0 ? "https" : "http";
-        uri = location = makeUri(scheme, host, (wp->flags & WEBS_PROXIED) ? -1 : 0, websOriginForm(wp->url));
+        originForm = websOriginForm(wp->url);
+        uri = location = makeUri(scheme, host, (wp->flags & WEBS_PROXIED) ? -1 : 0, originForm);
+        wfree(originForm);
     }
     /*
         Recognize schemes only at the start of the target.
@@ -3962,14 +4056,15 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len)
 
 #if ME_GOAHEAD_ACCESS_LOG && !ME_ROM
 /*
-    Escape log controls, quotes, and backslashes as hex to prevent forged entries. Caller frees.
+    Escape log controls, quotes and backslashes as hex to prevent forged entries. The user field is not quoted, so
+    its spaces are escaped too. Caller frees.
  */
-static char *logField(cchar *field)
+static char *logField(cchar *field, cchar *escape)
 {
     if (field == 0 || *field == '\0') {
         return sclone("-");
     }
-    return websEscapeControl(field, NULL, "\"\\");
+    return websEscapeControl(field, NULL, escape);
 }
 
 
@@ -4012,10 +4107,10 @@ static void logRequest(Webs *wp, int code)
     } else {
         dataStr[0] = '-'; dataStr[1] = '\0';
     }
-    username = logField(wp->username);
-    method = logField(wp->method);
-    path = logField(wp->path);
-    protocol = logField(wp->protoVersion);
+    username = logField(wp->username, "\"\\ ");
+    method = logField(wp->method, "\"\\");
+    path = logField(wp->path, "\"\\");
+    protocol = logField(wp->protoVersion, "\"\\");
     buf = sfmt("%s - %s [%s %s] \"%s %s %s\" %d %s\n",
                wp->ipaddr, username, timeStr, zoneStr, method, path, protocol, code, dataStr);
     len = slen(buf);
@@ -4499,8 +4594,8 @@ PUBLIC int websUrlParse(cchar *url, char **pbuf, char **pscheme, char **phost, c
     /*
         [hostname[:port]][/path]
      */
-    if (*tok == '[' && ((delim = strchr(tok, ']')) != 0)) {
-        /* IPv6 [::] */
+    if (*tok == '[' && (delim = strpbrk(tok, "]/")) != 0 && *delim == ']') {
+        /* IPv6 [::], closed before the path begins */
         host = &tok[1];
         *delim++ = '\0';
         tok = delim;
@@ -4998,15 +5093,23 @@ static bool hasUnsafeEscape(cchar *path)
 }
 
 
-PUBLIC cchar *websOriginForm(cchar *url)
+PUBLIC char *websOriginForm(cchar *url)
 {
     cchar *cp;
     ssize schemeLen;
 
-    if ((schemeLen = schemeLength(url)) > 0) {
-        return (cp = strchr(&url[schemeLen], '/')) != 0 ? cp : "/";
+    if (url == 0) {
+        return sclone("/");
     }
-    return url;
+    if ((schemeLen = schemeLength(url)) > 0) {
+        /*
+            The authority ends at the first "/", "?" or "#". An empty path is "/" (RFC 3986 6.2.3), so a query that
+            follows the authority directly stays with that "/" rather than being searched for a "/" of its own.
+         */
+        cp = &url[schemeLen] + strcspn(&url[schemeLen], "/?#");
+        return *cp == '/' ? sclone(cp) : sfmt("/%s", cp);
+    }
+    return sclone(url);
 }
 
 
@@ -6163,12 +6266,7 @@ PUBLIC void websError(Webs *wp, int code, cchar *fmt, ...)
         }
         return;
     }
-#if !ME_ROM
-    if (wp->putfd >= 0) {
-        close(wp->putfd);
-        wp->putfd = -1;
-    }
-#endif
+    releaseStaged(wp);
     encoded = websEscapeHtml(wp->url);
     wfreeset(wp->url);
     wp->url = encoded;

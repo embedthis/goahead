@@ -118,16 +118,46 @@ static void setUsername(Webs *wp, cchar *username)
 
 #if ME_GOAHEAD_LOGGING
 /*
-    Log one authentication outcome. The user name is request data: it is truncated here and escaped by the log.
+    Escape the quotes and backslashes of a quoted log field as hex. Control bytes are left for the log, which escapes
+    them, and the backslashes of every escape here, once. Caller frees.
+ */
+static char *escapeQuoted(cchar *str)
+{
+    static cchar hexTable[] = "0123456789abcdef";
+    cchar        *ip;
+    char         *result, *op;
+
+    result = walloc(slen(str) * 4 + 1);
+    for (op = result, ip = str; *ip; ip++) {
+        if (*ip == '"' || *ip == '\\') {
+            *op++ = '\\';
+            *op++ = 'x';
+            *op++ = hexTable[(uchar) *ip >> 4];
+            *op++ = hexTable[(uchar) *ip & 0xf];
+        } else {
+            *op++ = *ip;
+        }
+    }
+    *op = '\0';
+    return result;
+}
+
+
+/*
+    Log one authentication outcome. The user name is request data: it is truncated here, its quotes and backslashes
+    are escaped so it cannot close the quoted field and supply the fields that follow, and the log escapes control
+    bytes.
  */
 static void logAuth(Webs *wp, int level, cchar *scheme, cchar *outcome, cchar *reason)
 {
-    char *name;
+    char *name, *escaped;
 
     name = snclone(wp->username ? wp->username : "-", WEBS_MAX_AUTH_LOG_USER);
-    logmsg(level, "Authentication %s for user \"%s\" from %s on %s (%s)%s%s", outcome, name, wp->ipaddr,
+    escaped = escapeQuoted(name);
+    logmsg(level, "Authentication %s for user \"%s\" from %s on %s (%s)%s%s", outcome, escaped, wp->ipaddr,
            (wp->route && wp->route->prefix) ? wp->route->prefix : "-", scheme, reason ? ": " : "",
            reason ? reason : "");
+    wfree(escaped);
     wfree(name);
 }
 
@@ -1252,10 +1282,12 @@ static void digestLogin(Webs *wp)
 static bool parseDigestDetails(Webs *wp)
 {
     WebsTime when, now;
-    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *counterStr, *expected;
+    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *counterStr, *expected, *uriForm, *targetForm;
     int      seenComma;
+    bool     sameTarget;
 
     assert(wp);
+    sameTarget = 0;
     key = keyBuf = sclone(wp->authDetails);
 
     while (*key) {
@@ -1421,7 +1453,14 @@ static bool parseDigestDetails(Webs *wp)
     /*
         Compare Digest uri with the request target in origin form (RFC 7616 3.4.6).
      */
-    if (!wp->digestUri || !smatch(websOriginForm(wp->digestUri), websOriginForm(wp->url))) {
+    if (wp->digestUri) {
+        uriForm = websOriginForm(wp->digestUri);
+        targetForm = websOriginForm(wp->url);
+        sameTarget = smatch(uriForm, targetForm);
+        wfree(uriForm);
+        wfree(targetForm);
+    }
+    if (!sameTarget) {
         wp->authReason = "digest uri does not match the request target";
         return 0;
     }
@@ -1684,12 +1723,20 @@ static char *createDigestNonce(Webs *wp)
 }
 
 
+/*
+    Saturate on overflow, as hextoi does, so an over-long counter cannot wrap. The saturated value re-encodes
+    differently from the client's field and the nonce is refused as a mismatch.
+ */
 static uint64 parseHex64(cchar *str)
 {
-    uint64 value;
+    uint64 value, digit;
 
     for (value = 0; str && isxdigit((uchar) *str); str++) {
-        value = value * 16 + (uint64) (isdigit((uchar) *str) ? *str - '0' : tolower((uchar) *str) - 'a' + 10);
+        digit = (uint64) (isdigit((uchar) *str) ? *str - '0' : tolower((uchar) *str) - 'a' + 10);
+        if (value > (MAXUINT64 - digit) / 16) {
+            return MAXUINT64;
+        }
+        value = (value * 16) + digit;
     }
     return value;
 }
@@ -1815,10 +1862,6 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
               "or \"form\".", route->prefix, auth);
         return -1;
     }
-#if !ME_COM_SSL
-    error("Warning: Route \"%s\" uses %s authentication but this build has no TLS: credentials and session cookies "
-          "cross the network unencrypted", route->prefix, auth);
-#endif
     route->authType = sclone(auth);
     route->askLogin = askLogin;
     route->parseAuth = parseAuth;

@@ -25,6 +25,7 @@ static WebsHash  handlers = -1;
 static int       routeCount = 0;
 static int       routeMax = 0;
 static bool      strictMode = ME_GOAHEAD_STRICT;
+static bool      cleartextChecked;                 /* The first plain listener was checked against the routes */
 static WebsRoute **retiredRoutes;                  /* Removed routes still held by in-flight requests */
 static int       retiredCount;
 static char      **configFiles;                    /* Route and credential files websLoad has read */
@@ -1181,6 +1182,58 @@ static void warnWritableRoutes(void)
     }
 }
 
+
+/*
+    Does an earlier route send every plain HTTP request for this route's prefix to HTTPS? That is the shipped
+    pattern for serving authentication over TLS only: a protocol=http redirect route, with no other selector,
+    whose default target is https.
+ */
+static int redirectedToHttps(WebsRoute *route, int index)
+{
+    WebsRoute *gate;
+    WebsKey   *target;
+    int       i;
+
+    for (i = 0; i < index; i++) {
+        gate = routes[i];
+        if (gate->protocol && smatch(gate->protocol, "http") && smatch(gate->handler->name, "redirect") &&
+            gate->methods < 0 && gate->extensions < 0 && gate->redirects >= 0 &&
+            matchRoutePrefix(route->prefix, gate->prefix, gate->prefixLen) == 0 &&
+            (target = hashLookup(gate->redirects, "0")) != 0 && sstarts(target->content.value.string, "https://")) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Warn once, at the first plain HTTP listener, about each authenticated route that listener can carry: its
+    credentials and session cookies then cross the network unencrypted, whatever TLS the build has. A route
+    restricted to protocol=https, a route behind an earlier http-to-https redirect, a build with
+    ME_GOAHEAD_SECURE_ONLY and a server behind a trusted TLS-terminating proxy are not reported.
+ */
+PUBLIC void websCheckCleartextAuth(cchar *endpoint, bool proxied)
+{
+    WebsRoute *route;
+    int       i;
+
+    if (cleartextChecked || proxied || ME_GOAHEAD_SECURE_ONLY) {
+        return;
+    }
+    cleartextChecked = 1;
+    for (i = 0; i < routeCount; i++) {
+        route = routes[i];
+        if (!route->authType || (route->protocol && smatch(route->protocol, "https")) || redirectedToHttps(route, i)) {
+            continue;
+        }
+        error("Security warning: route \"%s\" uses %s authentication and %s is plain HTTP, so its credentials and "
+              "session cookies cross the network unencrypted. Give the route protocol=https, redirect http to https "
+              "ahead of it, or build with ME_GOAHEAD_SECURE_ONLY=1. Behind a TLS-terminating proxy, name the proxy "
+              "with --proxy or websSetTrustedProxies.", route->prefix, route->authType, endpoint);
+    }
+}
+
 #else
 
 /*
@@ -1625,6 +1678,7 @@ PUBLIC void websCloseRoute(void)
     configFileCount = 0;
     wfreeset(configFiles);
     routeCount = routeMax = 0;
+    cleartextChecked = 0;
     if (routeMethods >= 0) {
         hashFree(routeMethods);
         routeMethods = -1;

@@ -700,16 +700,46 @@ static void setUsername(Webs *wp, cchar *username)
 
 #if ME_GOAHEAD_LOGGING
 /*
-    Log one authentication outcome. The user name is request data: it is truncated here and escaped by the log.
+    Escape the quotes and backslashes of a quoted log field as hex. Control bytes are left for the log, which escapes
+    them, and the backslashes of every escape here, once. Caller frees.
+ */
+static char *escapeQuoted(cchar *str)
+{
+    static cchar hexTable[] = "0123456789abcdef";
+    cchar        *ip;
+    char         *result, *op;
+
+    result = walloc(slen(str) * 4 + 1);
+    for (op = result, ip = str; *ip; ip++) {
+        if (*ip == '"' || *ip == '\\') {
+            *op++ = '\\';
+            *op++ = 'x';
+            *op++ = hexTable[(uchar) *ip >> 4];
+            *op++ = hexTable[(uchar) *ip & 0xf];
+        } else {
+            *op++ = *ip;
+        }
+    }
+    *op = '\0';
+    return result;
+}
+
+
+/*
+    Log one authentication outcome. The user name is request data: it is truncated here, its quotes and backslashes
+    are escaped so it cannot close the quoted field and supply the fields that follow, and the log escapes control
+    bytes.
  */
 static void logAuth(Webs *wp, int level, cchar *scheme, cchar *outcome, cchar *reason)
 {
-    char *name;
+    char *name, *escaped;
 
     name = snclone(wp->username ? wp->username : "-", WEBS_MAX_AUTH_LOG_USER);
-    logmsg(level, "Authentication %s for user \"%s\" from %s on %s (%s)%s%s", outcome, name, wp->ipaddr,
+    escaped = escapeQuoted(name);
+    logmsg(level, "Authentication %s for user \"%s\" from %s on %s (%s)%s%s", outcome, escaped, wp->ipaddr,
            (wp->route && wp->route->prefix) ? wp->route->prefix : "-", scheme, reason ? ": " : "",
            reason ? reason : "");
+    wfree(escaped);
     wfree(name);
 }
 
@@ -1834,10 +1864,12 @@ static void digestLogin(Webs *wp)
 static bool parseDigestDetails(Webs *wp)
 {
     WebsTime when, now;
-    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *counterStr, *expected;
+    char     *decoded, *value, *tok, *key, *keyBuf, *dp, *sp, *secret, *counterStr, *expected, *uriForm, *targetForm;
     int      seenComma;
+    bool     sameTarget;
 
     assert(wp);
+    sameTarget = 0;
     key = keyBuf = sclone(wp->authDetails);
 
     while (*key) {
@@ -2003,7 +2035,14 @@ static bool parseDigestDetails(Webs *wp)
     /*
         Compare Digest uri with the request target in origin form (RFC 7616 3.4.6).
      */
-    if (!wp->digestUri || !smatch(websOriginForm(wp->digestUri), websOriginForm(wp->url))) {
+    if (wp->digestUri) {
+        uriForm = websOriginForm(wp->digestUri);
+        targetForm = websOriginForm(wp->url);
+        sameTarget = smatch(uriForm, targetForm);
+        wfree(uriForm);
+        wfree(targetForm);
+    }
+    if (!sameTarget) {
         wp->authReason = "digest uri does not match the request target";
         return 0;
     }
@@ -2266,12 +2305,20 @@ static char *createDigestNonce(Webs *wp)
 }
 
 
+/*
+    Saturate on overflow, as hextoi does, so an over-long counter cannot wrap. The saturated value re-encodes
+    differently from the client's field and the nonce is refused as a mismatch.
+ */
 static uint64 parseHex64(cchar *str)
 {
-    uint64 value;
+    uint64 value, digit;
 
     for (value = 0; str && isxdigit((uchar) *str); str++) {
-        value = value * 16 + (uint64) (isdigit((uchar) *str) ? *str - '0' : tolower((uchar) *str) - 'a' + 10);
+        digit = (uint64) (isdigit((uchar) *str) ? *str - '0' : tolower((uchar) *str) - 'a' + 10);
+        if (value > (MAXUINT64 - digit) / 16) {
+            return MAXUINT64;
+        }
+        value = (value * 16) + digit;
     }
     return value;
 }
@@ -2397,10 +2444,6 @@ PUBLIC int websSetRouteAuth(WebsRoute *route, cchar *auth)
               "or \"form\".", route->prefix, auth);
         return -1;
     }
-#if !ME_COM_SSL
-    error("Warning: Route \"%s\" uses %s authentication but this build has no TLS: credentials and session cookies "
-          "cross the network unencrypted", route->prefix, auth);
-#endif
     route->authType = sclone(auth);
     route->askLogin = askLogin;
     route->parseAuth = parseAuth;
@@ -7365,7 +7408,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
     if (sslOpen() < 0) {
         return -1;
     }
-    if (ME_GOAHEAD_SSL_VERIFY_PEER && !ME_GOAHEAD_SSL_VERIFY_ISSUER && *ME_GOAHEAD_SSL_AUTHORITY) {
+    if (ME_GOAHEAD_SSL_VERIFY_PEER && !ME_GOAHEAD_SSL_VERIFY_ISSUER && *ME_GOAHEAD_SSL_AUTHORITY != '\0') {
         error("Warning: ME_GOAHEAD_SSL_VERIFY_ISSUER is off, so any client certificate is accepted and the "
               "authority is not enforced");
     }
@@ -7421,6 +7464,7 @@ PUBLIC int websOpen(cchar *documents, cchar *routeFile)
         error("Cannot open access log %s", ACCESS_LOG);
         return -1;
     }
+    websAddConfigFile(ACCESS_LOG);
 #endif
     return 0;
 }
@@ -7847,13 +7891,24 @@ static void writeJstHeaders(Webs *wp)
 
 
 /*
-    Remove staged uploads before the response can reach the peer, including synchronous error flushes.
+    Remove staged uploads and an uncommitted PUT body before the response can reach the peer, including synchronous
+    error flushes. A committed PUT has already cleared putname, so this is a no-op after success.
  */
-static void releaseUploads(Webs *wp)
+static void releaseStaged(Webs *wp)
 {
 #if ME_GOAHEAD_UPLOAD
     if ((wp->flags & WEBS_UPLOAD) && wp->files >= 0) {
         websFreeUpload(wp);
+    }
+#endif
+#if !ME_ROM
+    if (wp->putfd >= 0) {
+        close(wp->putfd);
+        wp->putfd = -1;
+    }
+    if (wp->putname) {
+        unlink(wp->putname);
+        wfreeset(wp->putname);
     }
 #endif
 }
@@ -7876,7 +7931,7 @@ PUBLIC void websDone(Webs *wp)
     writeJstHeaders(wp);
     wp->flags |= WEBS_FINALIZED;
     wp->finalized = 1;
-    releaseUploads(wp);
+    releaseStaged(wp);
     /*
         Once running, it is the handlers responsibility to conclude the request.
      */
@@ -7993,6 +8048,11 @@ PUBLIC int websListen(cchar *endpoint)
         defaultHttpPort = port;
     }
     listens[listenMax++] = sid;
+#if ME_GOAHEAD_AUTH
+    if (!secure) {
+        websCheckCleartextAuth(endpoint, trustedProxies != 0);
+    }
+#endif
 #if ME_GOAHEAD_LOGGING
     if (ip) {
         ipaddr = smatch(ip, "::") ? "[::]" : ip;
@@ -8081,8 +8141,9 @@ PUBLIC int websAccept(int sid, cchar *ipaddr, int port, int listenSid)
         Check if this is a request from a browser on this system. This is useful to know for permitting administrative
         operations only for local access
      */
-    if (strcmp(wp->ipaddr, "127.0.0.1") == 0 || strcmp(wp->ipaddr, websIpAddr) == 0 ||
-        strcmp(wp->ipaddr, websHost) == 0) {
+    if (!websIsTrustedProxy(wp->ipaddr) &&
+        (strcmp(wp->ipaddr, "127.0.0.1") == 0 || strcmp(wp->ipaddr, websIpAddr) == 0 ||
+         strcmp(wp->ipaddr, websHost) == 0)) {
         wp->flags |= WEBS_LOCAL;
     }
 #endif
@@ -8675,10 +8736,38 @@ static ssize schemeLength(cchar *url)
 }
 
 
+/*
+    An authority is one host and an optional port (RFC 3986 3.2.2, 3.2.3): an IP-literal of hex digits, ":" and "."
+    closed by "]", or a registered name of letters, digits, "-", "." and "_", then an optional ":" and decimal
+    digits. The same grammar admits the Host header and the absolute-form authority, and websUrlParse ends an
+    IP-literal at its "]" only before any "/", so the authority this accepts is the one the path is read after.
+ */
 static bool validHost(cchar *host)
 {
-    return host && *host && strspn(host, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.[]:") ==
-           strlen(host);
+    cchar *cp;
+
+    if (host == 0 || *host == '\0') {
+        return 0;
+    }
+    cp = host;
+    if (*cp == '[') {
+        cp++;
+        cp += strspn(cp, "0123456789ABCDEFabcdef:.");
+        if (cp == &host[1] || *cp != ']') {
+            return 0;
+        }
+        cp++;
+    } else {
+        cp += strspn(cp, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.");
+        if (cp == host) {
+            return 0;
+        }
+    }
+    if (*cp == ':') {
+        cp++;
+        cp += strspn(cp, "0123456789");
+    }
+    return *cp == '\0';
 }
 
 
@@ -8720,10 +8809,40 @@ PUBLIC bool websSameOrigin(Webs *wp)
 }
 
 
+/*
+    Reduce a proxy address to the spelling socketAddress reports for a peer, so a listed proxy matches however it was
+    written, and refuse anything that is not a literal address: a host name or CIDR range would otherwise trust
+    nothing in silence. An IPv4-mapped IPv6 address names its IPv4 peer, which is how websIsTrustedProxy compares it.
+ */
+static bool canonicalProxyAddress(cchar *address, char *canonical, ssize size)
+{
+#if ME_UNIX_LIKE || ME_WIN_LIKE
+    struct in_addr  v4;
+    struct in6_addr v6;
+
+    if (inet_pton(AF_INET, address, &v4) == 1) {
+        return inet_ntop(AF_INET, &v4, canonical, (socklen_t) size) != 0;
+    }
+    if (inet_pton(AF_INET6, address, &v6) == 1) {
+        if (IN6_IS_ADDR_V4MAPPED(&v6)) {
+            memcpy(&v4, &v6.s6_addr[12], sizeof(v4));
+            return inet_ntop(AF_INET, &v4, canonical, (socklen_t) size) != 0;
+        }
+        return inet_ntop(AF_INET6, &v6, canonical, (socklen_t) size) != 0;
+    }
+    return 0;
+#else
+    /* No address parser on this platform: keep the text as written */
+    return scopy(canonical, size, address) >= 0;
+#endif
+}
+
+
 PUBLIC void websSetTrustedProxies(cchar *addresses)
 {
     WebsBuf buf;
     char    *list, *address, *tok, *end;
+    char    canonical[ME_MAX_IP];
 
     wfreeset(trustedProxies);
     if (addresses == 0 || *addresses == '\0') {
@@ -8738,7 +8857,12 @@ PUBLIC void websSetTrustedProxies(cchar *addresses)
             address++;
         }
         if (*address) {
-            bufPutStr(&buf, address);
+            if (!canonicalProxyAddress(address, canonical, sizeof(canonical))) {
+                error("Security warning: trusted proxy \"%s\" is not an IP address and is ignored. "
+                      "List each proxy by its literal IPv4 or IPv6 address.", address);
+                continue;
+            }
+            bufPutStr(&buf, canonical);
             bufPutc(&buf, ',');
         }
     }
@@ -9620,6 +9744,8 @@ static int addFormVars(Webs *wp, char *vars, int origin)
  */
 PUBLIC void websSetEnv(Webs *wp)
 {
+    char *originForm;
+
     assert(wp);
     assert(websValid(wp));
 
@@ -9645,7 +9771,9 @@ PUBLIC void websSetEnv(Webs *wp)
     /*
         Keep REQUEST_URI encoded to prevent double decoding by CGI programs.
      */
-    websSetVar(wp, "REQUEST_URI", websOriginForm(wp->url));
+    originForm = websOriginForm(wp->url);
+    websSetVar(wp, "REQUEST_URI", originForm);
+    wfree(originForm);
     websSetVar(wp, "SERVER_ADDR", wp->ifaddr);
     websSetVar(wp, "SERVER_HOST", websHost);
     websSetVar(wp, "SERVER_NAME", websHost);
@@ -9820,9 +9948,9 @@ PUBLIC void websResponse(Webs *wp, int code, cchar *message)
         return;
     }
     /*
-        Remove uploads before the synchronous flush; websDone runs after it.
+        Remove staged input before the synchronous flush; websDone runs after it.
      */
-    releaseUploads(wp);
+    releaseStaged(wp);
     if (wp->flags & WEBS_HEADERS_CREATED) {
         if (wp->written == 0) {
             bufFlush(&wp->output);
@@ -9892,7 +10020,7 @@ static char *makeUri(cchar *scheme, cchar *host, int port, cchar *path)
  */
 PUBLIC void websRedirect(Webs *wp, cchar *uri)
 {
-    char  *encoded, *message, *location, *scheme, *host, *pstr;
+    char  *encoded, *message, *location, *scheme, *host, *pstr, *originForm;
     bool  secure, fullyQualified;
     ssize len;
     int   originalPort, port;
@@ -9908,6 +10036,13 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
 
     if (websHostUrl) {
         host = sclone(websHostUrl);
+    } else if ((wp->flags & WEBS_PROXIED) && wp->host && websGetVar(wp, "HTTP_HOST", 0)) {
+        /*
+            The accepting interface is only the proxy's view of this server. Name the Host the client sent, which a
+            trusted proxy preserves and validHost admitted. HTTP_HOST is set only from a Host header or an
+            absolute-form target, never from the "localhost" default of a request without one.
+         */
+        host = sclone(wp->host);
     } else if (strchr(wp->ifaddr, ':')) {
         host = sfmt("[%s]", wp->ifaddr);
     } else {
@@ -9922,7 +10057,9 @@ PUBLIC void websRedirect(Webs *wp, cchar *uri)
     if (smatch(uri, "http://") || smatch(uri, "https://")) {
         /* Protocol switch with existing Uri */
         scheme = sncmp(uri, "https", 5) == 0 ? "https" : "http";
-        uri = location = makeUri(scheme, host, (wp->flags & WEBS_PROXIED) ? -1 : 0, websOriginForm(wp->url));
+        originForm = websOriginForm(wp->url);
+        uri = location = makeUri(scheme, host, (wp->flags & WEBS_PROXIED) ? -1 : 0, originForm);
+        wfree(originForm);
     }
     /*
         Recognize schemes only at the start of the target.
@@ -10966,14 +11103,15 @@ PUBLIC void websDecodeUrl(char *decoded, char *input, ssize len)
 
 #if ME_GOAHEAD_ACCESS_LOG && !ME_ROM
 /*
-    Escape log controls, quotes, and backslashes as hex to prevent forged entries. Caller frees.
+    Escape log controls, quotes and backslashes as hex to prevent forged entries. The user field is not quoted, so
+    its spaces are escaped too. Caller frees.
  */
-static char *logField(cchar *field)
+static char *logField(cchar *field, cchar *escape)
 {
     if (field == 0 || *field == '\0') {
         return sclone("-");
     }
-    return websEscapeControl(field, NULL, "\"\\");
+    return websEscapeControl(field, NULL, escape);
 }
 
 
@@ -11016,10 +11154,10 @@ static void logRequest(Webs *wp, int code)
     } else {
         dataStr[0] = '-'; dataStr[1] = '\0';
     }
-    username = logField(wp->username);
-    method = logField(wp->method);
-    path = logField(wp->path);
-    protocol = logField(wp->protoVersion);
+    username = logField(wp->username, "\"\\ ");
+    method = logField(wp->method, "\"\\");
+    path = logField(wp->path, "\"\\");
+    protocol = logField(wp->protoVersion, "\"\\");
     buf = sfmt("%s - %s [%s %s] \"%s %s %s\" %d %s\n",
                wp->ipaddr, username, timeStr, zoneStr, method, path, protocol, code, dataStr);
     len = slen(buf);
@@ -11503,8 +11641,8 @@ PUBLIC int websUrlParse(cchar *url, char **pbuf, char **pscheme, char **phost, c
     /*
         [hostname[:port]][/path]
      */
-    if (*tok == '[' && ((delim = strchr(tok, ']')) != 0)) {
-        /* IPv6 [::] */
+    if (*tok == '[' && (delim = strpbrk(tok, "]/")) != 0 && *delim == ']') {
+        /* IPv6 [::], closed before the path begins */
         host = &tok[1];
         *delim++ = '\0';
         tok = delim;
@@ -12002,15 +12140,23 @@ static bool hasUnsafeEscape(cchar *path)
 }
 
 
-PUBLIC cchar *websOriginForm(cchar *url)
+PUBLIC char *websOriginForm(cchar *url)
 {
     cchar *cp;
     ssize schemeLen;
 
-    if ((schemeLen = schemeLength(url)) > 0) {
-        return (cp = strchr(&url[schemeLen], '/')) != 0 ? cp : "/";
+    if (url == 0) {
+        return sclone("/");
     }
-    return url;
+    if ((schemeLen = schemeLength(url)) > 0) {
+        /*
+            The authority ends at the first "/", "?" or "#". An empty path is "/" (RFC 3986 6.2.3), so a query that
+            follows the authority directly stays with that "/" rather than being searched for a "/" of its own.
+         */
+        cp = &url[schemeLen] + strcspn(&url[schemeLen], "/?#");
+        return *cp == '/' ? sclone(cp) : sfmt("/%s", cp);
+    }
+    return sclone(url);
 }
 
 
@@ -13167,12 +13313,7 @@ PUBLIC void websError(Webs *wp, int code, cchar *fmt, ...)
         }
         return;
     }
-#if !ME_ROM
-    if (wp->putfd >= 0) {
-        close(wp->putfd);
-        wp->putfd = -1;
-    }
-#endif
+    releaseStaged(wp);
     encoded = websEscapeHtml(wp->url);
     wfreeset(wp->url);
     wp->url = encoded;
@@ -18679,6 +18820,7 @@ static WebsHash  handlers = -1;
 static int       routeCount = 0;
 static int       routeMax = 0;
 static bool      strictMode = ME_GOAHEAD_STRICT;
+static bool      cleartextChecked;                 /* The first plain listener was checked against the routes */
 static WebsRoute **retiredRoutes;                  /* Removed routes still held by in-flight requests */
 static int       retiredCount;
 static char      **configFiles;                    /* Route and credential files websLoad has read */
@@ -19835,6 +19977,58 @@ static void warnWritableRoutes(void)
     }
 }
 
+
+/*
+    Does an earlier route send every plain HTTP request for this route's prefix to HTTPS? That is the shipped
+    pattern for serving authentication over TLS only: a protocol=http redirect route, with no other selector,
+    whose default target is https.
+ */
+static int redirectedToHttps(WebsRoute *route, int index)
+{
+    WebsRoute *gate;
+    WebsKey   *target;
+    int       i;
+
+    for (i = 0; i < index; i++) {
+        gate = routes[i];
+        if (gate->protocol && smatch(gate->protocol, "http") && smatch(gate->handler->name, "redirect") &&
+            gate->methods < 0 && gate->extensions < 0 && gate->redirects >= 0 &&
+            matchRoutePrefix(route->prefix, gate->prefix, gate->prefixLen) == 0 &&
+            (target = hashLookup(gate->redirects, "0")) != 0 && sstarts(target->content.value.string, "https://")) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+    Warn once, at the first plain HTTP listener, about each authenticated route that listener can carry: its
+    credentials and session cookies then cross the network unencrypted, whatever TLS the build has. A route
+    restricted to protocol=https, a route behind an earlier http-to-https redirect, a build with
+    ME_GOAHEAD_SECURE_ONLY and a server behind a trusted TLS-terminating proxy are not reported.
+ */
+PUBLIC void websCheckCleartextAuth(cchar *endpoint, bool proxied)
+{
+    WebsRoute *route;
+    int       i;
+
+    if (cleartextChecked || proxied || ME_GOAHEAD_SECURE_ONLY) {
+        return;
+    }
+    cleartextChecked = 1;
+    for (i = 0; i < routeCount; i++) {
+        route = routes[i];
+        if (!route->authType || (route->protocol && smatch(route->protocol, "https")) || redirectedToHttps(route, i)) {
+            continue;
+        }
+        error("Security warning: route \"%s\" uses %s authentication and %s is plain HTTP, so its credentials and "
+              "session cookies cross the network unencrypted. Give the route protocol=https, redirect http to https "
+              "ahead of it, or build with ME_GOAHEAD_SECURE_ONLY=1. Behind a TLS-terminating proxy, name the proxy "
+              "with --proxy or websSetTrustedProxies.", route->prefix, route->authType, endpoint);
+    }
+}
+
 #else
 
 /*
@@ -20279,6 +20473,7 @@ PUBLIC void websCloseRoute(void)
     configFileCount = 0;
     wfreeset(configFiles);
     routeCount = routeMax = 0;
+    cleartextChecked = 0;
     if (routeMethods >= 0) {
         hashFree(routeMethods);
         routeMethods = -1;
@@ -23621,8 +23816,8 @@ PUBLIC int        socketOpenCount = 0;            /* Number of task using socket
 static int  hasIPv6;                              /* System supports IPv6 */
 static int  lingerCount;                          /* Sockets in a lingering close */
 static bool warnedNoSendTimeout;                  /* Warned once that send timeouts are unavailable */
-#if ME_UNIX_LIKE
-static int spareFd = -1;                          /* Held back to refuse a connection when no descriptor is free */
+#if ME_UNIX_LIKE || VXWORKS
+static Socket spareFd = (Socket) -1;              /* Held back to refuse a connection when no descriptor is free */
 #endif
 
 /***************************** Forward Declarations ***************************/
@@ -23634,6 +23829,9 @@ static bool socketDrain(int sid);
 static bool socketDue(WebsSocket *sp);
 static void socketAccept(WebsSocket *sp);
 static void socketDoEvent(WebsSocket *sp);
+#if ME_UNIX_LIKE || VXWORKS
+static Socket openSpare(void);
+#endif
 
 /*********************************** Code *************************************/
 
@@ -23660,8 +23858,8 @@ PUBLIC int socketOpen(void)
     socketList = NULL;
     socketMax = 0;
     socketHighestFd = (Socket) -1;
-#if ME_UNIX_LIKE
-    spareFd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+#if ME_UNIX_LIKE || VXWORKS
+    spareFd = openSpare();
 #endif
     if ((fd = socket(AF_INET6, SOCK_STREAM, 0)) != -1) {
         hasIPv6 = 1;
@@ -23684,14 +23882,33 @@ PUBLIC void socketClose(void)
             }
         }
         socketOpenCount = 0;
-#if ME_UNIX_LIKE
-        if (spareFd >= 0) {
-            close(spareFd);
-            spareFd = -1;
+#if ME_UNIX_LIKE || VXWORKS
+        if (spareFd != (Socket) -1) {
+            closesocket(spareFd);
+            spareFd = (Socket) -1;
         }
 #endif
     }
 }
+
+
+#if ME_UNIX_LIKE || VXWORKS
+/*
+    The spare is a socket rather than /dev/null, which VxWorks does not have. It is never read or written: it
+    is closed to free a descriptor so a connection that arrived when none was free can be accepted and dropped.
+ */
+static Socket openSpare(void)
+{
+    Socket fd;
+
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) != SOCKET_ERROR) {
+#if ME_COMPILER_HAS_FCNTL
+        fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+    }
+    return fd;
+}
+#endif
 
 
 PUBLIC bool socketHasDualNetworkStack(void)
@@ -23892,6 +24109,9 @@ static void socketAccept(WebsSocket *sp)
     Socklen                 len;
     char                    ipbuf[SOCKET_IP_MAX];
     int                     port, nid;
+#if ME_UNIX_LIKE || VXWORKS
+    int                     err;
+#endif
 
     assert(sp);
 
@@ -23902,18 +24122,21 @@ static void socketAccept(WebsSocket *sp)
     len = sizeof(addrStorage);
     addr = (struct sockaddr*) &addrStorage;
     if ((newSock = accept(sp->sock, addr, &len)) == SOCKET_ERROR) {
-#if ME_UNIX_LIKE
+#if ME_UNIX_LIKE || VXWORKS
         /*
-            Use the spare descriptor to accept and close a queued connection, avoiding a readable-listener spin on
-            descriptor exhaustion.
+            A connection that cannot be accepted for want of a descriptor stays queued and keeps the listener
+            readable, so the loop would wake for it on every turn. Release the spare to accept and drop it, then
+            take the spare back. The errno for an exhausted descriptor table is not the same on every stack (EMFILE
+            or ENFILE on POSIX, an iosLib code on VxWorks), so every failure that is not transient takes this path.
          */
-        if ((errno == EMFILE || errno == ENFILE) && spareFd >= 0) {
-            close(spareFd);
+        err = socketGetError(sp->sid);
+        if (spareFd != (Socket) -1 && err != EAGAIN && err != EWOULDBLOCK && err != EINTR && err != ECONNABORTED) {
+            closesocket(spareFd);
             if ((newSock = accept(sp->sock, addr, &len)) != SOCKET_ERROR) {
-                close(newSock);
+                closesocket(newSock);
                 trace(2, "Refused a connection: no file descriptors are free");
             }
-            spareFd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+            spareFd = openSpare();
         }
 #endif
         return;
@@ -24873,7 +25096,7 @@ PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct so
 }
 #else
 
-PUBLIC int socketInfo(char *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)
+PUBLIC int socketInfo(cchar *ip, int port, int *family, int *protocol, struct sockaddr_storage *addr, Socklen *addrlen)
 {
     struct sockaddr_in sa;
 
