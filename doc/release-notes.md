@@ -1,6 +1,6 @@
 # GoAhead v6.2.0 Release Notes
 
-**Release Date**: [TODO: release date]
+**Release Date**: Not yet released.
 
 ## Overview
 
