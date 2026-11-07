@@ -4,8 +4,8 @@
     A multipart text field was stored as each part ended, and a repeated name re-formatted the whole
     accumulated value for every repeat, so one request of a large field followed by hundreds of empty parts
     of the same name copied the value hundreds of times and held the single-threaded server for seconds.
-    The same defect in urlencoded bodies was 10358. Text fields are now held until the body completes and
-    stored once per name with a single sized join. Starts a private goahead-test, which raises the POST
+    Text fields are now held until the body completes and stored once per name with a single sized join.
+    Starts a private goahead-test, which raises the POST
     limit to 16 MB; the shipped 16 KB default makes the cost negligible, so the test needs the raised limit.
  */
 import { thas, tskip, ttrue } from '@embedthis/testme'

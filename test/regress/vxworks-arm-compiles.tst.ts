@@ -1,12 +1,11 @@
 /*
     vxworks-arm-compiles.tst - Every library source compiles in the VxWorks configuration.
 
-    VxWorks is a supported platform (doc/compliance/release-facts.md) that no CI leg builds, so a conditional arm
-    can rot unnoticed. Compile each library source with the VxWorks platform defines against the host stand-in
+    No CI leg builds VxWorks, so a conditional arm can rot unnoticed. Compile each library source with the
+    VxWorks platform defines against the host stand-in
     headers used by the CGI backend fixture, with implicit declarations and conflicting types as errors.
 
-    crypt.c is excluded: websGetRandomBytes stops the build with #error until the porter supplies a CSPRNG, which
-    is an accepted and documented risk (R-VXW in doc/compliance/risk-assessment.md), not a defect.
+    crypt.c is excluded: websGetRandomBytes stops the build with #error until the porter supplies a CSPRNG.
  */
 
 import { Cmd, Config } from '@embedthis/ejscript'
