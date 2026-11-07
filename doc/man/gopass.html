@@ -14,6 +14,18 @@ DESCRIPTION
 
        gopass prompts for the password and asks for it twice.
 
+       gopass writes the stored credential, not the password. With the
+       default cipher it writes a Blowfish hash in the BF2 format
+       (BF2:rounds:salt:hash); with --cipher md5 it writes the MD5 of
+       username:realm:password, which Digest authentication requires and
+       which is a password equivalent: anyone who reads it can authenticate
+       with Digest without knowing the password. The realm must be the one
+       the server is built with (ME_GOAHEAD_REALM, example.com by default),
+       because it is part of every hash. The file is created mode 0600 and
+       must stay readable by the server account only. Passwords are at most
+       ME_GOAHEAD_LIMIT_PASSWORD (32) characters. Releases before 6.2.0
+       cannot verify a BF2 hash.
+
        To calculate the password only, omit the "--file" option and the
        password will be displayed to the standard output.
 

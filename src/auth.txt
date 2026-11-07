@@ -7,11 +7,20 @@
 #
 #   Routes (see route.txt) may require authentication and that users possess certain abilities.
 #
-#   Examples:
+#   PASSWORD is the stored credential, never the password itself. Create it with gopass, using the realm the
+#   server is built with (ME_GOAHEAD_REALM). A Blowfish hash, BF2:rounds:salt:hash, verifies Basic and form
+#   logins. Digest authentication needs the MD5 of name:realm:password instead (gopass --cipher md5), which is a
+#   password equivalent: anyone who reads it can authenticate with Digest without knowing the password. Keep this
+#   file mode 0600, owned by the server account and outside every served directory. A legacy BF1: hash from a
+#   release before 6.2.0 still verifies but should be regenerated; releases before 6.2.0 cannot verify a BF2 hash.
+#
+#   Examples (the records are examples of the format: generate your own with gopass):
 #
 #   Define roles
 #       role name=manager abilities=view,edit,delete
 #
-#   Define a user. Create the password hash with gopass, which writes this BF2 form
+#   Define a user with a Blowfish record, for Basic or form authentication
 #       user name=joshua password=BF2:00128:MTrBW3onMSxtZd2z:hbb+xsE70Fy2SGJB5InJzTCWpWzIiq4u roles=manager,purchaser
+#   Define a user with an MD5 record, for Digest authentication
+#       user name=sarah password=dbb85b394eb6bb52a2fd8c4e352ec770 roles=manager
 #

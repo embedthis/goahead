@@ -73,8 +73,10 @@ Run as this group once GoAhead has listened on its endpoints and opened its file
 group changes. Overrides the ME_GOAHEAD_GROUP build setting. Unix only.
 .TP
 \fB\--log logSpec\fR
-Name the GoAhead log file. This overrides the default log set by the ME_GOAHEAD_LOGFILE build setting. A log file is created with mode 0640 and is appended to when GoAhead restarts. It is never
-opened through a symbolic link: if the log cannot be opened, GoAhead reports it and does not start. When the log reaches
+Name the GoAhead log file. This overrides the default log set by the ME_GOAHEAD_LOGFILE build setting. A log file is
+appended to when GoAhead restarts. On Unix it is created with mode 0640 and is never opened through a symbolic link;
+Windows has neither protection, so there the log directory must be writable by the server account only. If the log
+cannot be opened, GoAhead reports it and does not start. When the log reaches
 the maximum size (1 MB unless the ME_GOAHEAD_LIMIT_LOG_SIZE build setting changes it; 0 disables the limit), it is
 renamed to logName.old, replacing any previous one, and a new log file is started. The limit does not apply to stdout or
 stderr. The \fB-l\fR option is an alias for --log.
@@ -95,7 +97,8 @@ GoAhead is built.
 Start even when the route table is unsafe, and only warn about it. See \fB--strict\fR.
 .TP
 \fB\--proxy addresses\fR
-Trust the reverse proxies at these comma separated IP addresses. A request from one of them takes its scheme from
+Trust the reverse proxies at these comma separated literal IP addresses. A host name or CIDR range is not an
+address: it is reported at startup and ignored. A request from one of them takes its scheme from
 its X-Forwarded-Proto header, so a session cookie is marked secure, Strict-Transport-Security is sent and redirects
 use https when the client reached the proxy over HTTPS, and the proxy is exempt from the per-address connection
 limit. Forwarded headers from any other peer are ignored. This overrides ME_GOAHEAD_TRUSTED_PROXIES.

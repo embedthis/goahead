@@ -31,7 +31,7 @@ See [LICENSE.md](LICENSE.md) and https://www.embedthis.com/goahead/licensing.htm
 
   See https://www.embedthis.com/goahead/doc/index.html.
 
-  Before deploying GoAhead in a product, read [SECURITY-DEPLOYMENT.md](SECURITY-DEPLOYMENT.md).
+  Before deploying GoAhead in a product, read [SECURITY-DEPLOYMENT.md](SECURITY-DEPLOYMENT.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Building from Source
 
